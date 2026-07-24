@@ -1,119 +1,211 @@
-body{
-
-    margin:0;
-
-    font-family:Arial, Helvetica, sans-serif;
-
-    background:#121212;
-
-    color:white;
-
-    display:flex;
-
-    justify-content:center;
-
-    align-items:center;
-
-    height:100vh;
-
+* {
+    box-sizing: border-box;
 }
 
-.container{
+:root {
+    color-scheme: dark;
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
 
-    text-align:center;
-
-    width:420px;
-
+    background: #101010;
+    color: #ffffff;
 }
 
-h1{
-
-    font-size:52px;
-
-    margin-bottom:10px;
-
+html {
+    min-height: 100%;
+    background: #101010;
 }
 
-.version{
-
-    color:#888;
-
-    margin-bottom:50px;
-
+body {
+    min-height: 100vh;
+    margin: 0;
+    background:
+        radial-gradient(
+            circle at top,
+            #1c1c1c 0,
+            #101010 45%
+        );
 }
 
-button{
-
-    background:#1DB954;
-
-    color:white;
-
-    border:none;
-
-    border-radius:50px;
-
-    padding:18px 40px;
-
-    font-size:20px;
-
-    cursor:pointer;
-
-    transition:.25s;
-
+button,
+input {
+    font: inherit;
 }
 
-button:hover{
-
-    transform:scale(1.05);
-
-}#content {
-    width: 100%;
-    max-width: 1100px;
-    margin: 40px auto 0;
-    padding: 0 20px 40px;
+button {
+    cursor: pointer;
 }
 
-.playlists-section h2 {
-    margin-bottom: 6px;
-    font-size: 28px;
-}
-
-.playlists-section > p {
-    margin-top: 0;
-    margin-bottom: 24px;
+button:disabled {
+    cursor: wait;
     opacity: 0.7;
+}
+
+.app {
+    width: 100%;
+    min-height: 100vh;
+    padding: 64px 24px;
+}
+
+.hero {
+    width: min(100%, 720px);
+    margin: 0 auto;
+    text-align: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+}
+
+.brand-icon {
+    font-size: clamp(56px, 8vw, 82px);
+}
+
+.brand h1 {
+    margin: 0;
+    font-size: clamp(52px, 9vw, 82px);
+    line-height: 1;
+    letter-spacing: -4px;
+}
+
+.version {
+    margin: 26px 0 48px;
+    color: #a7a7a7;
+    font-size: 18px;
+}
+
+#welcome {
+    margin: 0 0 30px;
+    font-size: clamp(27px, 5vw, 38px);
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+}
+
+.primary-button,
+.secondary-button {
+    min-height: 58px;
+    padding: 14px 32px;
+    border-radius: 999px;
+    font-size: 20px;
+    transition:
+        transform 0.18s ease,
+        opacity 0.18s ease;
+}
+
+.primary-button {
+    min-width: min(100%, 420px);
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+    font-weight: 700;
+}
+
+.secondary-button {
+    border: 1px solid #555555;
+    background: transparent;
+    color: #ffffff;
+}
+
+.primary-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.status {
+    min-height: 24px;
+    margin: 22px 0 0;
+    color: #b3b3b3;
+}
+
+.status.error {
+    color: #ff7676;
+}
+
+#content {
+    width: min(100%, 1200px);
+    margin: 56px auto 0;
+}
+
+.playlists-section {
+    width: 100%;
+}
+
+.section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+
+.section-heading h2 {
+    margin: 0 0 6px;
+    font-size: 30px;
+}
+
+.section-heading p {
+    margin: 0;
+    color: #a7a7a7;
 }
 
 .playlists-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns:
+        repeat(auto-fill, minmax(180px, 1fr));
     gap: 20px;
 }
 
 .playlist-card {
+    min-width: 0;
     overflow: hidden;
-    border-radius: 14px;
+    border: 1px solid #292929;
+    border-radius: 16px;
     background: #181818;
     text-align: left;
     transition:
         transform 0.2s ease,
+        border-color 0.2s ease,
         background 0.2s ease;
 }
 
 .playlist-card:hover {
-    transform: translateY(-4px);
-    background: #242424;
+    transform: translateY(-5px);
+    border-color: #3b3b3b;
+    background: #222222;
+}
+
+.playlist-card img,
+.playlist-placeholder {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
 }
 
 .playlist-card img {
-    display: block;
-    width: 100%;
-    aspect-ratio: 1;
     object-fit: cover;
 }
 
+.playlist-placeholder {
+    display: grid;
+    place-items: center;
+    background: #282828;
+    font-size: 54px;
+}
+
 .playlist-info {
-    padding: 14px;
+    padding: 15px;
 }
 
 .playlist-info h3 {
@@ -126,10 +218,39 @@ button:hover{
 
 .playlist-info p {
     margin: 0;
+    color: #a7a7a7;
     font-size: 14px;
-    opacity: 0.65;
 }
 
-.error-message {
-    color: #ff6b6b;
+@media (max-width: 600px) {
+    .app {
+        padding: 44px 16px;
+    }
+
+    .brand {
+        gap: 10px;
+    }
+
+    .brand h1 {
+        letter-spacing: -2px;
+    }
+
+    .version {
+        margin-bottom: 38px;
+    }
+
+    .primary-button,
+    .secondary-button {
+        width: 100%;
+    }
+
+    .playlists-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    .playlist-info {
+        padding: 12px;
+    }
 }

@@ -1,32 +1,69 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shuffle+</title>
+    <meta charset="UTF-8">
 
-  <link rel="stylesheet" href="style.css">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-  <script type="module" src="./app.js"></script>
+    <meta
+        name="description"
+        content="Shuffle+ — une meilleure façon de mélanger tes playlists Spotify."
+    >
+
+    <title>Shuffle+</title>
+
+    <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
+    <main class="app">
+        <header class="hero">
+            <div class="brand">
+                <span class="brand-icon" aria-hidden="true">
+                    🎵
+                </span>
 
-  <div class="container">
+                <h1>Shuffle+</h1>
+            </div>
 
-    <h1>🎵 Shuffle+</h1>
+            <p class="version"></p>
 
-    <p class="version"></p>
+            <h2 id="welcome">
+                Bienvenue 👋
+            </h2>
 
-    <h2>Bienvenue Matthieu 👋</h2>
+            <div class="actions">
+                <button
+                    id="loginButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    Se connecter à Spotify
+                </button>
 
-    <button id="loginButton">
-      Se connecter à Spotify
-    </button>
+                <button
+                    id="logoutButton"
+                    class="secondary-button"
+                    type="button"
+                    hidden
+                >
+                    Se déconnecter
+                </button>
+            </div>
 
-  <div id="content"></div>
+            <p
+                id="status"
+                class="status"
+                aria-live="polite"
+            ></p>
+        </header>
 
+        <div id="content"></div>
+    </main>
+
+    <script type="module" src="./app.js"></script>
 </body>
-
 </html>
