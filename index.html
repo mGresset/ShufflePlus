@@ -1,95 +1,31 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Spotify Shuffle</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shuffle+</title>
 
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      text-align: center;
-      padding: 40px 20px;
-      background: #121212;
-      color: white;
-    }
+    <link rel="stylesheet" href="style.css">
 
-    .box {
-      max-width: 600px;
-      margin: auto;
-      padding: 30px;
-      background: #202020;
-      border-radius: 18px;
-    }
-
-    button {
-      background: #1ed760;
-      border: none;
-      border-radius: 30px;
-      padding: 15px 25px;
-      font-size: 17px;
-      font-weight: bold;
-    }
-
-    #code {
-      overflow-wrap: anywhere;
-      margin: 25px 0;
-      color: #b3b3b3;
-    }
-  </style>
+    <script src="config.js"></script>
+    <script src="app.js" defer></script>
 </head>
 
 <body>
-  <div class="box">
-    <h1>Autorisation Spotify réussie</h1>
 
-    <p id="message">
-      Appuyez sur le bouton pour copier le code, puis revenez dans Raccourcis.
-    </p>
+<div class="container">
 
-    <p id="code"></p>
+    <h1>🎵 Shuffle+</h1>
 
-    <button id="copyButton" type="button">
-      Copier le code
+    <p class="version"></p>
+
+    <h2>Bienvenue Majd 👋</h2>
+
+    <button id="loginButton">
+        Se connecter à Spotify
     </button>
-  </div>
 
-  <script>
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get("code");
-  const error = params.get("error");
+</div>
 
-  const messageElement = document.getElementById("message");
-  const codeElement = document.getElementById("code");
-  const button = document.getElementById("copyButton");
-
-  async function copyCode(value) {
-    try {
-      await navigator.clipboard.writeText(value);
-      messageElement.textContent =
-        "Code copié automatiquement. Revenez maintenant dans Raccourcis.";
-      button.textContent = "Code copié ✓";
-    } catch {
-      codeElement.textContent = value;
-      messageElement.textContent =
-        "Appuyez sur le bouton pour copier le code.";
-    }
-  }
-
-  if (error) {
-    messageElement.textContent =
-      "Spotify a refusé l’autorisation : " + error;
-    button.style.display = "none";
-  } else if (!code) {
-    messageElement.textContent = "Aucun code Spotify n’a été reçu.";
-    button.style.display = "none";
-  } else {
-    codeElement.textContent = code;
-
-    button.addEventListener("click", () => copyCode(code));
-
-    copyCode(code);
-  }
-</script>
 </body>
 </html>
