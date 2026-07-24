@@ -4,9 +4,9 @@ const CONFIG = {
 
     version: "0.1.0",
 
-    clientId: "34ea30d5c73e4c4bb012160e17c18a32",
+    clientId: "efcbf6e43e6346678cfceb44d0dc2422",
 
-    redirectUri: "https://mgresset.github.io/spotify-callback/",
+    redirectUri: "https://mgresset.github.io/ShufflePlus/",
 
     scopes: [
         "user-library-read",
