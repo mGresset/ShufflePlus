@@ -27,21 +27,14 @@ async function spotifyFetch(endpoint, options = {}) {
             errorBody
         );
 
-        if (response.status === 401) {
-            throw new Error(
-                "La session Spotify n'est plus valide."
-            );
-        }
-
-        if (response.status === 403) {
-            throw new Error(
-                "Spotify refuse l'accès. Vérifie les autorisations de l'application."
-            );
-        }
-
-        throw new Error(
+        const error = new Error(
             `Erreur Spotify ${response.status}.`
         );
+
+        error.status = response.status;
+        error.details = errorBody;
+
+        throw error;
     }
 
     if (response.status === 204) {
@@ -49,6 +42,10 @@ async function spotifyFetch(endpoint, options = {}) {
     }
 
     return response.json();
+}
+
+export async function getMyProfile() {
+    return spotifyFetch("/me");
 }
 
 export async function getMyPlaylists() {
@@ -72,6 +69,41 @@ export async function getMyPlaylists() {
     return playlists;
 }
 
-export async function getMyProfile() {
-    return spotifyFetch("/me");
+export async function getPlaylistItems(playlistId) {
+    const tracks = [];
+
+    let endpoint =
+        `/playlists/${encodeURIComponent(playlistId)}` +
+        "/items?limit=50&additional_types=track";
+
+    while (endpoint) {
+        const page = await spotifyFetch(endpoint);
+
+        if (Array.isArray(page.items)) {
+            for (const playlistItem of page.items) {
+                /*
+                 * Le nouveau format utilise playlistItem.item.
+                 * Le format précédent utilisait playlistItem.track.
+                 */
+                const track =
+                    playlistItem?.item ??
+                    playlistItem?.track ??
+                    null;
+
+                if (
+                    track &&
+                    track.type === "track" &&
+                    track.uri
+                ) {
+                    tracks.push(track);
+                }
+            }
+        }
+
+        endpoint = page.next
+            ? page.next.replace(API_BASE_URL, "")
+            : null;
+    }
+
+    return tracks;
 }
