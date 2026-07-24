@@ -12,6 +12,7 @@ import {
     getMyProfile,
     getPlaylistItems,
     getAvailableDevices,
+    transferPlayback,
     setPlaybackShuffle,
     startPlayback
 } from "./spotify-api.js";
@@ -26,6 +27,7 @@ const statusElement = document.getElementById("status");
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 
 let currentUserId = "";
+let currentUserProduct = "";
 let playlistsCache = [];
 let selectedPlaylist = null;
 let selectedTracks = [];
@@ -72,6 +74,7 @@ function setDisconnectedInterface() {
 
     logoutButton.hidden = true;
 
+    currentUserProduct = "";
     playlistsCache = [];
     selectedPlaylist = null;
     selectedTracks = [];
@@ -295,6 +298,13 @@ function getDeviceIcon(type = "") {
     }
 }
 
+function isKnownNonPremiumAccount() {
+    return (
+        currentUserProduct &&
+        currentUserProduct !== "premium"
+    );
+}
+
 function createDeviceOptions() {
     if (!availableDevices.length) {
         return `
@@ -347,7 +357,9 @@ function updateDeviceControls(previousDeviceId = "") {
 
     deviceSelect.disabled = !availableDevices.length;
     playButton.disabled =
-        !availableDevices.length || !selectedTracks.length;
+        !availableDevices.length ||
+        !selectedTracks.length ||
+        isKnownNonPremiumAccount();
 }
 
 function displayPlaylistDetails(playlist, tracks) {
@@ -467,7 +479,9 @@ function displayPlaylistDetails(playlist, tracks) {
                         class="play-spotify-button"
                         type="button"
                         ${
-                            availableDevices.length && tracks.length
+                            availableDevices.length &&
+                            tracks.length &&
+                            !isKnownNonPremiumAccount()
                                 ? ""
                                 : "disabled"
                         }
@@ -478,9 +492,11 @@ function displayPlaylistDetails(playlist, tracks) {
 
                 <p id="playbackMessage" class="playback-message">
                     ${
-                        availableDevices.length
-                            ? "Un appareil Spotify est prêt."
-                            : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
+                        isKnownNonPremiumAccount()
+                            ? "La commande de lecture nécessite un compte Spotify Premium."
+                            : availableDevices.length
+                                ? "Un appareil Spotify est prêt."
+                                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
                     }
                 </p>
             </section>
@@ -523,10 +539,51 @@ function shuffleTracks(tracks) {
 }
 
 function getPlaybackErrorMessage(error) {
+    const spotifyMessage =
+        error.spotifyMessage ||
+        error.message ||
+        "";
+
+    const normalizedMessage =
+        spotifyMessage.toLowerCase();
+
+    if (
+        normalizedMessage.includes("premium") ||
+        normalizedMessage.includes("product")
+    ) {
+        return (
+            "Spotify exige un compte Premium pour contrôler la lecture. " +
+            "Vérifie aussi que le propriétaire de l’application Shuffle+ " +
+            "possède toujours Premium."
+        );
+    }
+
+    if (
+        normalizedMessage.includes("no active device") ||
+        normalizedMessage.includes("device not found")
+    ) {
+        return (
+            "L’appareil n’est pas actif. Ouvre Spotify sur cet appareil, " +
+            "lance ou mets en pause un morceau, actualise, puis recommence."
+        );
+    }
+
+    if (
+        normalizedMessage.includes("restriction") ||
+        normalizedMessage.includes("restricted")
+    ) {
+        return (
+            "Spotify refuse les commandes sur cet appareil. " +
+            "Essaie l’application Spotify sur téléphone ou ordinateur."
+        );
+    }
+
     if (error.status === 403) {
         return (
-            "Spotify a refusé la commande. Vérifie que le compte " +
-            "est Premium et reconnecte Shuffle+ si les autorisations ont changé."
+            "Spotify a refusé la commande de lecture. " +
+            (spotifyMessage
+                ? `Détail : ${spotifyMessage}`
+                : "Vérifie le compte Premium et les autorisations.")
         );
     }
 
@@ -544,7 +601,9 @@ function getPlaybackErrorMessage(error) {
         );
     }
 
-    return "Impossible de lancer la lecture dans Spotify.";
+    return spotifyMessage
+        ? `Impossible de lancer la lecture : ${spotifyMessage}`
+        : "Impossible de lancer la lecture dans Spotify.";
 }
 
 async function refreshPlaybackDevices() {
@@ -619,6 +678,14 @@ async function playSelectedOrder() {
         return;
     }
 
+    if (isKnownNonPremiumAccount()) {
+        playbackMessage.textContent =
+            "La lecture à distance nécessite un compte Spotify Premium.";
+        playbackMessage.className =
+            "playback-message error";
+        return;
+    }
+
     const allUris = selectedTracks
         .map((track) => track.uri)
         .filter(Boolean);
@@ -643,9 +710,31 @@ async function playSelectedOrder() {
     playbackMessage.className = "playback-message";
 
     try {
-        await setPlaybackShuffle(false, deviceId);
-        await wait(300);
+        /*
+         * On active d’abord explicitement l’appareil.
+         * Dans la v0.5.0, la commande Shuffle était envoyée
+         * avant l’activation et pouvait interrompre toute la lecture.
+         */
+        await transferPlayback(deviceId, false);
+        await wait(800);
+
         await startPlayback(playbackUris, deviceId);
+
+        /*
+         * La désactivation du shuffle Spotify est volontairement
+         * non bloquante : la lecture ne doit pas échouer si cette
+         * commande secondaire est refusée par l’appareil.
+         */
+        await wait(600);
+
+        try {
+            await setPlaybackShuffle(false, deviceId);
+        } catch (shuffleError) {
+            console.warn(
+                "Impossible de désactiver le shuffle Spotify :",
+                shuffleError
+            );
+        }
 
         const truncatedText =
             allUris.length > playbackUris.length
@@ -766,6 +855,7 @@ async function initializeApp() {
         ]);
 
         currentUserId = profile?.id || "";
+        currentUserProduct = profile?.product || "";
         playlistsCache = playlists;
 
         const displayName =
@@ -813,6 +903,7 @@ logoutButton.addEventListener("click", () => {
     logoutSpotify();
 
     currentUserId = "";
+    currentUserProduct = "";
     welcomeElement.textContent = "Bienvenue 👋";
 
     setDisconnectedInterface();

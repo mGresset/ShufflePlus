@@ -21,18 +21,34 @@ async function spotifyFetch(endpoint, options = {}) {
     if (!response.ok) {
         const errorBody = await response.text();
 
+        let spotifyMessage = "";
+
+        try {
+            const parsedError = JSON.parse(errorBody);
+
+            spotifyMessage =
+                parsedError?.error?.message ||
+                parsedError?.error_description ||
+                parsedError?.message ||
+                "";
+        } catch {
+            spotifyMessage = errorBody;
+        }
+
         console.error(
             "Erreur Spotify API :",
             response.status,
-            errorBody
+            spotifyMessage || errorBody
         );
 
         const error = new Error(
+            spotifyMessage ||
             `Erreur Spotify ${response.status}.`
         );
 
         error.status = response.status;
         error.details = errorBody;
+        error.spotifyMessage = spotifyMessage;
         error.retryAfter = response.headers.get("Retry-After");
 
         throw error;
@@ -111,6 +127,28 @@ export async function getAvailableDevices() {
             (device) => device?.id && !device.is_restricted
         )
         : [];
+}
+
+export async function transferPlayback(
+    deviceId,
+    play = false
+) {
+    if (!deviceId) {
+        throw new Error(
+            "Aucun appareil Spotify n’a été sélectionné."
+        );
+    }
+
+    await spotifyFetch(
+        "/me/player",
+        {
+            method: "PUT",
+            body: JSON.stringify({
+                device_ids: [deviceId],
+                play
+            })
+        }
+    );
 }
 
 export async function setPlaybackShuffle(enabled, deviceId = "") {
