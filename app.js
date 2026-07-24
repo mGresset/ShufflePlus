@@ -1,3 +1,4 @@
+import { CONFIG } from "./config.js";
 import {
     loginWithSpotify,
     handleSpotifyCallback,
@@ -6,12 +7,44 @@ import {
 
 import { getMyPlaylists } from "./spotify-api.js";
 
-console.log("🚀 app.js chargé");
-
 const versionElement = document.querySelector(".version");
 const loginButton = document.getElementById("loginButton");
+const contentElement = document.getElementById("content");
 
 versionElement.textContent = `Version ${CONFIG.version}`;
+
+function displayPlaylists(playlists) {
+    contentElement.innerHTML = `
+        <section class="playlists-section">
+            <h2>Mes playlists</h2>
+            <p>${playlists.length} playlists trouvées</p>
+
+            <div class="playlists-grid">
+                ${playlists.map((playlist) => {
+                    const imageUrl =
+                        playlist.images?.[0]?.url ||
+                        "https://placehold.co/300x300?text=Playlist";
+
+                    return `
+                        <article class="playlist-card">
+                            <img
+                                src="${imageUrl}"
+                                alt="Pochette de ${playlist.name}"
+                            >
+
+                            <div class="playlist-info">
+                                <h3>${playlist.name}</h3>
+                                <p>
+                                    ${playlist.tracks.total} morceau${playlist.tracks.total > 1 ? "x" : ""}
+                                </p>
+                            </div>
+                        </article>
+                    `;
+                }).join("")}
+            </div>
+        </section>
+    `;
+}
 
 async function initializeApp() {
     loginButton.disabled = true;
@@ -23,26 +56,33 @@ async function initializeApp() {
         const accessToken = await getValidAccessToken();
 
         if (accessToken) {
-            console.log("🚀 Avant getMyPlaylists");
+            loginButton.textContent = "Spotify connecté ✓";
+            loginButton.disabled = true;
+
+            contentElement.innerHTML = "<p>Chargement des playlists…</p>";
 
             const playlists = await getMyPlaylists();
 
-            console.log(playlists);
+            console.log("Playlists récupérées :", playlists);
 
-        }
-
-        if (accessToken) {
-            loginButton.textContent = "Spotify connecté ✓";
-            loginButton.disabled = true;
+            displayPlaylists(playlists);
         } else {
             loginButton.textContent = "Se connecter à Spotify";
             loginButton.disabled = false;
+
+            contentElement.innerHTML = "";
         }
     } catch (error) {
         console.error(error);
 
         loginButton.textContent = "Réessayer la connexion";
         loginButton.disabled = false;
+
+        contentElement.innerHTML = `
+            <p class="error-message">
+                Impossible de charger les playlists.
+            </p>
+        `;
 
         alert(error.message);
     }
