@@ -66,4 +66,70 @@ button:hover{
 
     transform:scale(1.05);
 
+}#content {
+    width: 100%;
+    max-width: 1100px;
+    margin: 40px auto 0;
+    padding: 0 20px 40px;
+}
+
+.playlists-section h2 {
+    margin-bottom: 6px;
+    font-size: 28px;
+}
+
+.playlists-section > p {
+    margin-top: 0;
+    margin-bottom: 24px;
+    opacity: 0.7;
+}
+
+.playlists-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.playlist-card {
+    overflow: hidden;
+    border-radius: 14px;
+    background: #181818;
+    text-align: left;
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease;
+}
+
+.playlist-card:hover {
+    transform: translateY(-4px);
+    background: #242424;
+}
+
+.playlist-card img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+}
+
+.playlist-info {
+    padding: 14px;
+}
+
+.playlist-info h3 {
+    margin: 0 0 8px;
+    overflow: hidden;
+    font-size: 16px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.playlist-info p {
+    margin: 0;
+    font-size: 14px;
+    opacity: 0.65;
+}
+
+.error-message {
+    color: #ff6b6b;
 }
