@@ -515,4 +515,106 @@ button:disabled {
         width: 46px;
         height: 46px;
     }
+}/* À ajouter à la fin de style.css */
+
+.playback-panel {
+    margin: 0 0 24px;
+    padding: 22px;
+    border: 1px solid #303030;
+    border-radius: 16px;
+    background: #171717;
+}
+
+.playback-panel-heading h3 {
+    margin: 0 0 6px;
+    font-size: 21px;
+}
+
+.playback-panel-heading p {
+    margin: 0;
+    color: #a7a7a7;
+    font-size: 14px;
+}
+
+.playback-controls {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto auto;
+    align-items: end;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.device-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.device-field > span {
+    color: #b3b3b3;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.device-field select {
+    width: 100%;
+    min-height: 48px;
+    padding: 0 14px;
+    border: 1px solid #474747;
+    border-radius: 10px;
+    background: #222222;
+    color: #ffffff;
+}
+
+.device-refresh-button,
+.play-spotify-button {
+    min-height: 48px;
+    padding: 11px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.device-refresh-button {
+    border: 1px solid #4a4a4a;
+    background: transparent;
+    color: #ffffff;
+}
+
+.play-spotify-button {
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.device-refresh-button:hover:not(:disabled),
+.play-spotify-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.playback-message {
+    min-height: 20px;
+    margin: 16px 0 0;
+    color: #b3b3b3;
+    font-size: 14px;
+}
+
+.playback-message.success {
+    color: #69df91;
+}
+
+.playback-message.error {
+    color: #ff7676;
+}
+
+@media (max-width: 820px) {
+    .playback-controls {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .device-refresh-button,
+    .play-spotify-button {
+        width: 100%;
+    }
 }

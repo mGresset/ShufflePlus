@@ -10,7 +10,10 @@ import {
 import {
     getMyPlaylists,
     getMyProfile,
-    getPlaylistItems
+    getPlaylistItems,
+    getAvailableDevices,
+    setPlaybackShuffle,
+    startPlayback
 } from "./spotify-api.js";
 
 const versionElement = document.querySelector(".version");
@@ -20,10 +23,13 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
+const MAX_DIRECT_PLAYBACK_TRACKS = 100;
+
 let currentUserId = "";
 let playlistsCache = [];
 let selectedPlaylist = null;
 let selectedTracks = [];
+let availableDevices = [];
 
 versionElement.textContent = `Version ${CONFIG.version}`;
 
@@ -42,6 +48,12 @@ function formatDuration(durationMs = 0) {
     const seconds = totalSeconds % 60;
 
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function wait(milliseconds) {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, milliseconds);
+    });
 }
 
 function setStatus(message = "", type = "") {
@@ -63,6 +75,7 @@ function setDisconnectedInterface() {
     playlistsCache = [];
     selectedPlaylist = null;
     selectedTracks = [];
+    availableDevices = [];
 
     contentElement.innerHTML = "";
     setStatus("");
@@ -91,6 +104,7 @@ function canReadPlaylist(playlist) {
 function displayPlaylists(playlists) {
     selectedPlaylist = null;
     selectedTracks = [];
+    availableDevices = [];
 
     if (!playlists.length) {
         contentElement.innerHTML = `
@@ -109,9 +123,7 @@ function displayPlaylists(playlists) {
                 playlist.name || "Playlist sans nom"
             );
 
-            const imageUrl =
-                playlist.images?.[0]?.url || "";
-
+            const imageUrl = playlist.images?.[0]?.url || "";
             const total = getPlaylistTotal(playlist);
             const readable = canReadPlaylist(playlist);
 
@@ -139,11 +151,6 @@ function displayPlaylists(playlists) {
                     type="button"
                     data-playlist-id="${escapeHtml(playlist.id)}"
                     ${readable ? "" : "disabled"}
-                    title="${
-                        readable
-                            ? `Ouvrir ${playlistName}`
-                            : "Spotify ne permet pas à cette application d’en lire le contenu."
-                    }"
                 >
                     ${image}
 
@@ -152,9 +159,7 @@ function displayPlaylists(playlists) {
                             ${playlistName}
                         </h3>
 
-                        <p>
-                            ${availabilityText}
-                        </p>
+                        <p>${availabilityText}</p>
                     </div>
                 </button>
             `;
@@ -198,13 +203,13 @@ function createTrackRow(track, index) {
         track.album?.name || "Album inconnu"
     );
 
+    const albumImages = track.album?.images || [];
     const imageUrl =
-        track.album?.images?.at(-1)?.url ||
-        track.album?.images?.[0]?.url ||
+        albumImages[albumImages.length - 1]?.url ||
+        albumImages[0]?.url ||
         "";
 
-    const spotifyUrl =
-        track.external_urls?.spotify || "";
+    const spotifyUrl = track.external_urls?.spotify || "";
 
     const image = imageUrl
         ? `
@@ -262,8 +267,7 @@ function createTrackRow(track, index) {
 }
 
 function renderTrackList() {
-    const trackListElement =
-        document.getElementById("trackList");
+    const trackListElement = document.getElementById("trackList");
 
     if (!trackListElement) {
         return;
@@ -272,6 +276,78 @@ function renderTrackList() {
     trackListElement.innerHTML = selectedTracks
         .map(createTrackRow)
         .join("");
+}
+
+function getDeviceIcon(type = "") {
+    switch (type.toLowerCase()) {
+        case "smartphone":
+            return "📱";
+        case "computer":
+            return "💻";
+        case "speaker":
+            return "🔊";
+        case "tv":
+            return "📺";
+        case "automobile":
+            return "🚗";
+        default:
+            return "🎧";
+    }
+}
+
+function createDeviceOptions() {
+    if (!availableDevices.length) {
+        return `
+            <option value="">
+                Aucun appareil Spotify disponible
+            </option>
+        `;
+    }
+
+    const sortedDevices = [...availableDevices].sort(
+        (first, second) =>
+            Number(second.is_active) - Number(first.is_active)
+    );
+
+    return sortedDevices
+        .map((device) => {
+            const activeText = device.is_active ? " · actif" : "";
+
+            return `
+                <option
+                    value="${escapeHtml(device.id)}"
+                    ${device.is_active ? "selected" : ""}
+                >
+                    ${getDeviceIcon(device.type)}
+                    ${escapeHtml(device.name)}${activeText}
+                </option>
+            `;
+        })
+        .join("");
+}
+
+function updateDeviceControls(previousDeviceId = "") {
+    const deviceSelect = document.getElementById("deviceSelect");
+    const playButton = document.getElementById("playSpotifyButton");
+
+    if (!deviceSelect || !playButton) {
+        return;
+    }
+
+    deviceSelect.innerHTML = createDeviceOptions();
+
+    if (
+        previousDeviceId &&
+        availableDevices.some(
+            (device) => device.id === previousDeviceId
+        )
+    ) {
+        deviceSelect.value = previousDeviceId;
+    }
+
+    deviceSelect.disabled = !availableDevices.length;
+    playButton.disabled =
+        !availableDevices.length || !selectedTracks.length;
 }
 
 function displayPlaylistDetails(playlist, tracks) {
@@ -285,11 +361,8 @@ function displayPlaylistDetails(playlist, tracks) {
         "Spotify"
     );
 
-    const playlistUrl =
-        playlist.external_urls?.spotify || "";
-
-    const imageUrl =
-        playlist.images?.[0]?.url || "";
+    const playlistUrl = playlist.external_urls?.spotify || "";
+    const imageUrl = playlist.images?.[0]?.url || "";
 
     const cover = imageUrl
         ? `
@@ -358,10 +431,64 @@ function displayPlaylistDetails(playlist, tracks) {
                 </div>
             </div>
 
+            <section class="playback-panel">
+                <div class="playback-panel-heading">
+                    <div>
+                        <h3>Lecture Spotify</h3>
+                        <p>
+                            Choisis l’appareil sur lequel lancer
+                            l’ordre créé par Shuffle+.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="playback-controls">
+                    <label class="device-field" for="deviceSelect">
+                        <span>Appareil</span>
+
+                        <select
+                            id="deviceSelect"
+                            ${availableDevices.length ? "" : "disabled"}
+                        >
+                            ${createDeviceOptions()}
+                        </select>
+                    </label>
+
+                    <button
+                        id="refreshDevicesButton"
+                        class="device-refresh-button"
+                        type="button"
+                    >
+                        ↻ Actualiser
+                    </button>
+
+                    <button
+                        id="playSpotifyButton"
+                        class="play-spotify-button"
+                        type="button"
+                        ${
+                            availableDevices.length && tracks.length
+                                ? ""
+                                : "disabled"
+                        }
+                    >
+                        ▶ Lire cet ordre dans Spotify
+                    </button>
+                </div>
+
+                <p id="playbackMessage" class="playback-message">
+                    ${
+                        availableDevices.length
+                            ? "Un appareil Spotify est prêt."
+                            : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
+                    }
+                </p>
+            </section>
+
             <p class="shuffle-explanation">
-                Pour le moment, ce bouton crée un nouvel ordre
-                aléatoire dans Shuffle+. La lecture automatique
-                dans Spotify sera ajoutée à l’étape suivante.
+                Le bouton vert modifie l’ordre dans Shuffle+.
+                Le bouton de lecture envoie ensuite cet ordre
+                vers l’appareil Spotify sélectionné.
             </p>
 
             <ol id="trackList" class="track-list"></ol>
@@ -374,10 +501,6 @@ function displayPlaylistDetails(playlist, tracks) {
 function shuffleTracks(tracks) {
     const shuffledTracks = [...tracks];
 
-    /*
-     * Mélange de Fisher-Yates :
-     * chaque position est échangée avec une position aléatoire.
-     */
     for (
         let index = shuffledTracks.length - 1;
         index > 0;
@@ -399,13 +522,163 @@ function shuffleTracks(tracks) {
     return shuffledTracks;
 }
 
+function getPlaybackErrorMessage(error) {
+    if (error.status === 403) {
+        return (
+            "Spotify a refusé la commande. Vérifie que le compte " +
+            "est Premium et reconnecte Shuffle+ si les autorisations ont changé."
+        );
+    }
+
+    if (error.status === 404) {
+        return (
+            "L’appareil n’est plus disponible. Ouvre Spotify, " +
+            "lance ou mets en pause un morceau, puis actualise les appareils."
+        );
+    }
+
+    if (error.status === 429) {
+        return (
+            "Trop de demandes ont été envoyées à Spotify. " +
+            "Patiente quelques secondes puis recommence."
+        );
+    }
+
+    return "Impossible de lancer la lecture dans Spotify.";
+}
+
+async function refreshPlaybackDevices() {
+    const deviceSelect = document.getElementById("deviceSelect");
+    const refreshButton = document.getElementById(
+        "refreshDevicesButton"
+    );
+    const playbackMessage = document.getElementById(
+        "playbackMessage"
+    );
+
+    if (!refreshButton || !playbackMessage) {
+        return;
+    }
+
+    const previousDeviceId = deviceSelect?.value || "";
+
+    refreshButton.disabled = true;
+    refreshButton.textContent = "Actualisation…";
+    playbackMessage.textContent =
+        "Recherche des appareils Spotify…";
+    playbackMessage.className = "playback-message";
+
+    try {
+        availableDevices = await getAvailableDevices();
+        updateDeviceControls(previousDeviceId);
+
+        playbackMessage.textContent = availableDevices.length
+            ? `${availableDevices.length} appareil${
+                availableDevices.length > 1 ? "s" : ""
+            } disponible${availableDevices.length > 1 ? "s" : ""}.`
+            : (
+                "Aucun appareil trouvé. Ouvre Spotify, lance ou " +
+                "mets en pause un morceau, puis réessaie."
+            );
+    } catch (error) {
+        console.error(error);
+
+        availableDevices = [];
+        updateDeviceControls();
+
+        playbackMessage.textContent =
+            "Impossible de récupérer les appareils Spotify.";
+        playbackMessage.className =
+            "playback-message error";
+    } finally {
+        refreshButton.disabled = false;
+        refreshButton.textContent = "↻ Actualiser";
+    }
+}
+
+async function playSelectedOrder() {
+    const deviceSelect = document.getElementById("deviceSelect");
+    const playButton = document.getElementById(
+        "playSpotifyButton"
+    );
+    const playbackMessage = document.getElementById(
+        "playbackMessage"
+    );
+
+    if (!deviceSelect || !playButton || !playbackMessage) {
+        return;
+    }
+
+    const deviceId = deviceSelect.value;
+
+    if (!deviceId) {
+        playbackMessage.textContent =
+            "Sélectionne d’abord un appareil Spotify.";
+        playbackMessage.className =
+            "playback-message error";
+        return;
+    }
+
+    const allUris = selectedTracks
+        .map((track) => track.uri)
+        .filter(Boolean);
+
+    const playbackUris = allUris.slice(
+        0,
+        MAX_DIRECT_PLAYBACK_TRACKS
+    );
+
+    if (!playbackUris.length) {
+        playbackMessage.textContent =
+            "Aucun morceau lisible dans cette playlist.";
+        playbackMessage.className =
+            "playback-message error";
+        return;
+    }
+
+    playButton.disabled = true;
+    playButton.textContent = "Lancement…";
+    playbackMessage.textContent =
+        "Préparation de la lecture Spotify…";
+    playbackMessage.className = "playback-message";
+
+    try {
+        await setPlaybackShuffle(false, deviceId);
+        await wait(300);
+        await startPlayback(playbackUris, deviceId);
+
+        const truncatedText =
+            allUris.length > playbackUris.length
+                ? ` Les ${playbackUris.length} premiers morceaux de cet ordre ont été envoyés.`
+                : "";
+
+        playbackMessage.textContent =
+            `Lecture lancée sur l’appareil sélectionné.${truncatedText}`;
+        playbackMessage.className =
+            "playback-message success";
+
+        playButton.textContent = "✓ Lecture lancée";
+    } catch (error) {
+        console.error(error);
+
+        playbackMessage.textContent =
+            getPlaybackErrorMessage(error);
+        playbackMessage.className =
+            "playback-message error";
+
+        playButton.textContent =
+            "▶ Réessayer la lecture";
+    } finally {
+        playButton.disabled = false;
+    }
+}
+
 async function openPlaylist(playlist) {
     selectedPlaylist = playlist;
     selectedTracks = [];
+    availableDevices = [];
 
-    setStatus(
-        `Chargement de « ${playlist.name} »…`
-    );
+    setStatus(`Chargement de « ${playlist.name} »…`);
 
     contentElement.innerHTML = `
         <section class="loading-panel">
@@ -414,11 +687,20 @@ async function openPlaylist(playlist) {
     `;
 
     try {
-        const tracks = await getPlaylistItems(
-            playlist.id
-        );
+        const [tracks, devices] = await Promise.all([
+            getPlaylistItems(playlist.id),
+            getAvailableDevices().catch((error) => {
+                console.warn(
+                    "Appareils Spotify indisponibles :",
+                    error
+                );
+
+                return [];
+            })
+        ]);
 
         selectedTracks = tracks;
+        availableDevices = devices;
 
         displayPlaylistDetails(
             selectedPlaylist,
@@ -468,8 +750,7 @@ async function initializeApp() {
     try {
         await handleSpotifyCallback();
 
-        const accessToken =
-            await getValidAccessToken();
+        const accessToken = await getValidAccessToken();
 
         if (!accessToken) {
             setDisconnectedInterface();
@@ -477,15 +758,12 @@ async function initializeApp() {
         }
 
         setConnectedInterface();
-        setStatus(
-            "Chargement de ton compte Spotify…"
-        );
+        setStatus("Chargement de ton compte Spotify…");
 
-        const [profile, playlists] =
-            await Promise.all([
-                getMyProfile(),
-                getMyPlaylists()
-            ]);
+        const [profile, playlists] = await Promise.all([
+            getMyProfile(),
+            getMyPlaylists()
+        ]);
 
         currentUserId = profile?.id || "";
         playlistsCache = playlists;
@@ -550,10 +828,9 @@ contentElement.addEventListener(
             const playlistId =
                 playlistCard.dataset.playlistId;
 
-            const playlist =
-                playlistsCache.find(
-                    (item) => item.id === playlistId
-                );
+            const playlist = playlistsCache.find(
+                (item) => item.id === playlistId
+            );
 
             if (playlist) {
                 await openPlaylist(playlist);
@@ -577,12 +854,30 @@ contentElement.addEventListener(
             return;
         }
 
+        const refreshDevicesButton =
+            event.target.closest("#refreshDevicesButton");
+
+        if (refreshDevicesButton) {
+            await refreshPlaybackDevices();
+            return;
+        }
+
+        const playSpotifyButton =
+            event.target.closest("#playSpotifyButton");
+
+        if (playSpotifyButton) {
+            await playSelectedOrder();
+            return;
+        }
+
         const shuffleButton =
             event.target.closest("#shuffleButton");
 
-        if (shuffleButton && selectedTracks.length > 1) {
-            selectedTracks =
-                shuffleTracks(selectedTracks);
+        if (
+            shuffleButton &&
+            selectedTracks.length > 1
+        ) {
+            selectedTracks = shuffleTracks(selectedTracks);
 
             renderTrackList();
 
@@ -591,9 +886,7 @@ contentElement.addEventListener(
 
             window.setTimeout(() => {
                 if (
-                    document.body.contains(
-                        shuffleButton
-                    )
+                    document.body.contains(shuffleButton)
                 ) {
                     shuffleButton.textContent =
                         "🔀 Mélanger à nouveau";

@@ -33,6 +33,7 @@ async function spotifyFetch(endpoint, options = {}) {
 
         error.status = response.status;
         error.details = errorBody;
+        error.retryAfter = response.headers.get("Retry-After");
 
         throw error;
     }
@@ -56,9 +57,7 @@ export async function getMyPlaylists() {
         const page = await spotifyFetch(endpoint);
 
         if (Array.isArray(page.items)) {
-            playlists.push(
-                ...page.items.filter(Boolean)
-            );
+            playlists.push(...page.items.filter(Boolean));
         }
 
         endpoint = page.next
@@ -81,10 +80,6 @@ export async function getPlaylistItems(playlistId) {
 
         if (Array.isArray(page.items)) {
             for (const playlistItem of page.items) {
-                /*
-                 * Le nouveau format utilise playlistItem.item.
-                 * Le format précédent utilisait playlistItem.track.
-                 */
                 const track =
                     playlistItem?.item ??
                     playlistItem?.track ??
@@ -106,4 +101,53 @@ export async function getPlaylistItems(playlistId) {
     }
 
     return tracks;
+}
+
+export async function getAvailableDevices() {
+    const data = await spotifyFetch("/me/player/devices");
+
+    return Array.isArray(data?.devices)
+        ? data.devices.filter(
+            (device) => device?.id && !device.is_restricted
+        )
+        : [];
+}
+
+export async function setPlaybackShuffle(enabled, deviceId = "") {
+    const parameters = new URLSearchParams({
+        state: String(enabled)
+    });
+
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    await spotifyFetch(
+        `/me/player/shuffle?${parameters.toString()}`,
+        { method: "PUT" }
+    );
+}
+
+export async function startPlayback(trackUris, deviceId = "") {
+    const uris = trackUris.filter(Boolean);
+
+    if (!uris.length) {
+        throw new Error("Aucun morceau ne peut être lu.");
+    }
+
+    const parameters = new URLSearchParams();
+
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    const query = parameters.toString();
+
+    await spotifyFetch(
+        `/me/player/play${query ? `?${query}` : ""}`,
+        {
+            method: "PUT",
+            body: JSON.stringify({ uris })
+        }
+    );
 }
