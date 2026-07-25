@@ -1,4 +1,8 @@
-import { CONFIG } from "./config.js";
+import {
+    smartShuffleTracks,
+    analyzeShuffleOrder,
+    rememberPlaybackOrder
+} from "./shuffle-engine.js";
 
 import {
     loginWithSpotify,
@@ -24,16 +28,18 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
+const APP_VERSION = "0.6.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 
 let currentUserId = "";
 let currentUserProduct = "";
 let playlistsCache = [];
 let selectedPlaylist = null;
+let sourceTracks = [];
 let selectedTracks = [];
 let availableDevices = [];
 
-versionElement.textContent = `Version ${CONFIG.version}`;
+versionElement.textContent = `Version ${APP_VERSION}`;
 
 function escapeHtml(value = "") {
     return String(value)
@@ -77,6 +83,7 @@ function setDisconnectedInterface() {
     currentUserProduct = "";
     playlistsCache = [];
     selectedPlaylist = null;
+    sourceTracks = [];
     selectedTracks = [];
     availableDevices = [];
 
@@ -106,6 +113,7 @@ function canReadPlaylist(playlist) {
 
 function displayPlaylists(playlists) {
     selectedPlaylist = null;
+    sourceTracks = [];
     selectedTracks = [];
     availableDevices = [];
 
@@ -281,6 +289,37 @@ function renderTrackList() {
         .join("");
 }
 
+function renderShuffleStats(stats = null) {
+    const statsElement = document.getElementById("shuffleStats");
+
+    if (!statsElement) {
+        return;
+    }
+
+    if (!stats) {
+        statsElement.innerHTML = "";
+        statsElement.hidden = true;
+        return;
+    }
+
+    statsElement.hidden = false;
+    statsElement.innerHTML = `
+        <strong>Mélange analysé</strong>
+        <span>
+            Artistes consécutifs :
+            ${stats.consecutiveArtistRepeats}
+        </span>
+        <span>
+            Albums consécutifs :
+            ${stats.consecutiveAlbumRepeats}
+        </span>
+        <span>
+            Titres récents dans les 20 premiers :
+            ${stats.recentTracksInFirstTwenty}
+        </span>
+    `;
+}
+
 function getDeviceIcon(type = "") {
     switch (type.toLowerCase()) {
         case "smartphone":
@@ -435,7 +474,7 @@ function displayPlaylistDetails(playlist, tracks) {
                             type="button"
                             ${tracks.length < 2 ? "disabled" : ""}
                         >
-                            🔀 Mélanger avec Shuffle+
+                            🧠 Mélange intelligent
                         </button>
 
                         ${spotifyLink}
@@ -502,40 +541,23 @@ function displayPlaylistDetails(playlist, tracks) {
             </section>
 
             <p class="shuffle-explanation">
-                Le bouton vert modifie l’ordre dans Shuffle+.
-                Le bouton de lecture envoie ensuite cet ordre
-                vers l’appareil Spotify sélectionné.
+                Le mélange intelligent espace les artistes et les albums,
+                puis évite de placer trop tôt les titres récemment envoyés
+                par Shuffle+ vers Spotify.
             </p>
+
+            <div
+                id="shuffleStats"
+                class="shuffle-stats"
+                hidden
+                aria-live="polite"
+            ></div>
 
             <ol id="trackList" class="track-list"></ol>
         </section>
     `;
 
     renderTrackList();
-}
-
-function shuffleTracks(tracks) {
-    const shuffledTracks = [...tracks];
-
-    for (
-        let index = shuffledTracks.length - 1;
-        index > 0;
-        index -= 1
-    ) {
-        const randomIndex = Math.floor(
-            Math.random() * (index + 1)
-        );
-
-        [
-            shuffledTracks[index],
-            shuffledTracks[randomIndex]
-        ] = [
-            shuffledTracks[randomIndex],
-            shuffledTracks[index]
-        ];
-    }
-
-    return shuffledTracks;
 }
 
 function getPlaybackErrorMessage(error) {
@@ -741,6 +763,10 @@ async function playSelectedOrder() {
                 ? ` Les ${playbackUris.length} premiers morceaux de cet ordre ont été envoyés.`
                 : "";
 
+        rememberPlaybackOrder(
+            selectedTracks.slice(0, playbackUris.length)
+        );
+
         playbackMessage.textContent =
             `Lecture lancée sur l’appareil sélectionné.${truncatedText}`;
         playbackMessage.className =
@@ -764,6 +790,7 @@ async function playSelectedOrder() {
 
 async function openPlaylist(playlist) {
     selectedPlaylist = playlist;
+    sourceTracks = [];
     selectedTracks = [];
     availableDevices = [];
 
@@ -788,7 +815,8 @@ async function openPlaylist(playlist) {
             })
         ]);
 
-        selectedTracks = tracks;
+        sourceTracks = [...tracks];
+        selectedTracks = [...tracks];
         availableDevices = devices;
 
         displayPlaylistDetails(
@@ -968,19 +996,22 @@ contentElement.addEventListener(
             shuffleButton &&
             selectedTracks.length > 1
         ) {
-            selectedTracks = shuffleTracks(selectedTracks);
+            selectedTracks = smartShuffleTracks(sourceTracks);
 
             renderTrackList();
+            renderShuffleStats(
+                analyzeShuffleOrder(selectedTracks)
+            );
 
             shuffleButton.textContent =
-                "✅ Nouvel ordre créé";
+                "✅ Ordre intelligent créé";
 
             window.setTimeout(() => {
                 if (
                     document.body.contains(shuffleButton)
                 ) {
                     shuffleButton.textContent =
-                        "🔀 Mélanger à nouveau";
+                        "🧠 Mélanger à nouveau";
                 }
             }, 1200);
         }
