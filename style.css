@@ -718,3 +718,195 @@ button:disabled {
         line-height: 2;
     }
 }
+/*
+ * Constructeur de mix multi-sources.
+ */
+.mix-builder {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #304438;
+    border-radius: 16px;
+    background: #142019;
+}
+
+.mix-builder-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mix-builder-copy strong {
+    font-size: 17px;
+}
+
+.mix-builder-copy small,
+.mix-builder-copy span {
+    color: #a9b9ae;
+}
+
+.mix-builder-copy span {
+    font-size: 14px;
+}
+
+.mix-builder-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.mix-secondary-button,
+.mix-create-button {
+    min-height: 42px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+.mix-secondary-button {
+    border: 1px solid #496052;
+    background: transparent;
+    color: #ffffff;
+}
+
+.mix-create-button {
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.mix-secondary-button:hover:not(:disabled),
+.mix-create-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.mix-secondary-button:disabled,
+.mix-create-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+/*
+ * Une carte contient maintenant deux actions distinctes :
+ * ouvrir la source et la sélectionner pour un mix.
+ */
+.source-card {
+    position: relative;
+    padding: 0;
+}
+
+.source-card.is-selected {
+    border-color: #1ed760;
+    box-shadow: 0 0 0 2px rgb(30 215 96 / 18%);
+}
+
+.source-card.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.source-card.is-disabled:hover {
+    transform: none;
+    border-color: #292929;
+    background: #181818;
+}
+
+.source-open-button {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+}
+
+.source-open-button:disabled {
+    cursor: not-allowed;
+}
+
+.source-selector {
+    position: absolute;
+    z-index: 3;
+    top: 10px;
+    right: 10px;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(12 12 12 / 82%);
+    box-shadow: 0 4px 14px rgb(0 0 0 / 34%);
+    cursor: pointer;
+}
+
+.source-selector input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.source-selector span {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    place-items: center;
+    border: 2px solid #d6d6d6;
+    border-radius: 6px;
+    background: #151515;
+}
+
+.source-selector input:checked + span {
+    border-color: #1ed760;
+    background: #1ed760;
+}
+
+.source-selector input:checked + span::after {
+    content: "✓";
+    color: #07190d;
+    font-size: 14px;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.source-selector input:focus-visible + span {
+    outline: 3px solid rgb(30 215 96 / 35%);
+    outline-offset: 3px;
+}
+
+.source-selector:has(input:disabled) {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.mix-detail-placeholder {
+    background: linear-gradient(135deg, #1ed760 0%, #256b42 100%);
+    color: #07190d;
+    font-size: 76px;
+}
+
+.mix-loading-panel h2 {
+    margin-top: 0;
+}
+
+@media (max-width: 760px) {
+    .mix-builder {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .mix-builder-actions {
+        justify-content: stretch;
+    }
+
+    .mix-secondary-button,
+    .mix-create-button {
+        flex: 1 1 140px;
+    }
+}

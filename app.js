@@ -29,8 +29,9 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "0.7.0";
+const APP_VERSION = "0.8.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
+const MAX_MIX_SOURCES = 12;
 
 let currentUserId = "";
 let currentUserProduct = "";
@@ -39,6 +40,7 @@ let selectedPlaylist = null;
 let sourceTracks = [];
 let selectedTracks = [];
 let availableDevices = [];
+const selectedSourceKeys = new Set();
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -87,6 +89,7 @@ function setDisconnectedInterface() {
     sourceTracks = [];
     selectedTracks = [];
     availableDevices = [];
+    selectedSourceKeys.clear();
 
     contentElement.innerHTML = "";
     setStatus("");
@@ -112,6 +115,47 @@ function canReadPlaylist(playlist) {
     );
 }
 
+function getPlaylistSourceKey(playlistId) {
+    return `playlist:${playlistId}`;
+}
+
+function updateMixSelectionControls() {
+    const selectionCountElement = document.getElementById(
+        "mixSelectionCount"
+    );
+    const createMixButton = document.getElementById(
+        "createMixButton"
+    );
+    const clearSelectionButton = document.getElementById(
+        "clearSourceSelection"
+    );
+
+    const selectedCount = selectedSourceKeys.size;
+
+    if (selectionCountElement) {
+        selectionCountElement.textContent =
+            `${selectedCount} source${selectedCount > 1 ? "s" : ""} sélectionnée${selectedCount > 1 ? "s" : ""}`;
+    }
+
+    if (createMixButton) {
+        createMixButton.disabled = selectedCount < 1;
+    }
+
+    if (clearSelectionButton) {
+        clearSelectionButton.disabled = selectedCount < 1;
+    }
+
+    document
+        .querySelectorAll(".source-card")
+        .forEach((card) => {
+            const sourceKey = card.dataset.sourceKey || "";
+            card.classList.toggle(
+                "is-selected",
+                selectedSourceKeys.has(sourceKey)
+            );
+        });
+}
+
 function displayPlaylists(playlists) {
     selectedPlaylist = null;
     sourceTracks = [];
@@ -127,6 +171,8 @@ function displayPlaylists(playlists) {
             const imageUrl = playlist.images?.[0]?.url || "";
             const total = getPlaylistTotal(playlist);
             const readable = canReadPlaylist(playlist);
+            const sourceKey = getPlaylistSourceKey(playlist.id);
+            const selected = selectedSourceKeys.has(sourceKey);
 
             const image = imageUrl
                 ? `
@@ -147,41 +193,77 @@ function displayPlaylists(playlists) {
                 : "Playlist suivie · accès limité";
 
             return `
-                <button
-                    class="playlist-card"
-                    type="button"
-                    data-playlist-id="${escapeHtml(playlist.id)}"
-                    ${readable ? "" : "disabled"}
+                <article
+                    class="playlist-card source-card ${selected ? "is-selected" : ""} ${readable ? "" : "is-disabled"}"
+                    data-source-key="${escapeHtml(sourceKey)}"
                 >
-                    ${image}
+                    <label
+                        class="source-selector"
+                        title="${readable ? "Ajouter au mix" : "Source indisponible"}"
+                    >
+                        <input
+                            class="source-checkbox"
+                            type="checkbox"
+                            data-source-key="${escapeHtml(sourceKey)}"
+                            ${selected ? "checked" : ""}
+                            ${readable ? "" : "disabled"}
+                        >
+                        <span aria-hidden="true"></span>
+                    </label>
 
-                    <div class="playlist-info">
-                        <h3 title="${playlistName}">
-                            ${playlistName}
-                        </h3>
+                    <button
+                        class="source-open-button"
+                        type="button"
+                        data-playlist-id="${escapeHtml(playlist.id)}"
+                        ${readable ? "" : "disabled"}
+                    >
+                        ${image}
 
-                        <p>${availabilityText}</p>
-                    </div>
-                </button>
+                        <div class="playlist-info">
+                            <h3 title="${playlistName}">
+                                ${playlistName}
+                            </h3>
+
+                            <p>${availabilityText}</p>
+                        </div>
+                    </button>
+                </article>
             `;
         })
         .join("");
 
-    const likedTracksCard = `
-        <button
-            class="playlist-card liked-tracks-card"
-            type="button"
-            data-library-source="liked"
-        >
-            <div class="playlist-placeholder liked-tracks-placeholder">
-                ♥
-            </div>
+    const likedSelected = selectedSourceKeys.has("liked");
 
-            <div class="playlist-info">
-                <h3>Morceaux aimés</h3>
-                <p>Ta bibliothèque Spotify</p>
-            </div>
-        </button>
+    const likedTracksCard = `
+        <article
+            class="playlist-card source-card liked-tracks-card ${likedSelected ? "is-selected" : ""}"
+            data-source-key="liked"
+        >
+            <label class="source-selector" title="Ajouter au mix">
+                <input
+                    class="source-checkbox"
+                    type="checkbox"
+                    data-source-key="liked"
+                    ${likedSelected ? "checked" : ""}
+                >
+                <span aria-hidden="true"></span>
+            </label>
+
+            <button
+                class="source-open-button"
+                type="button"
+                data-library-source="liked"
+            >
+                <div class="playlist-placeholder liked-tracks-placeholder">
+                    ♥
+                </div>
+
+                <div class="playlist-info">
+                    <h3>Morceaux aimés</h3>
+                    <p>Ta bibliothèque Spotify</p>
+                </div>
+            </button>
+        </article>
     `;
 
     contentElement.innerHTML = `
@@ -196,9 +278,48 @@ function displayPlaylists(playlists) {
                 </div>
             </div>
 
+            <section class="mix-builder" aria-label="Créateur de mix">
+                <div class="mix-builder-copy">
+                    <strong>Créer un mix multi-sources</strong>
+                    <small>Jusqu’à ${MAX_MIX_SOURCES} sources</small>
+                    <span id="mixSelectionCount">
+                        0 source sélectionnée
+                    </span>
+                </div>
+
+                <div class="mix-builder-actions">
+                    <button
+                        id="selectAllSources"
+                        class="mix-secondary-button"
+                        type="button"
+                    >
+                        Sélection rapide
+                    </button>
+
+                    <button
+                        id="clearSourceSelection"
+                        class="mix-secondary-button"
+                        type="button"
+                        ${selectedSourceKeys.size ? "" : "disabled"}
+                    >
+                        Effacer
+                    </button>
+
+                    <button
+                        id="createMixButton"
+                        class="mix-create-button"
+                        type="button"
+                        ${selectedSourceKeys.size ? "" : "disabled"}
+                    >
+                        🧠 Créer le mix
+                    </button>
+                </div>
+            </section>
+
             <p class="access-note">
-                Les playlists grisées sont visibles dans ton compte,
-                mais leur contenu n’est pas accessible à Shuffle+.
+                Coche plusieurs sources, puis crée un mélange intelligent
+                commun. Les playlists grisées ne sont pas lisibles par
+                Shuffle+.
             </p>
 
             <div class="playlists-grid">
@@ -207,6 +328,8 @@ function displayPlaylists(playlists) {
             </div>
         </section>
     `;
+
+    updateMixSelectionControls();
 }
 
 function createTrackRow(track, index) {
@@ -415,6 +538,7 @@ function updateDeviceControls(previousDeviceId = "") {
 
 function displayPlaylistDetails(playlist, tracks) {
     const isLikedTracks = playlist.sourceType === "liked";
+    const isMultiSourceMix = playlist.sourceType === "mix";
 
     const playlistName = escapeHtml(
         playlist.name || "Playlist sans nom"
@@ -423,14 +547,16 @@ function displayPlaylistDetails(playlist, tracks) {
     const ownerName = escapeHtml(
         isLikedTracks
             ? "Ta bibliothèque"
-            : (
+            : isMultiSourceMix
+                ? "Shuffle+"
+                : (
                 playlist.owner?.display_name ||
                 playlist.owner?.id ||
                 "Spotify"
             )
     );
 
-    const playlistUrl = isLikedTracks
+    const playlistUrl = (isLikedTracks || isMultiSourceMix)
         ? ""
         : (playlist.external_urls?.spotify || "");
 
@@ -446,9 +572,13 @@ function displayPlaylistDetails(playlist, tracks) {
         `
         : `
             <div class="playlist-detail-cover detail-placeholder ${
-                isLikedTracks ? "liked-detail-placeholder" : ""
+                isLikedTracks
+                    ? "liked-detail-placeholder"
+                    : isMultiSourceMix
+                        ? "mix-detail-placeholder"
+                        : ""
             }">
-                ${isLikedTracks ? "♥" : "🎵"}
+                ${isLikedTracks ? "♥" : isMultiSourceMix ? "✨" : "🎵"}
             </div>
         `;
 
@@ -480,14 +610,17 @@ function displayPlaylistDetails(playlist, tracks) {
 
                 <div class="playlist-detail-info">
                     <span class="playlist-label">
-                        ${isLikedTracks ? "Bibliothèque" : "Playlist"}
+                        ${isLikedTracks ? "Bibliothèque" : isMultiSourceMix ? "Mix personnalisé" : "Playlist"}
                     </span>
 
                     <h2>${playlistName}</h2>
 
                     <p>
-                        Par ${ownerName} ·
-                        ${tracks.length} morceau${tracks.length > 1 ? "x" : ""}
+                        ${
+                            isMultiSourceMix
+                                ? `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} unique${tracks.length > 1 ? "s" : ""} · ${playlist.sourceCount || 0} source${(playlist.sourceCount || 0) > 1 ? "s" : ""}`
+                                : `Par ${ownerName} · ${tracks.length} morceau${tracks.length > 1 ? "x" : ""}`
+                        }
                     </p>
 
                     <div class="playlist-detail-actions">
@@ -497,7 +630,7 @@ function displayPlaylistDetails(playlist, tracks) {
                             type="button"
                             ${tracks.length < 2 ? "disabled" : ""}
                         >
-                            🧠 Mélange intelligent
+                            ${isMultiSourceMix ? "🧠 Mélanger à nouveau" : "🧠 Mélange intelligent"}
                         </button>
 
                         ${spotifyLink}
@@ -811,6 +944,210 @@ async function playSelectedOrder() {
     }
 }
 
+function deduplicateTracks(tracks) {
+    const uniqueTracks = [];
+    const seenKeys = new Set();
+
+    for (const track of tracks) {
+        const key = track?.uri || track?.id || "";
+
+        if (!key || seenKeys.has(key)) {
+            continue;
+        }
+
+        seenKeys.add(key);
+        uniqueTracks.push(track);
+    }
+
+    return uniqueTracks;
+}
+
+async function createSelectedMix() {
+    const selectedKeys = [...selectedSourceKeys];
+
+    if (!selectedKeys.length) {
+        setStatus(
+            "Sélectionne au moins une source pour créer un mix.",
+            "error"
+        );
+        return;
+    }
+
+    if (selectedKeys.length > MAX_MIX_SOURCES) {
+        setStatus(
+            `Le mix est limité à ${MAX_MIX_SOURCES} sources pour cette version.`,
+            "error"
+        );
+        return;
+    }
+
+    const sourceDefinitions = selectedKeys
+        .map((sourceKey) => {
+            if (sourceKey === "liked") {
+                return {
+                    key: sourceKey,
+                    name: "Morceaux aimés",
+                    loader: () => getMySavedTracks()
+                };
+            }
+
+            const playlistId = sourceKey.replace(/^playlist:/, "");
+            const playlist = playlistsCache.find(
+                (item) => item.id === playlistId
+            );
+
+            if (!playlist || !canReadPlaylist(playlist)) {
+                return null;
+            }
+
+            return {
+                key: sourceKey,
+                name: playlist.name || "Playlist sans nom",
+                loader: () => getPlaylistItems(playlist.id)
+            };
+        })
+        .filter(Boolean);
+
+    if (!sourceDefinitions.length) {
+        setStatus(
+            "Aucune des sources sélectionnées n’est accessible.",
+            "error"
+        );
+        return;
+    }
+
+    contentElement.innerHTML = `
+        <section class="loading-panel mix-loading-panel">
+            <h2>Création du mix…</h2>
+            <p id="mixLoadingMessage">
+                Préparation des sources sélectionnées.
+            </p>
+        </section>
+    `;
+
+    setStatus("Création du mix multi-sources…");
+
+    const collectedTracks = [];
+    const loadedSourceNames = [];
+    const failedSourceNames = [];
+
+    try {
+        for (
+            let index = 0;
+            index < sourceDefinitions.length;
+            index += 1
+        ) {
+            const source = sourceDefinitions[index];
+            const loadingMessage = document.getElementById(
+                "mixLoadingMessage"
+            );
+
+            if (loadingMessage) {
+                loadingMessage.textContent =
+                    `Chargement ${index + 1}/${sourceDefinitions.length} : ${source.name}`;
+            }
+
+            try {
+                const tracks = await source.loader();
+                collectedTracks.push(...tracks);
+                loadedSourceNames.push(source.name);
+            } catch (error) {
+                console.warn(
+                    `Source ignorée : ${source.name}`,
+                    error
+                );
+                failedSourceNames.push(source.name);
+            }
+        }
+
+        const uniqueTracks = deduplicateTracks(collectedTracks);
+
+        if (!uniqueTracks.length) {
+            throw new Error(
+                "Aucun morceau lisible n’a été trouvé dans les sources sélectionnées."
+            );
+        }
+
+        availableDevices = await getAvailableDevices().catch(
+            (error) => {
+                console.warn(
+                    "Appareils Spotify indisponibles :",
+                    error
+                );
+                return [];
+            }
+        );
+
+        selectedPlaylist = {
+            id: "shuffleplus-multi-source-mix",
+            name: "Mix Shuffle+",
+            sourceType: "mix",
+            sourceCount: loadedSourceNames.length,
+            sourceNames: loadedSourceNames,
+            owner: {
+                display_name: "Shuffle+"
+            },
+            images: [],
+            external_urls: {}
+        };
+
+        sourceTracks = uniqueTracks;
+        selectedTracks = smartShuffleTracks(sourceTracks);
+
+        displayPlaylistDetails(
+            selectedPlaylist,
+            selectedTracks
+        );
+        renderShuffleStats(
+            analyzeShuffleOrder(selectedTracks)
+        );
+
+        const shuffleButton = document.getElementById(
+            "shuffleButton"
+        );
+
+        if (shuffleButton) {
+            shuffleButton.textContent = "🧠 Mélanger à nouveau";
+        }
+
+        const duplicateCount =
+            collectedTracks.length - uniqueTracks.length;
+
+        const summaryParts = [
+            `${uniqueTracks.length} morceau${uniqueTracks.length > 1 ? "x" : ""} unique${uniqueTracks.length > 1 ? "s" : ""}`,
+            `${loadedSourceNames.length} source${loadedSourceNames.length > 1 ? "s" : ""}`
+        ];
+
+        if (duplicateCount > 0) {
+            summaryParts.push(
+                `${duplicateCount} doublon${duplicateCount > 1 ? "s" : ""} retiré${duplicateCount > 1 ? "s" : ""}`
+            );
+        }
+
+        if (failedSourceNames.length) {
+            summaryParts.push(
+                `${failedSourceNames.length} source${failedSourceNames.length > 1 ? "s" : ""} ignorée${failedSourceNames.length > 1 ? "s" : ""}`
+            );
+        }
+
+        setStatus(
+            `Mix créé : ${summaryParts.join(" · ")}.`
+        );
+
+        contentElement.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+        });
+    } catch (error) {
+        console.error(error);
+        displayPlaylists(playlistsCache);
+        setStatus(
+            error.message || "Impossible de créer le mix.",
+            "error"
+        );
+    }
+}
+
 async function openPlaylist(playlist) {
     selectedPlaylist = playlist;
     sourceTracks = [];
@@ -972,11 +1309,11 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
-        const playlistCard =
-            event.target.closest(".playlist-card");
+        const openSourceButton =
+            event.target.closest(".source-open-button");
 
-        if (playlistCard) {
-            if (playlistCard.dataset.librarySource === "liked") {
+        if (openSourceButton) {
+            if (openSourceButton.dataset.librarySource === "liked") {
                 await openPlaylist({
                     id: "liked-tracks",
                     name: "Morceaux aimés",
@@ -992,7 +1329,7 @@ contentElement.addEventListener(
             }
 
             const playlistId =
-                playlistCard.dataset.playlistId;
+                openSourceButton.dataset.playlistId;
 
             const playlist = playlistsCache.find(
                 (item) => item.id === playlistId
@@ -1002,6 +1339,48 @@ contentElement.addEventListener(
                 await openPlaylist(playlist);
             }
 
+            return;
+        }
+
+        const selectAllSourcesButton =
+            event.target.closest("#selectAllSources");
+
+        if (selectAllSourcesButton) {
+            selectedSourceKeys.clear();
+            selectedSourceKeys.add("liked");
+
+            for (const playlist of playlistsCache) {
+                if (
+                    canReadPlaylist(playlist) &&
+                    selectedSourceKeys.size < MAX_MIX_SOURCES
+                ) {
+                    selectedSourceKeys.add(
+                        getPlaylistSourceKey(playlist.id)
+                    );
+                }
+            }
+
+            setStatus(
+                `Les ${MAX_MIX_SOURCES} premières sources accessibles ont été sélectionnées.`
+            );
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const clearSourceSelectionButton =
+            event.target.closest("#clearSourceSelection");
+
+        if (clearSourceSelectionButton) {
+            selectedSourceKeys.clear();
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const createMixButton =
+            event.target.closest("#createMixButton");
+
+        if (createMixButton) {
+            await createSelectedMix();
             return;
         }
 
@@ -1062,6 +1441,43 @@ contentElement.addEventListener(
                 }
             }, 1200);
         }
+    }
+);
+
+contentElement.addEventListener(
+    "change",
+    (event) => {
+        const checkbox = event.target.closest(
+            ".source-checkbox"
+        );
+
+        if (!checkbox) {
+            return;
+        }
+
+        const sourceKey = checkbox.dataset.sourceKey || "";
+
+        if (!sourceKey) {
+            return;
+        }
+
+        if (checkbox.checked) {
+            if (selectedSourceKeys.size >= MAX_MIX_SOURCES) {
+                checkbox.checked = false;
+                setStatus(
+                    `Tu peux sélectionner jusqu’à ${MAX_MIX_SOURCES} sources dans cette version.`,
+                    "error"
+                );
+                return;
+            }
+
+            selectedSourceKeys.add(sourceKey);
+            setStatus("");
+        } else {
+            selectedSourceKeys.delete(sourceKey);
+        }
+
+        updateMixSelectionControls();
     }
 );
 
