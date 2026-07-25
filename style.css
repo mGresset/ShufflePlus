@@ -1243,3 +1243,37 @@ button:disabled {
 .playlist-info p {
     line-height: 1.45;
 }
+/* Shuffle+ v1.3.0 — Favoris locaux */
+.source-favorite-button {
+    position: absolute;
+    z-index: 4;
+    top: 10px;
+    left: 10px;
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgb(255 255 255 / 18%);
+    border-radius: 50%;
+    background: rgb(12 12 12 / 82%);
+    color: #ffffff;
+    font-size: 21px;
+    line-height: 1;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 34%);
+}
+
+.source-favorite-button:hover {
+    transform: scale(1.06);
+    border-color: #f1c94a;
+}
+
+.source-card.is-favorite {
+    border-color: #6b5a20;
+}
+
+.source-card.is-favorite .source-favorite-button {
+    border-color: #f1c94a;
+    background: #2b2612;
+    color: #f1c94a;
+}

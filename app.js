@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -43,6 +43,7 @@ const MODIFICATION_REQUEST_CONCURRENCY = 4;
 const RECENT_ACTIVITY_CACHE_KEY =
     "shuffleplus_recent_playlist_activity_v1";
 const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
+const FAVORITE_SOURCES_KEY = "shuffleplus_favorite_sources_v1";
 
 let currentUserId = "";
 let currentUserProduct = "";
@@ -64,6 +65,7 @@ let modificationDatesProgress = {
 const playlistModificationDates = new Map();
 const playlistRecentActivity = new Map();
 let recentActivityLoading = false;
+const favoriteSourceKeys = new Set(readFavoriteSources());
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -149,6 +151,45 @@ function getPlaylistSourceKey(playlistId) {
     return `playlist:${playlistId}`;
 }
 
+
+
+function readFavoriteSources() {
+    try {
+        const raw = localStorage.getItem(FAVORITE_SOURCES_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed)
+            ? parsed.filter((value) => typeof value === "string")
+            : [];
+    } catch (error) {
+        console.warn("Favoris illisibles :", error);
+        return [];
+    }
+}
+
+function saveFavoriteSources() {
+    try {
+        localStorage.setItem(
+            FAVORITE_SOURCES_KEY,
+            JSON.stringify([...favoriteSourceKeys])
+        );
+    } catch (error) {
+        console.warn("Impossible d’enregistrer les favoris :", error);
+    }
+}
+
+function toggleFavoriteSource(sourceKey) {
+    if (!sourceKey) {
+        return;
+    }
+
+    if (favoriteSourceKeys.has(sourceKey)) {
+        favoriteSourceKeys.delete(sourceKey);
+    } else {
+        favoriteSourceKeys.add(sourceKey);
+    }
+
+    saveFavoriteSources();
+}
 
 function normalizeSearchText(value = "") {
     return String(value)
@@ -542,9 +583,12 @@ function getFilteredAndSortedPlaylists(playlists) {
 
     const filtered = playlists.filter((playlist) => {
         const category = getPlaylistCategory(playlist);
+        const sourceKey = getPlaylistSourceKey(playlist.id);
         const matchesFilter =
             libraryFilter === "all" ||
-            category === libraryFilter;
+            category === libraryFilter ||
+            (libraryFilter === "favorites" &&
+                favoriteSourceKeys.has(sourceKey));
 
         if (!matchesFilter) {
             return false;
@@ -653,7 +697,11 @@ function getFilteredAndSortedPlaylists(playlists) {
 }
 
 function isLikedSourceVisible() {
-    if (libraryFilter !== "all") {
+    if (
+        libraryFilter !== "all" &&
+        !(libraryFilter === "favorites" &&
+            favoriteSourceKeys.has("liked"))
+    ) {
         return false;
     }
 
@@ -721,6 +769,7 @@ function displayPlaylists(playlists) {
             const readable = canReadPlaylist(playlist);
             const sourceKey = getPlaylistSourceKey(playlist.id);
             const selected = selectedSourceKeys.has(sourceKey);
+            const favorite = favoriteSourceKeys.has(sourceKey);
 
             const image = imageUrl
                 ? `
@@ -762,9 +811,19 @@ function displayPlaylists(playlists) {
 
             return `
                 <article
-                    class="playlist-card source-card ${selected ? "is-selected" : ""} ${readable ? "" : "is-disabled"}"
+                    class="playlist-card source-card ${selected ? "is-selected" : ""} ${favorite ? "is-favorite" : ""} ${readable ? "" : "is-disabled"}"
                     data-source-key="${escapeHtml(sourceKey)}"
                 >
+                    <button
+                        class="source-favorite-button"
+                        type="button"
+                        data-favorite-source-key="${escapeHtml(sourceKey)}"
+                        aria-label="${favorite ? "Retirer des favoris" : "Ajouter aux favoris"}"
+                        title="${favorite ? "Retirer des favoris" : "Ajouter aux favoris"}"
+                    >
+                        ${favorite ? "★" : "☆"}
+                    </button>
+
                     <label
                         class="source-selector"
                         title="${readable ? "Ajouter au mix" : "Source indisponible"}"
@@ -801,13 +860,24 @@ function displayPlaylists(playlists) {
         .join("");
 
     const likedSelected = selectedSourceKeys.has("liked");
+    const likedFavorite = favoriteSourceKeys.has("liked");
 
     const likedTracksCard = likedVisible
         ? `
             <article
-                class="playlist-card source-card liked-tracks-card ${likedSelected ? "is-selected" : ""}"
+                class="playlist-card source-card liked-tracks-card ${likedSelected ? "is-selected" : ""} ${likedFavorite ? "is-favorite" : ""}"
                 data-source-key="liked"
             >
+                <button
+                    class="source-favorite-button"
+                    type="button"
+                    data-favorite-source-key="liked"
+                    aria-label="${likedFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}"
+                    title="${likedFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}"
+                >
+                    ${likedFavorite ? "★" : "☆"}
+                </button>
+
                 <label class="source-selector" title="Ajouter au mix">
                     <input
                         class="source-checkbox"
@@ -888,6 +958,7 @@ function displayPlaylists(playlists) {
                         <option value="personal" ${libraryFilter === "personal" ? "selected" : ""}>Mes playlists</option>
                         <option value="collaborative" ${libraryFilter === "collaborative" ? "selected" : ""}>Collaboratives</option>
                         <option value="followed" ${libraryFilter === "followed" ? "selected" : ""}>Playlists suivies</option>
+                        <option value="favorites" ${libraryFilter === "favorites" ? "selected" : ""}>Mes favoris</option>
                     </select>
                 </label>
 
@@ -2243,6 +2314,23 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const favoriteButton = event.target.closest(
+            ".source-favorite-button"
+        );
+
+        if (favoriteButton) {
+            const sourceKey =
+                favoriteButton.dataset.favoriteSourceKey || "";
+            toggleFavoriteSource(sourceKey);
+            displayPlaylists(playlistsCache);
+            setStatus(
+                favoriteSourceKeys.has(sourceKey)
+                    ? "Source ajoutée aux favoris."
+                    : "Source retirée des favoris."
+            );
+            return;
+        }
+
         const openSourceButton =
             event.target.closest(".source-open-button");
 
