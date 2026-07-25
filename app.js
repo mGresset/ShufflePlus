@@ -317,7 +317,7 @@ function renderShuffleStats(stats = null) {
 
         <span class="stats-separator" aria-hidden="true">–</span>
 
-        <em>Titres récents dans les 20 premiers</em> :
+        <em>Morceaux lus récemment dans les 20 premiers</em> :
         <strong>${stats.recentTracksInFirstTwenty}</strong>.
     </p>
 `;

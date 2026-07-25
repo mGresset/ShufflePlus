@@ -25,11 +25,9 @@ body {
     min-height: 100vh;
     margin: 0;
     background:
-        radial-gradient(
-            circle at top,
+        radial-gradient(circle at top,
             #1c1c1c 0,
-            #101010 45%
-        );
+            #101010 45%);
 }
 
 button,
@@ -253,7 +251,9 @@ button:disabled {
     .playlist-info {
         padding: 12px;
     }
-}.playlist-card {
+}
+
+.playlist-card {
     width: 100%;
     padding: 0;
     color: inherit;
@@ -405,11 +405,7 @@ button:disabled {
 .track-row {
     display: grid;
     grid-template-columns:
-        34px
-        48px
-        minmax(180px, 1.5fr)
-        minmax(130px, 1fr)
-        52px;
+        34px 48px minmax(180px, 1.5fr) minmax(130px, 1fr) 52px;
     align-items: center;
     gap: 14px;
     min-height: 70px;
@@ -499,10 +495,7 @@ button:disabled {
 
     .track-row {
         grid-template-columns:
-            26px
-            46px
-            minmax(0, 1fr)
-            48px;
+            26px 46px minmax(0, 1fr) 48px;
         gap: 10px;
         padding-inline: 6px;
     }
@@ -515,7 +508,9 @@ button:disabled {
         width: 46px;
         height: 46px;
     }
-}/* À ajouter à la fin de style.css */
+}
+
+/* À ajouter à la fin de style.css */
 
 .playback-panel {
     margin: 0 0 24px;
@@ -551,7 +546,7 @@ button:disabled {
     gap: 7px;
 }
 
-.device-field > span {
+.device-field>span {
     color: #b3b3b3;
     font-size: 13px;
     font-weight: 700;
@@ -639,7 +634,7 @@ button:disabled {
     line-height: 1.8;
 }
 
-.shuffle-stats-text > strong:first-child {
+.shuffle-stats-text>strong:first-child {
     color: #ffffff;
     font-size: 15px;
 }
@@ -666,4 +661,19 @@ button:disabled {
     .stats-separator {
         margin: 0 3px;
     }
+}
+
+.shuffle-stats .stats-separator {
+    display: inline;
+    width: auto;
+    min-width: 0;
+    height: auto;
+    margin: 0 7px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #78947f;
+    font-style: normal;
+    line-height: inherit;
 }
