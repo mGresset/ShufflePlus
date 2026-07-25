@@ -1080,3 +1080,143 @@ button:disabled {
         padding: 16px;
     }
 }
+/* Shuffle+ v1.0.0 — Recherche, filtres et tri */
+
+.library-toolbar {
+    display: grid;
+    grid-template-columns: minmax(240px, 1.6fr) minmax(170px, 0.7fr) minmax(170px, 0.7fr) auto;
+    align-items: end;
+    gap: 14px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #2b2b2b;
+    border-radius: 16px;
+    background: #171717;
+}
+
+.library-search-field,
+.library-select-field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.library-search-field > span,
+.library-select-field > span {
+    color: #b3b3b3;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.library-search-field input,
+.library-select-field select {
+    width: 100%;
+    min-height: 48px;
+    border: 1px solid #3a3a3a;
+    border-radius: 12px;
+    outline: none;
+    background: #101010;
+    color: #fff;
+    padding: 0 14px;
+}
+
+.library-search-field input:focus,
+.library-select-field select:focus {
+    border-color: #1ed760;
+    box-shadow: 0 0 0 3px rgb(30 215 96 / 14%);
+}
+
+.library-search-field input::placeholder {
+    color: #777;
+}
+
+.library-reset-button {
+    min-height: 48px;
+    padding: 0 18px;
+    border: 1px solid #454545;
+    border-radius: 12px;
+    background: transparent;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.library-reset-button:hover:not(:disabled) {
+    background: #242424;
+}
+
+.library-reset-button:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.library-empty-state {
+    display: grid;
+    place-items: center;
+    min-height: 280px;
+    padding: 42px 22px;
+    border: 1px dashed #3b3b3b;
+    border-radius: 18px;
+    background: #151515;
+    text-align: center;
+}
+
+.library-empty-state > span {
+    font-size: 46px;
+}
+
+.library-empty-state h3 {
+    margin: 16px 0 8px;
+    font-size: 24px;
+}
+
+.library-empty-state p {
+    max-width: 480px;
+    margin: 0 0 20px;
+    color: #a7a7a7;
+}
+
+.library-empty-state button {
+    min-height: 44px;
+    padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
+    background: #1ed760;
+    color: #07190d;
+    font-weight: 750;
+}
+
+/* Demande v0.6 : titre centré avec retour à la ligne */
+.shuffle-stats-text {
+    text-align: center;
+}
+
+.shuffle-stats-title {
+    display: inline-block;
+    margin-bottom: 4px;
+}
+
+@media (max-width: 980px) {
+    .library-toolbar {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .library-search-field {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 620px) {
+    .library-toolbar {
+        grid-template-columns: 1fr;
+        padding: 14px;
+    }
+
+    .library-search-field {
+        grid-column: auto;
+    }
+
+    .library-reset-button {
+        width: 100%;
+    }
+}

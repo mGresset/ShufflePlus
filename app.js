@@ -31,7 +31,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "0.9.0";
+const APP_VERSION = "1.0.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 
@@ -43,6 +43,10 @@ let sourceTracks = [];
 let selectedTracks = [];
 let availableDevices = [];
 const selectedSourceKeys = new Set();
+
+let librarySearchTerm = "";
+let libraryFilter = "all";
+let librarySort = "name-asc";
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -121,6 +125,95 @@ function getPlaylistSourceKey(playlistId) {
     return `playlist:${playlistId}`;
 }
 
+
+function normalizeSearchText(value = "") {
+    return String(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+}
+
+function getPlaylistCategory(playlist) {
+    if (playlist.owner?.id === currentUserId) {
+        return "personal";
+    }
+
+    if (playlist.collaborative === true) {
+        return "collaborative";
+    }
+
+    return "followed";
+}
+
+function getFilteredAndSortedPlaylists(playlists) {
+    const normalizedQuery = normalizeSearchText(librarySearchTerm);
+
+    const filtered = playlists.filter((playlist) => {
+        const category = getPlaylistCategory(playlist);
+        const matchesFilter =
+            libraryFilter === "all" ||
+            category === libraryFilter;
+
+        if (!matchesFilter) {
+            return false;
+        }
+
+        if (!normalizedQuery) {
+            return true;
+        }
+
+        const searchableText = normalizeSearchText([
+            playlist.name,
+            playlist.owner?.display_name,
+            playlist.owner?.id
+        ].filter(Boolean).join(" "));
+
+        return searchableText.includes(normalizedQuery);
+    });
+
+    return filtered.sort((first, second) => {
+        const firstName = first.name || "";
+        const secondName = second.name || "";
+        const firstTotal = getPlaylistTotal(first);
+        const secondTotal = getPlaylistTotal(second);
+
+        switch (librarySort) {
+            case "name-desc":
+                return secondName.localeCompare(firstName, "fr", {
+                    sensitivity: "base"
+                });
+            case "tracks-desc":
+                return secondTotal - firstTotal ||
+                    firstName.localeCompare(secondName, "fr", {
+                        sensitivity: "base"
+                    });
+            case "tracks-asc":
+                return firstTotal - secondTotal ||
+                    firstName.localeCompare(secondName, "fr", {
+                        sensitivity: "base"
+                    });
+            case "name-asc":
+            default:
+                return firstName.localeCompare(secondName, "fr", {
+                    sensitivity: "base"
+                });
+        }
+    });
+}
+
+function isLikedSourceVisible() {
+    if (libraryFilter !== "all") {
+        return false;
+    }
+
+    const normalizedQuery = normalizeSearchText(librarySearchTerm);
+
+    return !normalizedQuery ||
+        normalizeSearchText("Morceaux aimés bibliothèque Spotify")
+            .includes(normalizedQuery);
+}
+
 function updateMixSelectionControls() {
     const selectionCountElement = document.getElementById(
         "mixSelectionCount"
@@ -164,7 +257,10 @@ function displayPlaylists(playlists) {
     selectedTracks = [];
     availableDevices = [];
 
-    const cards = playlists
+    const visiblePlaylists = getFilteredAndSortedPlaylists(playlists);
+    const likedVisible = isLikedSourceVisible();
+
+    const cards = visiblePlaylists
         .map((playlist) => {
             const playlistName = escapeHtml(
                 playlist.name || "Playlist sans nom"
@@ -236,37 +332,60 @@ function displayPlaylists(playlists) {
 
     const likedSelected = selectedSourceKeys.has("liked");
 
-    const likedTracksCard = `
-        <article
-            class="playlist-card source-card liked-tracks-card ${likedSelected ? "is-selected" : ""}"
-            data-source-key="liked"
-        >
-            <label class="source-selector" title="Ajouter au mix">
-                <input
-                    class="source-checkbox"
-                    type="checkbox"
-                    data-source-key="liked"
-                    ${likedSelected ? "checked" : ""}
-                >
-                <span aria-hidden="true"></span>
-            </label>
-
-            <button
-                class="source-open-button"
-                type="button"
-                data-library-source="liked"
+    const likedTracksCard = likedVisible
+        ? `
+            <article
+                class="playlist-card source-card liked-tracks-card ${likedSelected ? "is-selected" : ""}"
+                data-source-key="liked"
             >
-                <div class="playlist-placeholder liked-tracks-placeholder">
-                    ♥
-                </div>
+                <label class="source-selector" title="Ajouter au mix">
+                    <input
+                        class="source-checkbox"
+                        type="checkbox"
+                        data-source-key="liked"
+                        ${likedSelected ? "checked" : ""}
+                    >
+                    <span aria-hidden="true"></span>
+                </label>
 
-                <div class="playlist-info">
-                    <h3>Morceaux aimés</h3>
-                    <p>Ta bibliothèque Spotify</p>
-                </div>
-            </button>
-        </article>
-    `;
+                <button
+                    class="source-open-button"
+                    type="button"
+                    data-library-source="liked"
+                >
+                    <div class="playlist-placeholder liked-tracks-placeholder">
+                        ♥
+                    </div>
+
+                    <div class="playlist-info">
+                        <h3>Morceaux aimés</h3>
+                        <p>Ta bibliothèque Spotify</p>
+                    </div>
+                </button>
+            </article>
+        `
+        : "";
+
+    const visibleCount = visiblePlaylists.length + (likedVisible ? 1 : 0);
+    const totalCount = playlists.length + 1;
+
+    const emptyState = visibleCount === 0
+        ? `
+            <div class="library-empty-state">
+                <span aria-hidden="true">🔎</span>
+                <h3>Aucun résultat</h3>
+                <p>Modifie la recherche ou les filtres pour retrouver tes playlists.</p>
+                <button id="resetLibraryFilters" type="button">
+                    Réinitialiser les filtres
+                </button>
+            </div>
+        `
+        : `
+            <div class="playlists-grid">
+                ${likedTracksCard}
+                ${cards}
+            </div>
+        `;
 
     contentElement.innerHTML = `
         <section class="playlists-section">
@@ -274,11 +393,53 @@ function displayPlaylists(playlists) {
                 <div>
                     <h2>Ma musique</h2>
                     <p>
-                        Tes morceaux aimés et ${playlists.length}
-                        playlist${playlists.length > 1 ? "s" : ""}
+                        ${visibleCount} source${visibleCount > 1 ? "s" : ""} affichée${visibleCount > 1 ? "s" : ""}
+                        sur ${totalCount}
                     </p>
                 </div>
             </div>
+
+            <section class="library-toolbar" aria-label="Recherche et filtres">
+                <label class="library-search-field" for="librarySearchInput">
+                    <span>Rechercher</span>
+                    <input
+                        id="librarySearchInput"
+                        type="search"
+                        placeholder="Nom de playlist ou propriétaire…"
+                        value="${escapeHtml(librarySearchTerm)}"
+                        autocomplete="off"
+                    >
+                </label>
+
+                <label class="library-select-field" for="libraryFilterSelect">
+                    <span>Afficher</span>
+                    <select id="libraryFilterSelect">
+                        <option value="all" ${libraryFilter === "all" ? "selected" : ""}>Toutes les sources</option>
+                        <option value="personal" ${libraryFilter === "personal" ? "selected" : ""}>Mes playlists</option>
+                        <option value="collaborative" ${libraryFilter === "collaborative" ? "selected" : ""}>Collaboratives</option>
+                        <option value="followed" ${libraryFilter === "followed" ? "selected" : ""}>Playlists suivies</option>
+                    </select>
+                </label>
+
+                <label class="library-select-field" for="librarySortSelect">
+                    <span>Trier</span>
+                    <select id="librarySortSelect">
+                        <option value="name-asc" ${librarySort === "name-asc" ? "selected" : ""}>Nom A → Z</option>
+                        <option value="name-desc" ${librarySort === "name-desc" ? "selected" : ""}>Nom Z → A</option>
+                        <option value="tracks-desc" ${librarySort === "tracks-desc" ? "selected" : ""}>Plus de morceaux</option>
+                        <option value="tracks-asc" ${librarySort === "tracks-asc" ? "selected" : ""}>Moins de morceaux</option>
+                    </select>
+                </label>
+
+                <button
+                    id="resetLibraryFilters"
+                    class="library-reset-button"
+                    type="button"
+                    ${(librarySearchTerm || libraryFilter !== "all" || librarySort !== "name-asc") ? "" : "disabled"}
+                >
+                    Réinitialiser
+                </button>
+            </section>
 
             <section class="mix-builder" aria-label="Créateur de mix">
                 <div class="mix-builder-copy">
@@ -294,8 +455,9 @@ function displayPlaylists(playlists) {
                         id="selectAllSources"
                         class="mix-secondary-button"
                         type="button"
+                        ${visibleCount ? "" : "disabled"}
                     >
-                        Sélection rapide
+                        Sélectionner les visibles
                     </button>
 
                     <button
@@ -319,15 +481,11 @@ function displayPlaylists(playlists) {
             </section>
 
             <p class="access-note">
-                Coche plusieurs sources, puis crée un mélange intelligent
-                commun. Les playlists grisées ne sont pas lisibles par
-                Shuffle+.
+                Recherche, filtre et trie tes sources. Les playlists grisées
+                restent visibles, mais leur contenu n’est pas lisible par Shuffle+.
             </p>
 
-            <div class="playlists-grid">
-                ${likedTracksCard}
-                ${cards}
-            </div>
+            ${emptyState}
         </section>
     `;
 
@@ -1636,9 +1794,12 @@ contentElement.addEventListener(
 
         if (selectAllSourcesButton) {
             selectedSourceKeys.clear();
-            selectedSourceKeys.add("liked");
 
-            for (const playlist of playlistsCache) {
+            if (isLikedSourceVisible()) {
+                selectedSourceKeys.add("liked");
+            }
+
+            for (const playlist of getFilteredAndSortedPlaylists(playlistsCache)) {
                 if (
                     canReadPlaylist(playlist) &&
                     selectedSourceKeys.size < MAX_MIX_SOURCES
@@ -1650,7 +1811,7 @@ contentElement.addEventListener(
             }
 
             setStatus(
-                `Les ${MAX_MIX_SOURCES} premières sources accessibles ont été sélectionnées.`
+                `${selectedSourceKeys.size} source${selectedSourceKeys.size > 1 ? "s" : ""} visible${selectedSourceKeys.size > 1 ? "s" : ""} sélectionnée${selectedSourceKeys.size > 1 ? "s" : ""}.`
             );
             displayPlaylists(playlistsCache);
             return;
@@ -1670,6 +1831,17 @@ contentElement.addEventListener(
 
         if (createMixButton) {
             await createSelectedMix();
+            return;
+        }
+
+        const resetLibraryFiltersButton =
+            event.target.closest("#resetLibraryFilters");
+
+        if (resetLibraryFiltersButton) {
+            librarySearchTerm = "";
+            libraryFilter = "all";
+            librarySort = "name-asc";
+            displayPlaylists(playlistsCache);
             return;
         }
 
@@ -1792,6 +1964,18 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (event.target.id === "libraryFilterSelect") {
+            libraryFilter = event.target.value;
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (event.target.id === "librarySortSelect") {
+            librarySort = event.target.value;
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
         const checkbox = event.target.closest(
             ".source-checkbox"
         );
@@ -1823,6 +2007,32 @@ contentElement.addEventListener(
         }
 
         updateMixSelectionControls();
+    }
+);
+
+contentElement.addEventListener(
+    "input",
+    (event) => {
+        if (event.target.id !== "librarySearchInput") {
+            return;
+        }
+
+        const cursorPosition = event.target.selectionStart;
+        librarySearchTerm = event.target.value;
+        displayPlaylists(playlistsCache);
+
+        const searchInput = document.getElementById(
+            "librarySearchInput"
+        );
+
+        if (searchInput) {
+            searchInput.focus();
+            const nextCursor = Math.min(
+                cursorPosition ?? librarySearchTerm.length,
+                librarySearchTerm.length
+            );
+            searchInput.setSelectionRange(nextCursor, nextCursor);
+        }
     }
 );
 
