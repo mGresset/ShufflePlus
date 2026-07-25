@@ -1,6 +1,6 @@
 export const CONFIG = {
     appName: "Shuffle+",
-    version: "1.1.0",
+    version: "1.2.0",
 
     clientId: "efcbf6e43e6346678cfceb44d0dc2422",
 
@@ -13,6 +13,7 @@ export const CONFIG = {
         "user-library-read",
         "user-read-private",
         "user-read-playback-state",
+        "user-read-recently-played",
         "user-modify-playback-state"
     ]
 };

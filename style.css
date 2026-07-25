@@ -1237,3 +1237,9 @@ button:disabled {
 .modification-sort-progress[hidden] {
     display: none;
 }
+/* Shuffle+ v1.2.0 — Écoutes récentes */
+
+/* Les informations d’écoute restent lisibles sur les cartes étroites. */
+.playlist-info p {
+    line-height: 1.45;
+}

@@ -162,6 +162,58 @@ export async function getPlaylistLastAddedAt(playlistId) {
 }
 
 
+
+export async function getRecentlyPlayedPlaylistActivity(
+    maxPages = 4
+) {
+    const activity = {};
+    let endpoint =
+        "/me/player/recently-played?limit=50";
+    let pageCount = 0;
+
+    while (endpoint && pageCount < maxPages) {
+        const page = await spotifyFetchWithRetry(endpoint);
+        pageCount += 1;
+
+        if (Array.isArray(page?.items)) {
+            for (const playedItem of page.items) {
+                const context = playedItem?.context;
+                const contextUri = context?.uri || "";
+
+                if (
+                    context?.type !== "playlist" ||
+                    !contextUri.startsWith("spotify:playlist:")
+                ) {
+                    continue;
+                }
+
+                const playlistId = contextUri.split(":").at(-1);
+                const timestamp = Date.parse(
+                    playedItem?.played_at || ""
+                );
+
+                if (
+                    !playlistId ||
+                    !Number.isFinite(timestamp)
+                ) {
+                    continue;
+                }
+
+                activity[playlistId] = Math.max(
+                    Number(activity[playlistId] || 0),
+                    timestamp
+                );
+            }
+        }
+
+        endpoint = page?.next
+            ? page.next.replace(API_BASE_URL, "")
+            : null;
+    }
+
+    return activity;
+}
+
 export async function getMySavedTracks() {
     const tracks = [];
     let endpoint = "/me/tracks?limit=50";

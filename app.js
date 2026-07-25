@@ -22,7 +22,8 @@ import {
     startPlayback,
     createPrivatePlaylist,
     addItemsToPlaylist,
-    getPlaylistLastAddedAt
+    getPlaylistLastAddedAt,
+    getRecentlyPlayedPlaylistActivity
 } from "./spotify-api.js";
 
 const versionElement = document.querySelector(".version");
@@ -32,13 +33,16 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
     "shuffleplus_playlist_modification_dates_v1";
 const MODIFICATION_CACHE_TTL = 24 * 60 * 60 * 1000;
 const MODIFICATION_REQUEST_CONCURRENCY = 4;
+const RECENT_ACTIVITY_CACHE_KEY =
+    "shuffleplus_recent_playlist_activity_v1";
+const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
 
 let currentUserId = "";
 let currentUserProduct = "";
@@ -58,6 +62,8 @@ let modificationDatesProgress = {
     total: 0
 };
 const playlistModificationDates = new Map();
+const playlistRecentActivity = new Map();
+let recentActivityLoading = false;
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -108,6 +114,7 @@ function setDisconnectedInterface() {
     availableDevices = [];
     selectedSourceKeys.clear();
     playlistModificationDates.clear();
+    playlistRecentActivity.clear();
     modificationDatesLoading = false;
     modificationDatesProgress = {
         completed: 0,
@@ -393,6 +400,143 @@ async function ensureModificationDatesLoaded() {
     }
 }
 
+
+function readRecentActivityCache() {
+    try {
+        const rawCache = localStorage.getItem(
+            RECENT_ACTIVITY_CACHE_KEY
+        );
+
+        if (!rawCache) {
+            return null;
+        }
+
+        const parsedCache = JSON.parse(rawCache);
+        const age = Date.now() - Number(parsedCache.savedAt || 0);
+
+        if (
+            age < 0 ||
+            age >= RECENT_ACTIVITY_CACHE_TTL ||
+            !parsedCache.activity ||
+            typeof parsedCache.activity !== "object"
+        ) {
+            return null;
+        }
+
+        return parsedCache.activity;
+    } catch (error) {
+        console.warn(
+            "Cache des écoutes récentes illisible :",
+            error
+        );
+        return null;
+    }
+}
+
+function writeRecentActivityCache(activity) {
+    try {
+        localStorage.setItem(
+            RECENT_ACTIVITY_CACHE_KEY,
+            JSON.stringify({
+                savedAt: Date.now(),
+                activity
+            })
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer le cache des écoutes :",
+            error
+        );
+    }
+}
+
+function applyRecentActivity(activity = {}) {
+    playlistRecentActivity.clear();
+
+    for (const [playlistId, timestamp] of Object.entries(activity)) {
+        const normalizedTimestamp = Number(timestamp || 0);
+
+        if (playlistId && normalizedTimestamp > 0) {
+            playlistRecentActivity.set(
+                playlistId,
+                normalizedTimestamp
+            );
+        }
+    }
+}
+
+function formatRecentActivity(timestamp) {
+    if (!timestamp) {
+        return "Aucune écoute récente détectée";
+    }
+
+    const elapsed = Math.max(0, Date.now() - timestamp);
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    if (elapsed < minute) {
+        return "Écoutée à l’instant";
+    }
+
+    if (elapsed < hour) {
+        const minutes = Math.floor(elapsed / minute);
+        return `Écoutée il y a ${minutes} min`;
+    }
+
+    if (elapsed < day) {
+        const hours = Math.floor(elapsed / hour);
+        return `Écoutée il y a ${hours} h`;
+    }
+
+    const days = Math.floor(elapsed / day);
+
+    if (days === 1) {
+        return "Écoutée hier";
+    }
+
+    return `Écoutée il y a ${days} jours`;
+}
+
+async function ensureRecentActivityLoaded() {
+    if (recentActivityLoading) {
+        return;
+    }
+
+    const cachedActivity = readRecentActivityCache();
+
+    if (cachedActivity) {
+        applyRecentActivity(cachedActivity);
+        return;
+    }
+
+    recentActivityLoading = true;
+    setStatus("Analyse des écoutes récentes…");
+
+    try {
+        const activity =
+            await getRecentlyPlayedPlaylistActivity(4);
+
+        applyRecentActivity(activity);
+        writeRecentActivityCache(activity);
+    } catch (error) {
+        console.error(error);
+
+        if (error.status === 403) {
+            throw new Error(
+                "Spotify refuse l’accès aux écoutes récentes. " +
+                "Ajoute le scope user-read-recently-played, " +
+                "puis déconnecte-toi et reconnecte-toi."
+            );
+        }
+
+        throw error;
+    } finally {
+        recentActivityLoading = false;
+        setStatus("");
+    }
+}
+
 function getFilteredAndSortedPlaylists(playlists) {
     const normalizedQuery = normalizeSearchText(librarySearchTerm);
 
@@ -429,6 +573,10 @@ function getFilteredAndSortedPlaylists(playlists) {
             playlistModificationDates.get(first.id) || 0;
         const secondModifiedAt =
             playlistModificationDates.get(second.id) || 0;
+        const firstRecentAt =
+            playlistRecentActivity.get(first.id) || 0;
+        const secondRecentAt =
+            playlistRecentActivity.get(second.id) || 0;
 
         switch (librarySort) {
             case "name-desc":
@@ -475,6 +623,25 @@ function getFilteredAndSortedPlaylists(playlists) {
                         sensitivity: "base"
                     })
                 );
+            }
+            case "recent-desc":
+                return (
+                    secondRecentAt - firstRecentAt ||
+                    firstName.localeCompare(secondName, "fr", {
+                        sensitivity: "base"
+                    })
+                );
+            case "recent-none": {
+                const firstWasRecent = firstRecentAt > 0;
+                const secondWasRecent = secondRecentAt > 0;
+
+                if (firstWasRecent !== secondWasRecent) {
+                    return firstWasRecent ? 1 : -1;
+                }
+
+                return firstName.localeCompare(secondName, "fr", {
+                    sensitivity: "base"
+                });
             }
             case "name-asc":
             default:
@@ -579,8 +746,18 @@ function displayPlaylists(playlists) {
                     ? ` · ${formatModificationDate(modifiedAt)}`
                     : "";
 
+            const recentAt =
+                playlistRecentActivity.get(
+                    playlist.id
+                ) || null;
+
+            const recentText =
+                librarySort.startsWith("recent")
+                    ? ` · ${formatRecentActivity(recentAt)}`
+                    : "";
+
             const availabilityText = readable
-                ? `${total} morceau${total > 1 ? "x" : ""}${modificationText}`
+                ? `${total} morceau${total > 1 ? "x" : ""}${modificationText}${recentText}`
                 : "Playlist suivie · accès limité";
 
             return `
@@ -723,6 +900,8 @@ function displayPlaylists(playlists) {
                         <option value="tracks-asc" ${librarySort === "tracks-asc" ? "selected" : ""}>Moins de morceaux</option>
                         <option value="modified-desc" ${librarySort === "modified-desc" ? "selected" : ""}>Modifiées récemment</option>
                         <option value="modified-asc" ${librarySort === "modified-asc" ? "selected" : ""}>Modifiées anciennement</option>
+                        <option value="recent-desc" ${librarySort === "recent-desc" ? "selected" : ""}>Écoutées récemment</option>
+                        <option value="recent-none" ${librarySort === "recent-none" ? "selected" : ""}>Jamais retrouvées récemment</option>
                     </select>
                 </label>
 
@@ -2285,6 +2464,20 @@ contentElement.addEventListener(
             if (librarySort.startsWith("modified")) {
                 await ensureModificationDatesLoaded();
                 displayPlaylists(playlistsCache);
+            }
+
+            if (librarySort.startsWith("recent")) {
+                try {
+                    await ensureRecentActivityLoaded();
+                    displayPlaylists(playlistsCache);
+                } catch (error) {
+                    console.error(error);
+                    setStatus(
+                        error.message ||
+                        "Impossible d’analyser les écoutes récentes.",
+                        "error"
+                    );
+                }
             }
 
             return;
