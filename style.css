@@ -656,3 +656,65 @@ button:disabled {
 
     
 }
+/*
+ * La carte spéciale « Morceaux aimés ».
+ */
+.liked-tracks-card {
+    border-color: #433b78;
+}
+
+.liked-tracks-card:hover {
+    border-color: #7566c9;
+}
+
+.liked-tracks-placeholder,
+.liked-detail-placeholder {
+    background:
+        linear-gradient(135deg, #5b4db2 0%, #2c245f 100%);
+    color: #ffffff;
+}
+
+.liked-tracks-placeholder {
+    font-size: 64px;
+}
+
+.liked-detail-placeholder {
+    font-size: 80px;
+}
+
+/*
+ * Présentation centrée de l’analyse du mélange.
+ * Les !important neutralisent les anciens styles qui transformaient
+ * les séparateurs en bulles.
+ */
+.shuffle-stats {
+    display: block !important;
+    text-align: center;
+}
+
+.shuffle-stats-text {
+    margin: 0;
+    line-height: 1.9;
+    text-align: center;
+}
+
+.shuffle-stats-title {
+    display: inline-block;
+    margin-bottom: 4px;
+    color: #ffffff;
+    font-size: 16px;
+}
+
+.shuffle-stats-text em {
+    color: #dce9df;
+}
+
+.shuffle-stats-text strong:not(.shuffle-stats-title) {
+    color: #1ed760;
+}
+
+@media (max-width: 600px) {
+    .shuffle-stats-text {
+        line-height: 2;
+    }
+}

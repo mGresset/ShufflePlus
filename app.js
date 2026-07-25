@@ -15,6 +15,7 @@ import {
     getMyPlaylists,
     getMyProfile,
     getPlaylistItems,
+    getMySavedTracks,
     getAvailableDevices,
     transferPlayback,
     setPlaybackShuffle,
@@ -28,7 +29,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "0.6.2";
+const APP_VERSION = "0.7.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 
 let currentUserId = "";
@@ -117,17 +118,6 @@ function displayPlaylists(playlists) {
     selectedTracks = [];
     availableDevices = [];
 
-    if (!playlists.length) {
-        contentElement.innerHTML = `
-            <section class="playlists-section">
-                <h2>Mes playlists</h2>
-                <p>Aucune playlist trouvée.</p>
-            </section>
-        `;
-
-        return;
-    }
-
     const cards = playlists
         .map((playlist) => {
             const playlistName = escapeHtml(
@@ -177,12 +167,32 @@ function displayPlaylists(playlists) {
         })
         .join("");
 
+    const likedTracksCard = `
+        <button
+            class="playlist-card liked-tracks-card"
+            type="button"
+            data-library-source="liked"
+        >
+            <div class="playlist-placeholder liked-tracks-placeholder">
+                ♥
+            </div>
+
+            <div class="playlist-info">
+                <h3>Morceaux aimés</h3>
+                <p>Ta bibliothèque Spotify</p>
+            </div>
+        </button>
+    `;
+
     contentElement.innerHTML = `
         <section class="playlists-section">
             <div class="section-heading">
                 <div>
-                    <h2>Mes playlists</h2>
-                    <p>${playlists.length} playlists trouvées</p>
+                    <h2>Ma musique</h2>
+                    <p>
+                        Tes morceaux aimés et ${playlists.length}
+                        playlist${playlists.length > 1 ? "s" : ""}
+                    </p>
                 </div>
             </div>
 
@@ -192,6 +202,7 @@ function displayPlaylists(playlists) {
             </p>
 
             <div class="playlists-grid">
+                ${likedTracksCard}
                 ${cards}
             </div>
         </section>
@@ -304,23 +315,21 @@ function renderShuffleStats(stats = null) {
 
     statsElement.hidden = false;
     statsElement.innerHTML = `
-    <p class="shuffle-stats-text">
-        <strong>Mélange analysé !</strong>
-
-        <em>Artistes consécutifs</em> :
-        <strong>${stats.consecutiveArtistRepeats}</strong>
-
-        &nbsp;–&nbsp;
-
-        <em>Albums consécutifs</em> :
-        <strong>${stats.consecutiveAlbumRepeats}</strong>
-
-        &nbsp;–&nbsp;
-
-        <em>Morceaux lus récemment dans les 20 premiers</em> :
-        <strong>${stats.recentTracksInFirstTwenty}</strong>.
-    </p>
-`;
+        <p class="shuffle-stats-text">
+            <strong class="shuffle-stats-title">
+                Mélange analysé !
+            </strong>
+            <br>
+            <em>Artistes consécutifs</em> :
+            <strong>${stats.consecutiveArtistRepeats}</strong>
+            &nbsp;–&nbsp;
+            <em>Albums consécutifs</em> :
+            <strong>${stats.consecutiveAlbumRepeats}</strong>
+            &nbsp;–&nbsp;
+            <em>Morceaux lus récemment dans les 20 premiers</em> :
+            <strong>${stats.recentTracksInFirstTwenty}</strong>.
+        </p>
+    `;
 }
 
 function getDeviceIcon(type = "") {
@@ -405,17 +414,26 @@ function updateDeviceControls(previousDeviceId = "") {
 }
 
 function displayPlaylistDetails(playlist, tracks) {
+    const isLikedTracks = playlist.sourceType === "liked";
+
     const playlistName = escapeHtml(
         playlist.name || "Playlist sans nom"
     );
 
     const ownerName = escapeHtml(
-        playlist.owner?.display_name ||
-        playlist.owner?.id ||
-        "Spotify"
+        isLikedTracks
+            ? "Ta bibliothèque"
+            : (
+                playlist.owner?.display_name ||
+                playlist.owner?.id ||
+                "Spotify"
+            )
     );
 
-    const playlistUrl = playlist.external_urls?.spotify || "";
+    const playlistUrl = isLikedTracks
+        ? ""
+        : (playlist.external_urls?.spotify || "");
+
     const imageUrl = playlist.images?.[0]?.url || "";
 
     const cover = imageUrl
@@ -427,8 +445,10 @@ function displayPlaylistDetails(playlist, tracks) {
             >
         `
         : `
-            <div class="playlist-detail-cover detail-placeholder">
-                🎵
+            <div class="playlist-detail-cover detail-placeholder ${
+                isLikedTracks ? "liked-detail-placeholder" : ""
+            }">
+                ${isLikedTracks ? "♥" : "🎵"}
             </div>
         `;
 
@@ -460,7 +480,7 @@ function displayPlaylistDetails(playlist, tracks) {
 
                 <div class="playlist-detail-info">
                     <span class="playlist-label">
-                        Playlist
+                        ${isLikedTracks ? "Bibliothèque" : "Playlist"}
                     </span>
 
                     <h2>${playlistName}</h2>
@@ -520,24 +540,26 @@ function displayPlaylistDetails(playlist, tracks) {
                         id="playSpotifyButton"
                         class="play-spotify-button"
                         type="button"
-                        ${availableDevices.length &&
-            tracks.length &&
-            !isKnownNonPremiumAccount()
-            ? ""
-            : "disabled"
-        }
+                        ${
+                            availableDevices.length &&
+                            tracks.length &&
+                            !isKnownNonPremiumAccount()
+                                ? ""
+                                : "disabled"
+                        }
                     >
                         ▶ Lire cet ordre dans Spotify
                     </button>
                 </div>
 
                 <p id="playbackMessage" class="playback-message">
-                    ${isKnownNonPremiumAccount()
-            ? "La commande de lecture nécessite un compte Spotify Premium."
-            : availableDevices.length
-                ? "Un appareil Spotify est prêt."
-                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
-        }
+                    ${
+                        isKnownNonPremiumAccount()
+                            ? "La commande de lecture nécessite un compte Spotify Premium."
+                            : availableDevices.length
+                                ? "Un appareil Spotify est prêt."
+                                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
+                    }
                 </p>
             </section>
 
@@ -655,7 +677,8 @@ async function refreshPlaybackDevices() {
         updateDeviceControls(previousDeviceId);
 
         playbackMessage.textContent = availableDevices.length
-            ? `${availableDevices.length} appareil${availableDevices.length > 1 ? "s" : ""
+            ? `${availableDevices.length} appareil${
+                availableDevices.length > 1 ? "s" : ""
             } disponible${availableDevices.length > 1 ? "s" : ""}.`
             : (
                 "Aucun appareil trouvé. Ouvre Spotify, lance ou " +
@@ -794,6 +817,8 @@ async function openPlaylist(playlist) {
     selectedTracks = [];
     availableDevices = [];
 
+    const isLikedTracks = playlist.sourceType === "liked";
+
     setStatus(`Chargement de « ${playlist.name} »…`);
 
     contentElement.innerHTML = `
@@ -803,8 +828,12 @@ async function openPlaylist(playlist) {
     `;
 
     try {
+        const tracksPromise = isLikedTracks
+            ? getMySavedTracks()
+            : getPlaylistItems(playlist.id);
+
         const [tracks, devices] = await Promise.all([
-            getPlaylistItems(playlist.id),
+            tracksPromise,
             getAvailableDevices().catch((error) => {
                 console.warn(
                     "Appareils Spotify indisponibles :",
@@ -833,10 +862,13 @@ async function openPlaylist(playlist) {
     } catch (error) {
         console.error(error);
 
-        const message =
-            error.status === 403
-                ? "Spotify ne permet pas de consulter le contenu de cette playlist avec l’application actuelle."
-                : "Impossible de charger les morceaux de cette playlist.";
+        const message = isLikedTracks
+            ? "Impossible de charger tes morceaux aimés."
+            : (
+                error.status === 403
+                    ? "Spotify ne permet pas de consulter le contenu de cette playlist avec l’application actuelle."
+                    : "Impossible de charger les morceaux de cette playlist."
+            );
 
         contentElement.innerHTML = `
             <section class="playlist-error-panel">
@@ -944,6 +976,21 @@ contentElement.addEventListener(
             event.target.closest(".playlist-card");
 
         if (playlistCard) {
+            if (playlistCard.dataset.librarySource === "liked") {
+                await openPlaylist({
+                    id: "liked-tracks",
+                    name: "Morceaux aimés",
+                    sourceType: "liked",
+                    owner: {
+                        display_name: "Ta bibliothèque"
+                    },
+                    images: [],
+                    external_urls: {}
+                });
+
+                return;
+            }
+
             const playlistId =
                 playlistCard.dataset.playlistId;
 

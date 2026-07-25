@@ -119,6 +119,39 @@ export async function getPlaylistItems(playlistId) {
     return tracks;
 }
 
+
+export async function getMySavedTracks() {
+    const tracks = [];
+    let endpoint = "/me/tracks?limit=50";
+
+    while (endpoint) {
+        const page = await spotifyFetch(endpoint);
+
+        if (Array.isArray(page.items)) {
+            for (const savedItem of page.items) {
+                const track =
+                    savedItem?.track ??
+                    savedItem?.item ??
+                    null;
+
+                if (
+                    track &&
+                    track.type === "track" &&
+                    track.uri
+                ) {
+                    tracks.push(track);
+                }
+            }
+        }
+
+        endpoint = page.next
+            ? page.next.replace(API_BASE_URL, "")
+            : null;
+    }
+
+    return tracks;
+}
+
 export async function getAvailableDevices() {
     const data = await spotifyFetch("/me/player/devices");
 
