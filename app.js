@@ -28,7 +28,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "0.6.0";
+const APP_VERSION = "0.6.1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 
 let currentUserId = "";
@@ -304,20 +304,23 @@ function renderShuffleStats(stats = null) {
 
     statsElement.hidden = false;
     statsElement.innerHTML = `
-        <strong>Mélange analysé</strong>
-        <span>
-            Artistes consécutifs :
-            ${stats.consecutiveArtistRepeats}
-        </span>
-        <span>
-            Albums consécutifs :
-            ${stats.consecutiveAlbumRepeats}
-        </span>
-        <span>
-            Titres récents dans les 20 premiers :
-            ${stats.recentTracksInFirstTwenty}
-        </span>
-    `;
+    <p class="shuffle-stats-text">
+        <strong>Mélange analysé !</strong>
+
+        <em>Artistes consécutifs</em> :
+        <strong>${stats.consecutiveArtistRepeats}</strong>
+
+        <span class="stats-separator" aria-hidden="true">–</span>
+
+        <em>Albums consécutifs</em> :
+        <strong>${stats.consecutiveAlbumRepeats}</strong>
+
+        <span class="stats-separator" aria-hidden="true">–</span>
+
+        <em>Titres récents dans les 20 premiers</em> :
+        <strong>${stats.recentTracksInFirstTwenty}</strong>.
+    </p>
+`;
 }
 
 function getDeviceIcon(type = "") {
@@ -517,26 +520,24 @@ function displayPlaylistDetails(playlist, tracks) {
                         id="playSpotifyButton"
                         class="play-spotify-button"
                         type="button"
-                        ${
-                            availableDevices.length &&
-                            tracks.length &&
-                            !isKnownNonPremiumAccount()
-                                ? ""
-                                : "disabled"
-                        }
+                        ${availableDevices.length &&
+            tracks.length &&
+            !isKnownNonPremiumAccount()
+            ? ""
+            : "disabled"
+        }
                     >
                         ▶ Lire cet ordre dans Spotify
                     </button>
                 </div>
 
                 <p id="playbackMessage" class="playback-message">
-                    ${
-                        isKnownNonPremiumAccount()
-                            ? "La commande de lecture nécessite un compte Spotify Premium."
-                            : availableDevices.length
-                                ? "Un appareil Spotify est prêt."
-                                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
-                    }
+                    ${isKnownNonPremiumAccount()
+            ? "La commande de lecture nécessite un compte Spotify Premium."
+            : availableDevices.length
+                ? "Un appareil Spotify est prêt."
+                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
+        }
                 </p>
             </section>
 
@@ -654,8 +655,7 @@ async function refreshPlaybackDevices() {
         updateDeviceControls(previousDeviceId);
 
         playbackMessage.textContent = availableDevices.length
-            ? `${availableDevices.length} appareil${
-                availableDevices.length > 1 ? "s" : ""
+            ? `${availableDevices.length} appareil${availableDevices.length > 1 ? "s" : ""
             } disponible${availableDevices.length > 1 ? "s" : ""}.`
             : (
                 "Aucun appareil trouvé. Ouvre Spotify, lance ou " +
