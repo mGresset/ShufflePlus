@@ -19,7 +19,9 @@ import {
     getAvailableDevices,
     transferPlayback,
     setPlaybackShuffle,
-    startPlayback
+    startPlayback,
+    createPrivatePlaylist,
+    addItemsToPlaylist
 } from "./spotify-api.js";
 
 const versionElement = document.querySelector(".version");
@@ -29,7 +31,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "0.8.0";
+const APP_VERSION = "0.9.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 
@@ -455,6 +457,224 @@ function renderShuffleStats(stats = null) {
     `;
 }
 
+
+function createDefaultSavedPlaylistName(playlist) {
+    const sourceName = String(
+        playlist?.name || "Sélection"
+    ).trim();
+
+    const dateText = new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+        }
+    ).format(new Date());
+
+    const prefix =
+        playlist?.sourceType === "mix"
+            ? "Mix Shuffle+"
+            : `Shuffle+ – ${sourceName}`;
+
+    return `${prefix} – ${dateText}`.slice(0, 100);
+}
+
+function createSavedPlaylistDescription() {
+    if (selectedPlaylist?.sourceType === "mix") {
+        const sourceCount =
+            selectedPlaylist.sourceCount || 0;
+
+        return (
+            `Mix intelligent créé avec Shuffle+ à partir de ` +
+            `${sourceCount} source${sourceCount > 1 ? "s" : ""}.`
+        ).slice(0, 300);
+    }
+
+    const sourceName =
+        selectedPlaylist?.name || "une sélection Spotify";
+
+    return (
+        `Ordre intelligent créé avec Shuffle+ à partir de « ` +
+        `${sourceName} ».`
+    ).slice(0, 300);
+}
+
+function getSavePlaylistErrorMessage(error) {
+    const spotifyMessage =
+        error.spotifyMessage ||
+        error.message ||
+        "";
+
+    if (error.status === 403) {
+        return (
+            "Spotify n’a pas autorisé la création de playlist privée. " +
+            "Ajoute le scope playlist-modify-private dans config.js, " +
+            "puis déconnecte-toi et reconnecte-toi à Shuffle+."
+        );
+    }
+
+    if (error.status === 429) {
+        return (
+            "Spotify reçoit trop de demandes. Patiente quelques " +
+            "secondes, puis recommence."
+        );
+    }
+
+    return spotifyMessage
+        ? `Impossible d’enregistrer la playlist : ${spotifyMessage}`
+        : "Impossible d’enregistrer cette playlist dans Spotify.";
+}
+
+async function saveCurrentOrderToSpotify() {
+    const form = document.getElementById(
+        "savePlaylistForm"
+    );
+    const nameInput = document.getElementById(
+        "savePlaylistName"
+    );
+    const saveButton = document.getElementById(
+        "confirmSavePlaylistButton"
+    );
+    const cancelButton = document.getElementById(
+        "cancelSavePlaylistButton"
+    );
+    const messageElement = document.getElementById(
+        "savePlaylistMessage"
+    );
+
+    if (
+        !form ||
+        !nameInput ||
+        !saveButton ||
+        !cancelButton ||
+        !messageElement
+    ) {
+        return;
+    }
+
+    const playlistName = nameInput.value.trim();
+    const uris = selectedTracks
+        .map((track) => track?.uri)
+        .filter(Boolean);
+
+    if (!playlistName) {
+        messageElement.textContent =
+            "Donne un nom à la playlist.";
+        messageElement.className =
+            "save-playlist-message error";
+        nameInput.focus();
+        return;
+    }
+
+    if (!uris.length) {
+        messageElement.textContent =
+            "Aucun morceau ne peut être enregistré.";
+        messageElement.className =
+            "save-playlist-message error";
+        return;
+    }
+
+    saveButton.disabled = true;
+    cancelButton.disabled = true;
+    nameInput.disabled = true;
+    saveButton.textContent = "Création…";
+    messageElement.textContent =
+        "Création de la playlist privée…";
+    messageElement.className =
+        "save-playlist-message";
+
+    let createdPlaylist = null;
+
+    try {
+        createdPlaylist = await createPrivatePlaylist(
+            playlistName,
+            createSavedPlaylistDescription()
+        );
+
+        await addItemsToPlaylist(
+            createdPlaylist.id,
+            uris,
+            ({ addedCount, totalCount }) => {
+                messageElement.textContent =
+                    `Ajout des morceaux : ${addedCount}/${totalCount}…`;
+            }
+        );
+
+        const spotifyUrl =
+            createdPlaylist.external_urls?.spotify || "";
+
+        const savedPlaylist = {
+            ...createdPlaylist,
+            items: {
+                ...(createdPlaylist.items || {}),
+                total: uris.length
+            },
+            tracks: {
+                ...(createdPlaylist.tracks || {}),
+                total: uris.length
+            }
+        };
+
+        playlistsCache = [
+            savedPlaylist,
+            ...playlistsCache.filter(
+                (playlist) =>
+                    playlist.id !== savedPlaylist.id
+            )
+        ];
+
+        messageElement.className =
+            "save-playlist-message success";
+
+        if (spotifyUrl) {
+            messageElement.innerHTML = `
+                Playlist privée créée avec
+                <strong>${uris.length}</strong>
+                morceau${uris.length > 1 ? "x" : ""}.
+                <a
+                    href="${escapeHtml(spotifyUrl)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Ouvrir dans Spotify
+                </a>
+            `;
+        } else {
+            messageElement.textContent =
+                `Playlist privée créée avec ${uris.length} ` +
+                `morceau${uris.length > 1 ? "x" : ""}.`;
+        }
+
+        saveButton.textContent = "✓ Playlist enregistrée";
+        cancelButton.disabled = false;
+        cancelButton.textContent = "Fermer";
+        form.dataset.savedPlaylistId =
+            createdPlaylist.id;
+    } catch (error) {
+        console.error(error);
+
+        messageElement.className =
+            "save-playlist-message error";
+
+        if (createdPlaylist) {
+            messageElement.textContent =
+                "La playlist a été créée, mais l’ajout des morceaux " +
+                "n’a pas pu être terminé. Vérifie-la dans Spotify, " +
+                "puis recommence avec un nouveau nom si nécessaire.";
+        } else {
+            messageElement.textContent =
+                getSavePlaylistErrorMessage(error);
+        }
+
+        saveButton.disabled = false;
+        saveButton.textContent =
+            "Créer la playlist privée";
+        cancelButton.disabled = false;
+        nameInput.disabled = false;
+    }
+}
+
 function getDeviceIcon(type = "") {
     switch (type.toLowerCase()) {
         case "smartphone":
@@ -561,6 +781,9 @@ function displayPlaylistDetails(playlist, tracks) {
         : (playlist.external_urls?.spotify || "");
 
     const imageUrl = playlist.images?.[0]?.url || "";
+    const defaultSavedPlaylistName = escapeHtml(
+        createDefaultSavedPlaylistName(playlist)
+    );
 
     const cover = imageUrl
         ? `
@@ -633,10 +856,76 @@ function displayPlaylistDetails(playlist, tracks) {
                             ${isMultiSourceMix ? "🧠 Mélanger à nouveau" : "🧠 Mélange intelligent"}
                         </button>
 
+                        <button
+                            id="showSavePlaylistButton"
+                            class="save-playlist-button"
+                            type="button"
+                            ${tracks.length ? "" : "disabled"}
+                        >
+                            💾 Enregistrer dans Spotify
+                        </button>
+
                         ${spotifyLink}
                     </div>
                 </div>
             </div>
+
+            <form
+                id="savePlaylistForm"
+                class="save-playlist-panel"
+                hidden
+            >
+                <div class="save-playlist-heading">
+                    <div>
+                        <h3>Enregistrer l’ordre actuel</h3>
+                        <p>
+                            Shuffle+ créera une playlist privée dans
+                            ton compte Spotify.
+                        </p>
+                    </div>
+                </div>
+
+                <label
+                    class="save-playlist-field"
+                    for="savePlaylistName"
+                >
+                    <span>Nom de la playlist</span>
+
+                    <input
+                        id="savePlaylistName"
+                        name="playlistName"
+                        type="text"
+                        maxlength="100"
+                        value="${defaultSavedPlaylistName}"
+                        autocomplete="off"
+                        required
+                    >
+                </label>
+
+                <div class="save-playlist-actions">
+                    <button
+                        id="confirmSavePlaylistButton"
+                        class="save-playlist-confirm"
+                        type="submit"
+                    >
+                        Créer la playlist privée
+                    </button>
+
+                    <button
+                        id="cancelSavePlaylistButton"
+                        class="save-playlist-cancel"
+                        type="button"
+                    >
+                        Annuler
+                    </button>
+                </div>
+
+                <p
+                    id="savePlaylistMessage"
+                    class="save-playlist-message"
+                    aria-live="polite"
+                ></p>
+            </form>
 
             <section class="playback-panel">
                 <div class="playback-panel-heading">
@@ -1399,6 +1688,50 @@ contentElement.addEventListener(
             return;
         }
 
+        const showSavePlaylistButton =
+            event.target.closest("#showSavePlaylistButton");
+
+        if (showSavePlaylistButton) {
+            const savePanel = document.getElementById(
+                "savePlaylistForm"
+            );
+            const nameInput = document.getElementById(
+                "savePlaylistName"
+            );
+
+            if (savePanel) {
+                savePanel.hidden = false;
+                savePanel.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+            }
+
+            if (nameInput) {
+                window.setTimeout(() => {
+                    nameInput.focus();
+                    nameInput.select();
+                }, 250);
+            }
+
+            return;
+        }
+
+        const cancelSavePlaylistButton =
+            event.target.closest("#cancelSavePlaylistButton");
+
+        if (cancelSavePlaylistButton) {
+            const savePanel = document.getElementById(
+                "savePlaylistForm"
+            );
+
+            if (savePanel) {
+                savePanel.hidden = true;
+            }
+
+            return;
+        }
+
         const refreshDevicesButton =
             event.target.closest("#refreshDevicesButton");
 
@@ -1441,6 +1774,18 @@ contentElement.addEventListener(
                 }
             }, 1200);
         }
+    }
+);
+
+contentElement.addEventListener(
+    "submit",
+    async (event) => {
+        if (event.target.id !== "savePlaylistForm") {
+            return;
+        }
+
+        event.preventDefault();
+        await saveCurrentOrderToSpotify();
     }
 );
 

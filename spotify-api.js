@@ -222,3 +222,120 @@ export async function startPlayback(trackUris, deviceId = "") {
         }
     );
 }
+
+function wait(milliseconds) {
+    return new Promise((resolve) => {
+        window.setTimeout(resolve, milliseconds);
+    });
+}
+
+async function spotifyFetchWithRetry(
+    endpoint,
+    options = {},
+    maxAttempts = 3
+) {
+    let attempt = 0;
+
+    while (attempt < maxAttempts) {
+        try {
+            return await spotifyFetch(endpoint, options);
+        } catch (error) {
+            attempt += 1;
+
+            if (
+                error.status !== 429 ||
+                attempt >= maxAttempts
+            ) {
+                throw error;
+            }
+
+            const retryAfterSeconds =
+                Number(error.retryAfter) ||
+                (2 ** (attempt - 1));
+
+            await wait(retryAfterSeconds * 1000);
+        }
+    }
+
+    throw new Error("La requête Spotify n’a pas abouti.");
+}
+
+export async function createPrivatePlaylist(
+    name,
+    description = ""
+) {
+    const normalizedName = String(name || "").trim();
+
+    if (!normalizedName) {
+        throw new Error(
+            "Donne un nom à la playlist avant de l’enregistrer."
+        );
+    }
+
+    return spotifyFetch("/me/playlists", {
+        method: "POST",
+        body: JSON.stringify({
+            name: normalizedName,
+            public: false,
+            collaborative: false,
+            description: String(description || "").trim()
+        })
+    });
+}
+
+export async function addItemsToPlaylist(
+    playlistId,
+    itemUris,
+    onProgress = null
+) {
+    const uris = itemUris.filter(Boolean);
+
+    if (!playlistId) {
+        throw new Error("Identifiant de playlist manquant.");
+    }
+
+    if (!uris.length) {
+        throw new Error(
+            "Aucun morceau ne peut être ajouté à la playlist."
+        );
+    }
+
+    const batchSize = 100;
+    let addedCount = 0;
+
+    for (
+        let startIndex = 0;
+        startIndex < uris.length;
+        startIndex += batchSize
+    ) {
+        const batch = uris.slice(
+            startIndex,
+            startIndex + batchSize
+        );
+
+        await spotifyFetchWithRetry(
+            `/playlists/${encodeURIComponent(playlistId)}/items`,
+            {
+                method: "POST",
+                body: JSON.stringify({
+                    uris: batch
+                })
+            }
+        );
+
+        addedCount += batch.length;
+
+        if (typeof onProgress === "function") {
+            onProgress({
+                addedCount,
+                totalCount: uris.length
+            });
+        }
+    }
+
+    return {
+        addedCount,
+        totalCount: uris.length
+    };
+}
+

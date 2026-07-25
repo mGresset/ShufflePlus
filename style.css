@@ -910,3 +910,173 @@ button:disabled {
         flex: 1 1 140px;
     }
 }
+/*
+ * Le résumé du mélange est centré et son titre occupe
+ * sa propre ligne, comme demandé.
+ */
+.shuffle-stats,
+.shuffle-stats-text {
+    text-align: center;
+}
+
+.shuffle-stats-title {
+    display: inline-block;
+    margin-bottom: 6px;
+}
+
+/*
+ * Bouton d’enregistrement placé avec les actions principales.
+ */
+.save-playlist-button {
+    min-height: 52px;
+    padding: 12px 22px;
+    border: 1px solid #547061;
+    border-radius: 999px;
+    background: #1a2a21;
+    color: #ffffff;
+    font-weight: 750;
+    transition:
+        transform 0.18s ease,
+        border-color 0.18s ease,
+        background 0.18s ease;
+}
+
+.save-playlist-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: #1ed760;
+    background: #20372a;
+}
+
+.save-playlist-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+/*
+ * Panneau de création de la playlist privée.
+ */
+.save-playlist-panel {
+    display: grid;
+    gap: 18px;
+    margin: 0 0 24px;
+    padding: 20px;
+    border: 1px solid #365141;
+    border-radius: 16px;
+    background: #142019;
+}
+
+.save-playlist-panel[hidden] {
+    display: none !important;
+}
+
+.save-playlist-heading h3 {
+    margin: 0 0 5px;
+    font-size: 19px;
+}
+
+.save-playlist-heading p {
+    margin: 0;
+    color: #a9b9ae;
+    font-size: 14px;
+}
+
+.save-playlist-field {
+    display: grid;
+    gap: 8px;
+}
+
+.save-playlist-field > span {
+    color: #dce8df;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.save-playlist-field input {
+    width: 100%;
+    min-height: 48px;
+    padding: 11px 14px;
+    border: 1px solid #4a6354;
+    border-radius: 11px;
+    outline: none;
+    background: #0f1712;
+    color: #ffffff;
+}
+
+.save-playlist-field input:focus {
+    border-color: #1ed760;
+    box-shadow: 0 0 0 3px rgb(30 215 96 / 16%);
+}
+
+.save-playlist-field input:disabled {
+    opacity: 0.65;
+}
+
+.save-playlist-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.save-playlist-confirm,
+.save-playlist-cancel {
+    min-height: 44px;
+    padding: 10px 17px;
+    border-radius: 999px;
+    font-weight: 750;
+}
+
+.save-playlist-confirm {
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.save-playlist-cancel {
+    border: 1px solid #52685a;
+    background: transparent;
+    color: #ffffff;
+}
+
+.save-playlist-confirm:hover:not(:disabled),
+.save-playlist-cancel:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.save-playlist-confirm:disabled,
+.save-playlist-cancel:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+.save-playlist-message {
+    min-height: 22px;
+    margin: 0;
+    color: #b7c8bc;
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.save-playlist-message.success {
+    color: #baf0cc;
+}
+
+.save-playlist-message.error {
+    color: #ff8d8d;
+}
+
+.save-playlist-message a {
+    color: #1ed760;
+    font-weight: 800;
+}
+
+@media (max-width: 600px) {
+    .save-playlist-button,
+    .save-playlist-confirm,
+    .save-playlist-cancel {
+        width: 100%;
+    }
+
+    .save-playlist-panel {
+        padding: 16px;
+    }
+}

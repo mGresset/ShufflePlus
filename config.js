@@ -1,6 +1,6 @@
 export const CONFIG = {
     appName: "Shuffle+",
-    version: "0.8.0",
+    version: "0.9.0",
 
     clientId: "efcbf6e43e6346678cfceb44d0dc2422",
 
@@ -9,6 +9,7 @@ export const CONFIG = {
     scopes: [
         "playlist-read-private",
         "playlist-read-collaborative",
+        "playlist-modify-private",
         "user-library-read",
         "user-read-private",
         "user-read-playback-state",
