@@ -21,7 +21,8 @@ import {
     setPlaybackShuffle,
     startPlayback,
     createPrivatePlaylist,
-    addItemsToPlaylist
+    addItemsToPlaylist,
+    getPlaylistLastAddedAt
 } from "./spotify-api.js";
 
 const versionElement = document.querySelector(".version");
@@ -31,9 +32,13 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
+const MODIFICATION_CACHE_KEY =
+    "shuffleplus_playlist_modification_dates_v1";
+const MODIFICATION_CACHE_TTL = 24 * 60 * 60 * 1000;
+const MODIFICATION_REQUEST_CONCURRENCY = 4;
 
 let currentUserId = "";
 let currentUserProduct = "";
@@ -47,6 +52,12 @@ const selectedSourceKeys = new Set();
 let librarySearchTerm = "";
 let libraryFilter = "all";
 let librarySort = "name-asc";
+let modificationDatesLoading = false;
+let modificationDatesProgress = {
+    completed: 0,
+    total: 0
+};
+const playlistModificationDates = new Map();
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -96,6 +107,12 @@ function setDisconnectedInterface() {
     selectedTracks = [];
     availableDevices = [];
     selectedSourceKeys.clear();
+    playlistModificationDates.clear();
+    modificationDatesLoading = false;
+    modificationDatesProgress = {
+        completed: 0,
+        total: 0
+    };
 
     contentElement.innerHTML = "";
     setStatus("");
@@ -146,6 +163,236 @@ function getPlaylistCategory(playlist) {
     return "followed";
 }
 
+function readModificationDateCache() {
+    try {
+        const rawCache = localStorage.getItem(
+            MODIFICATION_CACHE_KEY
+        );
+
+        if (!rawCache) {
+            return {};
+        }
+
+        const parsedCache = JSON.parse(rawCache);
+
+        return parsedCache &&
+            typeof parsedCache === "object" &&
+            parsedCache.entries &&
+            typeof parsedCache.entries === "object"
+            ? parsedCache.entries
+            : {};
+    } catch (error) {
+        console.warn(
+            "Cache des dates de modification illisible :",
+            error
+        );
+        return {};
+    }
+}
+
+function writeModificationDateCache(entries) {
+    try {
+        localStorage.setItem(
+            MODIFICATION_CACHE_KEY,
+            JSON.stringify({
+                savedAt: Date.now(),
+                entries
+            })
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer le cache des dates :",
+            error
+        );
+    }
+}
+
+function isModificationCacheEntryValid(
+    playlist,
+    cacheEntry
+) {
+    if (!cacheEntry) {
+        return false;
+    }
+
+    const cacheAge =
+        Date.now() - Number(cacheEntry.cachedAt || 0);
+
+    const sameSnapshot =
+        !playlist.snapshot_id ||
+        !cacheEntry.snapshotId ||
+        playlist.snapshot_id === cacheEntry.snapshotId;
+
+    return (
+        cacheAge >= 0 &&
+        cacheAge < MODIFICATION_CACHE_TTL &&
+        sameSnapshot
+    );
+}
+
+function formatModificationDate(timestamp) {
+    if (!timestamp) {
+        return "Date inconnue";
+    }
+
+    return new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            day: "2-digit",
+            month: "short",
+            year: "numeric"
+        }
+    ).format(new Date(timestamp));
+}
+
+function updateModificationProgressUI() {
+    const progressElement = document.getElementById(
+        "modificationSortProgress"
+    );
+
+    if (!progressElement) {
+        return;
+    }
+
+    if (!modificationDatesLoading) {
+        progressElement.textContent = "";
+        progressElement.hidden = true;
+        return;
+    }
+
+    progressElement.hidden = false;
+    progressElement.textContent =
+        `Analyse des playlists : ` +
+        `${modificationDatesProgress.completed}/` +
+        `${modificationDatesProgress.total}`;
+}
+
+async function runWithConcurrency(
+    tasks,
+    concurrency
+) {
+    let nextIndex = 0;
+
+    async function worker() {
+        while (nextIndex < tasks.length) {
+            const currentIndex = nextIndex;
+            nextIndex += 1;
+            await tasks[currentIndex]();
+        }
+    }
+
+    const workerCount = Math.min(
+        concurrency,
+        tasks.length
+    );
+
+    await Promise.all(
+        Array.from(
+            { length: workerCount },
+            () => worker()
+        )
+    );
+}
+
+async function ensureModificationDatesLoaded() {
+    if (modificationDatesLoading) {
+        return;
+    }
+
+    const readablePlaylists = playlistsCache.filter(
+        canReadPlaylist
+    );
+
+    const cacheEntries = readModificationDateCache();
+    const updatedCacheEntries = {
+        ...cacheEntries
+    };
+
+    const playlistsToLoad = [];
+
+    for (const playlist of readablePlaylists) {
+        const cacheEntry = cacheEntries[playlist.id];
+
+        if (
+            isModificationCacheEntryValid(
+                playlist,
+                cacheEntry
+            )
+        ) {
+            playlistModificationDates.set(
+                playlist.id,
+                cacheEntry.lastAddedAt || null
+            );
+        } else {
+            playlistsToLoad.push(playlist);
+        }
+    }
+
+    if (!playlistsToLoad.length) {
+        return;
+    }
+
+    modificationDatesLoading = true;
+    modificationDatesProgress = {
+        completed: 0,
+        total: playlistsToLoad.length
+    };
+
+    updateModificationProgressUI();
+    setStatus(
+        `Analyse de ${playlistsToLoad.length} playlist` +
+        `${playlistsToLoad.length > 1 ? "s" : ""}…`
+    );
+
+    const tasks = playlistsToLoad.map(
+        (playlist) => async () => {
+            let lastAddedAt = null;
+
+            try {
+                lastAddedAt =
+                    await getPlaylistLastAddedAt(
+                        playlist.id
+                    );
+            } catch (error) {
+                console.warn(
+                    `Date indisponible pour « ${playlist.name} » :`,
+                    error
+                );
+            }
+
+            playlistModificationDates.set(
+                playlist.id,
+                lastAddedAt
+            );
+
+            updatedCacheEntries[playlist.id] = {
+                snapshotId:
+                    playlist.snapshot_id || "",
+                lastAddedAt,
+                cachedAt: Date.now()
+            };
+
+            modificationDatesProgress.completed += 1;
+            updateModificationProgressUI();
+        }
+    );
+
+    try {
+        await runWithConcurrency(
+            tasks,
+            MODIFICATION_REQUEST_CONCURRENCY
+        );
+
+        writeModificationDateCache(
+            updatedCacheEntries
+        );
+    } finally {
+        modificationDatesLoading = false;
+        updateModificationProgressUI();
+        setStatus("");
+    }
+}
+
 function getFilteredAndSortedPlaylists(playlists) {
     const normalizedQuery = normalizeSearchText(librarySearchTerm);
 
@@ -178,6 +425,11 @@ function getFilteredAndSortedPlaylists(playlists) {
         const firstTotal = getPlaylistTotal(first);
         const secondTotal = getPlaylistTotal(second);
 
+        const firstModifiedAt =
+            playlistModificationDates.get(first.id) || 0;
+        const secondModifiedAt =
+            playlistModificationDates.get(second.id) || 0;
+
         switch (librarySort) {
             case "name-desc":
                 return secondName.localeCompare(firstName, "fr", {
@@ -193,6 +445,37 @@ function getFilteredAndSortedPlaylists(playlists) {
                     firstName.localeCompare(secondName, "fr", {
                         sensitivity: "base"
                     });
+            case "modified-desc":
+                return (
+                    secondModifiedAt - firstModifiedAt ||
+                    firstName.localeCompare(secondName, "fr", {
+                        sensitivity: "base"
+                    })
+                );
+            case "modified-asc": {
+                if (!firstModifiedAt && !secondModifiedAt) {
+                    return firstName.localeCompare(
+                        secondName,
+                        "fr",
+                        { sensitivity: "base" }
+                    );
+                }
+
+                if (!firstModifiedAt) {
+                    return 1;
+                }
+
+                if (!secondModifiedAt) {
+                    return -1;
+                }
+
+                return (
+                    firstModifiedAt - secondModifiedAt ||
+                    firstName.localeCompare(secondName, "fr", {
+                        sensitivity: "base"
+                    })
+                );
+            }
             case "name-asc":
             default:
                 return firstName.localeCompare(secondName, "fr", {
@@ -286,8 +569,18 @@ function displayPlaylists(playlists) {
                     </div>
                 `;
 
+            const modifiedAt =
+                playlistModificationDates.get(
+                    playlist.id
+                ) || null;
+
+            const modificationText =
+                librarySort.startsWith("modified")
+                    ? ` · ${formatModificationDate(modifiedAt)}`
+                    : "";
+
             const availabilityText = readable
-                ? `${total} morceau${total > 1 ? "x" : ""}`
+                ? `${total} morceau${total > 1 ? "x" : ""}${modificationText}`
                 : "Playlist suivie · accès limité";
 
             return `
@@ -428,6 +721,8 @@ function displayPlaylists(playlists) {
                         <option value="name-desc" ${librarySort === "name-desc" ? "selected" : ""}>Nom Z → A</option>
                         <option value="tracks-desc" ${librarySort === "tracks-desc" ? "selected" : ""}>Plus de morceaux</option>
                         <option value="tracks-asc" ${librarySort === "tracks-asc" ? "selected" : ""}>Moins de morceaux</option>
+                        <option value="modified-desc" ${librarySort === "modified-desc" ? "selected" : ""}>Modifiées récemment</option>
+                        <option value="modified-asc" ${librarySort === "modified-asc" ? "selected" : ""}>Modifiées anciennement</option>
                     </select>
                 </label>
 
@@ -440,6 +735,19 @@ function displayPlaylists(playlists) {
                     Réinitialiser
                 </button>
             </section>
+
+            <p
+                id="modificationSortProgress"
+                class="modification-sort-progress"
+                ${modificationDatesLoading ? "" : "hidden"}
+                aria-live="polite"
+            >
+                ${
+                    modificationDatesLoading
+                        ? `Analyse des playlists : ${modificationDatesProgress.completed}/${modificationDatesProgress.total}`
+                        : ""
+                }
+            </p>
 
             <section class="mix-builder" aria-label="Créateur de mix">
                 <div class="mix-builder-copy">
@@ -1963,7 +2271,7 @@ contentElement.addEventListener(
 
 contentElement.addEventListener(
     "change",
-    (event) => {
+    async (event) => {
         if (event.target.id === "libraryFilterSelect") {
             libraryFilter = event.target.value;
             displayPlaylists(playlistsCache);
@@ -1973,6 +2281,12 @@ contentElement.addEventListener(
         if (event.target.id === "librarySortSelect") {
             librarySort = event.target.value;
             displayPlaylists(playlistsCache);
+
+            if (librarySort.startsWith("modified")) {
+                await ensureModificationDatesLoaded();
+                displayPlaylists(playlistsCache);
+            }
+
             return;
         }
 

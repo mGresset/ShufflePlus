@@ -120,6 +120,48 @@ export async function getPlaylistItems(playlistId) {
 }
 
 
+export async function getPlaylistLastAddedAt(playlistId) {
+    if (!playlistId) {
+        throw new Error("Identifiant de playlist manquant.");
+    }
+
+    let latestTimestamp = 0;
+
+    const fields = encodeURIComponent(
+        "items(added_at),next"
+    );
+
+    let endpoint =
+        `/playlists/${encodeURIComponent(playlistId)}` +
+        `/items?limit=50&fields=${fields}`;
+
+    while (endpoint) {
+        const page = await spotifyFetchWithRetry(endpoint);
+
+        if (Array.isArray(page.items)) {
+            for (const playlistItem of page.items) {
+                const timestamp = Date.parse(
+                    playlistItem?.added_at || ""
+                );
+
+                if (
+                    Number.isFinite(timestamp) &&
+                    timestamp > latestTimestamp
+                ) {
+                    latestTimestamp = timestamp;
+                }
+            }
+        }
+
+        endpoint = page.next
+            ? page.next.replace(API_BASE_URL, "")
+            : null;
+    }
+
+    return latestTimestamp || null;
+}
+
+
 export async function getMySavedTracks() {
     const tracks = [];
     let endpoint = "/me/tracks?limit=50";

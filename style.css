@@ -1220,3 +1220,20 @@ button:disabled {
         width: 100%;
     }
 }
+
+/* Shuffle+ v1.1.0 — Tri par modification estimée */
+
+.modification-sort-progress {
+    margin: -8px 0 22px;
+    padding: 11px 14px;
+    border: 1px solid #33483b;
+    border-radius: 12px;
+    background: #142019;
+    color: #b9cfbf;
+    font-size: 14px;
+    text-align: center;
+}
+
+.modification-sort-progress[hidden] {
+    display: none;
+}
