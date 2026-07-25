@@ -28,7 +28,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "0.6.1";
+const APP_VERSION = "0.6.2";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 
 let currentUserId = "";
@@ -310,12 +310,12 @@ function renderShuffleStats(stats = null) {
         <em>Artistes consécutifs</em> :
         <strong>${stats.consecutiveArtistRepeats}</strong>
 
-        <span class="stats-separator" aria-hidden="true">–</span>
+        &nbsp;–&nbsp;
 
         <em>Albums consécutifs</em> :
         <strong>${stats.consecutiveAlbumRepeats}</strong>
 
-        <span class="stats-separator" aria-hidden="true">–</span>
+        &nbsp;–&nbsp;
 
         <em>Morceaux lus récemment dans les 20 premiers</em> :
         <strong>${stats.recentTracksInFirstTwenty}</strong>.
