@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.5.0";
+const APP_VERSION = "1.6.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -46,6 +46,40 @@ const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
 const FAVORITE_SOURCES_KEY = "shuffleplus_favorite_sources_v1";
 const SAVED_MIXES_KEY = "shuffleplus_saved_mixes_v1";
 const MAX_SAVED_MIXES = 20;
+
+const DEFAULT_SHUFFLE_SETTINGS = {
+    preset: "balanced",
+    artistGap: 3,
+    albumGap: 2,
+    recentAvoidance: 2
+};
+
+const SHUFFLE_PRESETS = {
+    soft: {
+        preset: "soft",
+        artistGap: 2,
+        albumGap: 1,
+        recentAvoidance: 1
+    },
+    balanced: {
+        preset: "balanced",
+        artistGap: 3,
+        albumGap: 2,
+        recentAvoidance: 2
+    },
+    strict: {
+        preset: "strict",
+        artistGap: 5,
+        albumGap: 3,
+        recentAvoidance: 3
+    },
+    custom: {
+        preset: "custom",
+        artistGap: 3,
+        albumGap: 2,
+        recentAvoidance: 2
+    }
+};
 
 let currentUserId = "";
 let currentUserProduct = "";
@@ -70,6 +104,10 @@ let recentActivityLoading = false;
 const favoriteSourceKeys = new Set(readFavoriteSources());
 let savedMixes = readSavedMixes();
 let editingSavedMixId = "";
+let configuringSavedMixId = "";
+let currentShuffleSettings = {
+    ...DEFAULT_SHUFFLE_SETTINGS
+};
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -120,6 +158,8 @@ function setDisconnectedInterface() {
     availableDevices = [];
     selectedSourceKeys.clear();
     editingSavedMixId = "";
+    configuringSavedMixId = "";
+    currentShuffleSettings = { ...DEFAULT_SHUFFLE_SETTINGS };
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -197,6 +237,124 @@ function toggleFavoriteSource(sourceKey) {
 }
 
 
+
+function clampInteger(value, minimum, maximum, fallback) {
+    const normalizedValue = Number.parseInt(value, 10);
+
+    if (!Number.isFinite(normalizedValue)) {
+        return fallback;
+    }
+
+    return Math.min(
+        maximum,
+        Math.max(minimum, normalizedValue)
+    );
+}
+
+function normalizeShuffleSettings(settings = {}) {
+    const preset = Object.hasOwn(
+        SHUFFLE_PRESETS,
+        settings.preset
+    )
+        ? settings.preset
+        : "balanced";
+
+    const presetSettings =
+        SHUFFLE_PRESETS[preset] ||
+        SHUFFLE_PRESETS.balanced;
+
+    return {
+        preset,
+        artistGap: clampInteger(
+            settings.artistGap,
+            0,
+            10,
+            presetSettings.artistGap
+        ),
+        albumGap: clampInteger(
+            settings.albumGap,
+            0,
+            8,
+            presetSettings.albumGap
+        ),
+        recentAvoidance: clampInteger(
+            settings.recentAvoidance,
+            0,
+            3,
+            presetSettings.recentAvoidance
+        )
+    };
+}
+
+function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
+    const normalized = normalizeShuffleSettings(settings);
+
+    const recentProfiles = {
+        0: {
+            recentStartWindow: 0,
+            recentTrackPenalty: 0
+        },
+        1: {
+            recentStartWindow: 12,
+            recentTrackPenalty: 45
+        },
+        2: {
+            recentStartWindow: 25,
+            recentTrackPenalty: 90
+        },
+        3: {
+            recentStartWindow: 40,
+            recentTrackPenalty: 160
+        }
+    };
+
+    const recentOptions =
+        recentProfiles[normalized.recentAvoidance] ||
+        recentProfiles[2];
+
+    return {
+        artistGap: normalized.artistGap,
+        albumGap: normalized.albumGap,
+        artistPenalty:
+            normalized.preset === "strict" ? 210 :
+            normalized.preset === "soft" ? 90 : 140,
+        albumPenalty:
+            normalized.preset === "strict" ? 110 :
+            normalized.preset === "soft" ? 45 : 70,
+        ...recentOptions
+    };
+}
+
+function getShufflePresetLabel(settings = DEFAULT_SHUFFLE_SETTINGS) {
+    const normalized = normalizeShuffleSettings(settings);
+
+    switch (normalized.preset) {
+        case "soft":
+            return "Souple";
+        case "strict":
+            return "Strict";
+        case "custom":
+            return "Personnalisé";
+        case "balanced":
+        default:
+            return "Équilibré";
+    }
+}
+
+function getRecentAvoidanceLabel(level = 2) {
+    switch (Number(level)) {
+        case 0:
+            return "Désactivée";
+        case 1:
+            return "Légère";
+        case 3:
+            return "Forte";
+        case 2:
+        default:
+            return "Normale";
+    }
+}
+
 function readSavedMixes() {
     try {
         const raw = localStorage.getItem(SAVED_MIXES_KEY);
@@ -220,7 +378,10 @@ function readSavedMixes() {
                     .filter((key) => typeof key === "string")
                     .slice(0, MAX_MIX_SOURCES),
                 createdAt: Number(mix.createdAt || Date.now()),
-                updatedAt: Number(mix.updatedAt || mix.createdAt || Date.now())
+                updatedAt: Number(mix.updatedAt || mix.createdAt || Date.now()),
+                shuffleSettings: normalizeShuffleSettings(
+                    mix.shuffleSettings
+                )
             }))
             .slice(0, MAX_SAVED_MIXES);
     } catch (error) {
@@ -336,7 +497,11 @@ function saveCurrentSourceSelection() {
                 0,
                 MAX_MIX_SOURCES
             ),
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            shuffleSettings: {
+                ...DEFAULT_SHUFFLE_SETTINGS
+            }
         },
         ...savedMixes
     ];
@@ -367,6 +532,10 @@ async function launchSavedMix(mixId) {
     }
 
     editingSavedMixId = "";
+    configuringSavedMixId = "";
+    currentShuffleSettings = normalizeShuffleSettings(
+        mix.shuffleSettings
+    );
     selectedSourceKeys.clear();
 
     for (const sourceKey of validSourceKeys) {
@@ -442,6 +611,190 @@ function saveEditedMix() {
     selectedSourceKeys.clear();
     displayPlaylists(playlistsCache);
     setStatus(`Mix « ${name} » mis à jour.`);
+}
+
+
+function startConfiguringSavedMix(mixId) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        return;
+    }
+
+    configuringSavedMixId =
+        configuringSavedMixId === mixId ? "" : mixId;
+
+    displayPlaylists(playlistsCache);
+
+    if (configuringSavedMixId) {
+        document
+            .getElementById(`savedMixSettings-${mixId}`)
+            ?.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+            });
+    }
+}
+
+function cancelSavedMixSettings() {
+    configuringSavedMixId = "";
+    displayPlaylists(playlistsCache);
+}
+
+function saveSavedMixSettings(mixId) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    const form = document.getElementById(
+        `savedMixSettings-${mixId}`
+    );
+
+    if (!mix || !form) {
+        return;
+    }
+
+    const formData = new FormData(form);
+
+    mix.shuffleSettings = normalizeShuffleSettings({
+        preset: formData.get("preset"),
+        artistGap: formData.get("artistGap"),
+        albumGap: formData.get("albumGap"),
+        recentAvoidance: formData.get("recentAvoidance")
+    });
+    mix.updatedAt = Date.now();
+
+    saveSavedMixes();
+    configuringSavedMixId = "";
+    displayPlaylists(playlistsCache);
+
+    setStatus(
+        `Réglages du mix « ${mix.name} » enregistrés.`
+    );
+}
+
+function renderSavedMixSettings(mix) {
+    if (configuringSavedMixId !== mix.id) {
+        return "";
+    }
+
+    const settings = normalizeShuffleSettings(
+        mix.shuffleSettings
+    );
+
+    return `
+        <form
+            id="savedMixSettings-${escapeHtml(mix.id)}"
+            class="saved-mix-settings"
+            data-saved-mix-settings-id="${escapeHtml(mix.id)}"
+        >
+            <div class="saved-mix-settings-heading">
+                <div>
+                    <h5>Réglages du mélange</h5>
+                    <p>
+                        Ces paramètres seront réutilisés
+                        à chaque lancement de ce mix.
+                    </p>
+                </div>
+            </div>
+
+            <label class="saved-mix-setting-field">
+                <span>Mode</span>
+                <select
+                    name="preset"
+                    data-shuffle-preset
+                >
+                    <option value="soft" ${settings.preset === "soft" ? "selected" : ""}>
+                        Souple
+                    </option>
+                    <option value="balanced" ${settings.preset === "balanced" ? "selected" : ""}>
+                        Équilibré
+                    </option>
+                    <option value="strict" ${settings.preset === "strict" ? "selected" : ""}>
+                        Strict
+                    </option>
+                    <option value="custom" ${settings.preset === "custom" ? "selected" : ""}>
+                        Personnalisé
+                    </option>
+                </select>
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>
+                    Écart artiste :
+                    <strong data-setting-value="artistGap">
+                        ${settings.artistGap}
+                    </strong>
+                    morceau${settings.artistGap > 1 ? "x" : ""}
+                </span>
+                <input
+                    name="artistGap"
+                    type="range"
+                    min="0"
+                    max="10"
+                    step="1"
+                    value="${settings.artistGap}"
+                    data-shuffle-setting="artistGap"
+                >
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>
+                    Écart album :
+                    <strong data-setting-value="albumGap">
+                        ${settings.albumGap}
+                    </strong>
+                    morceau${settings.albumGap > 1 ? "x" : ""}
+                </span>
+                <input
+                    name="albumGap"
+                    type="range"
+                    min="0"
+                    max="8"
+                    step="1"
+                    value="${settings.albumGap}"
+                    data-shuffle-setting="albumGap"
+                >
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>
+                    Éviter les morceaux récents :
+                    <strong data-setting-value="recentAvoidance">
+                        ${getRecentAvoidanceLabel(settings.recentAvoidance)}
+                    </strong>
+                </span>
+                <input
+                    name="recentAvoidance"
+                    type="range"
+                    min="0"
+                    max="3"
+                    step="1"
+                    value="${settings.recentAvoidance}"
+                    data-shuffle-setting="recentAvoidance"
+                >
+            </label>
+
+            <div class="saved-mix-settings-actions">
+                <button
+                    class="saved-mix-settings-cancel"
+                    type="button"
+                    data-saved-mix-settings-action="cancel"
+                >
+                    Annuler
+                </button>
+
+                <button
+                    class="saved-mix-settings-save"
+                    type="submit"
+                >
+                    ✓ Enregistrer les réglages
+                </button>
+            </div>
+        </form>
+    `;
 }
 
 function renameSavedMix(mixId) {
@@ -534,6 +887,10 @@ function renderSavedMixesSection() {
             .slice(0, 3)
             .map(getSourceDisplayName)
             .join(" · ");
+        const shuffleSettings =
+            normalizeShuffleSettings(
+                mix.shuffleSettings
+            );
 
         return `
             <article class="saved-mix-card">
@@ -549,6 +906,7 @@ function renderSavedMixesSection() {
                             ${validCount < totalCount
                                 ? ` · ${totalCount - validCount} indisponible${totalCount - validCount > 1 ? "s" : ""}`
                                 : ""}
+                            · ${getShufflePresetLabel(shuffleSettings)}
                         </p>
                         <small title="${escapeHtml(
                             mix.sourceKeys
@@ -570,6 +928,17 @@ function renderSavedMixesSection() {
                         ${validCount ? "" : "disabled"}
                     >
                         ▶ Lancer
+                    </button>
+
+                    <button
+                        class="saved-mix-secondary saved-mix-tune"
+                        type="button"
+                        data-saved-mix-action="settings"
+                        data-saved-mix-id="${escapeHtml(mix.id)}"
+                        title="Régler le mélange"
+                        aria-label="Régler le mélange de ${escapeHtml(mix.name)}"
+                    >
+                        🎚️
                     </button>
 
                     <button
@@ -605,6 +974,8 @@ function renderSavedMixesSection() {
                         🗑️
                     </button>
                 </div>
+
+                ${renderSavedMixSettings(mix)}
             </article>
         `;
     }).join("");
@@ -2197,9 +2568,12 @@ function displayPlaylistDetails(playlist, tracks) {
             </section>
 
             <p class="shuffle-explanation">
-                Le mélange intelligent espace les artistes et les albums,
-                puis évite de placer trop tôt les titres récemment envoyés
-                par Shuffle+ vers Spotify.
+                Mode <strong>${getShufflePresetLabel(currentShuffleSettings)}</strong> :
+                au moins ${currentShuffleSettings.artistGap} morceau${currentShuffleSettings.artistGap > 1 ? "x" : ""}
+                entre deux titres du même artiste, ${currentShuffleSettings.albumGap}
+                entre deux titres du même album, avec une éviction
+                ${getRecentAvoidanceLabel(currentShuffleSettings.recentAvoidance).toLowerCase()}
+                des morceaux récemment lus.
             </p>
 
             <div
@@ -2583,6 +2957,9 @@ async function createSelectedMix() {
             sourceType: "mix",
             sourceCount: loadedSourceNames.length,
             sourceNames: loadedSourceNames,
+            shuffleSettings: {
+                ...currentShuffleSettings
+            },
             owner: {
                 display_name: "Shuffle+"
             },
@@ -2591,7 +2968,10 @@ async function createSelectedMix() {
         };
 
         sourceTracks = uniqueTracks;
-        selectedTracks = smartShuffleTracks(sourceTracks);
+        selectedTracks = smartShuffleTracks(
+            sourceTracks,
+            getShuffleEngineOptions(currentShuffleSettings)
+        );
 
         displayPlaylistDetails(
             selectedPlaylist,
@@ -2654,6 +3034,9 @@ async function openPlaylist(playlist) {
     availableDevices = [];
 
     const isLikedTracks = playlist.sourceType === "liked";
+    currentShuffleSettings = {
+        ...DEFAULT_SHUFFLE_SETTINGS
+    };
 
     setStatus(`Chargement de « ${playlist.name} »…`);
 
@@ -2836,12 +3219,30 @@ contentElement.addEventListener(
 
             if (action === "launch") {
                 await launchSavedMix(mixId);
+            } else if (action === "settings") {
+                startConfiguringSavedMix(mixId);
             } else if (action === "edit") {
                 startEditingSavedMix(mixId);
             } else if (action === "rename") {
                 renameSavedMix(mixId);
             } else if (action === "delete") {
                 deleteSavedMix(mixId);
+            }
+
+            return;
+        }
+
+        const savedMixSettingsAction =
+            event.target.closest(
+                "[data-saved-mix-settings-action]"
+            );
+
+        if (savedMixSettingsAction) {
+            if (
+                savedMixSettingsAction.dataset
+                    .savedMixSettingsAction === "cancel"
+            ) {
+                cancelSavedMixSettings();
             }
 
             return;
@@ -2945,6 +3346,9 @@ contentElement.addEventListener(
             event.target.closest("#createMixButton");
 
         if (createMixButton) {
+            currentShuffleSettings = {
+                ...DEFAULT_SHUFFLE_SETTINGS
+            };
             await createSelectedMix();
             return;
         }
@@ -3042,7 +3446,10 @@ contentElement.addEventListener(
             shuffleButton &&
             selectedTracks.length > 1
         ) {
-            selectedTracks = smartShuffleTracks(sourceTracks);
+            selectedTracks = smartShuffleTracks(
+                sourceTracks,
+                getShuffleEngineOptions(currentShuffleSettings)
+            );
 
             renderTrackList();
             renderShuffleStats(
@@ -3067,6 +3474,18 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (
+            event.target.matches(
+                "[data-saved-mix-settings-id]"
+            )
+        ) {
+            event.preventDefault();
+            saveSavedMixSettings(
+                event.target.dataset.savedMixSettingsId || ""
+            );
+            return;
+        }
+
         if (event.target.id !== "savePlaylistForm") {
             return;
         }
@@ -3079,6 +3498,37 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (event.target.matches("[data-shuffle-preset]")) {
+            const form = event.target.closest(
+                "[data-saved-mix-settings-id]"
+            );
+            const preset =
+                SHUFFLE_PRESETS[event.target.value] ||
+                SHUFFLE_PRESETS.balanced;
+
+            if (form && event.target.value !== "custom") {
+                const artistInput = form.elements.artistGap;
+                const albumInput = form.elements.albumGap;
+                const recentInput = form.elements.recentAvoidance;
+
+                artistInput.value = preset.artistGap;
+                albumInput.value = preset.albumGap;
+                recentInput.value = preset.recentAvoidance;
+
+                artistInput.dispatchEvent(
+                    new Event("input", { bubbles: true })
+                );
+                albumInput.dispatchEvent(
+                    new Event("input", { bubbles: true })
+                );
+                recentInput.dispatchEvent(
+                    new Event("input", { bubbles: true })
+                );
+            }
+
+            return;
+        }
+
         if (event.target.id === "libraryFilterSelect") {
             libraryFilter = event.target.value;
             displayPlaylists(playlistsCache);
@@ -3148,6 +3598,51 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (event.target.matches("[data-shuffle-setting]")) {
+            const form = event.target.closest(
+                "[data-saved-mix-settings-id]"
+            );
+            const settingName =
+                event.target.dataset.shuffleSetting;
+            const valueElement = form?.querySelector(
+                `[data-setting-value="${settingName}"]`
+            );
+
+            if (valueElement) {
+                valueElement.textContent =
+                    settingName === "recentAvoidance"
+                        ? getRecentAvoidanceLabel(
+                            event.target.value
+                        )
+                        : event.target.value;
+            }
+
+            const presetSelect =
+                form?.querySelector("[data-shuffle-preset]");
+
+            if (
+                presetSelect &&
+                presetSelect.value !== "custom"
+            ) {
+                const preset =
+                    SHUFFLE_PRESETS[presetSelect.value];
+
+                const stillMatchesPreset =
+                    Number(form.elements.artistGap.value) ===
+                        preset.artistGap &&
+                    Number(form.elements.albumGap.value) ===
+                        preset.albumGap &&
+                    Number(form.elements.recentAvoidance.value) ===
+                        preset.recentAvoidance;
+
+                if (!stillMatchesPreset) {
+                    presetSelect.value = "custom";
+                }
+            }
+
+            return;
+        }
+
         if (event.target.id !== "librarySearchInput") {
             return;
         }

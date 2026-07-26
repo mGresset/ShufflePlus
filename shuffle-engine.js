@@ -134,18 +134,80 @@ function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
     return score;
 }
 
+function normalizeNumberOption(
+    value,
+    minimum,
+    maximum,
+    fallback
+) {
+    const normalizedValue = Number(value);
+
+    if (!Number.isFinite(normalizedValue)) {
+        return fallback;
+    }
+
+    return Math.min(
+        maximum,
+        Math.max(minimum, normalizedValue)
+    );
+}
+
 export function smartShuffleTracks(tracks, customOptions = {}) {
     const options = {
-        artistGap: 3,
-        albumGap: 2,
-        trackGap: 12,
-        candidatePoolSize: 80,
-        recentStartWindow: 25,
-        artistPenalty: 140,
-        albumPenalty: 70,
-        trackPenalty: 240,
-        recentTrackPenalty: 90,
-        ...customOptions
+        artistGap: normalizeNumberOption(
+            customOptions.artistGap,
+            0,
+            10,
+            3
+        ),
+        albumGap: normalizeNumberOption(
+            customOptions.albumGap,
+            0,
+            8,
+            2
+        ),
+        trackGap: normalizeNumberOption(
+            customOptions.trackGap,
+            0,
+            30,
+            12
+        ),
+        candidatePoolSize: normalizeNumberOption(
+            customOptions.candidatePoolSize,
+            1,
+            250,
+            80
+        ),
+        recentStartWindow: normalizeNumberOption(
+            customOptions.recentStartWindow,
+            0,
+            100,
+            25
+        ),
+        artistPenalty: normalizeNumberOption(
+            customOptions.artistPenalty,
+            0,
+            1000,
+            140
+        ),
+        albumPenalty: normalizeNumberOption(
+            customOptions.albumPenalty,
+            0,
+            1000,
+            70
+        ),
+        trackPenalty: normalizeNumberOption(
+            customOptions.trackPenalty,
+            0,
+            1000,
+            240
+        ),
+        recentTrackPenalty: normalizeNumberOption(
+            customOptions.recentTrackPenalty,
+            0,
+            1000,
+            90
+        )
     };
 
     const remainingTracks = fisherYates(
