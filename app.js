@@ -954,12 +954,26 @@ function displayPlaylists(playlists) {
                 <label class="library-select-field" for="libraryFilterSelect">
                     <span>Afficher</span>
                     <select id="libraryFilterSelect">
-                        <option value="all" ${libraryFilter === "all" ? "selected" : ""}>Toutes les sources</option>
-                        <option value="personal" ${libraryFilter === "personal" ? "selected" : ""}>Mes playlists</option>
-                        <option value="collaborative" ${libraryFilter === "collaborative" ? "selected" : ""}>Collaboratives</option>
-                        <option value="followed" ${libraryFilter === "followed" ? "selected" : ""}>Playlists suivies</option>
-                        <option value="favorites" ${libraryFilter === "favorites" ? "selected" : ""}>Mes favoris</option>
-                    </select>
+    <option value="all" ${libraryFilter === "all" ? "selected" : ""}>
+        Toutes les sources
+    </option>
+
+    <option value="favorites" ${libraryFilter === "favorites" ? "selected" : ""}>
+        ⭐ Mes favoris
+    </option>
+
+    <option value="personal" ${libraryFilter === "personal" ? "selected" : ""}>
+        Mes playlists
+    </option>
+
+    <option value="collaborative" ${libraryFilter === "collaborative" ? "selected" : ""}>
+        Collaboratives
+    </option>
+
+    <option value="followed" ${libraryFilter === "followed" ? "selected" : ""}>
+        Playlists suivies
+    </option>
+</select>
                 </label>
 
                 <label class="library-select-field" for="librarySortSelect">
@@ -992,11 +1006,10 @@ function displayPlaylists(playlists) {
                 ${modificationDatesLoading ? "" : "hidden"}
                 aria-live="polite"
             >
-                ${
-                    modificationDatesLoading
-                        ? `Analyse des playlists : ${modificationDatesProgress.completed}/${modificationDatesProgress.total}`
-                        : ""
-                }
+                ${modificationDatesLoading
+            ? `Analyse des playlists : ${modificationDatesProgress.completed}/${modificationDatesProgress.total}`
+            : ""
+        }
             </p>
 
             <section class="mix-builder" aria-label="Créateur de mix">
@@ -1486,10 +1499,10 @@ function displayPlaylistDetails(playlist, tracks) {
             : isMultiSourceMix
                 ? "Shuffle+"
                 : (
-                playlist.owner?.display_name ||
-                playlist.owner?.id ||
-                "Spotify"
-            )
+                    playlist.owner?.display_name ||
+                    playlist.owner?.id ||
+                    "Spotify"
+                )
     );
 
     const playlistUrl = (isLikedTracks || isMultiSourceMix)
@@ -1510,13 +1523,12 @@ function displayPlaylistDetails(playlist, tracks) {
             >
         `
         : `
-            <div class="playlist-detail-cover detail-placeholder ${
-                isLikedTracks
-                    ? "liked-detail-placeholder"
-                    : isMultiSourceMix
-                        ? "mix-detail-placeholder"
-                        : ""
-            }">
+            <div class="playlist-detail-cover detail-placeholder ${isLikedTracks
+            ? "liked-detail-placeholder"
+            : isMultiSourceMix
+                ? "mix-detail-placeholder"
+                : ""
+        }">
                 ${isLikedTracks ? "♥" : isMultiSourceMix ? "✨" : "🎵"}
             </div>
         `;
@@ -1555,11 +1567,10 @@ function displayPlaylistDetails(playlist, tracks) {
                     <h2>${playlistName}</h2>
 
                     <p>
-                        ${
-                            isMultiSourceMix
-                                ? `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} unique${tracks.length > 1 ? "s" : ""} · ${playlist.sourceCount || 0} source${(playlist.sourceCount || 0) > 1 ? "s" : ""}`
-                                : `Par ${ownerName} · ${tracks.length} morceau${tracks.length > 1 ? "x" : ""}`
-                        }
+                        ${isMultiSourceMix
+            ? `${tracks.length} morceau${tracks.length > 1 ? "x" : ""} unique${tracks.length > 1 ? "s" : ""} · ${playlist.sourceCount || 0} source${(playlist.sourceCount || 0) > 1 ? "s" : ""}`
+            : `Par ${ownerName} · ${tracks.length} morceau${tracks.length > 1 ? "x" : ""}`
+        }
                     </p>
 
                     <div class="playlist-detail-actions">
@@ -1678,26 +1689,24 @@ function displayPlaylistDetails(playlist, tracks) {
                         id="playSpotifyButton"
                         class="play-spotify-button"
                         type="button"
-                        ${
-                            availableDevices.length &&
-                            tracks.length &&
-                            !isKnownNonPremiumAccount()
-                                ? ""
-                                : "disabled"
-                        }
+                        ${availableDevices.length &&
+            tracks.length &&
+            !isKnownNonPremiumAccount()
+            ? ""
+            : "disabled"
+        }
                     >
                         ▶ Lire cet ordre dans Spotify
                     </button>
                 </div>
 
                 <p id="playbackMessage" class="playback-message">
-                    ${
-                        isKnownNonPremiumAccount()
-                            ? "La commande de lecture nécessite un compte Spotify Premium."
-                            : availableDevices.length
-                                ? "Un appareil Spotify est prêt."
-                                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
-                    }
+                    ${isKnownNonPremiumAccount()
+            ? "La commande de lecture nécessite un compte Spotify Premium."
+            : availableDevices.length
+                ? "Un appareil Spotify est prêt."
+                : "Ouvre Spotify sur ton téléphone ou ton ordinateur, lance ou mets en pause un morceau, puis clique sur Actualiser."
+        }
                 </p>
             </section>
 
@@ -1815,8 +1824,7 @@ async function refreshPlaybackDevices() {
         updateDeviceControls(previousDeviceId);
 
         playbackMessage.textContent = availableDevices.length
-            ? `${availableDevices.length} appareil${
-                availableDevices.length > 1 ? "s" : ""
+            ? `${availableDevices.length} appareil${availableDevices.length > 1 ? "s" : ""
             } disponible${availableDevices.length > 1 ? "s" : ""}.`
             : (
                 "Aucun appareil trouvé. Ouvre Spotify, lance ou " +
