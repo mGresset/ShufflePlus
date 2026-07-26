@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.6.0";
+const APP_VERSION = "1.7.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -46,6 +46,11 @@ const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
 const FAVORITE_SOURCES_KEY = "shuffleplus_favorite_sources_v1";
 const SAVED_MIXES_KEY = "shuffleplus_saved_mixes_v1";
 const MAX_SAVED_MIXES = 20;
+const TRACK_HISTORY_KEY = "shuffleplus_recent_track_uris_v1";
+const BACKUP_FORMAT = "shuffleplus-backup";
+const BACKUP_SCHEMA_VERSION = 1;
+const MAX_IMPORTED_FAVORITES = 500;
+const MAX_IMPORTED_HISTORY = 50;
 
 const DEFAULT_SHUFFLE_SETTINGS = {
     preset: "balanced",
@@ -1000,6 +1005,359 @@ function renderSavedMixesSection() {
     `;
 }
 
+
+function readTrackHistoryForBackup() {
+    try {
+        const raw = localStorage.getItem(TRACK_HISTORY_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+
+        return Array.isArray(parsed)
+            ? parsed
+                .filter((value) => typeof value === "string")
+                .slice(0, MAX_IMPORTED_HISTORY)
+            : [];
+    } catch (error) {
+        console.warn("Historique local illisible :", error);
+        return [];
+    }
+}
+
+function normalizeImportedFavorites(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return [...new Set(
+        values
+            .filter((value) =>
+                typeof value === "string" &&
+                (
+                    value === "liked" ||
+                    /^playlist:[A-Za-z0-9]+$/.test(value)
+                )
+            )
+            .slice(0, MAX_IMPORTED_FAVORITES)
+    )];
+}
+
+function normalizeImportedHistory(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return [...new Set(
+        values
+            .filter((value) =>
+                typeof value === "string" &&
+                value.startsWith("spotify:track:")
+            )
+            .slice(0, MAX_IMPORTED_HISTORY)
+    )];
+}
+
+function normalizeImportedMixes(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    const seenIds = new Set();
+
+    return values
+        .filter((mix) =>
+            mix &&
+            typeof mix === "object" &&
+            typeof mix.name === "string" &&
+            Array.isArray(mix.sourceKeys)
+        )
+        .map((mix) => {
+            let id =
+                typeof mix.id === "string" && mix.id.trim()
+                    ? mix.id.trim().slice(0, 120)
+                    : createSavedMixId();
+
+            if (seenIds.has(id)) {
+                id = createSavedMixId();
+            }
+
+            seenIds.add(id);
+
+            const sourceKeys = [...new Set(
+                mix.sourceKeys.filter((sourceKey) =>
+                    typeof sourceKey === "string" &&
+                    (
+                        sourceKey === "liked" ||
+                        /^playlist:[A-Za-z0-9]+$/.test(sourceKey)
+                    )
+                )
+            )].slice(0, MAX_MIX_SOURCES);
+
+            return {
+                id,
+                name:
+                    mix.name.trim().slice(0, 60) ||
+                    "Mix sans nom",
+                sourceKeys,
+                createdAt: Number.isFinite(Number(mix.createdAt))
+                    ? Number(mix.createdAt)
+                    : Date.now(),
+                updatedAt: Number.isFinite(Number(mix.updatedAt))
+                    ? Number(mix.updatedAt)
+                    : Date.now(),
+                shuffleSettings: normalizeShuffleSettings(
+                    mix.shuffleSettings
+                )
+            };
+        })
+        .filter((mix) => mix.sourceKeys.length)
+        .slice(0, MAX_SAVED_MIXES);
+}
+
+function normalizeImportedPreferences(preferences = {}) {
+    const allowedFilters = new Set([
+        "all",
+        "favorites",
+        "personal",
+        "collaborative",
+        "followed"
+    ]);
+
+    const allowedSorts = new Set([
+        "name-asc",
+        "name-desc",
+        "tracks-desc",
+        "tracks-asc",
+        "modified-desc",
+        "modified-asc",
+        "recent-desc",
+        "recent-none"
+    ]);
+
+    return {
+        searchTerm:
+            typeof preferences.searchTerm === "string"
+                ? preferences.searchTerm.slice(0, 160)
+                : "",
+        filter: allowedFilters.has(preferences.filter)
+            ? preferences.filter
+            : "all",
+        sort: allowedSorts.has(preferences.sort)
+            ? preferences.sort
+            : "name-asc"
+    };
+}
+
+function buildBackupPayload() {
+    return {
+        format: BACKUP_FORMAT,
+        schemaVersion: BACKUP_SCHEMA_VERSION,
+        appVersion: APP_VERSION,
+        exportedAt: new Date().toISOString(),
+        spotifyUserId: currentUserId || "",
+        data: {
+            favoriteSourceKeys: [...favoriteSourceKeys],
+            savedMixes,
+            preferences: {
+                searchTerm: librarySearchTerm,
+                filter: libraryFilter,
+                sort: librarySort
+            },
+            recentTrackUris: readTrackHistoryForBackup()
+        }
+    };
+}
+
+function downloadBackupFile() {
+    try {
+        const payload = buildBackupPayload();
+        const blob = new Blob(
+            [JSON.stringify(payload, null, 2)],
+            { type: "application/json" }
+        );
+        const url = URL.createObjectURL(blob);
+        const date = new Date();
+        const datePart = [
+            date.getFullYear(),
+            String(date.getMonth() + 1).padStart(2, "0"),
+            String(date.getDate()).padStart(2, "0")
+        ].join("-");
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `shuffleplus-sauvegarde-${datePart}.json`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+
+        setStatus(
+            `Sauvegarde exportée : ${savedMixes.length} mix et ` +
+            `${favoriteSourceKeys.size} favori${favoriteSourceKeys.size > 1 ? "s" : ""}.`
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            "Impossible de créer le fichier de sauvegarde.",
+            "error"
+        );
+    }
+}
+
+function validateBackupPayload(payload) {
+    if (
+        !payload ||
+        typeof payload !== "object" ||
+        payload.format !== BACKUP_FORMAT ||
+        Number(payload.schemaVersion) !== BACKUP_SCHEMA_VERSION ||
+        !payload.data ||
+        typeof payload.data !== "object"
+    ) {
+        throw new Error(
+            "Ce fichier n’est pas une sauvegarde Shuffle+ compatible."
+        );
+    }
+
+    return {
+        favoriteSourceKeys: normalizeImportedFavorites(
+            payload.data.favoriteSourceKeys
+        ),
+        savedMixes: normalizeImportedMixes(
+            payload.data.savedMixes
+        ),
+        preferences: normalizeImportedPreferences(
+            payload.data.preferences
+        ),
+        recentTrackUris: normalizeImportedHistory(
+            payload.data.recentTrackUris
+        ),
+        spotifyUserId:
+            typeof payload.spotifyUserId === "string"
+                ? payload.spotifyUserId
+                : ""
+    };
+}
+
+async function importBackupFile(file) {
+    if (!file) {
+        return;
+    }
+
+    if (
+        file.size > 2 * 1024 * 1024 ||
+        !file.name.toLowerCase().endsWith(".json")
+    ) {
+        setStatus(
+            "Sélectionne un fichier JSON Shuffle+ de moins de 2 Mo.",
+            "error"
+        );
+        return;
+    }
+
+    try {
+        const text = await file.text();
+        const imported = validateBackupPayload(
+            JSON.parse(text)
+        );
+
+        const accountWarning =
+            imported.spotifyUserId &&
+            currentUserId &&
+            imported.spotifyUserId !== currentUserId
+                ? "\n\nAttention : cette sauvegarde vient d’un autre compte Spotify."
+                : "";
+
+        const confirmed = window.confirm(
+            `Importer ${imported.savedMixes.length} mix, ` +
+            `${imported.favoriteSourceKeys.length} favori` +
+            `${imported.favoriteSourceKeys.length > 1 ? "s" : ""} ` +
+            `et les préférences de l’interface ?\n\n` +
+            `Les données locales actuelles seront remplacées.` +
+            accountWarning
+        );
+
+        if (!confirmed) {
+            setStatus("Importation annulée.");
+            return;
+        }
+
+        favoriteSourceKeys.clear();
+
+        for (const sourceKey of imported.favoriteSourceKeys) {
+            favoriteSourceKeys.add(sourceKey);
+        }
+
+        savedMixes = imported.savedMixes;
+        librarySearchTerm = imported.preferences.searchTerm;
+        libraryFilter = imported.preferences.filter;
+        librarySort = imported.preferences.sort;
+        editingSavedMixId = "";
+        configuringSavedMixId = "";
+        selectedSourceKeys.clear();
+
+        saveFavoriteSources();
+        saveSavedMixes();
+        localStorage.setItem(
+            TRACK_HISTORY_KEY,
+            JSON.stringify(imported.recentTrackUris)
+        );
+
+        displayPlaylists(playlistsCache);
+        setStatus(
+            `Sauvegarde importée : ${savedMixes.length} mix, ` +
+            `${favoriteSourceKeys.size} favori` +
+            `${favoriteSourceKeys.size > 1 ? "s" : ""} et ` +
+            `${imported.recentTrackUris.length} titre` +
+            `${imported.recentTrackUris.length > 1 ? "s" : ""} dans l’historique local.`
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Impossible d’importer cette sauvegarde.",
+            "error"
+        );
+    }
+}
+
+function renderBackupPanel() {
+    return `
+        <section class="backup-panel" aria-label="Sauvegarde des données">
+            <div class="backup-panel-copy">
+                <h3>Sauvegarde et restauration</h3>
+                <p>
+                    Exporte tes mix, leurs réglages, tes favoris,
+                    les filtres et l’historique local de Shuffle+.
+                </p>
+            </div>
+
+            <div class="backup-panel-actions">
+                <button
+                    id="exportBackupButton"
+                    class="backup-export-button"
+                    type="button"
+                >
+                    ⬇ Exporter mes données
+                </button>
+
+                <button
+                    id="importBackupButton"
+                    class="backup-import-button"
+                    type="button"
+                >
+                    ⬆ Importer une sauvegarde
+                </button>
+
+                <input
+                    id="backupFileInput"
+                    class="backup-file-input"
+                    type="file"
+                    accept="application/json,.json"
+                    aria-label="Choisir une sauvegarde Shuffle+"
+                >
+            </div>
+        </section>
+    `;
+}
+
 function normalizeSearchText(value = "") {
     return String(value)
         .normalize("NFD")
@@ -1836,6 +2194,8 @@ function displayPlaylists(playlists) {
             : ""
         }
             </p>
+
+            ${renderBackupPanel()}
 
             ${renderSavedMixesSection()}
 
@@ -3191,6 +3551,22 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const exportBackupButton =
+            event.target.closest("#exportBackupButton");
+
+        if (exportBackupButton) {
+            downloadBackupFile();
+            return;
+        }
+
+        const importBackupButton =
+            event.target.closest("#importBackupButton");
+
+        if (importBackupButton) {
+            document.getElementById("backupFileInput")?.click();
+            return;
+        }
+
         const favoriteButton = event.target.closest(
             ".source-favorite-button"
         );
@@ -3498,6 +3874,13 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (event.target.id === "backupFileInput") {
+            const [file] = event.target.files || [];
+            await importBackupFile(file);
+            event.target.value = "";
+            return;
+        }
+
         if (event.target.matches("[data-shuffle-preset]")) {
             const form = event.target.closest(
                 "[data-saved-mix-settings-id]"
