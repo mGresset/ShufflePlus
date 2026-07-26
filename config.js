@@ -1,6 +1,6 @@
 export const CONFIG = {
     appName: "Shuffle+",
-    version: "1.3.0",
+    version: "1.4.0",
 
     clientId: "efcbf6e43e6346678cfceb44d0dc2422",
 

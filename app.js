@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.3.0";
+const APP_VERSION = "1.4.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -44,6 +44,8 @@ const RECENT_ACTIVITY_CACHE_KEY =
     "shuffleplus_recent_playlist_activity_v1";
 const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
 const FAVORITE_SOURCES_KEY = "shuffleplus_favorite_sources_v1";
+const SAVED_MIXES_KEY = "shuffleplus_saved_mixes_v1";
+const MAX_SAVED_MIXES = 20;
 
 let currentUserId = "";
 let currentUserProduct = "";
@@ -66,6 +68,7 @@ const playlistModificationDates = new Map();
 const playlistRecentActivity = new Map();
 let recentActivityLoading = false;
 const favoriteSourceKeys = new Set(readFavoriteSources());
+let savedMixes = readSavedMixes();
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -189,6 +192,367 @@ function toggleFavoriteSource(sourceKey) {
     }
 
     saveFavoriteSources();
+}
+
+
+function readSavedMixes() {
+    try {
+        const raw = localStorage.getItem(SAVED_MIXES_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .filter((mix) =>
+                mix &&
+                typeof mix.id === "string" &&
+                typeof mix.name === "string" &&
+                Array.isArray(mix.sourceKeys)
+            )
+            .map((mix) => ({
+                id: mix.id,
+                name: mix.name.trim() || "Mix sans nom",
+                sourceKeys: mix.sourceKeys
+                    .filter((key) => typeof key === "string")
+                    .slice(0, MAX_MIX_SOURCES),
+                createdAt: Number(mix.createdAt || Date.now())
+            }))
+            .slice(0, MAX_SAVED_MIXES);
+    } catch (error) {
+        console.warn("Mix enregistrés illisibles :", error);
+        return [];
+    }
+}
+
+function saveSavedMixes() {
+    try {
+        localStorage.setItem(
+            SAVED_MIXES_KEY,
+            JSON.stringify(savedMixes)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les mix locaux :",
+            error
+        );
+    }
+}
+
+function createSavedMixId() {
+    if (crypto?.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    return (
+        `mix-${Date.now()}-` +
+        Math.random().toString(36).slice(2, 10)
+    );
+}
+
+function getSourceDisplayName(sourceKey) {
+    if (sourceKey === "liked") {
+        return "Morceaux aimés";
+    }
+
+    const playlistId = sourceKey.replace(/^playlist:/, "");
+    const playlist = playlistsCache.find(
+        (item) => item.id === playlistId
+    );
+
+    return playlist?.name || "Playlist indisponible";
+}
+
+function getValidSavedMixSourceKeys(mix) {
+    return mix.sourceKeys.filter((sourceKey) => {
+        if (sourceKey === "liked") {
+            return true;
+        }
+
+        const playlistId =
+            sourceKey.replace(/^playlist:/, "");
+
+        const playlist = playlistsCache.find(
+            (item) => item.id === playlistId
+        );
+
+        return Boolean(
+            playlist &&
+            canReadPlaylist(playlist)
+        );
+    });
+}
+
+function saveCurrentSourceSelection() {
+    const sourceKeys = [...selectedSourceKeys];
+
+    if (!sourceKeys.length) {
+        setStatus(
+            "Sélectionne au moins une source avant d’enregistrer le mix.",
+            "error"
+        );
+        return;
+    }
+
+    if (savedMixes.length >= MAX_SAVED_MIXES) {
+        setStatus(
+            `Tu peux enregistrer jusqu’à ${MAX_SAVED_MIXES} mix.`,
+            "error"
+        );
+        return;
+    }
+
+    const defaultName =
+        `Mix ${savedMixes.length + 1}`;
+
+    const requestedName = window.prompt(
+        "Nom du mix enregistré :",
+        defaultName
+    );
+
+    if (requestedName === null) {
+        return;
+    }
+
+    const name = requestedName.trim();
+
+    if (!name) {
+        setStatus(
+            "Le nom du mix ne peut pas être vide.",
+            "error"
+        );
+        return;
+    }
+
+    savedMixes = [
+        {
+            id: createSavedMixId(),
+            name: name.slice(0, 60),
+            sourceKeys: sourceKeys.slice(
+                0,
+                MAX_MIX_SOURCES
+            ),
+            createdAt: Date.now()
+        },
+        ...savedMixes
+    ];
+
+    saveSavedMixes();
+    displayPlaylists(playlistsCache);
+    setStatus(`Mix « ${name} » enregistré.`);
+}
+
+async function launchSavedMix(mixId) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        return;
+    }
+
+    const validSourceKeys =
+        getValidSavedMixSourceKeys(mix);
+
+    if (!validSourceKeys.length) {
+        setStatus(
+            "Les sources de ce mix ne sont plus accessibles.",
+            "error"
+        );
+        return;
+    }
+
+    selectedSourceKeys.clear();
+
+    for (const sourceKey of validSourceKeys) {
+        selectedSourceKeys.add(sourceKey);
+    }
+
+    if (
+        validSourceKeys.length <
+        mix.sourceKeys.length
+    ) {
+        setStatus(
+            "Certaines sources ne sont plus accessibles et ont été ignorées."
+        );
+    }
+
+    await createSelectedMix();
+}
+
+function renameSavedMix(mixId) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        return;
+    }
+
+    const requestedName = window.prompt(
+        "Nouveau nom du mix :",
+        mix.name
+    );
+
+    if (requestedName === null) {
+        return;
+    }
+
+    const name = requestedName.trim();
+
+    if (!name) {
+        setStatus(
+            "Le nom du mix ne peut pas être vide.",
+            "error"
+        );
+        return;
+    }
+
+    mix.name = name.slice(0, 60);
+    saveSavedMixes();
+    displayPlaylists(playlistsCache);
+    setStatus(`Mix renommé « ${mix.name} ».`);
+}
+
+function deleteSavedMix(mixId) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Supprimer le mix « ${mix.name} » ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    savedMixes = savedMixes.filter(
+        (item) => item.id !== mixId
+    );
+
+    saveSavedMixes();
+    displayPlaylists(playlistsCache);
+    setStatus("Mix enregistré supprimé.");
+}
+
+function renderSavedMixesSection() {
+    if (!savedMixes.length) {
+        return `
+            <section class="saved-mixes-panel">
+                <div class="saved-mixes-heading">
+                    <div>
+                        <h3>Mes mix enregistrés</h3>
+                        <p>
+                            Enregistre une sélection de sources pour
+                            la relancer plus tard en un clic.
+                        </p>
+                    </div>
+                    <span>0/${MAX_SAVED_MIXES}</span>
+                </div>
+
+                <div class="saved-mixes-empty">
+                    Aucun mix enregistré pour le moment.
+                </div>
+            </section>
+        `;
+    }
+
+    const cards = savedMixes.map((mix) => {
+        const validCount =
+            getValidSavedMixSourceKeys(mix).length;
+        const totalCount = mix.sourceKeys.length;
+        const sourcePreview = mix.sourceKeys
+            .slice(0, 3)
+            .map(getSourceDisplayName)
+            .join(" · ");
+
+        return `
+            <article class="saved-mix-card">
+                <div class="saved-mix-card-main">
+                    <span class="saved-mix-icon" aria-hidden="true">
+                        ✨
+                    </span>
+
+                    <div>
+                        <h4>${escapeHtml(mix.name)}</h4>
+                        <p>
+                            ${totalCount} source${totalCount > 1 ? "s" : ""}
+                            ${validCount < totalCount
+                                ? ` · ${totalCount - validCount} indisponible${totalCount - validCount > 1 ? "s" : ""}`
+                                : ""}
+                        </p>
+                        <small title="${escapeHtml(
+                            mix.sourceKeys
+                                .map(getSourceDisplayName)
+                                .join(" · ")
+                        )}">
+                            ${escapeHtml(sourcePreview)}
+                            ${totalCount > 3 ? "…" : ""}
+                        </small>
+                    </div>
+                </div>
+
+                <div class="saved-mix-actions">
+                    <button
+                        class="saved-mix-launch"
+                        type="button"
+                        data-saved-mix-action="launch"
+                        data-saved-mix-id="${escapeHtml(mix.id)}"
+                        ${validCount ? "" : "disabled"}
+                    >
+                        ▶ Lancer
+                    </button>
+
+                    <button
+                        class="saved-mix-secondary"
+                        type="button"
+                        data-saved-mix-action="rename"
+                        data-saved-mix-id="${escapeHtml(mix.id)}"
+                        title="Renommer"
+                        aria-label="Renommer ${escapeHtml(mix.name)}"
+                    >
+                        ✏️
+                    </button>
+
+                    <button
+                        class="saved-mix-secondary saved-mix-delete"
+                        type="button"
+                        data-saved-mix-action="delete"
+                        data-saved-mix-id="${escapeHtml(mix.id)}"
+                        title="Supprimer"
+                        aria-label="Supprimer ${escapeHtml(mix.name)}"
+                    >
+                        🗑️
+                    </button>
+                </div>
+            </article>
+        `;
+    }).join("");
+
+    return `
+        <section class="saved-mixes-panel">
+            <div class="saved-mixes-heading">
+                <div>
+                    <h3>Mes mix enregistrés</h3>
+                    <p>
+                        Relance une combinaison de playlists et de
+                        morceaux aimés sans refaire la sélection.
+                    </p>
+                </div>
+                <span>${savedMixes.length}/${MAX_SAVED_MIXES}</span>
+            </div>
+
+            <div class="saved-mixes-list">
+                ${cards}
+            </div>
+        </section>
+    `;
 }
 
 function normalizeSearchText(value = "") {
@@ -722,6 +1086,9 @@ function updateMixSelectionControls() {
     const clearSelectionButton = document.getElementById(
         "clearSourceSelection"
     );
+    const saveSelectionButton = document.getElementById(
+        "saveSourceSelectionButton"
+    );
 
     const selectedCount = selectedSourceKeys.size;
 
@@ -736,6 +1103,12 @@ function updateMixSelectionControls() {
 
     if (clearSelectionButton) {
         clearSelectionButton.disabled = selectedCount < 1;
+    }
+
+    if (saveSelectionButton) {
+        saveSelectionButton.disabled =
+            selectedCount < 1 ||
+            savedMixes.length >= MAX_SAVED_MIXES;
     }
 
     document
@@ -1012,6 +1385,8 @@ function displayPlaylists(playlists) {
         }
             </p>
 
+            ${renderSavedMixesSection()}
+
             <section class="mix-builder" aria-label="Créateur de mix">
                 <div class="mix-builder-copy">
                     <strong>Créer un mix multi-sources</strong>
@@ -1038,6 +1413,15 @@ function displayPlaylists(playlists) {
                         ${selectedSourceKeys.size ? "" : "disabled"}
                     >
                         Effacer
+                    </button>
+
+                    <button
+                        id="saveSourceSelectionButton"
+                        class="mix-secondary-button"
+                        type="button"
+                        ${selectedSourceKeys.size ? "" : "disabled"}
+                    >
+                        💾 Enregistrer la sélection
                     </button>
 
                     <button
@@ -2336,6 +2720,34 @@ contentElement.addEventListener(
                     ? "Source ajoutée aux favoris."
                     : "Source retirée des favoris."
             );
+            return;
+        }
+
+        const savedMixActionButton =
+            event.target.closest("[data-saved-mix-action]");
+
+        if (savedMixActionButton) {
+            const mixId =
+                savedMixActionButton.dataset.savedMixId || "";
+            const action =
+                savedMixActionButton.dataset.savedMixAction || "";
+
+            if (action === "launch") {
+                await launchSavedMix(mixId);
+            } else if (action === "rename") {
+                renameSavedMix(mixId);
+            } else if (action === "delete") {
+                deleteSavedMix(mixId);
+            }
+
+            return;
+        }
+
+        const saveSourceSelectionButton =
+            event.target.closest("#saveSourceSelectionButton");
+
+        if (saveSourceSelectionButton) {
+            saveCurrentSourceSelection();
             return;
         }
 
