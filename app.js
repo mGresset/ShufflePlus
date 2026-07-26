@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.4.0";
+const APP_VERSION = "1.5.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -69,6 +69,7 @@ const playlistRecentActivity = new Map();
 let recentActivityLoading = false;
 const favoriteSourceKeys = new Set(readFavoriteSources());
 let savedMixes = readSavedMixes();
+let editingSavedMixId = "";
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -118,6 +119,7 @@ function setDisconnectedInterface() {
     selectedTracks = [];
     availableDevices = [];
     selectedSourceKeys.clear();
+    editingSavedMixId = "";
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -217,7 +219,8 @@ function readSavedMixes() {
                 sourceKeys: mix.sourceKeys
                     .filter((key) => typeof key === "string")
                     .slice(0, MAX_MIX_SOURCES),
-                createdAt: Number(mix.createdAt || Date.now())
+                createdAt: Number(mix.createdAt || Date.now()),
+                updatedAt: Number(mix.updatedAt || mix.createdAt || Date.now())
             }))
             .slice(0, MAX_SAVED_MIXES);
     } catch (error) {
@@ -363,6 +366,7 @@ async function launchSavedMix(mixId) {
         return;
     }
 
+    editingSavedMixId = "";
     selectedSourceKeys.clear();
 
     for (const sourceKey of validSourceKeys) {
@@ -379,6 +383,65 @@ async function launchSavedMix(mixId) {
     }
 
     await createSelectedMix();
+}
+
+
+function startEditingSavedMix(mixId) {
+    const mix = savedMixes.find((item) => item.id === mixId);
+
+    if (!mix) {
+        return;
+    }
+
+    editingSavedMixId = mixId;
+    selectedSourceKeys.clear();
+
+    for (const sourceKey of getValidSavedMixSourceKeys(mix)) {
+        selectedSourceKeys.add(sourceKey);
+    }
+
+    librarySearchTerm = "";
+    libraryFilter = "all";
+    displayPlaylists(playlistsCache);
+    setStatus(`Modification du mix « ${mix.name} ». Ajoute ou retire des sources, puis enregistre.`);
+
+    document.getElementById("mixBuilder")?.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+    });
+}
+
+function cancelEditingSavedMix() {
+    editingSavedMixId = "";
+    selectedSourceKeys.clear();
+    displayPlaylists(playlistsCache);
+    setStatus("Modification annulée.");
+}
+
+function saveEditedMix() {
+    const mix = savedMixes.find((item) => item.id === editingSavedMixId);
+
+    if (!mix) {
+        editingSavedMixId = "";
+        return;
+    }
+
+    const sourceKeys = [...selectedSourceKeys].slice(0, MAX_MIX_SOURCES);
+
+    if (!sourceKeys.length) {
+        setStatus("Le mix doit contenir au moins une source.", "error");
+        return;
+    }
+
+    mix.sourceKeys = sourceKeys;
+    mix.updatedAt = Date.now();
+    saveSavedMixes();
+
+    const name = mix.name;
+    editingSavedMixId = "";
+    selectedSourceKeys.clear();
+    displayPlaylists(playlistsCache);
+    setStatus(`Mix « ${name} » mis à jour.`);
 }
 
 function renameSavedMix(mixId) {
@@ -507,6 +570,17 @@ function renderSavedMixesSection() {
                         ${validCount ? "" : "disabled"}
                     >
                         ▶ Lancer
+                    </button>
+
+                    <button
+                        class="saved-mix-secondary saved-mix-edit"
+                        type="button"
+                        data-saved-mix-action="edit"
+                        data-saved-mix-id="${escapeHtml(mix.id)}"
+                        title="Modifier les sources"
+                        aria-label="Modifier les sources de ${escapeHtml(mix.name)}"
+                    >
+                        ⚙️
                     </button>
 
                     <button
@@ -1089,6 +1163,9 @@ function updateMixSelectionControls() {
     const saveSelectionButton = document.getElementById(
         "saveSourceSelectionButton"
     );
+    const saveEditedMixButton = document.getElementById(
+        "saveEditedMixButton"
+    );
 
     const selectedCount = selectedSourceKeys.size;
 
@@ -1109,6 +1186,10 @@ function updateMixSelectionControls() {
         saveSelectionButton.disabled =
             selectedCount < 1 ||
             savedMixes.length >= MAX_SAVED_MIXES;
+    }
+
+    if (saveEditedMixButton) {
+        saveEditedMixButton.disabled = selectedCount < 1;
     }
 
     document
@@ -1387,10 +1468,10 @@ function displayPlaylists(playlists) {
 
             ${renderSavedMixesSection()}
 
-            <section class="mix-builder" aria-label="Créateur de mix">
+            <section id="mixBuilder" class="mix-builder ${editingSavedMixId ? "is-editing" : ""}" aria-label="Créateur de mix">
                 <div class="mix-builder-copy">
-                    <strong>Créer un mix multi-sources</strong>
-                    <small>Jusqu’à ${MAX_MIX_SOURCES} sources</small>
+                    <strong>${editingSavedMixId ? "Modifier le mix enregistré" : "Créer un mix multi-sources"}</strong>
+                    <small>${editingSavedMixId ? "Ajoute ou retire des sources, puis sauvegarde" : `Jusqu’à ${MAX_MIX_SOURCES} sources`}</small>
                     <span id="mixSelectionCount">
                         0 source sélectionnée
                     </span>
@@ -1415,6 +1496,24 @@ function displayPlaylists(playlists) {
                         Effacer
                     </button>
 
+                    ${editingSavedMixId ? `
+                    <button
+                        id="cancelEditSavedMixButton"
+                        class="mix-secondary-button"
+                        type="button"
+                    >
+                        Annuler
+                    </button>
+
+                    <button
+                        id="saveEditedMixButton"
+                        class="mix-create-button"
+                        type="button"
+                        ${selectedSourceKeys.size ? "" : "disabled"}
+                    >
+                        ✓ Enregistrer les modifications
+                    </button>
+                    ` : `
                     <button
                         id="saveSourceSelectionButton"
                         class="mix-secondary-button"
@@ -1432,6 +1531,9 @@ function displayPlaylists(playlists) {
                     >
                         🧠 Créer le mix
                     </button>
+                    `}
+
+                    ${editingSavedMixId ? "" : ""}
                 </div>
             </section>
 
@@ -2734,6 +2836,8 @@ contentElement.addEventListener(
 
             if (action === "launch") {
                 await launchSavedMix(mixId);
+            } else if (action === "edit") {
+                startEditingSavedMix(mixId);
             } else if (action === "rename") {
                 renameSavedMix(mixId);
             } else if (action === "delete") {
@@ -2748,6 +2852,22 @@ contentElement.addEventListener(
 
         if (saveSourceSelectionButton) {
             saveCurrentSourceSelection();
+            return;
+        }
+
+        const saveEditedMixButton =
+            event.target.closest("#saveEditedMixButton");
+
+        if (saveEditedMixButton) {
+            saveEditedMix();
+            return;
+        }
+
+        const cancelEditSavedMixButton =
+            event.target.closest("#cancelEditSavedMixButton");
+
+        if (cancelEditSavedMixButton) {
+            cancelEditingSavedMix();
             return;
         }
 
