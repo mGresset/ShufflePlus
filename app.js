@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.4.0";
+const APP_VERSION = "2.5.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -76,6 +76,13 @@ const DEFAULT_COHERENCE_SETTINGS = {
     strengthenFirstThirty: true,
     durationJumpSeconds: 150
 };
+const MIX_SCHEDULES_KEY =
+    "shuffleplus_mix_schedules_v1";
+const MAX_MIX_SCHEDULES = 30;
+const SCHEDULE_CHECK_INTERVAL = 30 * 1000;
+const SCHEDULE_GRACE_PERIOD = 15 * 60 * 1000;
+const SCHEDULE_MISSED_WARNING_PERIOD =
+    12 * 60 * 60 * 1000;
 const DEFAULT_EXCLUSION_RULES = {
     excludedArtists: [],
     excludedAlbums: [],
@@ -281,6 +288,10 @@ let activeProfileId = readActiveProfileId();
 let currentPriorityRules = readPriorityRules();
 let lastPrioritySummary = null;
 let currentCoherenceSettings = readCoherenceSettings();
+let mixSchedules = readMixSchedules();
+let scheduleCheckTimer = 0;
+let scheduleRunInProgress = false;
+let pendingScheduledPlayback = null;
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -383,6 +394,1058 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+
+
+function normalizeScheduleDays(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return [...new Set(
+        values
+            .map((value) => Number(value))
+            .filter((value) =>
+                Number.isInteger(value) &&
+                value >= 0 &&
+                value <= 6
+            )
+    )].sort((first, second) => first - second);
+}
+
+function normalizeMixSchedule(schedule = {}) {
+    const recurrence =
+        schedule.recurrence === "weekly"
+            ? "weekly"
+            : "once";
+
+    return {
+        id:
+            typeof schedule.id === "string" &&
+            schedule.id.trim()
+                ? schedule.id.trim().slice(0, 120)
+                : createSavedMixId(),
+        name:
+            typeof schedule.name === "string" &&
+            schedule.name.trim()
+                ? schedule.name.trim().slice(0, 80)
+                : "Programmation Shuffle+",
+        mixId:
+            typeof schedule.mixId === "string"
+                ? schedule.mixId
+                : "",
+        profileId:
+            typeof schedule.profileId === "string"
+                ? schedule.profileId
+                : "",
+        deviceId:
+            typeof schedule.deviceId === "string"
+                ? schedule.deviceId
+                : "",
+        deviceName:
+            typeof schedule.deviceName === "string"
+                ? schedule.deviceName.slice(0, 100)
+                : "",
+        recurrence,
+        dateTime:
+            typeof schedule.dateTime === "string"
+                ? schedule.dateTime
+                : "",
+        time:
+            /^\d{2}:\d{2}$/.test(schedule.time || "")
+                ? schedule.time
+                : "18:00",
+        weekdays: normalizeScheduleDays(
+            schedule.weekdays
+        ),
+        enabled: schedule.enabled !== false,
+        autoPlay: schedule.autoPlay !== false,
+        createdAt: Number(
+            schedule.createdAt || Date.now()
+        ),
+        updatedAt: Number(
+            schedule.updatedAt || Date.now()
+        ),
+        lastRunKey:
+            typeof schedule.lastRunKey === "string"
+                ? schedule.lastRunKey
+                : "",
+        lastRunAt: Number(schedule.lastRunAt || 0),
+        lastResult:
+            typeof schedule.lastResult === "string"
+                ? schedule.lastResult.slice(0, 240)
+                : ""
+    };
+}
+
+function readMixSchedules() {
+    try {
+        const raw = localStorage.getItem(
+            MIX_SCHEDULES_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : [];
+
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .map((schedule) =>
+                normalizeMixSchedule(schedule)
+            )
+            .filter((schedule) => schedule.mixId)
+            .slice(0, MAX_MIX_SCHEDULES);
+    } catch (error) {
+        console.warn(
+            "Programmations illisibles :",
+            error
+        );
+        return [];
+    }
+}
+
+function saveMixSchedules() {
+    try {
+        localStorage.setItem(
+            MIX_SCHEDULES_KEY,
+            JSON.stringify(mixSchedules)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les programmations :",
+            error
+        );
+    }
+}
+
+function getScheduleDayLabel(day) {
+    return [
+        "dimanche",
+        "lundi",
+        "mardi",
+        "mercredi",
+        "jeudi",
+        "vendredi",
+        "samedi"
+    ][day] || "";
+}
+
+function formatScheduleDateTime(value) {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "Date non définie";
+    }
+
+    return new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            dateStyle: "medium",
+            timeStyle: "short"
+        }
+    ).format(date);
+}
+
+function getScheduleTimingLabel(schedule) {
+    if (schedule.recurrence === "weekly") {
+        const days = schedule.weekdays
+            .map(getScheduleDayLabel)
+            .join(", ");
+
+        return (
+            `${days || "Aucun jour"} à ` +
+            `${schedule.time}`
+        );
+    }
+
+    return formatScheduleDateTime(
+        schedule.dateTime
+    );
+}
+
+function getScheduleRunKey(schedule, date = new Date()) {
+    if (schedule.recurrence === "weekly") {
+        const year = date.getFullYear();
+        const month = String(
+            date.getMonth() + 1
+        ).padStart(2, "0");
+        const day = String(
+            date.getDate()
+        ).padStart(2, "0");
+
+        return (
+            `${schedule.id}:${year}-${month}-${day}:` +
+            `${schedule.time}`
+        );
+    }
+
+    return `${schedule.id}:${schedule.dateTime}`;
+}
+
+function getScheduleDueState(
+    schedule,
+    now = new Date()
+) {
+    if (!schedule.enabled) {
+        return {
+            due: false,
+            missed: false,
+            difference: 0
+        };
+    }
+
+    let target = null;
+
+    if (schedule.recurrence === "weekly") {
+        if (
+            !schedule.weekdays.includes(
+                now.getDay()
+            )
+        ) {
+            return {
+                due: false,
+                missed: false,
+                difference: 0
+            };
+        }
+
+        const [hours, minutes] =
+            schedule.time.split(":").map(Number);
+
+        target = new Date(now);
+        target.setHours(
+            hours,
+            minutes,
+            0,
+            0
+        );
+    } else {
+        target = new Date(schedule.dateTime);
+
+        if (Number.isNaN(target.getTime())) {
+            return {
+                due: false,
+                missed: false,
+                difference: 0
+            };
+        }
+    }
+
+    const difference =
+        now.getTime() - target.getTime();
+    const runKey = getScheduleRunKey(
+        schedule,
+        target
+    );
+
+    if (schedule.lastRunKey === runKey) {
+        return {
+            due: false,
+            missed: false,
+            difference
+        };
+    }
+
+    return {
+        due:
+            difference >= 0 &&
+            difference <= SCHEDULE_GRACE_PERIOD,
+        missed:
+            difference > SCHEDULE_GRACE_PERIOD &&
+            difference <=
+                SCHEDULE_MISSED_WARNING_PERIOD,
+        difference,
+        runKey
+    };
+}
+
+function getNextScheduleDate(schedule, now = new Date()) {
+    if (!schedule.enabled) {
+        return null;
+    }
+
+    if (schedule.recurrence === "once") {
+        const date = new Date(schedule.dateTime);
+
+        return (
+            Number.isNaN(date.getTime()) ||
+            date.getTime() < now.getTime()
+        )
+            ? null
+            : date;
+    }
+
+    const [hours, minutes] =
+        schedule.time.split(":").map(Number);
+
+    for (let offset = 0; offset < 8; offset += 1) {
+        const candidate = new Date(now);
+        candidate.setDate(
+            now.getDate() + offset
+        );
+        candidate.setHours(
+            hours,
+            minutes,
+            0,
+            0
+        );
+
+        if (
+            schedule.weekdays.includes(
+                candidate.getDay()
+            ) &&
+            candidate.getTime() >= now.getTime()
+        ) {
+            return candidate;
+        }
+    }
+
+    return null;
+}
+
+function renderMixSchedulesSection() {
+    const mixOptions = savedMixes
+        .map((mix) => `
+            <option value="${escapeHtml(mix.id)}">
+                ${escapeHtml(mix.name)}
+            </option>
+        `)
+        .join("");
+
+    const profileOptions = mixProfiles
+        .map((profile) => `
+            <option value="${escapeHtml(profile.id)}">
+                ${escapeHtml(profile.icon)}
+                ${escapeHtml(profile.name)}
+            </option>
+        `)
+        .join("");
+
+    const deviceOptions = availableDevices
+        .map((device) => `
+            <option
+                value="${escapeHtml(device.id)}"
+                data-device-name="${escapeHtml(device.name)}"
+            >
+                ${getDeviceIcon(device.type)}
+                ${escapeHtml(device.name)}
+                ${device.is_active ? " · actif" : ""}
+            </option>
+        `)
+        .join("");
+
+    const scheduleCards = [...mixSchedules]
+        .sort((first, second) => {
+            const firstDate =
+                getNextScheduleDate(first)?.getTime() ||
+                Number.POSITIVE_INFINITY;
+            const secondDate =
+                getNextScheduleDate(second)?.getTime() ||
+                Number.POSITIVE_INFINITY;
+
+            return firstDate - secondDate;
+        })
+        .map((schedule) => {
+            const mix = savedMixes.find(
+                (item) => item.id === schedule.mixId
+            );
+            const profile = getProfileById(
+                schedule.profileId
+            );
+            const nextDate =
+                getNextScheduleDate(schedule);
+
+            return `
+                <article
+                    class="schedule-card
+                    ${schedule.enabled ? "" : "is-disabled"}"
+                >
+                    <div class="schedule-card-main">
+                        <span class="schedule-icon">
+                            ${schedule.recurrence === "weekly"
+                                ? "🔁"
+                                : "🗓️"}
+                        </span>
+
+                        <div>
+                            <h4>
+                                ${escapeHtml(schedule.name)}
+                            </h4>
+                            <p>
+                                ${escapeHtml(
+                                    mix?.name ||
+                                    "Mix indisponible"
+                                )}
+                                ${profile
+                                    ? ` · Profil ${escapeHtml(profile.name)}`
+                                    : ""}
+                            </p>
+                            <small>
+                                ${escapeHtml(
+                                    getScheduleTimingLabel(
+                                        schedule
+                                    )
+                                )}
+                                ${schedule.deviceName
+                                    ? ` · ${escapeHtml(schedule.deviceName)}`
+                                    : " · appareil automatique"}
+                                ${nextDate
+                                    ? ` · prochain : ${escapeHtml(formatScheduleDateTime(nextDate))}`
+                                    : ""}
+                            </small>
+
+                            ${schedule.lastResult
+                                ? `
+                                    <span class="schedule-last-result">
+                                        ${escapeHtml(schedule.lastResult)}
+                                    </span>
+                                `
+                                : ""}
+                        </div>
+                    </div>
+
+                    <div class="schedule-actions">
+                        <button
+                            type="button"
+                            class="schedule-run-button"
+                            data-schedule-action="run"
+                            data-schedule-id="${escapeHtml(schedule.id)}"
+                            ${mix ? "" : "disabled"}
+                        >
+                            ▶ Lancer maintenant
+                        </button>
+
+                        <button
+                            type="button"
+                            class="schedule-secondary-button"
+                            data-schedule-action="toggle"
+                            data-schedule-id="${escapeHtml(schedule.id)}"
+                            title="${schedule.enabled ? "Désactiver" : "Activer"}"
+                        >
+                            ${schedule.enabled ? "⏸" : "▶"}
+                        </button>
+
+                        <button
+                            type="button"
+                            class="schedule-secondary-button schedule-delete-button"
+                            data-schedule-action="delete"
+                            data-schedule-id="${escapeHtml(schedule.id)}"
+                            title="Supprimer"
+                        >
+                            🗑️
+                        </button>
+                    </div>
+                </article>
+            `;
+        })
+        .join("");
+
+    return `
+        <section class="schedules-panel">
+            <div class="schedules-heading">
+                <div>
+                    <h3>Programmation des mix</h3>
+                    <p>
+                        Les lancements automatiques nécessitent que
+                        Shuffle+ soit ouvert et connecté à Spotify.
+                    </p>
+                </div>
+
+                <button
+                    id="refreshScheduleDevicesButton"
+                    class="schedule-refresh-button"
+                    type="button"
+                >
+                    ↻ Actualiser les appareils
+                </button>
+            </div>
+
+            <form
+                id="mixScheduleForm"
+                class="schedule-form"
+            >
+                <label class="schedule-field">
+                    <span>Nom de la programmation</span>
+                    <input
+                        name="name"
+                        type="text"
+                        maxlength="80"
+                        placeholder="Ex. Sport du soir"
+                        required
+                    >
+                </label>
+
+                <label class="schedule-field">
+                    <span>Mix enregistré</span>
+                    <select
+                        name="mixId"
+                        ${savedMixes.length ? "" : "disabled"}
+                        required
+                    >
+                        <option value="">
+                            Choisir un mix
+                        </option>
+                        ${mixOptions}
+                    </select>
+                </label>
+
+                <label class="schedule-field">
+                    <span>Profil appliqué</span>
+                    <select name="profileId">
+                        <option value="">
+                            Réglages du mix
+                        </option>
+                        ${profileOptions}
+                    </select>
+                </label>
+
+                <label class="schedule-field">
+                    <span>Appareil Spotify</span>
+                    <select name="deviceId">
+                        <option value="">
+                            Appareil actif ou premier disponible
+                        </option>
+                        ${deviceOptions}
+                    </select>
+                </label>
+
+                <label class="schedule-field">
+                    <span>Répétition</span>
+                    <select
+                        name="recurrence"
+                        data-schedule-recurrence
+                    >
+                        <option value="once">
+                            Une seule fois
+                        </option>
+                        <option value="weekly">
+                            Chaque semaine
+                        </option>
+                    </select>
+                </label>
+
+                <label
+                    class="schedule-field"
+                    data-schedule-once-field
+                >
+                    <span>Date et heure</span>
+                    <input
+                        name="dateTime"
+                        type="datetime-local"
+                    >
+                </label>
+
+                <label
+                    class="schedule-field"
+                    data-schedule-weekly-field
+                    hidden
+                >
+                    <span>Heure</span>
+                    <input
+                        name="time"
+                        type="time"
+                        value="18:00"
+                    >
+                </label>
+
+                <fieldset
+                    class="schedule-weekdays"
+                    data-schedule-weekly-field
+                    hidden
+                >
+                    <legend>Jours de la semaine</legend>
+                    ${[
+                        [1, "Lun"],
+                        [2, "Mar"],
+                        [3, "Mer"],
+                        [4, "Jeu"],
+                        [5, "Ven"],
+                        [6, "Sam"],
+                        [0, "Dim"]
+                    ].map(([value, label]) => `
+                        <label>
+                            <input
+                                type="checkbox"
+                                name="weekdays"
+                                value="${value}"
+                            >
+                            <span>${label}</span>
+                        </label>
+                    `).join("")}
+                </fieldset>
+
+                <label class="schedule-auto-play">
+                    <input
+                        name="autoPlay"
+                        type="checkbox"
+                        checked
+                    >
+                    <span>
+                        Lancer automatiquement le premier
+                        bloc de 100 titres
+                    </span>
+                </label>
+
+                <div class="schedule-form-actions">
+                    <button
+                        class="schedule-create-button"
+                        type="submit"
+                        ${savedMixes.length ? "" : "disabled"}
+                    >
+                        + Ajouter la programmation
+                    </button>
+                </div>
+            </form>
+
+            ${savedMixes.length
+                ? ""
+                : `
+                    <p class="schedule-warning">
+                        Enregistre d’abord un mix pour pouvoir
+                        le programmer.
+                    </p>
+                `}
+
+            <div class="schedule-list">
+                ${scheduleCards || `
+                    <div class="schedule-empty">
+                        Aucune programmation enregistrée.
+                    </div>
+                `}
+            </div>
+        </section>
+    `;
+}
+
+function createMixScheduleFromForm(form) {
+    if (mixSchedules.length >= MAX_MIX_SCHEDULES) {
+        setStatus(
+            `Tu peux créer jusqu’à ${MAX_MIX_SCHEDULES} programmations.`,
+            "error"
+        );
+        return;
+    }
+
+    const formData = new FormData(form);
+    const mixId = String(
+        formData.get("mixId") || ""
+    );
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        setStatus(
+            "Choisis un mix enregistré valide.",
+            "error"
+        );
+        return;
+    }
+
+    const recurrence =
+        formData.get("recurrence") === "weekly"
+            ? "weekly"
+            : "once";
+    const weekdays = formData
+        .getAll("weekdays")
+        .map(Number);
+    const dateTime = String(
+        formData.get("dateTime") || ""
+    );
+    const time = String(
+        formData.get("time") || "18:00"
+    );
+
+    if (
+        recurrence === "once" &&
+        (
+            !dateTime ||
+            Number.isNaN(
+                new Date(dateTime).getTime()
+            ) ||
+            new Date(dateTime).getTime() <=
+                Date.now()
+        )
+    ) {
+        setStatus(
+            "Choisis une date et une heure futures.",
+            "error"
+        );
+        return;
+    }
+
+    if (
+        recurrence === "weekly" &&
+        !weekdays.length
+    ) {
+        setStatus(
+            "Choisis au moins un jour de la semaine.",
+            "error"
+        );
+        return;
+    }
+
+    const deviceSelect = form.elements.deviceId;
+    const selectedDeviceOption =
+        deviceSelect?.selectedOptions?.[0];
+
+    const schedule = normalizeMixSchedule({
+        id: createSavedMixId(),
+        name:
+            String(formData.get("name") || "").trim() ||
+            mix.name,
+        mixId,
+        profileId:
+            String(formData.get("profileId") || ""),
+        deviceId:
+            String(formData.get("deviceId") || ""),
+        deviceName:
+            selectedDeviceOption?.dataset.deviceName ||
+            "",
+        recurrence,
+        dateTime,
+        time,
+        weekdays,
+        autoPlay:
+            formData.get("autoPlay") === "on",
+        enabled: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    });
+
+    mixSchedules = [
+        schedule,
+        ...mixSchedules
+    ].slice(0, MAX_MIX_SCHEDULES);
+
+    saveMixSchedules();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Programmation « ${schedule.name} » ajoutée.`
+    );
+}
+
+function toggleMixSchedule(scheduleId) {
+    const schedule = mixSchedules.find(
+        (item) => item.id === scheduleId
+    );
+
+    if (!schedule) {
+        return;
+    }
+
+    schedule.enabled = !schedule.enabled;
+    schedule.updatedAt = Date.now();
+    saveMixSchedules();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        schedule.enabled
+            ? "Programmation activée."
+            : "Programmation désactivée."
+    );
+}
+
+function deleteMixSchedule(scheduleId) {
+    const schedule = mixSchedules.find(
+        (item) => item.id === scheduleId
+    );
+
+    if (!schedule) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Supprimer la programmation « ${schedule.name} » ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    mixSchedules = mixSchedules.filter(
+        (item) => item.id !== scheduleId
+    );
+    saveMixSchedules();
+    displayPlaylists(playlistsCache);
+    setStatus("Programmation supprimée.");
+}
+
+async function refreshScheduleDevices() {
+    setStatus(
+        "Recherche des appareils Spotify…"
+    );
+
+    try {
+        availableDevices =
+            await getAvailableDevices();
+        displayPlaylists(playlistsCache);
+
+        setStatus(
+            availableDevices.length
+                ? `${availableDevices.length} appareil` +
+                    `${availableDevices.length > 1 ? "s" : ""}` +
+                    ` Spotify disponible` +
+                    `${availableDevices.length > 1 ? "s" : ""}.`
+                : "Aucun appareil Spotify disponible."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            "Impossible de charger les appareils Spotify.",
+            "error"
+        );
+    }
+}
+
+async function resolveScheduledDevice(schedule) {
+    const devices = await getAvailableDevices();
+
+    availableDevices = devices;
+
+    if (!devices.length) {
+        throw new Error(
+            "Aucun appareil Spotify disponible. " +
+            "Ouvre Spotify et lance ou mets en pause un morceau."
+        );
+    }
+
+    return (
+        devices.find(
+            (device) =>
+                device.id === schedule.deviceId
+        ) ||
+        devices.find(
+            (device) =>
+                schedule.deviceName &&
+                device.name === schedule.deviceName
+        ) ||
+        devices.find((device) => device.is_active) ||
+        devices[0]
+    );
+}
+
+async function playScheduledCurrentMix(schedule) {
+    if (!schedule.autoPlay) {
+        return;
+    }
+
+    const device = await resolveScheduledDevice(
+        schedule
+    );
+    const playbackUris = selectedTracks
+        .slice(0, MAX_DIRECT_PLAYBACK_TRACKS)
+        .map((track) => track?.uri)
+        .filter(Boolean);
+
+    if (!playbackUris.length) {
+        throw new Error(
+            "Le mix programmé ne contient aucun morceau lisible."
+        );
+    }
+
+    await transferPlayback(device.id, false);
+    await wait(800);
+    await startPlayback(
+        playbackUris,
+        device.id
+    );
+    await wait(600);
+
+    try {
+        await setPlaybackShuffle(
+            false,
+            device.id
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible de désactiver le shuffle Spotify :",
+            error
+        );
+    }
+
+    playbackQueueCursor =
+        playbackUris.length;
+    saveCurrentPlaybackQueueState();
+    rememberPlaybackOrder(
+        selectedTracks.slice(
+            0,
+            playbackUris.length
+        )
+    );
+    addTracksSentToHistory(
+        playbackUris.length
+    );
+}
+
+async function runMixSchedule(
+    scheduleId,
+    {
+        automatic = false,
+        runKey = ""
+    } = {}
+) {
+    if (scheduleRunInProgress) {
+        return;
+    }
+
+    const schedule = mixSchedules.find(
+        (item) => item.id === scheduleId
+    );
+    const mix = savedMixes.find(
+        (item) => item.id === schedule?.mixId
+    );
+
+    if (!schedule || !mix) {
+        setStatus(
+            "Le mix associé à cette programmation est indisponible.",
+            "error"
+        );
+        return;
+    }
+
+    scheduleRunInProgress = true;
+    schedule.lastResult =
+        automatic
+            ? "Lancement automatique en cours…"
+            : "Lancement manuel en cours…";
+    saveMixSchedules();
+
+    try {
+        if (schedule.profileId) {
+            const profile = getProfileById(
+                schedule.profileId
+            );
+
+            if (profile) {
+                applyMixProfile(
+                    profile.id,
+                    {
+                        persist: false,
+                        rerender: false
+                    }
+                );
+            }
+        }
+
+        pendingScheduledPlayback = schedule;
+        await launchSavedMix(mix.id);
+
+        if (pendingScheduledPlayback) {
+            await playScheduledCurrentMix(schedule);
+            pendingScheduledPlayback = null;
+        }
+
+        const completedAt = Date.now();
+        schedule.lastRunAt = completedAt;
+        schedule.lastRunKey =
+            runKey ||
+            getScheduleRunKey(
+                schedule,
+                new Date(completedAt)
+            );
+        schedule.lastResult =
+            schedule.autoPlay
+                ? "Mix lancé automatiquement avec succès."
+                : "Mix préparé avec succès.";
+
+        if (schedule.recurrence === "once") {
+            schedule.enabled = false;
+        }
+
+        saveMixSchedules();
+        setStatus(
+            `Programmation « ${schedule.name} » exécutée.`
+        );
+    } catch (error) {
+        console.error(error);
+        pendingScheduledPlayback = null;
+        schedule.lastResult =
+            error.message ||
+            "Échec du lancement programmé.";
+        saveMixSchedules();
+
+        setStatus(
+            `Programmation « ${schedule.name} » : ` +
+            `${schedule.lastResult}`,
+            "error"
+        );
+    } finally {
+        scheduleRunInProgress = false;
+    }
+}
+
+async function checkDueMixSchedules() {
+    if (
+        scheduleRunInProgress ||
+        !currentUserId
+    ) {
+        return;
+    }
+
+    const now = new Date();
+
+    for (const schedule of mixSchedules) {
+        const state = getScheduleDueState(
+            schedule,
+            now
+        );
+
+        if (state.due) {
+            await runMixSchedule(
+                schedule.id,
+                {
+                    automatic: true,
+                    runKey: state.runKey
+                }
+            );
+            break;
+        }
+
+        if (
+            state.missed &&
+            !schedule.lastResult.startsWith(
+                "Programmation manquée"
+            )
+        ) {
+            schedule.lastResult =
+                "Programmation manquée pendant que Shuffle+ était fermé.";
+            saveMixSchedules();
+
+            setStatus(
+                `Programmation manquée : « ${schedule.name} ».`,
+                "error"
+            );
+        }
+    }
+}
+
+function startScheduleWatcher() {
+    if (scheduleCheckTimer) {
+        window.clearInterval(
+            scheduleCheckTimer
+        );
+    }
+
+    scheduleCheckTimer = window.setInterval(
+        () => {
+            checkDueMixSchedules().catch(
+                (error) =>
+                    console.error(
+                        "Vérification des programmations :",
+                        error
+                    )
+            );
+        },
+        SCHEDULE_CHECK_INTERVAL
+    );
+
+    checkDueMixSchedules().catch(
+        (error) =>
+            console.error(
+                "Vérification initiale des programmations :",
+                error
+            )
+    );
+}
 
 function normalizeCoherenceSettings(settings = {}) {
     const allowedLevels = new Set([
@@ -2688,8 +3751,13 @@ function deleteSavedMix(mixId) {
     savedMixes = savedMixes.filter(
         (item) => item.id !== mixId
     );
+    mixSchedules = mixSchedules.filter(
+        (schedule) =>
+            schedule.mixId !== mixId
+    );
 
     saveSavedMixes();
+    saveMixSchedules();
     displayPlaylists(playlistsCache);
     setStatus("Mix enregistré supprimé.");
 }
@@ -3510,7 +4578,8 @@ function buildBackupPayload() {
             mixProfiles,
             activeProfileId,
             priorityRules: currentPriorityRules,
-            coherenceSettings: currentCoherenceSettings
+            coherenceSettings: currentCoherenceSettings,
+            mixSchedules
         }
     };
 }
@@ -3611,6 +4680,17 @@ function validateBackupPayload(payload) {
             normalizeCoherenceSettings(
                 payload.data.coherenceSettings
             ),
+        mixSchedules:
+            Array.isArray(payload.data.mixSchedules)
+                ? payload.data.mixSchedules
+                    .map((schedule) =>
+                        normalizeMixSchedule(schedule)
+                    )
+                    .filter((schedule) =>
+                        schedule.mixId
+                    )
+                    .slice(0, MAX_MIX_SCHEDULES)
+                : [],
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -3709,6 +4789,9 @@ async function importBackupFile(file) {
         currentCoherenceSettings =
             imported.coherenceSettings;
         saveCoherenceSettings();
+        mixSchedules =
+            imported.mixSchedules;
+        saveMixSchedules();
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -4346,7 +5429,6 @@ function displayPlaylists(playlists) {
     selectedPlaylist = null;
     sourceTracks = [];
     selectedTracks = [];
-    availableDevices = [];
     playbackQueueCursor = 0;
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
@@ -4609,6 +5691,8 @@ function displayPlaylists(playlists) {
             </p>
 
             ${renderBackupPanel()}
+
+            ${renderMixSchedulesSection()}
 
             ${renderMixProfilesSection()}
 
@@ -6447,6 +7531,17 @@ async function initializeApp() {
         currentUserProduct = profile?.product || "";
         playlistsCache = playlists;
 
+        try {
+            availableDevices =
+                await getAvailableDevices();
+        } catch (deviceError) {
+            console.warn(
+                "Appareils Spotify indisponibles au démarrage :",
+                deviceError
+            );
+            availableDevices = [];
+        }
+
         const displayName =
             profile?.display_name ||
             profile?.id ||
@@ -6456,6 +7551,7 @@ async function initializeApp() {
             `Bienvenue ${displayName} 👋`;
 
         displayPlaylists(playlistsCache);
+        startScheduleWatcher();
         setStatus("");
     } catch (error) {
         console.error(error);
@@ -6489,6 +7585,13 @@ loginButton.addEventListener("click", async () => {
 });
 
 logoutButton.addEventListener("click", () => {
+    if (scheduleCheckTimer) {
+        window.clearInterval(
+            scheduleCheckTimer
+        );
+        scheduleCheckTimer = 0;
+    }
+
     logoutSpotify();
 
     currentUserId = "";
@@ -6501,6 +7604,43 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const scheduleActionButton =
+            event.target.closest(
+                "[data-schedule-action]"
+            );
+
+        if (scheduleActionButton) {
+            const scheduleId =
+                scheduleActionButton.dataset.scheduleId || "";
+            const action =
+                scheduleActionButton.dataset.scheduleAction || "";
+
+            if (action === "run") {
+                await runMixSchedule(
+                    scheduleId
+                );
+            } else if (action === "toggle") {
+                toggleMixSchedule(
+                    scheduleId
+                );
+            } else if (action === "delete") {
+                deleteMixSchedule(
+                    scheduleId
+                );
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshScheduleDevicesButton"
+            )
+        ) {
+            await refreshScheduleDevices();
+            return;
+        }
+
         const profileActionButton =
             event.target.closest("[data-profile-action]");
 
@@ -6981,6 +8121,16 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "mixScheduleForm"
+        ) {
+            event.preventDefault();
+            createMixScheduleFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
             event.target.id === "coherenceSettingsForm"
         ) {
             event.preventDefault();
@@ -7026,6 +8176,32 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (
+            event.target.matches(
+                "[data-schedule-recurrence]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#mixScheduleForm"
+            );
+            const weekly =
+                event.target.value === "weekly";
+
+            form?.querySelectorAll(
+                "[data-schedule-weekly-field]"
+            ).forEach((element) => {
+                element.hidden = !weekly;
+            });
+
+            form?.querySelectorAll(
+                "[data-schedule-once-field]"
+            ).forEach((element) => {
+                element.hidden = weekly;
+            });
+
+            return;
+        }
+
         if (event.target.id === "backupFileInput") {
             const [file] = event.target.files || [];
             await importBackupFile(file);
