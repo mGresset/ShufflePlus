@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.1.1";
+const APP_VERSION = "3.1.2";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -1738,12 +1738,9 @@ async function startPlaylistContextPlayback(
         );
     }
 
-    await transferPlayback(
-        deviceId,
-        false
-    );
-    await wait(700);
-
+    // Le endpoint de lecture accepte directement device_id.
+    // On évite ici le transfert préalable, qui peut renvoyer 403
+    // alors que la lecture directe sur le même appareil est autorisée.
     const url = new URL(
         "https://api.spotify.com/v1/me/player/play"
     );
@@ -1779,22 +1776,26 @@ async function startPlaylistContextPlayback(
     );
 
     if (!response.ok) {
-        let message =
-            `Spotify a refusé la lecture (${response.status}).`;
+        let spotifyReason = "";
 
         try {
             const payload =
                 await response.json();
-            message =
+            spotifyReason =
+                payload?.error?.reason ||
                 payload?.error?.message ||
-                message;
+                "";
         } catch (error) {
             // Réponse sans JSON.
         }
 
+        const message =
+            `Lecture Spotify refusée par /me/player/play (${response.status})` +
+            (spotifyReason ? ` : ${spotifyReason}` : ".");
+
         if (response.status === 403) {
             throw new Error(
-                `${message} L’appareil Spotify est peut-être restreint ou non contrôlable à distance.`
+                `${message} Vérifie Spotify Premium, l’autorisation user-modify-playback-state et l’accès du compte à l’application.`
             );
         }
 
@@ -2010,11 +2011,6 @@ async function executeAutomationCommand(
                 device &&
                 selectedTracks.length
             ) {
-                await transferPlayback(
-                    device.id,
-                    false
-                );
-                await wait(700);
                 await startPlayback(
                     selectedTracks
                         .slice(
@@ -11274,9 +11270,22 @@ async function initializeApp() {
         startScheduleWatcher();
 
         if (pendingAutomationCommand) {
-            await executeAutomationCommand(
-                pendingAutomationCommand
-            );
+            try {
+                await executeAutomationCommand(
+                    pendingAutomationCommand
+                );
+            } catch (automationError) {
+                console.error(
+                    "Échec de l’automatisation :",
+                    automationError
+                );
+                savePendingAutomationCommand(null);
+                setStatus(
+                    automationError.message ||
+                    "La lecture automatique a échoué.",
+                    "error"
+                );
+            }
         } else {
             setStatus("");
         }
