@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.6.0";
+const APP_VERSION = "2.7.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -85,6 +85,16 @@ const DEFAULT_INTENSITY_SETTINGS = {
     peakIntensity: 85,
     strength: "normal",
     smoothTransitions: true
+};
+const ADAPTIVE_SETTINGS_KEY =
+    "shuffleplus_adaptive_settings_v1";
+const DEFAULT_ADAPTIVE_SETTINGS = {
+    enabled: false,
+    autoProfileByTime: true,
+    adaptIntensityByTime: true,
+    durationMode: "none",
+    customDurationMinutes: 60,
+    targetTrackCount: 0
 };
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
@@ -350,6 +360,8 @@ let currentPriorityRules = readPriorityRules();
 let lastPrioritySummary = null;
 let currentCoherenceSettings = readCoherenceSettings();
 let currentIntensitySettings = readIntensitySettings();
+let currentAdaptiveSettings = readAdaptiveSettings();
+let activeAdaptiveContext = null;
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -1509,6 +1521,528 @@ function startScheduleWatcher() {
     );
 }
 
+
+
+function normalizeAdaptiveSettings(settings = {}) {
+    const allowedDurationModes = new Set([
+        "none",
+        "30",
+        "60",
+        "120",
+        "long",
+        "custom"
+    ]);
+
+    return {
+        enabled: Boolean(settings.enabled),
+        autoProfileByTime:
+            settings.autoProfileByTime !== false,
+        adaptIntensityByTime:
+            settings.adaptIntensityByTime !== false,
+        durationMode:
+            allowedDurationModes.has(settings.durationMode)
+                ? settings.durationMode
+                : "none",
+        customDurationMinutes: clampInteger(
+            settings.customDurationMinutes,
+            10,
+            720,
+            60
+        ),
+        targetTrackCount: clampInteger(
+            settings.targetTrackCount,
+            0,
+            500,
+            0
+        )
+    };
+}
+
+function readAdaptiveSettings() {
+    try {
+        const raw = localStorage.getItem(
+            ADAPTIVE_SETTINGS_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return normalizeAdaptiveSettings(parsed);
+    } catch (error) {
+        console.warn(
+            "Réglages adaptatifs illisibles :",
+            error
+        );
+        return {
+            ...DEFAULT_ADAPTIVE_SETTINGS
+        };
+    }
+}
+
+function saveAdaptiveSettings() {
+    try {
+        localStorage.setItem(
+            ADAPTIVE_SETTINGS_KEY,
+            JSON.stringify(currentAdaptiveSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer le mode adaptatif :",
+            error
+        );
+    }
+}
+
+function getTimeContext(date = new Date()) {
+    const hour = date.getHours();
+
+    if (hour >= 5 && hour < 11) {
+        return {
+            id: "morning",
+            label: "Matin",
+            icon: "🌅",
+            profileId: "profile-concentration",
+            intensity: {
+                curve: "stable",
+                startIntensity: 30,
+                endIntensity: 40,
+                peakIntensity: 45,
+                strength: "normal",
+                smoothTransitions: true
+            }
+        };
+    }
+
+    if (hour >= 11 && hour < 17) {
+        return {
+            id: "day",
+            label: "Journée",
+            icon: "☀️",
+            profileId: "profile-decouverte",
+            intensity: {
+                curve: "waves",
+                startIntensity: 45,
+                endIntensity: 60,
+                peakIntensity: 75,
+                strength: "light",
+                smoothTransitions: true
+            }
+        };
+    }
+
+    if (hour >= 17 && hour < 22) {
+        return {
+            id: "evening",
+            label: "Soirée",
+            icon: "🌆",
+            profileId: "profile-sport",
+            intensity: {
+                curve: "rising",
+                startIntensity: 45,
+                endIntensity: 85,
+                peakIntensity: 90,
+                strength: "strong",
+                smoothTransitions: true
+            }
+        };
+    }
+
+    return {
+        id: "night",
+        label: "Nuit",
+        icon: "🌙",
+        profileId: "profile-soiree",
+        intensity: {
+            curve: "waves",
+            startIntensity: 50,
+            endIntensity: 70,
+            peakIntensity: 85,
+            strength: "normal",
+            smoothTransitions: true
+        }
+    };
+}
+
+function getAdaptiveTargetDurationMinutes(
+    settings = currentAdaptiveSettings
+) {
+    switch (settings.durationMode) {
+        case "30":
+            return 30;
+        case "60":
+            return 60;
+        case "120":
+            return 120;
+        case "long":
+            return 240;
+        case "custom":
+            return settings.customDurationMinutes;
+        case "none":
+        default:
+            return 0;
+    }
+}
+
+function getAdaptiveDurationLabel(
+    settings = currentAdaptiveSettings
+) {
+    const minutes = getAdaptiveTargetDurationMinutes(
+        settings
+    );
+
+    if (!minutes) {
+        return "Durée libre";
+    }
+
+    if (minutes < 60) {
+        return `${minutes} min`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+
+    return remainder
+        ? `${hours} h ${remainder} min`
+        : `${hours} h`;
+}
+
+function estimateTracksDurationMs(tracks) {
+    return tracks.reduce(
+        (total, track) =>
+            total + Number(track?.duration_ms || 0),
+        0
+    );
+}
+
+function formatLongDuration(durationMs = 0) {
+    const totalMinutes = Math.round(
+        durationMs / 60000
+    );
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (!hours) {
+        return `${minutes} min`;
+    }
+
+    return minutes
+        ? `${hours} h ${minutes} min`
+        : `${hours} h`;
+}
+
+function limitTracksToAdaptiveTarget(
+    tracks,
+    settings = currentAdaptiveSettings
+) {
+    let limited = [...tracks];
+
+    if (settings.targetTrackCount > 0) {
+        limited = limited.slice(
+            0,
+            settings.targetTrackCount
+        );
+    }
+
+    const durationMinutes =
+        getAdaptiveTargetDurationMinutes(settings);
+
+    if (!durationMinutes) {
+        return limited;
+    }
+
+    const targetMs = durationMinutes * 60 * 1000;
+    const result = [];
+    let totalMs = 0;
+
+    for (const track of limited) {
+        const durationMs = Number(
+            track?.duration_ms || 0
+        );
+
+        if (
+            result.length &&
+            totalMs + durationMs >
+                targetMs + 2 * 60 * 1000
+        ) {
+            break;
+        }
+
+        result.push(track);
+        totalMs += durationMs;
+
+        if (totalMs >= targetMs) {
+            break;
+        }
+    }
+
+    return result;
+}
+
+function applyAdaptiveContext({
+    persistProfile = false
+} = {}) {
+    const settings = normalizeAdaptiveSettings(
+        currentAdaptiveSettings
+    );
+
+    if (!settings.enabled) {
+        activeAdaptiveContext = null;
+        return null;
+    }
+
+    const context = getTimeContext();
+
+    if (settings.autoProfileByTime) {
+        const profile = getProfileById(
+            context.profileId
+        );
+
+        if (profile) {
+            applyMixProfile(
+                profile.id,
+                {
+                    persist: persistProfile,
+                    rerender: false
+                }
+            );
+        }
+    }
+
+    if (settings.adaptIntensityByTime) {
+        currentIntensitySettings =
+            normalizeIntensitySettings(
+                context.intensity
+            );
+        saveIntensitySettings();
+    }
+
+    activeAdaptiveContext = {
+        ...context,
+        durationMinutes:
+            getAdaptiveTargetDurationMinutes(settings),
+        targetTrackCount:
+            settings.targetTrackCount
+    };
+
+    return activeAdaptiveContext;
+}
+
+function getAdaptiveSummary(
+    settings = currentAdaptiveSettings
+) {
+    if (!settings.enabled) {
+        return "Mode adaptatif désactivé";
+    }
+
+    const context = getTimeContext();
+    const parts = [
+        `${context.icon} ${context.label}`,
+        getAdaptiveDurationLabel(settings)
+    ];
+
+    if (settings.targetTrackCount > 0) {
+        parts.push(
+            `${settings.targetTrackCount} titres maximum`
+        );
+    }
+
+    if (settings.autoProfileByTime) {
+        const profile = getProfileById(
+            context.profileId
+        );
+        parts.push(
+            profile
+                ? `profil ${profile.name}`
+                : "profil automatique"
+        );
+    }
+
+    return parts.join(" · ");
+}
+
+function renderAdaptivePanel() {
+    const settings = normalizeAdaptiveSettings(
+        currentAdaptiveSettings
+    );
+    const context = getTimeContext();
+
+    return `
+        <section class="adaptive-panel">
+            <div class="adaptive-panel-heading">
+                <div>
+                    <h3>Mix adaptatif</h3>
+                    <p>
+                        ${escapeHtml(
+                            getAdaptiveSummary(settings)
+                        )}
+                    </p>
+                </div>
+
+                <button
+                    id="resetAdaptiveSettingsButton"
+                    class="adaptive-reset-button"
+                    type="button"
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            <div class="adaptive-context-preview">
+                <span class="adaptive-context-icon">
+                    ${context.icon}
+                </span>
+                <div>
+                    <strong>
+                        Contexte actuel : ${escapeHtml(context.label)}
+                    </strong>
+                    <span>
+                        Profil suggéré :
+                        ${escapeHtml(
+                            getProfileById(context.profileId)?.name ||
+                            "Automatique"
+                        )}
+                    </span>
+                </div>
+            </div>
+
+            <form
+                id="adaptiveSettingsForm"
+                class="adaptive-form"
+            >
+                <label class="adaptive-check adaptive-check-main">
+                    <input
+                        name="enabled"
+                        type="checkbox"
+                        ${settings.enabled ? "checked" : ""}
+                    >
+                    <span>Activer le mix adaptatif</span>
+                </label>
+
+                <label class="adaptive-check">
+                    <input
+                        name="autoProfileByTime"
+                        type="checkbox"
+                        ${settings.autoProfileByTime ? "checked" : ""}
+                    >
+                    <span>
+                        Choisir automatiquement un profil
+                        selon l’heure
+                    </span>
+                </label>
+
+                <label class="adaptive-check">
+                    <input
+                        name="adaptIntensityByTime"
+                        type="checkbox"
+                        ${settings.adaptIntensityByTime ? "checked" : ""}
+                    >
+                    <span>
+                        Adapter la courbe d’intensité
+                        selon l’heure
+                    </span>
+                </label>
+
+                <label class="adaptive-field">
+                    <span>Durée d’écoute prévue</span>
+                    <select
+                        name="durationMode"
+                        data-adaptive-duration-mode
+                    >
+                        <option value="none" ${settings.durationMode === "none" ? "selected" : ""}>
+                            Durée libre
+                        </option>
+                        <option value="30" ${settings.durationMode === "30" ? "selected" : ""}>
+                            30 minutes
+                        </option>
+                        <option value="60" ${settings.durationMode === "60" ? "selected" : ""}>
+                            1 heure
+                        </option>
+                        <option value="120" ${settings.durationMode === "120" ? "selected" : ""}>
+                            2 heures
+                        </option>
+                        <option value="long" ${settings.durationMode === "long" ? "selected" : ""}>
+                            Écoute longue · 4 heures
+                        </option>
+                        <option value="custom" ${settings.durationMode === "custom" ? "selected" : ""}>
+                            Durée personnalisée
+                        </option>
+                    </select>
+                </label>
+
+                <label
+                    class="adaptive-field"
+                    data-adaptive-custom-duration
+                    ${settings.durationMode === "custom" ? "" : "hidden"}
+                >
+                    <span>Durée personnalisée en minutes</span>
+                    <input
+                        name="customDurationMinutes"
+                        type="number"
+                        min="10"
+                        max="720"
+                        value="${settings.customDurationMinutes}"
+                    >
+                </label>
+
+                <label class="adaptive-field">
+                    <span>
+                        Nombre cible de morceaux
+                        <small>0 = aucune limite</small>
+                    </span>
+                    <input
+                        name="targetTrackCount"
+                        type="number"
+                        min="0"
+                        max="500"
+                        value="${settings.targetTrackCount}"
+                    >
+                </label>
+
+                <div class="adaptive-actions">
+                    <button
+                        class="adaptive-save-button"
+                        type="submit"
+                    >
+                        ⏱ Enregistrer l’adaptation
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function saveAdaptiveSettingsFromForm(form) {
+    const formData = new FormData(form);
+
+    currentAdaptiveSettings =
+        normalizeAdaptiveSettings({
+            enabled:
+                formData.get("enabled") === "on",
+            autoProfileByTime:
+                formData.get("autoProfileByTime") === "on",
+            adaptIntensityByTime:
+                formData.get("adaptIntensityByTime") === "on",
+            durationMode:
+                formData.get("durationMode"),
+            customDurationMinutes:
+                formData.get("customDurationMinutes"),
+            targetTrackCount:
+                formData.get("targetTrackCount")
+        });
+
+    saveAdaptiveSettings();
+    activeAdaptiveContext = null;
+    displayPlaylists(playlistsCache);
+    setStatus("Réglages adaptatifs enregistrés.");
+}
+
+function resetAdaptiveSettings() {
+    currentAdaptiveSettings = {
+        ...DEFAULT_ADAPTIVE_SETTINGS
+    };
+    activeAdaptiveContext = null;
+    saveAdaptiveSettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Mode adaptatif réinitialisé.");
+}
 
 function normalizeIntensitySettings(settings = {}) {
     const allowedCurves = new Set([
@@ -5207,6 +5741,7 @@ function buildBackupPayload() {
             priorityRules: currentPriorityRules,
             coherenceSettings: currentCoherenceSettings,
             intensitySettings: currentIntensitySettings,
+            adaptiveSettings: currentAdaptiveSettings,
             mixSchedules
         }
     };
@@ -5311,6 +5846,10 @@ function validateBackupPayload(payload) {
         intensitySettings:
             normalizeIntensitySettings(
                 payload.data.intensitySettings
+            ),
+        adaptiveSettings:
+            normalizeAdaptiveSettings(
+                payload.data.adaptiveSettings
             ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
@@ -5424,6 +5963,9 @@ async function importBackupFile(file) {
         currentIntensitySettings =
             imported.intensitySettings;
         saveIntensitySettings();
+        currentAdaptiveSettings =
+            imported.adaptiveSettings;
+        saveAdaptiveSettings();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -6328,6 +6870,8 @@ function displayPlaylists(playlists) {
             ${renderBackupPanel()}
 
             ${renderMixSchedulesSection()}
+
+            ${renderAdaptivePanel()}
 
             ${renderMixProfilesSection()}
 
@@ -7413,6 +7957,39 @@ function displayPlaylistDetails(playlist, tracks) {
                 </div>
             </section>
 
+            ${activeAdaptiveContext
+                ? `
+                    <div class="adaptive-result-banner">
+                        <span>
+                            ${activeAdaptiveContext.icon}
+                        </span>
+                        <div>
+                            <strong>
+                                Contexte ${escapeHtml(
+                                    activeAdaptiveContext.label
+                                )}
+                            </strong>
+                            <small>
+                                ${escapeHtml(
+                                    getAdaptiveDurationLabel(
+                                        currentAdaptiveSettings
+                                    )
+                                )}
+                                · ${selectedTracks.length}
+                                morceau${selectedTracks.length > 1 ? "x" : ""}
+                                · ${escapeHtml(
+                                    formatLongDuration(
+                                        estimateTracksDurationMs(
+                                            selectedTracks
+                                        )
+                                    )
+                                )}
+                            </small>
+                        </div>
+                    </div>
+                `
+                : ""}
+
             ${getActiveProfile()
                 ? `
                     <div class="active-profile-banner">
@@ -7495,6 +8072,9 @@ function displayPlaylistDetails(playlist, tracks) {
                 </strong>
                 de ${currentIntensitySettings.startIntensity}%
                 à ${currentIntensitySettings.endIntensity}%.
+                ${currentAdaptiveSettings.enabled
+                    ? `Mode adaptatif ${getTimeContext().label.toLowerCase()} actif, durée cible ${getAdaptiveDurationLabel(currentAdaptiveSettings)}.`
+                    : ""}
             </p>
 
             <div
@@ -7842,6 +8422,8 @@ function deduplicateTracks(tracks) {
 }
 
 async function createSelectedMix() {
+    applyAdaptiveContext();
+
     const selectedKeys = [...selectedSourceKeys];
 
     if (!selectedKeys.length) {
@@ -7982,6 +8564,10 @@ async function createSelectedMix() {
         selectedTracks = smartShuffleTracks(
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
+        );
+        selectedTracks = limitTracksToAdaptiveTarget(
+            selectedTracks,
+            currentAdaptiveSettings
         );
         buildPrioritySummary(
             selectedTracks,
@@ -8358,6 +8944,16 @@ contentElement.addEventListener(
             )
         ) {
             clearActiveProfile();
+            return;
+        }
+
+        const resetAdaptiveSettingsButton =
+            event.target.closest(
+                "#resetAdaptiveSettingsButton"
+            );
+
+        if (resetAdaptiveSettingsButton) {
+            resetAdaptiveSettings();
             return;
         }
 
@@ -8766,6 +9362,10 @@ contentElement.addEventListener(
                 sourceTracks,
                 getShuffleEngineOptions(currentShuffleSettings)
             );
+            selectedTracks = limitTracksToAdaptiveTarget(
+                selectedTracks,
+                currentAdaptiveSettings
+            );
             buildPrioritySummary(
                 selectedTracks,
                 currentPriorityRules
@@ -8815,6 +9415,16 @@ contentElement.addEventListener(
         ) {
             event.preventDefault();
             createMixScheduleFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "adaptiveSettingsForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveSettingsFromForm(
                 event.target
             );
             return;
@@ -8876,6 +9486,26 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (
+            event.target.matches(
+                "[data-adaptive-duration-mode]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveSettingsForm"
+            );
+            const customField = form?.querySelector(
+                "[data-adaptive-custom-duration]"
+            );
+
+            if (customField) {
+                customField.hidden =
+                    event.target.value !== "custom";
+            }
+
+            return;
+        }
+
         if (
             event.target.matches(
                 "[data-schedule-recurrence]"

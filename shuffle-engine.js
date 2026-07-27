@@ -737,17 +737,6 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
     );
 
     const orderedTracks = [];
-    const averageIntensityDeviation =
-        tracks.length
-            ? totalIntensityDeviation / tracks.length
-            : 0;
-    const intensityCurveAdherence = Math.max(
-        0,
-        Math.round(
-            100 - averageIntensityDeviation
-        )
-    );
-
     const recentTrackUris = new Set(getRecentTrackUris());
 
     while (remainingTracks.length) {
@@ -899,6 +888,17 @@ export function analyzeShuffleOrder(tracks, customOptions = {}) {
             repeatedVersionTransitions += 1;
         }
     }
+
+    const averageIntensityDeviation =
+        tracks.length
+            ? totalIntensityDeviation / tracks.length
+            : 0;
+    const intensityCurveAdherence = Math.max(
+        0,
+        Math.round(
+            100 - averageIntensityDeviation
+        )
+    );
 
     const recentTrackUris = new Set(getRecentTrackUris());
     const recentTracksInFirstTwenty = tracks
