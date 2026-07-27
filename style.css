@@ -4017,3 +4017,306 @@ y
         grid-column: auto;
     }
 }
+
+
+
+/* Shuffle+ v2.9.0 — Gestionnaire de règles et profils */
+
+.rules-manager-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #4c496f;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(58 53 102 / 74%) 0%,
+            rgb(20 20 20 / 96%) 72%
+        );
+}
+
+.rules-manager-heading,
+.rules-profile-status,
+.rules-manager-item,
+.rules-duplicate-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.rules-manager-heading {
+    align-items: start;
+}
+
+.rules-manager-heading h3 {
+    margin: 0 0 5px;
+    font-size: 20px;
+}
+
+.rules-manager-heading p {
+    margin: 0;
+    color: #c3bfda;
+    font-size: 14px;
+}
+
+.rules-danger-button {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid #86585f;
+    border-radius: 999px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 750;
+}
+
+.rules-danger-button:hover {
+    border-color: #ff8a9b;
+    background: #3b2025;
+}
+
+.rules-profile-status {
+    padding: 14px;
+    border: 1px solid #4f6b7c;
+    border-radius: 13px;
+    background: #15232b;
+}
+
+.rules-profile-status.is-modified {
+    border-color: #b4883e;
+    background: #2b2415;
+}
+
+.rules-profile-status > div:first-child {
+    display: grid;
+    gap: 4px;
+}
+
+.rules-profile-status span {
+    color: #b9c8d0;
+    font-size: 13px;
+}
+
+.rules-profile-status.is-modified span {
+    color: #e1c68f;
+}
+
+.rules-profile-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.rules-profile-actions button,
+.rules-duplicate-card button {
+    min-height: 38px;
+    padding: 7px 12px;
+    border: 1px solid #647884;
+    border-radius: 999px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 700;
+}
+
+.rules-manager-toolbar {
+    display: grid;
+    grid-template-columns:
+        minmax(220px, 1fr)
+        minmax(180px, 0.45fr);
+    gap: 12px;
+}
+
+.rules-manager-toolbar label {
+    display: grid;
+    gap: 7px;
+}
+
+.rules-manager-toolbar span {
+    color: #d0cce2;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.rules-manager-toolbar input,
+.rules-manager-toolbar select {
+    width: 100%;
+    min-height: 45px;
+    padding: 0 13px;
+    border: 1px solid #5b587c;
+    border-radius: 11px;
+    outline: none;
+    background: #15141d;
+    color: #ffffff;
+}
+
+.rules-manager-list,
+.rules-duplicates-list {
+    display: grid;
+    gap: 9px;
+}
+
+.rules-manager-item {
+    padding: 11px 12px;
+    border: 1px solid #45435b;
+    border-radius: 12px;
+    background: #14131a;
+}
+
+.rules-manager-item img,
+.rules-manager-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border-radius: 8px;
+}
+
+.rules-manager-item img {
+    object-fit: cover;
+}
+
+.rules-manager-icon {
+    display: grid;
+    place-items: center;
+    background: #29263b;
+    font-size: 19px;
+}
+
+.rules-manager-item > div {
+    display: grid;
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 3px;
+}
+
+.rules-manager-item strong,
+.rules-manager-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rules-manager-item span {
+    color: #aaa6bf;
+    font-size: 12px;
+}
+
+.rules-manager-item > button {
+    width: 36px;
+    height: 36px;
+    flex: 0 0 36px;
+    padding: 0;
+    border: 1px solid #664c55;
+    border-radius: 50%;
+    background: transparent;
+    color: #ffb0bd;
+}
+
+.rules-manager-empty {
+    padding: 20px;
+    border: 1px dashed #58536d;
+    border-radius: 12px;
+    color: #aaa5c0;
+    text-align: center;
+}
+
+.rules-duplicates-section {
+    padding: 13px;
+    border: 1px solid #4a4760;
+    border-radius: 13px;
+    background: #121117;
+}
+
+.rules-duplicates-section summary {
+    cursor: pointer;
+    color: #ddd9eb;
+    font-weight: 750;
+}
+
+.rules-duplicates-list {
+    margin-top: 13px;
+}
+
+.rules-duplicate-card {
+    display: grid;
+    grid-template-columns:
+        minmax(0, 1fr) auto
+        minmax(0, 1fr) auto;
+    padding: 12px;
+    border: 1px solid #454258;
+    border-radius: 11px;
+    background: #17161d;
+}
+
+.rules-duplicate-card > div:not(
+    .rules-duplicate-arrow
+) {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.rules-duplicate-card strong,
+.rules-duplicate-card span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rules-duplicate-card span {
+    color: #a8a4b8;
+    font-size: 12px;
+}
+
+.rules-duplicate-arrow {
+    color: #8d88aa;
+    font-size: 20px;
+}
+
+.mix-profile-card.is-modified {
+    border-color: #c49545;
+    box-shadow: 0 0 0 2px rgb(196 149 69 / 15%);
+}
+
+.profile-modified-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 3px 7px;
+    border: 1px solid #b1853d;
+    border-radius: 999px;
+    color: #e5c888;
+    font-size: 10px;
+    vertical-align: middle;
+}
+
+@media (max-width: 760px) {
+    .rules-manager-heading,
+    .rules-profile-status {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .rules-danger-button,
+    .rules-profile-actions button,
+    .rules-duplicate-card button {
+        width: 100%;
+    }
+
+    .rules-profile-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .rules-manager-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .rules-duplicate-card {
+        grid-template-columns: 1fr;
+    }
+
+    .rules-duplicate-arrow {
+        transform: rotate(90deg);
+        text-align: center;
+    }
+}

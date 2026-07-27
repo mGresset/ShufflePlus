@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.8.0";
+const APP_VERSION = "2.9.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -106,6 +106,15 @@ const DEFAULT_CLEANUP_SETTINGS = {
     preferOriginal: true,
     removeUnavailable: true
 };
+const RULE_METADATA_KEY =
+    "shuffleplus_rule_metadata_v1";
+const CLEANUP_EXCEPTIONS_KEY =
+    "shuffleplus_cleanup_exceptions_v1";
+const LAST_DUPLICATE_GROUPS_KEY =
+    "shuffleplus_last_duplicate_groups_v1";
+const MAX_RULE_METADATA_ITEMS = 500;
+const MAX_CLEANUP_EXCEPTIONS = 300;
+const MAX_DUPLICATE_GROUPS = 100;
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
 const MAX_MIX_SCHEDULES = 30;
@@ -375,6 +384,11 @@ let activeAdaptiveContext = null;
 let currentCleanupSettings = readCleanupSettings();
 let lastCleanupSummary = null;
 let lastCleanupSnapshot = null;
+let ruleMetadata = readRuleMetadata();
+let cleanupExceptions = readCleanupExceptions();
+let lastDuplicateGroups = readLastDuplicateGroups();
+let rulesManagerSearchTerm = "";
+let rulesManagerFilter = "all";
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -442,6 +456,8 @@ function setDisconnectedInterface() {
     lastPrioritySummary = null;
     lastCleanupSummary = null;
     lastCleanupSnapshot = null;
+    rulesManagerSearchTerm = "";
+    rulesManagerFilter = "all";
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -1539,6 +1555,896 @@ function startScheduleWatcher() {
 
 
 
+
+function normalizeTrackMetadata(track = {}, uri = "") {
+    const images = track?.album?.images || [];
+
+    return {
+        uri:
+            uri ||
+            (typeof track?.uri === "string"
+                ? track.uri
+                : ""),
+        name:
+            typeof track?.name === "string"
+                ? track.name.slice(0, 180)
+                : "Morceau Spotify",
+        artists:
+            (track?.artists || [])
+                .map((artist) => artist?.name)
+                .filter(Boolean)
+                .join(", ")
+                .slice(0, 220),
+        album:
+            typeof track?.album?.name === "string"
+                ? track.album.name.slice(0, 180)
+                : "",
+        image:
+            images[images.length - 1]?.url ||
+            images[0]?.url ||
+            "",
+        spotifyUrl:
+            track?.external_urls?.spotify || "",
+        updatedAt: Date.now()
+    };
+}
+
+function normalizeRuleMetadata(value = {}) {
+    if (!value || typeof value !== "object") {
+        return {};
+    }
+
+    const result = {};
+    const entries = Object.entries(value)
+        .slice(0, MAX_RULE_METADATA_ITEMS);
+
+    for (const [uri, metadata] of entries) {
+        if (
+            !uri.startsWith("spotify:track:") ||
+            !metadata ||
+            typeof metadata !== "object"
+        ) {
+            continue;
+        }
+
+        result[uri] = {
+            uri,
+            name:
+                typeof metadata.name === "string"
+                    ? metadata.name.slice(0, 180)
+                    : "Morceau Spotify",
+            artists:
+                typeof metadata.artists === "string"
+                    ? metadata.artists.slice(0, 220)
+                    : "",
+            album:
+                typeof metadata.album === "string"
+                    ? metadata.album.slice(0, 180)
+                    : "",
+            image:
+                typeof metadata.image === "string"
+                    ? metadata.image
+                    : "",
+            spotifyUrl:
+                typeof metadata.spotifyUrl === "string"
+                    ? metadata.spotifyUrl
+                    : "",
+            updatedAt: Number(
+                metadata.updatedAt || Date.now()
+            )
+        };
+    }
+
+    return result;
+}
+
+function readRuleMetadata() {
+    try {
+        const raw = localStorage.getItem(
+            RULE_METADATA_KEY
+        );
+
+        return normalizeRuleMetadata(
+            raw ? JSON.parse(raw) : {}
+        );
+    } catch (error) {
+        console.warn(
+            "Métadonnées des règles illisibles :",
+            error
+        );
+        return {};
+    }
+}
+
+function saveRuleMetadata() {
+    try {
+        localStorage.setItem(
+            RULE_METADATA_KEY,
+            JSON.stringify(ruleMetadata)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les métadonnées :",
+            error
+        );
+    }
+}
+
+function rememberRuleTrack(track) {
+    if (!track?.uri) {
+        return;
+    }
+
+    ruleMetadata = {
+        ...ruleMetadata,
+        [track.uri]: normalizeTrackMetadata(track)
+    };
+
+    const entries = Object.entries(ruleMetadata)
+        .sort(
+            (first, second) =>
+                Number(second[1]?.updatedAt || 0) -
+                Number(first[1]?.updatedAt || 0)
+        )
+        .slice(0, MAX_RULE_METADATA_ITEMS);
+
+    ruleMetadata = Object.fromEntries(entries);
+    saveRuleMetadata();
+}
+
+function normalizeCleanupExceptions(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return [...new Set(
+        values
+            .map((value) =>
+                String(value || "").trim()
+            )
+            .filter(Boolean)
+    )].slice(0, MAX_CLEANUP_EXCEPTIONS);
+}
+
+function readCleanupExceptions() {
+    try {
+        const raw = localStorage.getItem(
+            CLEANUP_EXCEPTIONS_KEY
+        );
+
+        return normalizeCleanupExceptions(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        console.warn(
+            "Exceptions anti-doublons illisibles :",
+            error
+        );
+        return [];
+    }
+}
+
+function saveCleanupExceptions() {
+    try {
+        localStorage.setItem(
+            CLEANUP_EXCEPTIONS_KEY,
+            JSON.stringify(cleanupExceptions)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les exceptions :",
+            error
+        );
+    }
+}
+
+function normalizeDuplicateGroups(groups) {
+    if (!Array.isArray(groups)) {
+        return [];
+    }
+
+    return groups
+        .filter(
+            (group) =>
+                group &&
+                typeof group === "object"
+        )
+        .map((group) => ({
+            key:
+                typeof group.key === "string"
+                    ? group.key
+                    : "",
+            kept:
+                normalizeTrackMetadata(
+                    group.kept || {},
+                    group.kept?.uri || ""
+                ),
+            removed:
+                normalizeTrackMetadata(
+                    group.removed || {},
+                    group.removed?.uri || ""
+                ),
+            artist:
+                typeof group.artist === "string"
+                    ? group.artist.slice(0, 180)
+                    : "",
+            sources:
+                Array.isArray(group.sources)
+                    ? group.sources
+                        .map((value) =>
+                            String(value || "").slice(0, 120)
+                        )
+                        .filter(Boolean)
+                        .slice(0, 20)
+                    : []
+        }))
+        .slice(0, MAX_DUPLICATE_GROUPS);
+}
+
+function readLastDuplicateGroups() {
+    try {
+        const raw = localStorage.getItem(
+            LAST_DUPLICATE_GROUPS_KEY
+        );
+
+        return normalizeDuplicateGroups(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        console.warn(
+            "Historique des doublons illisible :",
+            error
+        );
+        return [];
+    }
+}
+
+function saveLastDuplicateGroups() {
+    try {
+        localStorage.setItem(
+            LAST_DUPLICATE_GROUPS_KEY,
+            JSON.stringify(lastDuplicateGroups)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les doublons :",
+            error
+        );
+    }
+}
+
+function getCleanupExceptionKey(
+    firstTrack,
+    secondTrack
+) {
+    const values = [
+        firstTrack?.uri || firstTrack?.id || "",
+        secondTrack?.uri || secondTrack?.id || ""
+    ]
+        .filter(Boolean)
+        .sort();
+
+    return values.join("|");
+}
+
+function hasCleanupException(
+    firstTrack,
+    secondTrack
+) {
+    const key = getCleanupExceptionKey(
+        firstTrack,
+        secondTrack
+    );
+
+    return Boolean(
+        key && cleanupExceptions.includes(key)
+    );
+}
+
+function getCurrentSettingsSnapshot() {
+    return {
+        shuffleSettings:
+            normalizeShuffleSettings(
+                currentShuffleSettings
+            ),
+        exclusionRules:
+            normalizeExclusionRules(
+                currentExclusionRules
+            ),
+        priorityRules:
+            normalizePriorityRules(
+                currentPriorityRules
+            ),
+        coherenceSettings:
+            normalizeCoherenceSettings(
+                currentCoherenceSettings
+            ),
+        intensitySettings:
+            normalizeIntensitySettings(
+                currentIntensitySettings
+            ),
+        cleanupSettings:
+            normalizeCleanupSettings(
+                currentCleanupSettings
+            )
+    };
+}
+
+function getProfileSettingsSnapshot(profile) {
+    return {
+        shuffleSettings:
+            normalizeShuffleSettings(
+                profile?.shuffleSettings
+            ),
+        exclusionRules:
+            normalizeExclusionRules(
+                profile?.exclusionRules
+            ),
+        priorityRules:
+            normalizePriorityRules(
+                profile?.priorityRules
+            ),
+        coherenceSettings:
+            normalizeCoherenceSettings(
+                profile?.coherenceSettings
+            ),
+        intensitySettings:
+            normalizeIntensitySettings(
+                profile?.intensitySettings
+            ),
+        cleanupSettings:
+            normalizeCleanupSettings(
+                profile?.cleanupSettings
+            )
+    };
+}
+
+function isActiveProfileModified() {
+    const profile = getActiveProfile();
+
+    if (!profile) {
+        return false;
+    }
+
+    return JSON.stringify(
+        getCurrentSettingsSnapshot()
+    ) !== JSON.stringify(
+        getProfileSettingsSnapshot(profile)
+    );
+}
+
+function updateActiveProfileFromCurrent() {
+    const profile = getActiveProfile();
+
+    if (!profile) {
+        return;
+    }
+
+    const snapshot = getCurrentSettingsSnapshot();
+
+    Object.assign(profile, snapshot);
+    saveMixProfiles();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Profil « ${profile.name} » mis à jour.`
+    );
+}
+
+function restoreActiveProfileSettings() {
+    const profile = getActiveProfile();
+
+    if (!profile) {
+        return;
+    }
+
+    applyMixProfile(profile.id);
+    setStatus(
+        `Réglages du profil « ${profile.name} » restaurés.`
+    );
+}
+
+function removeTrackRule(type, uri) {
+    if (!uri) {
+        return;
+    }
+
+    if (type === "priority-track") {
+        currentPriorityRules =
+            normalizePriorityRules({
+                ...currentPriorityRules,
+                favoredTrackUris:
+                    currentPriorityRules
+                        .favoredTrackUris
+                        .filter(
+                            (item) => item !== uri
+                        )
+            });
+        savePriorityRules();
+    } else if (type === "exclusion-track") {
+        currentExclusionRules =
+            normalizeExclusionRules({
+                ...currentExclusionRules,
+                excludedTrackUris:
+                    currentExclusionRules
+                        .excludedTrackUris
+                        .filter(
+                            (item) => item !== uri
+                        )
+            });
+        saveExclusionRules();
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus("Règle supprimée.");
+}
+
+function removeTextRule(type, index) {
+    const safeIndex = Number(index);
+
+    if (!Number.isInteger(safeIndex)) {
+        return;
+    }
+
+    if (type === "priority-artist") {
+        currentPriorityRules.favoredArtists.splice(
+            safeIndex,
+            1
+        );
+        currentPriorityRules =
+            normalizePriorityRules(
+                currentPriorityRules
+            );
+        savePriorityRules();
+    } else if (type === "priority-album") {
+        currentPriorityRules.favoredAlbums.splice(
+            safeIndex,
+            1
+        );
+        currentPriorityRules =
+            normalizePriorityRules(
+                currentPriorityRules
+            );
+        savePriorityRules();
+    } else if (type === "exclusion-artist") {
+        currentExclusionRules.excludedArtists.splice(
+            safeIndex,
+            1
+        );
+        currentExclusionRules =
+            normalizeExclusionRules(
+                currentExclusionRules
+            );
+        saveExclusionRules();
+    } else if (type === "exclusion-album") {
+        currentExclusionRules.excludedAlbums.splice(
+            safeIndex,
+            1
+        );
+        currentExclusionRules =
+            normalizeExclusionRules(
+                currentExclusionRules
+            );
+        saveExclusionRules();
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus("Règle supprimée.");
+}
+
+function clearAllManagedRules() {
+    const confirmed = window.confirm(
+        "Supprimer toutes les priorités, exclusions manuelles et exceptions anti-doublons ?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    currentPriorityRules =
+        normalizePriorityRules({
+            ...currentPriorityRules,
+            favoredArtists: [],
+            favoredAlbums: [],
+            favoredTrackUris: []
+        });
+    currentExclusionRules =
+        normalizeExclusionRules({
+            ...currentExclusionRules,
+            excludedArtists: [],
+            excludedAlbums: [],
+            excludedTrackUris: []
+        });
+    cleanupExceptions = [];
+    savePriorityRules();
+    saveExclusionRules();
+    saveCleanupExceptions();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Toutes les règles manuelles ont été supprimées."
+    );
+}
+
+function addDuplicateException(groupIndex) {
+    const group = lastDuplicateGroups[
+        Number(groupIndex)
+    ];
+
+    if (!group) {
+        return;
+    }
+
+    const key = getCleanupExceptionKey(
+        group.kept,
+        group.removed
+    );
+
+    if (!key) {
+        return;
+    }
+
+    cleanupExceptions =
+        normalizeCleanupExceptions([
+            ...cleanupExceptions,
+            key
+        ]);
+    saveCleanupExceptions();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Exception permanente ajoutée : ces deux versions resteront séparées."
+    );
+}
+
+function removeCleanupException(index) {
+    cleanupExceptions.splice(
+        Number(index),
+        1
+    );
+    cleanupExceptions =
+        normalizeCleanupExceptions(
+            cleanupExceptions
+        );
+    saveCleanupExceptions();
+    displayPlaylists(playlistsCache);
+    setStatus("Exception supprimée.");
+}
+
+function getRuleManagerEntries() {
+    const entries = [];
+
+    currentPriorityRules.favoredArtists.forEach(
+        (value, index) => entries.push({
+            type: "priority-artist",
+            category: "priority",
+            icon: "⭐",
+            title: value,
+            subtitle: "Artiste favorisé",
+            index
+        })
+    );
+
+    currentPriorityRules.favoredAlbums.forEach(
+        (value, index) => entries.push({
+            type: "priority-album",
+            category: "priority",
+            icon: "⭐",
+            title: value,
+            subtitle: "Album favorisé",
+            index
+        })
+    );
+
+    currentPriorityRules.favoredTrackUris.forEach(
+        (uri) => {
+            const metadata = ruleMetadata[uri] || {
+                uri,
+                name: "Morceau Spotify",
+                artists: "",
+                album: "",
+                image: ""
+            };
+
+            entries.push({
+                type: "priority-track",
+                category: "priority",
+                icon: "⭐",
+                title: metadata.name,
+                subtitle: [
+                    metadata.artists,
+                    metadata.album
+                ].filter(Boolean).join(" · "),
+                uri,
+                image: metadata.image
+            });
+        }
+    );
+
+    currentExclusionRules.excludedArtists.forEach(
+        (value, index) => entries.push({
+            type: "exclusion-artist",
+            category: "exclusion",
+            icon: "🚫",
+            title: value,
+            subtitle: "Artiste exclu",
+            index
+        })
+    );
+
+    currentExclusionRules.excludedAlbums.forEach(
+        (value, index) => entries.push({
+            type: "exclusion-album",
+            category: "exclusion",
+            icon: "🚫",
+            title: value,
+            subtitle: "Album exclu",
+            index
+        })
+    );
+
+    currentExclusionRules.excludedTrackUris.forEach(
+        (uri) => {
+            const metadata = ruleMetadata[uri] || {
+                uri,
+                name: "Morceau Spotify",
+                artists: "",
+                album: "",
+                image: ""
+            };
+
+            entries.push({
+                type: "exclusion-track",
+                category: "exclusion",
+                icon: "🚫",
+                title: metadata.name,
+                subtitle: [
+                    metadata.artists,
+                    metadata.album
+                ].filter(Boolean).join(" · "),
+                uri,
+                image: metadata.image
+            });
+        }
+    );
+
+    cleanupExceptions.forEach(
+        (value, index) => entries.push({
+            type: "cleanup-exception",
+            category: "exception",
+            icon: "🛡️",
+            title: "Exception anti-doublon",
+            subtitle: value
+                .split("|")
+                .map((uri) =>
+                    ruleMetadata[uri]?.name || uri
+                )
+                .join(" ↔ "),
+            index
+        })
+    );
+
+    return entries;
+}
+
+function renderRulesManagerPanel() {
+    const search = normalizeSearchText(
+        rulesManagerSearchTerm
+    );
+    const entries = getRuleManagerEntries()
+        .filter((entry) => {
+            if (
+                rulesManagerFilter !== "all" &&
+                entry.category !==
+                    rulesManagerFilter
+            ) {
+                return false;
+            }
+
+            if (!search) {
+                return true;
+            }
+
+            return normalizeSearchText([
+                entry.title,
+                entry.subtitle
+            ].join(" ")).includes(search);
+        });
+
+    const duplicateCards = lastDuplicateGroups
+        .slice(0, 20)
+        .map((group, index) => `
+            <article class="rules-duplicate-card">
+                <div>
+                    <strong>
+                        ${escapeHtml(group.kept.name)}
+                    </strong>
+                    <span>
+                        conservé · ${escapeHtml(
+                            group.kept.artists ||
+                            group.artist
+                        )}
+                    </span>
+                </div>
+                <div class="rules-duplicate-arrow">⇄</div>
+                <div>
+                    <strong>
+                        ${escapeHtml(group.removed.name)}
+                    </strong>
+                    <span>
+                        retiré
+                        ${group.sources.length
+                            ? ` · ${escapeHtml(group.sources.join(", "))}`
+                            : ""}
+                    </span>
+                </div>
+                <button
+                    type="button"
+                    data-rules-action="duplicate-exception"
+                    data-rules-index="${index}"
+                >
+                    Ne plus fusionner
+                </button>
+            </article>
+        `)
+        .join("");
+
+    const activeProfile = getActiveProfile();
+    const profileModified =
+        isActiveProfileModified();
+
+    return `
+        <section class="rules-manager-panel">
+            <div class="rules-manager-heading">
+                <div>
+                    <h3>Gestionnaire de règles et profils</h3>
+                    <p>
+                        ${currentPriorityRules.favoredTrackUris.length +
+                            currentPriorityRules.favoredArtists.length +
+                            currentPriorityRules.favoredAlbums.length}
+                        priorité(s) ·
+                        ${currentExclusionRules.excludedTrackUris.length +
+                            currentExclusionRules.excludedArtists.length +
+                            currentExclusionRules.excludedAlbums.length}
+                        exclusion(s) ·
+                        ${cleanupExceptions.length}
+                        exception(s)
+                    </p>
+                </div>
+
+                <button
+                    id="clearAllManagedRulesButton"
+                    class="rules-danger-button"
+                    type="button"
+                >
+                    Tout restaurer
+                </button>
+            </div>
+
+            ${activeProfile
+                ? `
+                    <div class="rules-profile-status ${profileModified ? "is-modified" : ""}">
+                        <div>
+                            <strong>
+                                ${escapeHtml(activeProfile.icon)}
+                                ${escapeHtml(activeProfile.name)}
+                            </strong>
+                            <span>
+                                ${profileModified
+                                    ? "Profil modifié par rapport aux réglages enregistrés"
+                                    : "Réglages conformes au profil"}
+                            </span>
+                        </div>
+
+                        ${profileModified
+                            ? `
+                                <div class="rules-profile-actions">
+                                    <button
+                                        id="updateActiveProfileButton"
+                                        type="button"
+                                    >
+                                        Mettre à jour le profil
+                                    </button>
+                                    <button
+                                        id="restoreActiveProfileButton"
+                                        type="button"
+                                    >
+                                        Revenir au profil
+                                    </button>
+                                </div>
+                            `
+                            : ""}
+                    </div>
+                `
+                : ""}
+
+            <div class="rules-manager-toolbar">
+                <label>
+                    <span>Rechercher</span>
+                    <input
+                        id="rulesManagerSearchInput"
+                        type="search"
+                        value="${escapeHtml(rulesManagerSearchTerm)}"
+                        placeholder="Titre, artiste, album…"
+                    >
+                </label>
+
+                <label>
+                    <span>Filtrer</span>
+                    <select id="rulesManagerFilterSelect">
+                        <option value="all" ${rulesManagerFilter === "all" ? "selected" : ""}>
+                            Toutes les règles
+                        </option>
+                        <option value="priority" ${rulesManagerFilter === "priority" ? "selected" : ""}>
+                            Priorités
+                        </option>
+                        <option value="exclusion" ${rulesManagerFilter === "exclusion" ? "selected" : ""}>
+                            Exclusions
+                        </option>
+                        <option value="exception" ${rulesManagerFilter === "exception" ? "selected" : ""}>
+                            Exceptions
+                        </option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="rules-manager-list">
+                ${entries.length
+                    ? entries.map((entry) => `
+                        <article class="rules-manager-item">
+                            ${entry.image
+                                ? `
+                                    <img
+                                        src="${escapeHtml(entry.image)}"
+                                        alt=""
+                                    >
+                                `
+                                : `
+                                    <span class="rules-manager-icon">
+                                        ${entry.icon}
+                                    </span>
+                                `}
+                            <div>
+                                <strong>
+                                    ${escapeHtml(entry.title)}
+                                </strong>
+                                <span>
+                                    ${escapeHtml(entry.subtitle || entry.category)}
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                data-rules-action="remove"
+                                data-rules-type="${escapeHtml(entry.type)}"
+                                data-rules-uri="${escapeHtml(entry.uri || "")}"
+                                data-rules-index="${entry.index ?? ""}"
+                                title="Supprimer cette règle"
+                            >
+                                ✕
+                            </button>
+                        </article>
+                    `).join("")
+                    : `
+                        <div class="rules-manager-empty">
+                            Aucune règle ne correspond à ce filtre.
+                        </div>
+                    `}
+            </div>
+
+            <details class="rules-duplicates-section">
+                <summary>
+                    Doublons détectés lors du dernier nettoyage
+                    · ${lastDuplicateGroups.length}
+                </summary>
+                <div class="rules-duplicates-list">
+                    ${duplicateCards || `
+                        <div class="rules-manager-empty">
+                            Aucun doublon récent enregistré.
+                        </div>
+                    `}
+                </div>
+            </details>
+        </section>
+    `;
+}
+
 function normalizeCleanupSettings(settings = {}) {
     const levels = new Set([
         "prudent",
@@ -1792,6 +2698,21 @@ function cleanTracks(
             continue;
         }
 
+        if (
+            hasCleanupException(
+                existing,
+                track
+            )
+        ) {
+            const exceptionKey =
+                `${key}:exception:${track?.uri || track?.id || selectedByKey.size}`;
+            selectedByKey.set(
+                exceptionKey,
+                track
+            );
+            continue;
+        }
+
         const exact =
             (track?.uri || track?.id) ===
             (existing?.uri || existing?.id);
@@ -1827,10 +2748,13 @@ function cleanTracks(
 
         selectedByKey.set(key, merged);
 
+        rememberRuleTrack(kept);
+        rememberRuleTrack(removed);
+
         groups.push({
-            keptName: kept?.name || "Morceau",
-            removedName:
-                removed?.name || "Morceau",
+            key,
+            kept: normalizeTrackMetadata(kept),
+            removed: normalizeTrackMetadata(removed),
             artist:
                 kept?.artists?.[0]?.name || "",
             sources:
@@ -1868,6 +2792,9 @@ function cleanTracks(
 
     lastCleanupSummary = summary;
     lastCleanupSnapshot = [...tracks];
+    lastDuplicateGroups =
+        normalizeDuplicateGroups(groups);
+    saveLastDuplicateGroups();
 
     return {
         tracks: cleanedTracks,
@@ -3577,6 +4504,8 @@ function toggleFavoredTrackAt(index) {
         .favoredTrackUris
         .includes(track.uri);
 
+    rememberRuleTrack(track);
+
     currentPriorityRules = normalizePriorityRules({
         ...currentPriorityRules,
         favoredTrackUris: favored
@@ -4017,11 +4946,16 @@ function renderMixProfilesSection() {
     const activeProfile = getActiveProfile();
 
     const cards = mixProfiles.map((profile) => `
-        <article class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""}">
+        <article class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""} ${profile.id === activeProfileId && isActiveProfileModified() ? "is-modified" : ""}">
             <div class="mix-profile-card-main">
                 <span class="mix-profile-icon">${escapeHtml(profile.icon)}</span>
                 <div>
-                    <h4>${escapeHtml(profile.name)}</h4>
+                    <h4>
+                        ${escapeHtml(profile.name)}
+                        ${profile.id === activeProfileId && isActiveProfileModified()
+                            ? `<span class="profile-modified-badge">Modifié</span>`
+                            : ""}
+                    </h4>
                     <p>${escapeHtml(profile.description || "Profil Shuffle+")}</p>
                     <small>${escapeHtml(getMixProfileSummary(profile))}</small>
                 </div>
@@ -6349,6 +7283,9 @@ function buildBackupPayload() {
             intensitySettings: currentIntensitySettings,
             adaptiveSettings: currentAdaptiveSettings,
             cleanupSettings: currentCleanupSettings,
+            ruleMetadata,
+            cleanupExceptions,
+            lastDuplicateGroups,
             mixSchedules
         }
     };
@@ -6461,6 +7398,18 @@ function validateBackupPayload(payload) {
         cleanupSettings:
             normalizeCleanupSettings(
                 payload.data.cleanupSettings
+            ),
+        ruleMetadata:
+            normalizeRuleMetadata(
+                payload.data.ruleMetadata
+            ),
+        cleanupExceptions:
+            normalizeCleanupExceptions(
+                payload.data.cleanupExceptions
+            ),
+        lastDuplicateGroups:
+            normalizeDuplicateGroups(
+                payload.data.lastDuplicateGroups
             ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
@@ -6580,6 +7529,14 @@ async function importBackupFile(file) {
         currentCleanupSettings =
             imported.cleanupSettings;
         saveCleanupSettings();
+        ruleMetadata = imported.ruleMetadata;
+        saveRuleMetadata();
+        cleanupExceptions =
+            imported.cleanupExceptions;
+        saveCleanupExceptions();
+        lastDuplicateGroups =
+            imported.lastDuplicateGroups;
+        saveLastDuplicateGroups();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -7489,6 +8446,8 @@ function displayPlaylists(playlists) {
 
             ${renderCleanupPanel()}
 
+            ${renderRulesManagerPanel()}
+
             ${renderMixProfilesSection()}
 
             ${renderPriorityPanel()}
@@ -7856,6 +8815,8 @@ function excludeTrackAt(index) {
     if (!confirmed) {
         return;
     }
+
+    rememberRuleTrack(track);
 
     currentExclusionRules = normalizeExclusionRules({
         ...currentExclusionRules,
@@ -9518,6 +10479,73 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const rulesActionButton =
+            event.target.closest(
+                "[data-rules-action]"
+            );
+
+        if (rulesActionButton) {
+            const action =
+                rulesActionButton.dataset.rulesAction || "";
+
+            if (action === "remove") {
+                const type =
+                    rulesActionButton.dataset.rulesType || "";
+                const uri =
+                    rulesActionButton.dataset.rulesUri || "";
+                const index =
+                    rulesActionButton.dataset.rulesIndex;
+
+                if (
+                    type === "priority-track" ||
+                    type === "exclusion-track"
+                ) {
+                    removeTrackRule(type, uri);
+                } else if (
+                    type === "cleanup-exception"
+                ) {
+                    removeCleanupException(index);
+                } else {
+                    removeTextRule(type, index);
+                }
+            } else if (
+                action === "duplicate-exception"
+            ) {
+                addDuplicateException(
+                    rulesActionButton.dataset.rulesIndex
+                );
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearAllManagedRulesButton"
+            )
+        ) {
+            clearAllManagedRules();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#updateActiveProfileButton"
+            )
+        ) {
+            updateActiveProfileFromCurrent();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#restoreActiveProfileButton"
+            )
+        ) {
+            restoreActiveProfileSettings();
+            return;
+        }
+
         const scheduleActionButton =
             event.target.closest(
                 "[data-schedule-action]"
@@ -10173,6 +11201,16 @@ contentElement.addEventListener(
     "change",
     async (event) => {
         if (
+            event.target.id ===
+                "rulesManagerFilterSelect"
+        ) {
+            rulesManagerFilter =
+                event.target.value || "all";
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (
             event.target.matches(
                 "[data-adaptive-duration-mode]"
             )
@@ -10369,6 +11407,24 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (
+            event.target.id ===
+                "rulesManagerSearchInput"
+        ) {
+            rulesManagerSearchTerm =
+                event.target.value || "";
+            window.clearTimeout(
+                event.target._rulesSearchTimer
+            );
+            event.target._rulesSearchTimer =
+                window.setTimeout(() => {
+                    displayPlaylists(
+                        playlistsCache
+                    );
+                }, 250);
+            return;
+        }
+
         if (
             event.target.matches(
                 "[data-intensity-control]"
