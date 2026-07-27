@@ -2139,3 +2139,15 @@ button:disabled {
         height: 38px;
     }
 }
+
+
+/* Shuffle+ v1.9.0 — File d’attente avancée */
+.playback-queue-panel { display:grid; gap:11px; margin-top:18px; padding:15px; border:1px solid #355743; border-radius:13px; background:#111b15; }
+.playback-queue-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.playback-queue-heading strong { font-size:15px; }
+.playback-queue-reset { min-height:36px; padding:7px 12px; border:1px solid #4f6959; border-radius:999px; background:transparent; color:#fff; font-size:13px; font-weight:750; }
+.playback-queue-reset:hover:not(:disabled) { border-color:#1ed760; background:#1b2b21; }
+.playback-queue-track { position:relative; height:9px; overflow:hidden; border-radius:999px; background:#2a332d; }
+.playback-queue-progress-bar { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,#1ed760 0%,#67e690 100%); transition:width .28s ease; }
+.playback-queue-progress { margin:0; color:#b8c9bd; font-size:13px; line-height:1.45; }
+@media (max-width:620px) { .playback-queue-heading { align-items:stretch; flex-direction:column; } .playback-queue-reset { width:100%; } }

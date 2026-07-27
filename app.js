@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.8.0";
+const APP_VERSION = "1.9.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -51,6 +51,8 @@ const BACKUP_FORMAT = "shuffleplus-backup";
 const BACKUP_SCHEMA_VERSION = 1;
 const MAX_IMPORTED_FAVORITES = 500;
 const MAX_IMPORTED_HISTORY = 50;
+const PLAYBACK_QUEUE_STATE_KEY = "shuffleplus_playback_queue_state_v1";
+const PLAYBACK_QUEUE_STATE_TTL = 30 * 24 * 60 * 60 * 1000;
 
 const DEFAULT_SHUFFLE_SETTINGS = {
     preset: "balanced",
@@ -116,6 +118,9 @@ let currentShuffleSettings = {
 let originalGeneratedOrder = [];
 let trackSearchTerm = "";
 let draggedTrackIndex = -1;
+let playbackQueueCursor = 0;
+let playbackQueueResumeKey = "";
+let pendingSavedMixResumeKey = "";
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -171,6 +176,9 @@ function setDisconnectedInterface() {
     originalGeneratedOrder = [];
     trackSearchTerm = "";
     draggedTrackIndex = -1;
+    playbackQueueCursor = 0;
+    playbackQueueResumeKey = "";
+    pendingSavedMixResumeKey = "";
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -547,6 +555,7 @@ async function launchSavedMix(mixId) {
     currentShuffleSettings = normalizeShuffleSettings(
         mix.shuffleSettings
     );
+    pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
 
     for (const sourceKey of validSourceKeys) {
@@ -1167,7 +1176,8 @@ function buildBackupPayload() {
                 filter: libraryFilter,
                 sort: librarySort
             },
-            recentTrackUris: readTrackHistoryForBackup()
+            recentTrackUris: readTrackHistoryForBackup(),
+            playbackQueueStates: readPlaybackQueueStates()
         }
     };
 }
@@ -1235,6 +1245,11 @@ function validateBackupPayload(payload) {
         recentTrackUris: normalizeImportedHistory(
             payload.data.recentTrackUris
         ),
+        playbackQueueStates:
+            payload.data.playbackQueueStates &&
+            typeof payload.data.playbackQueueStates === "object"
+                ? payload.data.playbackQueueStates
+                : {},
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -1305,6 +1320,7 @@ async function importBackupFile(file) {
             TRACK_HISTORY_KEY,
             JSON.stringify(imported.recentTrackUris)
         );
+        writePlaybackQueueStates(imported.playbackQueueStates);
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -1943,6 +1959,9 @@ function displayPlaylists(playlists) {
     sourceTracks = [];
     selectedTracks = [];
     availableDevices = [];
+    playbackQueueCursor = 0;
+    playbackQueueResumeKey = "";
+    pendingSavedMixResumeKey = "";
 
     const visiblePlaylists = getFilteredAndSortedPlaylists(playlists);
     const likedVisible = isLikedSourceVisible();
@@ -2509,6 +2528,7 @@ function moveTrack(fromIndex, toIndex) {
     );
 
     selectedTracks.splice(toIndex, 0, movedTrack);
+    markQueueChanged();
     renderTrackList();
     renderShuffleStats(
         analyzeShuffleOrder(selectedTracks)
@@ -2524,6 +2544,7 @@ function removeTrackAt(index) {
     }
 
     const [removedTrack] = selectedTracks.splice(index, 1);
+    markQueueChanged();
 
     renderTrackList();
     renderShuffleStats(
@@ -2560,6 +2581,7 @@ function resetGeneratedOrder() {
 
     selectedTracks = [...originalGeneratedOrder];
     trackSearchTerm = "";
+    markQueueChanged();
 
     const searchInput = document.getElementById(
         "trackOrderSearchInput"
@@ -2905,6 +2927,8 @@ function updateDeviceControls(previousDeviceId = "") {
         !availableDevices.length ||
         !selectedTracks.length ||
         isKnownNonPremiumAccount();
+
+    updatePlaybackQueueUI();
 }
 
 function displayPlaylistDetails(playlist, tracks) {
@@ -3122,6 +3146,19 @@ function displayPlaylistDetails(playlist, tracks) {
                     </button>
                 </div>
 
+                <div class="playback-queue-panel">
+                    <div class="playback-queue-heading">
+                        <strong>File d’attente Shuffle+</strong>
+                        <button id="resetPlaybackQueueButton" class="playback-queue-reset" type="button" ${playbackQueueCursor ? "" : "disabled"}>
+                            ↺ Revenir au début
+                        </button>
+                    </div>
+                    <div class="playback-queue-track" aria-hidden="true">
+                        <span id="playbackQueueProgressBar" class="playback-queue-progress-bar"></span>
+                    </div>
+                    <p id="playbackQueueProgress" class="playback-queue-progress" aria-live="polite"></p>
+                </div>
+
                 <p id="playbackMessage" class="playback-message">
                     ${isKnownNonPremiumAccount()
             ? "La commande de lecture nécessite un compte Spotify Premium."
@@ -3195,6 +3232,147 @@ function displayPlaylistDetails(playlist, tracks) {
     `;
 
     renderTrackList();
+}
+
+
+function getTrackUris(tracks = selectedTracks) {
+    return tracks.map((track) => track?.uri).filter(Boolean);
+}
+
+function getPlaybackResumeKey(playlist = selectedPlaylist) {
+    if (playbackQueueResumeKey) return playbackQueueResumeKey;
+    if (!playlist) return "";
+    if (playlist.sourceType === "liked") return "liked";
+    if (playlist.sourceType === "mix") {
+        if (pendingSavedMixResumeKey) return pendingSavedMixResumeKey;
+        const sourceNames = Array.isArray(playlist.sourceNames)
+            ? playlist.sourceNames.join("|") : "";
+        return `mix:${sourceNames || playlist.id || "temporary"}`;
+    }
+    return `playlist:${playlist.id || "unknown"}`;
+}
+
+function readPlaybackQueueStates() {
+    try {
+        const raw = localStorage.getItem(PLAYBACK_QUEUE_STATE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        if (!parsed || typeof parsed !== "object") return {};
+        const now = Date.now();
+        const validStates = {};
+        for (const [key, state] of Object.entries(parsed)) {
+            const savedAt = Number(state?.savedAt || 0);
+            if (key && state && Array.isArray(state.orderUris) && savedAt > 0 && now - savedAt < PLAYBACK_QUEUE_STATE_TTL) {
+                validStates[key] = state;
+            }
+        }
+        return validStates;
+    } catch (error) {
+        console.warn("Progression de lecture illisible :", error);
+        return {};
+    }
+}
+
+function writePlaybackQueueStates(states) {
+    try {
+        localStorage.setItem(PLAYBACK_QUEUE_STATE_KEY, JSON.stringify(states));
+    } catch (error) {
+        console.warn("Impossible d’enregistrer la progression :", error);
+    }
+}
+
+function saveCurrentPlaybackQueueState() {
+    const resumeKey = getPlaybackResumeKey();
+    const orderUris = getTrackUris();
+    if (!resumeKey || !orderUris.length) return;
+    const states = readPlaybackQueueStates();
+    states[resumeKey] = {
+        cursor: Math.min(Math.max(0, playbackQueueCursor), orderUris.length),
+        orderUris,
+        playlistName: selectedPlaylist?.name || "Sélection",
+        savedAt: Date.now()
+    };
+    writePlaybackQueueStates(states);
+}
+
+function clearCurrentPlaybackQueueState() {
+    const resumeKey = getPlaybackResumeKey();
+    if (!resumeKey) return;
+    const states = readPlaybackQueueStates();
+    if (Object.hasOwn(states, resumeKey)) {
+        delete states[resumeKey];
+        writePlaybackQueueStates(states);
+    }
+}
+
+function restorePlaybackQueueState(tracks) {
+    const resumeKey = getPlaybackResumeKey();
+    const state = readPlaybackQueueStates()[resumeKey];
+    playbackQueueCursor = 0;
+    if (!resumeKey || !state || !Array.isArray(state.orderUris) || !state.orderUris.length) return [...tracks];
+    const trackByUri = new Map(tracks.filter((track) => track?.uri).map((track) => [track.uri, track]));
+    const restoredTracks = [];
+    const seenUris = new Set();
+    for (const uri of state.orderUris) {
+        const track = trackByUri.get(uri);
+        if (track && !seenUris.has(uri)) {
+            seenUris.add(uri);
+            restoredTracks.push(track);
+        }
+    }
+    for (const track of tracks) {
+        if (track?.uri && !seenUris.has(track.uri)) {
+            seenUris.add(track.uri);
+            restoredTracks.push(track);
+        }
+    }
+    if (!restoredTracks.length) return [...tracks];
+    playbackQueueCursor = Math.min(Math.max(0, Number(state.cursor || 0)), restoredTracks.length);
+    return restoredTracks;
+}
+
+function resetPlaybackQueueProgress({ keepSavedState = false } = {}) {
+    playbackQueueCursor = 0;
+    if (!keepSavedState) clearCurrentPlaybackQueueState();
+    updatePlaybackQueueUI();
+}
+
+function getPlaybackQueueBlock() {
+    const allPlayableTracks = selectedTracks.filter((track) => track?.uri);
+    const start = Math.min(playbackQueueCursor, allPlayableTracks.length);
+    const end = Math.min(start + MAX_DIRECT_PLAYBACK_TRACKS, allPlayableTracks.length);
+    return { allPlayableTracks, start, end, tracks: allPlayableTracks.slice(start, end) };
+}
+
+function updatePlaybackQueueUI() {
+    const progressElement = document.getElementById("playbackQueueProgress");
+    const progressBar = document.getElementById("playbackQueueProgressBar");
+    const playButton = document.getElementById("playSpotifyButton");
+    const resetButton = document.getElementById("resetPlaybackQueueButton");
+    const total = getTrackUris().length;
+    const sent = Math.min(playbackQueueCursor, total);
+    const nextEnd = Math.min(sent + MAX_DIRECT_PLAYBACK_TRACKS, total);
+    const percent = total ? Math.round((sent / total) * 100) : 0;
+    if (progressElement) {
+        progressElement.textContent = !total ? "Aucun morceau disponible."
+            : sent >= total ? `${sent}/${total} morceaux envoyés · file terminée`
+            : sent > 0 ? `${sent}/${total} morceaux envoyés · prochain bloc : ${sent + 1} à ${nextEnd}`
+            : `0/${total} morceaux envoyés · premier bloc : 1 à ${nextEnd}`;
+    }
+    if (progressBar) {
+        progressBar.style.width = `${percent}%`;
+        progressBar.setAttribute("aria-valuenow", String(percent));
+    }
+    if (playButton) {
+        playButton.disabled = !availableDevices.length || !total || sent >= total || isKnownNonPremiumAccount();
+        playButton.textContent = sent === 0 ? "▶ Lire le premier bloc" : sent < total ? "⏭ Continuer la lecture" : "✓ File entièrement envoyée";
+    }
+    if (resetButton) resetButton.disabled = sent === 0;
+}
+
+function markQueueChanged() {
+    playbackQueueCursor = 0;
+    clearCurrentPlaybackQueueState();
+    updatePlaybackQueueUI();
 }
 
 function getPlaybackErrorMessage(error) {
@@ -3315,112 +3493,55 @@ async function refreshPlaybackDevices() {
 
 async function playSelectedOrder() {
     const deviceSelect = document.getElementById("deviceSelect");
-    const playButton = document.getElementById(
-        "playSpotifyButton"
-    );
-    const playbackMessage = document.getElementById(
-        "playbackMessage"
-    );
-
-    if (!deviceSelect || !playButton || !playbackMessage) {
-        return;
-    }
-
+    const playButton = document.getElementById("playSpotifyButton");
+    const playbackMessage = document.getElementById("playbackMessage");
+    if (!deviceSelect || !playButton || !playbackMessage) return;
     const deviceId = deviceSelect.value;
-
     if (!deviceId) {
-        playbackMessage.textContent =
-            "Sélectionne d’abord un appareil Spotify.";
-        playbackMessage.className =
-            "playback-message error";
+        playbackMessage.textContent = "Sélectionne d’abord un appareil Spotify.";
+        playbackMessage.className = "playback-message error";
         return;
     }
-
     if (isKnownNonPremiumAccount()) {
-        playbackMessage.textContent =
-            "La lecture à distance nécessite un compte Spotify Premium.";
-        playbackMessage.className =
-            "playback-message error";
+        playbackMessage.textContent = "La lecture à distance nécessite un compte Spotify Premium.";
+        playbackMessage.className = "playback-message error";
         return;
     }
-
-    const allUris = selectedTracks
-        .map((track) => track.uri)
-        .filter(Boolean);
-
-    const playbackUris = allUris.slice(
-        0,
-        MAX_DIRECT_PLAYBACK_TRACKS
-    );
-
+    const queueBlock = getPlaybackQueueBlock();
+    const playbackUris = queueBlock.tracks.map((track) => track.uri).filter(Boolean);
     if (!playbackUris.length) {
-        playbackMessage.textContent =
-            "Aucun morceau lisible dans cette playlist.";
-        playbackMessage.className =
-            "playback-message error";
+        playbackMessage.textContent = queueBlock.allPlayableTracks.length
+            ? "Tous les morceaux de cette file ont déjà été envoyés."
+            : "Aucun morceau lisible dans cette playlist.";
+        playbackMessage.className = "playback-message error";
+        updatePlaybackQueueUI();
         return;
     }
-
     playButton.disabled = true;
-    playButton.textContent = "Lancement…";
-    playbackMessage.textContent =
-        "Préparation de la lecture Spotify…";
+    playButton.textContent = "Envoi du bloc…";
+    playbackMessage.textContent = `Préparation des morceaux ${queueBlock.start + 1} à ${queueBlock.end}…`;
     playbackMessage.className = "playback-message";
-
     try {
-        /*
-         * On active d’abord explicitement l’appareil.
-         * Dans la v0.5.0, la commande Shuffle était envoyée
-         * avant l’activation et pouvait interrompre toute la lecture.
-         */
         await transferPlayback(deviceId, false);
         await wait(800);
-
         await startPlayback(playbackUris, deviceId);
-
-        /*
-         * La désactivation du shuffle Spotify est volontairement
-         * non bloquante : la lecture ne doit pas échouer si cette
-         * commande secondaire est refusée par l’appareil.
-         */
         await wait(600);
-
-        try {
-            await setPlaybackShuffle(false, deviceId);
-        } catch (shuffleError) {
-            console.warn(
-                "Impossible de désactiver le shuffle Spotify :",
-                shuffleError
-            );
-        }
-
-        const truncatedText =
-            allUris.length > playbackUris.length
-                ? ` Les ${playbackUris.length} premiers morceaux de cet ordre ont été envoyés.`
-                : "";
-
-        rememberPlaybackOrder(
-            selectedTracks.slice(0, playbackUris.length)
-        );
-
-        playbackMessage.textContent =
-            `Lecture lancée sur l’appareil sélectionné.${truncatedText}`;
-        playbackMessage.className =
-            "playback-message success";
-
-        playButton.textContent = "✓ Lecture lancée";
+        try { await setPlaybackShuffle(false, deviceId); }
+        catch (shuffleError) { console.warn("Impossible de désactiver le shuffle Spotify :", shuffleError); }
+        playbackQueueCursor = queueBlock.end;
+        saveCurrentPlaybackQueueState();
+        rememberPlaybackOrder(queueBlock.tracks);
+        const remaining = queueBlock.allPlayableTracks.length - playbackQueueCursor;
+        playbackMessage.textContent = remaining > 0
+            ? `Bloc ${queueBlock.start + 1}–${queueBlock.end} lancé. ${remaining} morceau${remaining > 1 ? "x" : ""} reste${remaining > 1 ? "nt" : ""} à envoyer.`
+            : `Dernier bloc lancé : les ${queueBlock.allPlayableTracks.length} morceaux ont été envoyés.`;
+        playbackMessage.className = "playback-message success";
+        updatePlaybackQueueUI();
     } catch (error) {
         console.error(error);
-
-        playbackMessage.textContent =
-            getPlaybackErrorMessage(error);
-        playbackMessage.className =
-            "playback-message error";
-
-        playButton.textContent =
-            "▶ Réessayer la lecture";
-    } finally {
-        playButton.disabled = false;
+        playbackMessage.textContent = getPlaybackErrorMessage(error);
+        playbackMessage.className = "playback-message error";
+        updatePlaybackQueueUI();
     }
 }
 
@@ -3579,8 +3700,13 @@ async function createSelectedMix() {
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
         );
+        playbackQueueResumeKey =
+            pendingSavedMixResumeKey ||
+            `mix:${selectedKeys.slice().sort().join("|")}`;
+        selectedTracks = restorePlaybackQueueState(selectedTracks);
         originalGeneratedOrder = [...selectedTracks];
         trackSearchTerm = "";
+        pendingSavedMixResumeKey = "";
 
         displayPlaylistDetails(
             selectedPlaylist,
@@ -3673,7 +3799,11 @@ async function openPlaylist(playlist) {
         ]);
 
         sourceTracks = [...tracks];
-        selectedTracks = [...tracks];
+        playbackQueueResumeKey =
+            playlist.sourceType === "liked"
+                ? "liked"
+                : `playlist:${playlist.id}`;
+        selectedTracks = restorePlaybackQueueState([...tracks]);
         originalGeneratedOrder = [...selectedTracks];
         trackSearchTerm = "";
         availableDevices = devices;
@@ -4079,6 +4209,15 @@ contentElement.addEventListener(
             return;
         }
 
+        const resetPlaybackQueueButton =
+            event.target.closest("#resetPlaybackQueueButton");
+
+        if (resetPlaybackQueueButton) {
+            resetPlaybackQueueProgress();
+            setStatus("File d’attente replacée au début.");
+            return;
+        }
+
         const refreshDevicesButton =
             event.target.closest("#refreshDevicesButton");
 
@@ -4108,6 +4247,7 @@ contentElement.addEventListener(
             );
             originalGeneratedOrder = [...selectedTracks];
             trackSearchTerm = "";
+            markQueueChanged();
 
             const trackSearchInput = document.getElementById(
                 "trackOrderSearchInput"
