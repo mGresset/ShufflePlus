@@ -84,6 +84,73 @@ export function rememberPlaybackOrder(tracks, limit = 30) {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(mergedUris));
 }
 
+
+function normalizePriorityText(value = "") {
+    return normalize(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
+function includesPriorityText(value, items = []) {
+    const normalizedValue = normalizePriorityText(value);
+
+    return items.some((item) =>
+        normalizedValue.includes(
+            normalizePriorityText(item)
+        )
+    );
+}
+
+function getPriorityMatchCount(track, rules = {}) {
+    let matches = 0;
+    const favoredTrackUris = Array.isArray(
+        rules.favoredTrackUris
+    )
+        ? rules.favoredTrackUris
+        : [];
+    const favoredArtists = Array.isArray(
+        rules.favoredArtists
+    )
+        ? rules.favoredArtists
+        : [];
+    const favoredAlbums = Array.isArray(
+        rules.favoredAlbums
+    )
+        ? rules.favoredAlbums
+        : [];
+
+    if (
+        track?.uri &&
+        favoredTrackUris.includes(track.uri)
+    ) {
+        matches += 1;
+    }
+
+    if (
+        favoredArtists.length &&
+        (track?.artists || []).some((artist) =>
+            includesPriorityText(
+                artist?.name || "",
+                favoredArtists
+            )
+        )
+    ) {
+        matches += 1;
+    }
+
+    if (
+        favoredAlbums.length &&
+        includesPriorityText(
+            track?.album?.name || "",
+            favoredAlbums
+        )
+    ) {
+        matches += 1;
+    }
+
+    return matches;
+}
+
 function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
     let score = Math.random();
     const trackKey = getTrackKey(track);
@@ -129,6 +196,34 @@ function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
         ) {
             score += options.trackPenalty / distance;
         }
+    }
+
+
+    const priorityMatchCount =
+        getPriorityMatchCount(
+            track,
+            options.priorityRules
+        );
+
+    if (priorityMatchCount > 0) {
+        const intensityBonus = {
+            light: 18,
+            normal: 45,
+            strong: 85
+        }[
+            options.priorityRules?.intensity
+        ] || 45;
+
+        const firstTwentyMultiplier =
+            options.priorityRules?.boostFirstTwenty &&
+            position < 20
+                ? 1.8 - (position / 20) * 0.55
+                : 1;
+
+        score -=
+            intensityBonus *
+            priorityMatchCount *
+            firstTwentyMultiplier;
     }
 
     return score;
@@ -207,7 +302,35 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
             0,
             1000,
             90
-        )
+        ),
+        priorityRules: {
+            favoredArtists:
+                Array.isArray(
+                    customOptions.priorityRules?.favoredArtists
+                )
+                    ? customOptions.priorityRules.favoredArtists
+                    : [],
+            favoredAlbums:
+                Array.isArray(
+                    customOptions.priorityRules?.favoredAlbums
+                )
+                    ? customOptions.priorityRules.favoredAlbums
+                    : [],
+            favoredTrackUris:
+                Array.isArray(
+                    customOptions.priorityRules?.favoredTrackUris
+                )
+                    ? customOptions.priorityRules.favoredTrackUris
+                    : [],
+            intensity:
+                ["light", "normal", "strong"].includes(
+                    customOptions.priorityRules?.intensity
+                )
+                    ? customOptions.priorityRules.intensity
+                    : "normal",
+            boostFirstTwenty:
+                customOptions.priorityRules?.boostFirstTwenty !== false
+        }
     };
 
     const remainingTracks = fisherYates(

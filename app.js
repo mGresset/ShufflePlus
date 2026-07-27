@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.3.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -60,6 +60,15 @@ const MAX_EXCLUDED_TEXT_ITEMS = 100;
 const MIX_PROFILES_KEY = "shuffleplus_mix_profiles_v1";
 const ACTIVE_PROFILE_KEY = "shuffleplus_active_profile_v1";
 const MAX_MIX_PROFILES = 20;
+const PRIORITY_RULES_KEY = "shuffleplus_priority_rules_v1";
+const MAX_PRIORITY_TEXT_ITEMS = 100;
+const DEFAULT_PRIORITY_RULES = {
+    favoredArtists: [],
+    favoredAlbums: [],
+    favoredTrackUris: [],
+    intensity: "normal",
+    boostFirstTwenty: true
+};
 const DEFAULT_EXCLUSION_RULES = {
     excludedArtists: [],
     excludedAlbums: [],
@@ -90,6 +99,11 @@ const DEFAULT_MIX_PROFILES = [
         exclusionRules: {
             ...DEFAULT_EXCLUSION_RULES,
             minDurationSeconds: 120
+        },
+        priorityRules: {
+            ...DEFAULT_PRIORITY_RULES,
+            intensity: "strong",
+            boostFirstTwenty: true
         }
     },
     {
@@ -108,7 +122,11 @@ const DEFAULT_MIX_PROFILES = [
             ...DEFAULT_EXCLUSION_RULES,
             excludeInstrumental: true,
             excludeKaraoke: true
+        ,
+        priorityRules: {
+            ...DEFAULT_PRIORITY_RULES
         }
+    }
     },
     {
         id: "profile-famille",
@@ -128,7 +146,11 @@ const DEFAULT_MIX_PROFILES = [
             excludeLive: true,
             excludeRemix: true,
             excludeKaraoke: true
+        ,
+        priorityRules: {
+            ...DEFAULT_PRIORITY_RULES
         }
+    }
     },
     {
         id: "profile-decouverte",
@@ -144,7 +166,11 @@ const DEFAULT_MIX_PROFILES = [
         },
         exclusionRules: {
             ...DEFAULT_EXCLUSION_RULES
+        ,
+        priorityRules: {
+            ...DEFAULT_PRIORITY_RULES
         }
+    }
     },
     {
         id: "profile-concentration",
@@ -164,7 +190,11 @@ const DEFAULT_MIX_PROFILES = [
             excludeLive: true,
             excludeRemix: true,
             excludeKaraoke: true
+        ,
+        priorityRules: {
+            ...DEFAULT_PRIORITY_RULES
         }
+    }
     }
 ];
 
@@ -241,6 +271,8 @@ let currentExclusionRules = readExclusionRules();
 let lastExclusionSummary = null;
 let mixProfiles = readMixProfiles();
 let activeProfileId = readActiveProfileId();
+let currentPriorityRules = readPriorityRules();
+let lastPrioritySummary = null;
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -301,6 +333,7 @@ function setDisconnectedInterface() {
     pendingSavedMixResumeKey = "";
     activeHistoryId = "";
     lastExclusionSummary = null;
+    lastPrioritySummary = null;
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -341,6 +374,357 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+
+function normalizePriorityRules(rules = {}) {
+    const allowedIntensities = new Set([
+        "light",
+        "normal",
+        "strong"
+    ]);
+
+    return {
+        favoredArtists: normalizeTextList(
+            rules.favoredArtists
+        ).slice(0, MAX_PRIORITY_TEXT_ITEMS),
+        favoredAlbums: normalizeTextList(
+            rules.favoredAlbums
+        ).slice(0, MAX_PRIORITY_TEXT_ITEMS),
+        favoredTrackUris: normalizeTextList(
+            rules.favoredTrackUris
+        )
+            .filter((value) =>
+                value.startsWith("spotify:track:")
+            )
+            .slice(0, MAX_PRIORITY_TEXT_ITEMS),
+        intensity: allowedIntensities.has(rules.intensity)
+            ? rules.intensity
+            : "normal",
+        boostFirstTwenty:
+            rules.boostFirstTwenty !== false
+    };
+}
+
+function readPriorityRules() {
+    try {
+        const raw = localStorage.getItem(
+            PRIORITY_RULES_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return normalizePriorityRules(parsed);
+    } catch (error) {
+        console.warn(
+            "Règles de priorité illisibles :",
+            error
+        );
+        return {
+            ...DEFAULT_PRIORITY_RULES
+        };
+    }
+}
+
+function savePriorityRules() {
+    try {
+        localStorage.setItem(
+            PRIORITY_RULES_KEY,
+            JSON.stringify(currentPriorityRules)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les priorités :",
+            error
+        );
+    }
+}
+
+function getPriorityIntensityLabel(value = "normal") {
+    switch (value) {
+        case "light":
+            return "Légère";
+        case "strong":
+            return "Forte";
+        case "normal":
+        default:
+            return "Normale";
+    }
+}
+
+function getPriorityRulesSummary(
+    rules = currentPriorityRules
+) {
+    const parts = [];
+
+    if (rules.favoredArtists.length) {
+        parts.push(
+            `${rules.favoredArtists.length} artiste` +
+            `${rules.favoredArtists.length > 1 ? "s" : ""}`
+        );
+    }
+
+    if (rules.favoredAlbums.length) {
+        parts.push(
+            `${rules.favoredAlbums.length} album` +
+            `${rules.favoredAlbums.length > 1 ? "s" : ""}`
+        );
+    }
+
+    if (rules.favoredTrackUris.length) {
+        parts.push(
+            `${rules.favoredTrackUris.length} morceau` +
+            `${rules.favoredTrackUris.length > 1 ? "x" : ""}`
+        );
+    }
+
+    if (!parts.length) {
+        return "Aucune priorité active";
+    }
+
+    parts.push(
+        `intensité ${getPriorityIntensityLabel(
+            rules.intensity
+        ).toLowerCase()}`
+    );
+
+    if (rules.boostFirstTwenty) {
+        parts.push("favoris renforcés au début");
+    }
+
+    return parts.join(" · ");
+}
+
+function getTrackPriorityMatches(
+    track,
+    rules = currentPriorityRules
+) {
+    const matches = [];
+    const artists = (track?.artists || [])
+        .map((artist) => artist?.name)
+        .filter(Boolean);
+    const albumName = track?.album?.name || "";
+
+    if (
+        track?.uri &&
+        rules.favoredTrackUris.includes(track.uri)
+    ) {
+        matches.push("morceau");
+    }
+
+    if (
+        rules.favoredArtists.length &&
+        artists.some((artistName) =>
+            includesExcludedText(
+                artistName,
+                rules.favoredArtists
+            )
+        )
+    ) {
+        matches.push("artiste");
+    }
+
+    if (
+        rules.favoredAlbums.length &&
+        includesExcludedText(
+            albumName,
+            rules.favoredAlbums
+        )
+    ) {
+        matches.push("album");
+    }
+
+    return matches;
+}
+
+function buildPrioritySummary(
+    tracks,
+    rules = currentPriorityRules
+) {
+    const favoredTracks = tracks.filter(
+        (track) =>
+            getTrackPriorityMatches(track, rules).length
+    );
+
+    const favoredInFirstTwenty = tracks
+        .slice(0, 20)
+        .filter(
+            (track) =>
+                getTrackPriorityMatches(track, rules).length
+        );
+
+    lastPrioritySummary = {
+        favoredTotal: favoredTracks.length,
+        favoredInFirstTwenty:
+            favoredInFirstTwenty.length
+    };
+
+    return lastPrioritySummary;
+}
+
+function renderPriorityPanel() {
+    const rules = normalizePriorityRules(
+        currentPriorityRules
+    );
+
+    return `
+        <section class="priority-panel">
+            <div class="priority-panel-heading">
+                <div>
+                    <h3>Priorités intelligentes</h3>
+                    <p>
+                        ${escapeHtml(
+                            getPriorityRulesSummary(rules)
+                        )}
+                    </p>
+                </div>
+
+                <button
+                    id="resetPriorityRulesButton"
+                    class="priority-reset-button"
+                    type="button"
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            <form
+                id="priorityRulesForm"
+                class="priority-form"
+            >
+                <label class="priority-field">
+                    <span>Artistes à favoriser</span>
+                    <textarea
+                        name="favoredArtists"
+                        rows="3"
+                        placeholder="Un artiste par ligne ou séparé par une virgule"
+                    >${escapeHtml(
+                        rules.favoredArtists.join("\n")
+                    )}</textarea>
+                </label>
+
+                <label class="priority-field">
+                    <span>Albums à favoriser</span>
+                    <textarea
+                        name="favoredAlbums"
+                        rows="3"
+                        placeholder="Un album par ligne ou séparé par une virgule"
+                    >${escapeHtml(
+                        rules.favoredAlbums.join("\n")
+                    )}</textarea>
+                </label>
+
+                <label class="priority-field">
+                    <span>Intensité de la priorité</span>
+                    <select name="intensity">
+                        <option value="light" ${rules.intensity === "light" ? "selected" : ""}>
+                            Légère
+                        </option>
+                        <option value="normal" ${rules.intensity === "normal" ? "selected" : ""}>
+                            Normale
+                        </option>
+                        <option value="strong" ${rules.intensity === "strong" ? "selected" : ""}>
+                            Forte
+                        </option>
+                    </select>
+                </label>
+
+                <label class="priority-check">
+                    <input
+                        name="boostFirstTwenty"
+                        type="checkbox"
+                        ${rules.boostFirstTwenty ? "checked" : ""}
+                    >
+                    <span>
+                        Renforcer la présence des favoris
+                        dans les 20 premiers titres
+                    </span>
+                </label>
+
+                <div class="priority-actions">
+                    <button
+                        class="priority-save-button"
+                        type="submit"
+                    >
+                        ⭐ Enregistrer les priorités
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function savePriorityRulesFromForm(form) {
+    const formData = new FormData(form);
+
+    currentPriorityRules = normalizePriorityRules({
+        ...currentPriorityRules,
+        favoredArtists: splitRuleText(
+            formData.get("favoredArtists")
+        ),
+        favoredAlbums: splitRuleText(
+            formData.get("favoredAlbums")
+        ),
+        intensity: formData.get("intensity"),
+        boostFirstTwenty:
+            formData.get("boostFirstTwenty") === "on"
+    });
+
+    savePriorityRules();
+
+    const activeProfile = getActiveProfile();
+
+    if (activeProfile && !activeProfile.isDefault) {
+        activeProfile.priorityRules =
+            normalizePriorityRules(
+                currentPriorityRules
+            );
+        saveMixProfiles();
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus("Règles de priorité enregistrées.");
+}
+
+function resetPriorityRules() {
+    currentPriorityRules = {
+        ...DEFAULT_PRIORITY_RULES
+    };
+    lastPrioritySummary = null;
+    savePriorityRules();
+    displayPlaylists(playlistsCache);
+    setStatus("Toutes les priorités ont été réinitialisées.");
+}
+
+function toggleFavoredTrackAt(index) {
+    const track = selectedTracks[index];
+
+    if (!track?.uri) {
+        return;
+    }
+
+    const favored = currentPriorityRules
+        .favoredTrackUris
+        .includes(track.uri);
+
+    currentPriorityRules = normalizePriorityRules({
+        ...currentPriorityRules,
+        favoredTrackUris: favored
+            ? currentPriorityRules.favoredTrackUris
+                .filter((uri) => uri !== track.uri)
+            : [
+                ...currentPriorityRules.favoredTrackUris,
+                track.uri
+            ]
+    });
+
+    savePriorityRules();
+    renderTrackList();
+
+    setStatus(
+        favored
+            ? `« ${track.name || "Morceau"} » retiré des priorités.`
+            : `« ${track.name || "Morceau"} » ajouté aux priorités.`
+    );
+}
+
 function normalizeMixProfile(profile = {}) {
     return {
         id:
@@ -365,6 +749,9 @@ function normalizeMixProfile(profile = {}) {
         ),
         exclusionRules: normalizeExclusionRules(
             profile.exclusionRules
+        ),
+        priorityRules: normalizePriorityRules(
+            profile.priorityRules
         )
     };
 }
@@ -459,9 +846,13 @@ function applyMixProfile(profileId, {
     currentExclusionRules = normalizeExclusionRules(
         profile.exclusionRules
     );
+    currentPriorityRules = normalizePriorityRules(
+        profile.priorityRules
+    );
     activeProfileId = profile.id;
 
     saveExclusionRules();
+    savePriorityRules();
 
     if (persist) {
         saveActiveProfileId();
@@ -483,7 +874,11 @@ function clearActiveProfile() {
     currentExclusionRules = {
         ...DEFAULT_EXCLUSION_RULES
     };
+    currentPriorityRules = {
+        ...DEFAULT_PRIORITY_RULES
+    };
     saveExclusionRules();
+    savePriorityRules();
     displayPlaylists(playlistsCache);
     setStatus("Profil actif désactivé.");
 }
@@ -524,7 +919,8 @@ function createProfileFromCurrentSettings() {
             "Profil personnalisé créé à partir des réglages actuels.",
         isDefault: false,
         shuffleSettings: currentShuffleSettings,
-        exclusionRules: currentExclusionRules
+        exclusionRules: currentExclusionRules,
+        priorityRules: currentPriorityRules
     });
 
     mixProfiles = [profile, ...mixProfiles]
@@ -666,6 +1062,9 @@ function assignProfileToSavedMix(mixId, profileId) {
         mix.exclusionRules = normalizeExclusionRules(
             profile.exclusionRules
         );
+        mix.priorityRules = normalizePriorityRules(
+            profile.priorityRules
+        );
     }
 
     mix.updatedAt = Date.now();
@@ -682,7 +1081,8 @@ function assignProfileToSavedMix(mixId, profileId) {
 function getMixProfileSummary(profile) {
     return [
         getShufflePresetLabel(profile.shuffleSettings),
-        getExclusionRulesSummary(profile.exclusionRules)
+        getExclusionRulesSummary(profile.exclusionRules),
+        getPriorityRulesSummary(profile.priorityRules)
     ].join(" · ");
 }
 
@@ -1343,6 +1743,9 @@ function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
         albumPenalty:
             normalized.preset === "strict" ? 110 :
             normalized.preset === "soft" ? 45 : 70,
+        priorityRules: normalizePriorityRules(
+            currentPriorityRules
+        ),
         ...recentOptions
     };
 }
@@ -1410,7 +1813,10 @@ function readSavedMixes() {
                 profileId:
                     typeof mix.profileId === "string"
                         ? mix.profileId
-                        : ""
+                        : "",
+                priorityRules: normalizePriorityRules(
+                    mix.priorityRules
+                )
             }))
             .slice(0, MAX_SAVED_MIXES);
     } catch (error) {
@@ -1534,7 +1940,10 @@ function saveCurrentSourceSelection() {
             exclusionRules: normalizeExclusionRules(
                 currentExclusionRules
             ),
-            profileId: activeProfileId
+            profileId: activeProfileId,
+            priorityRules: normalizePriorityRules(
+                currentPriorityRules
+            )
         },
         ...savedMixes
     ];
@@ -1577,6 +1986,9 @@ async function launchSavedMix(mixId) {
         currentExclusionRules = normalizeExclusionRules(
             assignedProfile.exclusionRules
         );
+        currentPriorityRules = normalizePriorityRules(
+            assignedProfile.priorityRules
+        );
         activeProfileId = assignedProfile.id;
         saveActiveProfileId();
     } else {
@@ -1586,8 +1998,12 @@ async function launchSavedMix(mixId) {
         currentExclusionRules = normalizeExclusionRules(
             mix.exclusionRules
         );
+        currentPriorityRules = normalizePriorityRules(
+            mix.priorityRules
+        );
     }
     saveExclusionRules();
+    savePriorityRules();
     pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
 
@@ -1658,6 +2074,9 @@ function saveEditedMix() {
     mix.sourceKeys = sourceKeys;
     mix.exclusionRules = normalizeExclusionRules(
         currentExclusionRules
+    );
+    mix.priorityRules = normalizePriorityRules(
+        currentPriorityRules
     );
     mix.updatedAt = Date.now();
     saveSavedMixes();
@@ -1732,6 +2151,10 @@ function saveSavedMixSettings(mixId) {
     mix.exclusionRules = normalizeExclusionRules(
         selectedProfile?.exclusionRules ||
         currentExclusionRules
+    );
+    mix.priorityRules = normalizePriorityRules(
+        selectedProfile?.priorityRules ||
+        currentPriorityRules
     );
     mix.updatedAt = Date.now();
 
@@ -2001,6 +2424,13 @@ function renderSavedMixesSection() {
                                 getExclusionRulesSummary(
                                     normalizeExclusionRules(
                                         mix.exclusionRules
+                                    )
+                                )
+                            )}
+                            · ${escapeHtml(
+                                getPriorityRulesSummary(
+                                    normalizePriorityRules(
+                                        mix.priorityRules
                                     )
                                 )
                             )}
@@ -2673,7 +3103,10 @@ function normalizeImportedMixes(values) {
                 profileId:
                     typeof mix.profileId === "string"
                         ? mix.profileId
-                        : ""
+                        : "",
+                priorityRules: normalizePriorityRules(
+                    mix.priorityRules
+                )
             };
         })
         .filter((mix) => mix.sourceKeys.length)
@@ -2734,7 +3167,8 @@ function buildBackupPayload() {
             mixHistory,
             exclusionRules: currentExclusionRules,
             mixProfiles,
-            activeProfileId
+            activeProfileId,
+            priorityRules: currentPriorityRules
         }
     };
 }
@@ -2828,6 +3262,9 @@ function validateBackupPayload(payload) {
             typeof payload.data.activeProfileId === "string"
                 ? payload.data.activeProfileId
                 : "",
+        priorityRules: normalizePriorityRules(
+            payload.data.priorityRules
+        ),
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -2920,6 +3357,9 @@ async function importBackupFile(file) {
             : "";
         saveMixProfiles();
         saveActiveProfileId();
+        currentPriorityRules =
+            imported.priorityRules;
+        savePriorityRules();
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -3823,6 +4263,8 @@ function displayPlaylists(playlists) {
 
             ${renderMixProfilesSection()}
 
+            ${renderPriorityPanel()}
+
             ${renderExclusionPanel()}
 
             ${renderSavedMixesSection()}
@@ -4034,6 +4476,17 @@ function createTrackRow(track, index) {
                     ${index === selectedTracks.length - 1 ? "disabled" : ""}
                 >
                     ↓
+                </button>
+
+                <button
+                    class="track-priority-button ${currentPriorityRules.favoredTrackUris.includes(track.uri) ? "is-favored" : ""}"
+                    type="button"
+                    data-track-action="favorite"
+                    data-track-index="${index}"
+                    title="${currentPriorityRules.favoredTrackUris.includes(track.uri) ? "Retirer des priorités" : "Favoriser ce morceau"}"
+                    aria-label="${currentPriorityRules.favoredTrackUris.includes(track.uri) ? "Retirer" : "Favoriser"} ${trackName}"
+                >
+                    ${currentPriorityRules.favoredTrackUris.includes(track.uri) ? "★" : "☆"}
                 </button>
 
                 <button
@@ -4876,6 +5329,24 @@ function displayPlaylistDetails(playlist, tracks) {
                 `
                 : ""}
 
+            ${lastPrioritySummary?.favoredTotal
+                ? `
+                    <div class="priority-result-banner">
+                        <strong>
+                            ${lastPrioritySummary.favoredInFirstTwenty}
+                            favori${lastPrioritySummary.favoredInFirstTwenty > 1 ? "s" : ""}
+                            dans les 20 premiers
+                        </strong>
+                        <span>
+                            ${lastPrioritySummary.favoredTotal}
+                            morceau${lastPrioritySummary.favoredTotal > 1 ? "x" : ""}
+                            prioritaire${lastPrioritySummary.favoredTotal > 1 ? "s" : ""}
+                            dans ce mix
+                        </span>
+                    </div>
+                `
+                : ""}
+
             ${lastExclusionSummary?.excludedCount
                 ? `
                     <div class="exclusion-result-banner">
@@ -5394,6 +5865,10 @@ async function createSelectedMix() {
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
         );
+        buildPrioritySummary(
+            selectedTracks,
+            currentPriorityRules
+        );
         playbackQueueResumeKey =
             pendingSavedMixResumeKey ||
             `mix:${selectedKeys.slice().sort().join("|")}`;
@@ -5525,6 +6000,10 @@ async function openPlaylist(playlist) {
                 : `playlist:${playlist.id}`;
         selectedTracks = restorePlaybackQueueState(
             [...sourceTracks]
+        );
+        buildPrioritySummary(
+            selectedTracks,
+            currentPriorityRules
         );
         originalGeneratedOrder = [...selectedTracks];
         trackSearchTerm = "";
@@ -5703,6 +6182,14 @@ contentElement.addEventListener(
             return;
         }
 
+        const resetPriorityRulesButton =
+            event.target.closest("#resetPriorityRulesButton");
+
+        if (resetPriorityRulesButton) {
+            resetPriorityRules();
+            return;
+        }
+
         const resetExclusionRulesButton =
             event.target.closest("#resetExclusionRulesButton");
 
@@ -5771,6 +6258,8 @@ contentElement.addEventListener(
                 removeTrackAt(index);
             } else if (action === "exclude") {
                 excludeTrackAt(index);
+            } else if (action === "favorite") {
+                toggleFavoredTrackAt(index);
             }
 
             return;
@@ -5950,6 +6439,10 @@ contentElement.addEventListener(
                     normalizeExclusionRules(
                         activeProfile.exclusionRules
                     );
+                currentPriorityRules =
+                    normalizePriorityRules(
+                        activeProfile.priorityRules
+                    );
             } else {
                 currentShuffleSettings = {
                     ...DEFAULT_SHUFFLE_SETTINGS
@@ -6066,6 +6559,10 @@ contentElement.addEventListener(
                 sourceTracks,
                 getShuffleEngineOptions(currentShuffleSettings)
             );
+            buildPrioritySummary(
+                selectedTracks,
+                currentPriorityRules
+            );
             originalGeneratedOrder = [...selectedTracks];
             trackSearchTerm = "";
             markQueueChanged();
@@ -6101,6 +6598,12 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (event.target.id === "priorityRulesForm") {
+            event.preventDefault();
+            savePriorityRulesFromForm(event.target);
+            return;
+        }
+
         if (event.target.id === "exclusionRulesForm") {
             event.preventDefault();
             saveExclusionRulesFromForm(event.target);
