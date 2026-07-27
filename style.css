@@ -2151,3 +2151,219 @@ button:disabled {
 .playback-queue-progress-bar { display:block; width:0; height:100%; border-radius:inherit; background:linear-gradient(90deg,#1ed760 0%,#67e690 100%); transition:width .28s ease; }
 .playback-queue-progress { margin:0; color:#b8c9bd; font-size:13px; line-height:1.45; }
 @media (max-width:620px) { .playback-queue-heading { align-items:stretch; flex-direction:column; } .playback-queue-reset { width:100%; } }
+
+
+
+/* Shuffle+ v2.0.0 — Historique et statistiques */
+
+.mix-history-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #5b452f;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(86 59 31 / 68%) 0%,
+            rgb(20 20 20 / 96%) 72%
+        );
+}
+
+.mix-history-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.mix-history-heading h3 {
+    margin: 0 0 5px;
+    font-size: 20px;
+}
+
+.mix-history-heading p {
+    margin: 0;
+    color: #d1bda8;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.mix-history-clear {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid #76583b;
+    border-radius: 999px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 750;
+}
+
+.mix-history-clear:hover {
+    border-color: #ff9f62;
+    background: #392619;
+}
+
+.mix-history-empty {
+    padding: 22px;
+    border: 1px dashed #74563b;
+    border-radius: 13px;
+    color: #c6ad96;
+    text-align: center;
+}
+
+.mix-history-list {
+    display: grid;
+    gap: 13px;
+}
+
+.mix-history-card {
+    display: grid;
+    gap: 15px;
+    padding: 16px;
+    border: 1px solid #4a392a;
+    border-radius: 14px;
+    background: rgb(17 15 14 / 82%);
+}
+
+.mix-history-card-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mix-history-card h4 {
+    margin: 0 0 4px;
+    font-size: 17px;
+}
+
+.mix-history-card p {
+    margin: 0;
+    color: #bca58f;
+    font-size: 13px;
+}
+
+.mix-history-delete {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid #684c3a;
+    border-radius: 50%;
+    background: transparent;
+    color: #ffffff;
+}
+
+.mix-history-delete:hover {
+    border-color: #a45e5e;
+    background: #3a2323;
+}
+
+.mix-history-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.mix-history-metrics span {
+    display: grid;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid #3e332a;
+    border-radius: 11px;
+    background: #171412;
+    color: #bda995;
+    font-size: 12px;
+}
+
+.mix-history-metrics strong {
+    color: #ffb375;
+    font-size: 21px;
+}
+
+.mix-history-rankings {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.history-ranking {
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid #3f352d;
+    border-radius: 11px;
+    background: #141210;
+}
+
+.history-ranking > strong {
+    display: block;
+    margin-bottom: 9px;
+    color: #f0dfcf;
+    font-size: 13px;
+}
+
+.history-ranking ol {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding-left: 21px;
+}
+
+.history-ranking li {
+    color: #bca996;
+    font-size: 12px;
+}
+
+.history-ranking li span {
+    margin-right: 6px;
+}
+
+.history-ranking li b {
+    color: #ffb375;
+}
+
+.mix-history-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.mix-history-relaunch {
+    min-height: 42px;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 999px;
+    background: #1ed760;
+    color: #07190d;
+    font-weight: 750;
+}
+
+.mix-history-relaunch:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+@media (max-width: 850px) {
+    .mix-history-rankings {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 680px) {
+    .mix-history-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .mix-history-clear,
+    .mix-history-relaunch {
+        width: 100%;
+    }
+
+    .mix-history-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .mix-history-actions {
+        display: block;
+    }
+}

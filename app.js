@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.9.0";
+const APP_VERSION = "2.0.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -53,6 +53,8 @@ const MAX_IMPORTED_FAVORITES = 500;
 const MAX_IMPORTED_HISTORY = 50;
 const PLAYBACK_QUEUE_STATE_KEY = "shuffleplus_playback_queue_state_v1";
 const PLAYBACK_QUEUE_STATE_TTL = 30 * 24 * 60 * 60 * 1000;
+const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
+const MAX_MIX_HISTORY_ITEMS = 50;
 
 const DEFAULT_SHUFFLE_SETTINGS = {
     preset: "balanced",
@@ -121,6 +123,8 @@ let draggedTrackIndex = -1;
 let playbackQueueCursor = 0;
 let playbackQueueResumeKey = "";
 let pendingSavedMixResumeKey = "";
+let mixHistory = readMixHistory();
+let activeHistoryId = "";
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -179,6 +183,7 @@ function setDisconnectedInterface() {
     playbackQueueCursor = 0;
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
+    activeHistoryId = "";
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -1021,6 +1026,475 @@ function renderSavedMixesSection() {
 }
 
 
+
+function readMixHistory() {
+    try {
+        const raw = localStorage.getItem(MIX_HISTORY_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+
+        if (!Array.isArray(parsed)) {
+            return [];
+        }
+
+        return parsed
+            .filter((item) =>
+                item &&
+                typeof item.id === "string" &&
+                typeof item.name === "string" &&
+                Array.isArray(item.sourceKeys)
+            )
+            .map((item) => ({
+                id: item.id,
+                name: item.name.slice(0, 80),
+                sourceKeys: item.sourceKeys
+                    .filter((value) => typeof value === "string")
+                    .slice(0, MAX_MIX_SOURCES),
+                shuffleSettings: normalizeShuffleSettings(
+                    item.shuffleSettings
+                ),
+                createdAt: Number(item.createdAt || Date.now()),
+                lastLaunchedAt: Number(
+                    item.lastLaunchedAt || item.createdAt || Date.now()
+                ),
+                launchCount: Math.max(
+                    1,
+                    Number(item.launchCount || 1)
+                ),
+                totalTracks: Math.max(
+                    0,
+                    Number(item.totalTracks || 0)
+                ),
+                totalTracksSent: Math.max(
+                    0,
+                    Number(item.totalTracksSent || 0)
+                ),
+                topArtists: Array.isArray(item.topArtists)
+                    ? item.topArtists.slice(0, 5)
+                    : [],
+                topAlbums: Array.isArray(item.topAlbums)
+                    ? item.topAlbums.slice(0, 5)
+                    : [],
+                topFirstTwentyTracks:
+                    Array.isArray(item.topFirstTwentyTracks)
+                        ? item.topFirstTwentyTracks.slice(0, 5)
+                        : []
+            }))
+            .slice(0, MAX_MIX_HISTORY_ITEMS);
+    } catch (error) {
+        console.warn("Historique des mix illisible :", error);
+        return [];
+    }
+}
+
+function saveMixHistory() {
+    try {
+        localStorage.setItem(
+            MIX_HISTORY_KEY,
+            JSON.stringify(mixHistory)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer l’historique des mix :",
+            error
+        );
+    }
+}
+
+function countTopValues(values, limit = 5) {
+    const counts = new Map();
+
+    for (const value of values) {
+        const normalized = String(value || "").trim();
+
+        if (!normalized) {
+            continue;
+        }
+
+        counts.set(
+            normalized,
+            (counts.get(normalized) || 0) + 1
+        );
+    }
+
+    return [...counts.entries()]
+        .sort((first, second) =>
+            second[1] - first[1] ||
+            first[0].localeCompare(second[0], "fr", {
+                sensitivity: "base"
+            })
+        )
+        .slice(0, limit)
+        .map(([name, count]) => ({
+            name,
+            count
+        }));
+}
+
+function buildHistoryStatistics(tracks = selectedTracks) {
+    const artists = [];
+    const albums = [];
+    const firstTwenty = tracks.slice(0, 20);
+
+    for (const track of tracks) {
+        for (const artist of track?.artists || []) {
+            if (artist?.name) {
+                artists.push(artist.name);
+            }
+        }
+
+        if (track?.album?.name) {
+            albums.push(track.album.name);
+        }
+    }
+
+    return {
+        topArtists: countTopValues(artists),
+        topAlbums: countTopValues(albums),
+        topFirstTwentyTracks: countTopValues(
+            firstTwenty.map((track) => track?.name)
+        )
+    };
+}
+
+function registerMixHistoryLaunch({
+    name,
+    sourceKeys,
+    shuffleSettings,
+    tracks
+}) {
+    const normalizedSourceKeys = [...new Set(
+        sourceKeys.filter(
+            (value) => typeof value === "string"
+        )
+    )].slice(0, MAX_MIX_SOURCES);
+
+    const existing = mixHistory.find((item) =>
+        item.sourceKeys.length === normalizedSourceKeys.length &&
+        item.sourceKeys.every((value) =>
+            normalizedSourceKeys.includes(value)
+        )
+    );
+
+    const now = Date.now();
+    const statistics = buildHistoryStatistics(tracks);
+
+    if (existing) {
+        existing.name = name || existing.name;
+        existing.lastLaunchedAt = now;
+        existing.launchCount += 1;
+        existing.totalTracks = tracks.length;
+        existing.shuffleSettings =
+            normalizeShuffleSettings(shuffleSettings);
+        existing.topArtists = statistics.topArtists;
+        existing.topAlbums = statistics.topAlbums;
+        existing.topFirstTwentyTracks =
+            statistics.topFirstTwentyTracks;
+        activeHistoryId = existing.id;
+    } else {
+        const item = {
+            id: createSavedMixId(),
+            name: (name || "Mix Shuffle+").slice(0, 80),
+            sourceKeys: normalizedSourceKeys,
+            shuffleSettings:
+                normalizeShuffleSettings(shuffleSettings),
+            createdAt: now,
+            lastLaunchedAt: now,
+            launchCount: 1,
+            totalTracks: tracks.length,
+            totalTracksSent: 0,
+            ...statistics
+        };
+
+        mixHistory = [
+            item,
+            ...mixHistory
+        ].slice(0, MAX_MIX_HISTORY_ITEMS);
+        activeHistoryId = item.id;
+    }
+
+    mixHistory.sort(
+        (first, second) =>
+            second.lastLaunchedAt - first.lastLaunchedAt
+    );
+
+    saveMixHistory();
+}
+
+function addTracksSentToHistory(count) {
+    if (!activeHistoryId || count <= 0) {
+        return;
+    }
+
+    const item = mixHistory.find(
+        (entry) => entry.id === activeHistoryId
+    );
+
+    if (!item) {
+        return;
+    }
+
+    item.totalTracksSent += count;
+    item.lastLaunchedAt = Date.now();
+    saveMixHistory();
+}
+
+function formatHistoryDate(timestamp) {
+    if (!timestamp) {
+        return "Date inconnue";
+    }
+
+    return new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            dateStyle: "medium",
+            timeStyle: "short"
+        }
+    ).format(new Date(timestamp));
+}
+
+function renderHistoryRanking(title, values = []) {
+    if (!values.length) {
+        return "";
+    }
+
+    return `
+        <div class="history-ranking">
+            <strong>${escapeHtml(title)}</strong>
+            <ol>
+                ${values.map((item) => `
+                    <li>
+                        <span>${escapeHtml(item.name)}</span>
+                        <b>${Number(item.count || 0)}</b>
+                    </li>
+                `).join("")}
+            </ol>
+        </div>
+    `;
+}
+
+function renderMixHistorySection() {
+    const totalLaunches = mixHistory.reduce(
+        (sum, item) => sum + item.launchCount,
+        0
+    );
+
+    const totalTracksSent = mixHistory.reduce(
+        (sum, item) => sum + item.totalTracksSent,
+        0
+    );
+
+    if (!mixHistory.length) {
+        return `
+            <section class="mix-history-panel">
+                <div class="mix-history-heading">
+                    <div>
+                        <h3>Historique et statistiques</h3>
+                        <p>
+                            Les mix lancés et les morceaux envoyés
+                            à Spotify apparaîtront ici.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mix-history-empty">
+                    Aucun mix lancé pour le moment.
+                </div>
+            </section>
+        `;
+    }
+
+    const items = mixHistory.map((item) => {
+        const validSourceCount =
+            item.sourceKeys.filter((sourceKey) => {
+                if (sourceKey === "liked") {
+                    return true;
+                }
+
+                const playlistId =
+                    sourceKey.replace(/^playlist:/, "");
+
+                return playlistsCache.some(
+                    (playlist) =>
+                        playlist.id === playlistId &&
+                        canReadPlaylist(playlist)
+                );
+            }).length;
+
+        return `
+            <article class="mix-history-card">
+                <div class="mix-history-card-heading">
+                    <div>
+                        <h4>${escapeHtml(item.name)}</h4>
+                        <p>
+                            Dernier lancement :
+                            ${escapeHtml(formatHistoryDate(item.lastLaunchedAt))}
+                        </p>
+                    </div>
+
+                    <button
+                        class="mix-history-delete"
+                        type="button"
+                        data-history-action="delete"
+                        data-history-id="${escapeHtml(item.id)}"
+                        title="Supprimer cette entrée"
+                    >
+                        🗑️
+                    </button>
+                </div>
+
+                <div class="mix-history-metrics">
+                    <span>
+                        <strong>${item.launchCount}</strong>
+                        lancement${item.launchCount > 1 ? "s" : ""}
+                    </span>
+                    <span>
+                        <strong>${item.totalTracks}</strong>
+                        morceaux dans le dernier ordre
+                    </span>
+                    <span>
+                        <strong>${item.totalTracksSent}</strong>
+                        morceaux envoyés
+                    </span>
+                </div>
+
+                <div class="mix-history-rankings">
+                    ${renderHistoryRanking(
+                        "Artistes les plus présents",
+                        item.topArtists
+                    )}
+                    ${renderHistoryRanking(
+                        "Albums les plus présents",
+                        item.topAlbums
+                    )}
+                    ${renderHistoryRanking(
+                        "Titres souvent dans les 20 premiers",
+                        item.topFirstTwentyTracks
+                    )}
+                </div>
+
+                <div class="mix-history-actions">
+                    <button
+                        class="mix-history-relaunch"
+                        type="button"
+                        data-history-action="relaunch"
+                        data-history-id="${escapeHtml(item.id)}"
+                        ${validSourceCount ? "" : "disabled"}
+                    >
+                        ▶ Relancer ce mix
+                    </button>
+                </div>
+            </article>
+        `;
+    }).join("");
+
+    return `
+        <section class="mix-history-panel">
+            <div class="mix-history-heading">
+                <div>
+                    <h3>Historique et statistiques</h3>
+                    <p>
+                        ${totalLaunches} lancement${totalLaunches > 1 ? "s" : ""}
+                        · ${totalTracksSent} morceau${totalTracksSent > 1 ? "x" : ""}
+                        envoyé${totalTracksSent > 1 ? "s" : ""}
+                    </p>
+                </div>
+
+                <button
+                    id="clearMixHistoryButton"
+                    class="mix-history-clear"
+                    type="button"
+                >
+                    Vider l’historique
+                </button>
+            </div>
+
+            <div class="mix-history-list">
+                ${items}
+            </div>
+        </section>
+    `;
+}
+
+async function relaunchHistoryItem(historyId) {
+    const item = mixHistory.find(
+        (entry) => entry.id === historyId
+    );
+
+    if (!item) {
+        return;
+    }
+
+    const validSourceKeys = item.sourceKeys.filter(
+        (sourceKey) => {
+            if (sourceKey === "liked") {
+                return true;
+            }
+
+            const playlistId =
+                sourceKey.replace(/^playlist:/, "");
+
+            const playlist = playlistsCache.find(
+                (entry) => entry.id === playlistId
+            );
+
+            return Boolean(
+                playlist &&
+                canReadPlaylist(playlist)
+            );
+        }
+    );
+
+    if (!validSourceKeys.length) {
+        setStatus(
+            "Les sources de ce mix ne sont plus accessibles.",
+            "error"
+        );
+        return;
+    }
+
+    selectedSourceKeys.clear();
+
+    for (const sourceKey of validSourceKeys) {
+        selectedSourceKeys.add(sourceKey);
+    }
+
+    currentShuffleSettings =
+        normalizeShuffleSettings(item.shuffleSettings);
+    pendingSavedMixResumeKey =
+        `history:${item.id}`;
+
+    await createSelectedMix();
+}
+
+function deleteHistoryItem(historyId) {
+    mixHistory = mixHistory.filter(
+        (item) => item.id !== historyId
+    );
+    saveMixHistory();
+    displayPlaylists(playlistsCache);
+    setStatus("Entrée d’historique supprimée.");
+}
+
+function clearMixHistory() {
+    if (!mixHistory.length) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Vider tout l’historique des mix et toutes les statistiques ?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    mixHistory = [];
+    activeHistoryId = "";
+    saveMixHistory();
+    displayPlaylists(playlistsCache);
+    setStatus("Historique des mix vidé.");
+}
+
 function readTrackHistoryForBackup() {
     try {
         const raw = localStorage.getItem(TRACK_HISTORY_KEY);
@@ -1177,7 +1651,8 @@ function buildBackupPayload() {
                 sort: librarySort
             },
             recentTrackUris: readTrackHistoryForBackup(),
-            playbackQueueStates: readPlaybackQueueStates()
+            playbackQueueStates: readPlaybackQueueStates(),
+            mixHistory
         }
     };
 }
@@ -1250,6 +1725,10 @@ function validateBackupPayload(payload) {
             typeof payload.data.playbackQueueStates === "object"
                 ? payload.data.playbackQueueStates
                 : {},
+        mixHistory:
+            Array.isArray(payload.data.mixHistory)
+                ? payload.data.mixHistory
+                : [],
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -1321,6 +1800,15 @@ async function importBackupFile(file) {
             JSON.stringify(imported.recentTrackUris)
         );
         writePlaybackQueueStates(imported.playbackQueueStates);
+        mixHistory = imported.mixHistory
+            .filter((item) =>
+                item &&
+                typeof item.id === "string" &&
+                typeof item.name === "string" &&
+                Array.isArray(item.sourceKeys)
+            )
+            .slice(0, MAX_MIX_HISTORY_ITEMS);
+        saveMixHistory();
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -2223,6 +2711,8 @@ function displayPlaylists(playlists) {
             ${renderBackupPanel()}
 
             ${renderSavedMixesSection()}
+
+            ${renderMixHistorySection()}
 
             <section id="mixBuilder" class="mix-builder ${editingSavedMixId ? "is-editing" : ""}" aria-label="Créateur de mix">
                 <div class="mix-builder-copy">
@@ -3531,6 +4021,7 @@ async function playSelectedOrder() {
         playbackQueueCursor = queueBlock.end;
         saveCurrentPlaybackQueueState();
         rememberPlaybackOrder(queueBlock.tracks);
+        addTracksSentToHistory(queueBlock.tracks.length);
         const remaining = queueBlock.allPlayableTracks.length - playbackQueueCursor;
         playbackMessage.textContent = remaining > 0
             ? `Bloc ${queueBlock.start + 1}–${queueBlock.end} lancé. ${remaining} morceau${remaining > 1 ? "x" : ""} reste${remaining > 1 ? "nt" : ""} à envoyer.`
@@ -3706,6 +4197,14 @@ async function createSelectedMix() {
         selectedTracks = restorePlaybackQueueState(selectedTracks);
         originalGeneratedOrder = [...selectedTracks];
         trackSearchTerm = "";
+
+        registerMixHistoryLaunch({
+            name: selectedPlaylist.name,
+            sourceKeys: selectedKeys,
+            shuffleSettings: currentShuffleSettings,
+            tracks: selectedTracks
+        });
+
         pendingSavedMixResumeKey = "";
 
         displayPlaylistDetails(
@@ -3932,6 +4431,32 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const historyActionButton =
+            event.target.closest("[data-history-action]");
+
+        if (historyActionButton) {
+            const historyId =
+                historyActionButton.dataset.historyId || "";
+            const action =
+                historyActionButton.dataset.historyAction || "";
+
+            if (action === "relaunch") {
+                await relaunchHistoryItem(historyId);
+            } else if (action === "delete") {
+                deleteHistoryItem(historyId);
+            }
+
+            return;
+        }
+
+        const clearMixHistoryButton =
+            event.target.closest("#clearMixHistoryButton");
+
+        if (clearMixHistoryButton) {
+            clearMixHistory();
+            return;
+        }
+
         const exportBackupButton =
             event.target.closest("#exportBackupButton");
 
