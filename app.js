@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.9.0";
+const APP_VERSION = "3.0.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -106,15 +106,20 @@ const DEFAULT_CLEANUP_SETTINGS = {
     preferOriginal: true,
     removeUnavailable: true
 };
-const RULE_METADATA_KEY =
-    "shuffleplus_rule_metadata_v1";
-const CLEANUP_EXCEPTIONS_KEY =
-    "shuffleplus_cleanup_exceptions_v1";
-const LAST_DUPLICATE_GROUPS_KEY =
-    "shuffleplus_last_duplicate_groups_v1";
-const MAX_RULE_METADATA_ITEMS = 500;
-const MAX_CLEANUP_EXCEPTIONS = 300;
-const MAX_DUPLICATE_GROUPS = 100;
+const IOS_QUICKPLAY_KEY =
+    "shuffleplus_ios_quickplay_v1";
+const PENDING_AUTOMATION_KEY =
+    "shuffleplus_pending_automation_v1";
+const DEFAULT_IOS_QUICKPLAY_SETTINGS = {
+    playlistId: "",
+    playlistName: "",
+    deviceMode: "iphone",
+    deviceName: "",
+    shuffle: false,
+    startFromBeginning: true,
+    autoRetryCount: 5,
+    retryDelayMs: 1200
+};
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
 const MAX_MIX_SCHEDULES = 30;
@@ -384,11 +389,11 @@ let activeAdaptiveContext = null;
 let currentCleanupSettings = readCleanupSettings();
 let lastCleanupSummary = null;
 let lastCleanupSnapshot = null;
-let ruleMetadata = readRuleMetadata();
-let cleanupExceptions = readCleanupExceptions();
-let lastDuplicateGroups = readLastDuplicateGroups();
-let rulesManagerSearchTerm = "";
-let rulesManagerFilter = "all";
+let iosQuickPlaySettings =
+    readIosQuickPlaySettings();
+let pendingAutomationCommand =
+    readPendingAutomationCommand();
+let automationRunInProgress = false;
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -451,13 +456,12 @@ function setDisconnectedInterface() {
     playbackQueueCursor = 0;
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
+    automationRunInProgress = false;
     activeHistoryId = "";
     lastExclusionSummary = null;
     lastPrioritySummary = null;
     lastCleanupSummary = null;
     lastCleanupSnapshot = null;
-    rulesManagerSearchTerm = "";
-    rulesManagerFilter = "all";
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -500,6 +504,864 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+
+
+function normalizeIosQuickPlaySettings(
+    settings = {}
+) {
+    const deviceModes = new Set([
+        "iphone",
+        "active",
+        "named",
+        "first"
+    ]);
+
+    return {
+        playlistId:
+            typeof settings.playlistId === "string"
+                ? settings.playlistId
+                    .replace(
+                        /^spotify:playlist:/,
+                        ""
+                    )
+                    .trim()
+                    .slice(0, 120)
+                : "",
+        playlistName:
+            typeof settings.playlistName === "string"
+                ? settings.playlistName
+                    .trim()
+                    .slice(0, 160)
+                : "",
+        deviceMode:
+            deviceModes.has(settings.deviceMode)
+                ? settings.deviceMode
+                : "iphone",
+        deviceName:
+            typeof settings.deviceName === "string"
+                ? settings.deviceName
+                    .trim()
+                    .slice(0, 120)
+                : "",
+        shuffle: Boolean(settings.shuffle),
+        startFromBeginning:
+            settings.startFromBeginning !== false,
+        autoRetryCount: clampInteger(
+            settings.autoRetryCount,
+            1,
+            10,
+            5
+        ),
+        retryDelayMs: clampInteger(
+            settings.retryDelayMs,
+            500,
+            5000,
+            1200
+        )
+    };
+}
+
+function readIosQuickPlaySettings() {
+    try {
+        const raw = localStorage.getItem(
+            IOS_QUICKPLAY_KEY
+        );
+
+        return normalizeIosQuickPlaySettings(
+            raw ? JSON.parse(raw) : {}
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages iOS illisibles :",
+            error
+        );
+        return {
+            ...DEFAULT_IOS_QUICKPLAY_SETTINGS
+        };
+    }
+}
+
+function saveIosQuickPlaySettings() {
+    try {
+        localStorage.setItem(
+            IOS_QUICKPLAY_KEY,
+            JSON.stringify(iosQuickPlaySettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer le raccourci iOS :",
+            error
+        );
+    }
+}
+
+function normalizeAutomationCommand(command = {}) {
+    const action =
+        typeof command.action === "string"
+            ? command.action.toLowerCase()
+            : "";
+
+    return {
+        action,
+        playlistId:
+            typeof command.playlistId === "string"
+                ? command.playlistId
+                    .replace(
+                        /^spotify:playlist:/,
+                        ""
+                    )
+                    .trim()
+                    .slice(0, 120)
+                : "",
+        mixId:
+            typeof command.mixId === "string"
+                ? command.mixId.slice(0, 120)
+                : "",
+        profileId:
+            typeof command.profileId === "string"
+                ? command.profileId.slice(0, 120)
+                : "",
+        autoplay:
+            command.autoplay !== false,
+        createdAt: Number(
+            command.createdAt || Date.now()
+        )
+    };
+}
+
+function readPendingAutomationCommand() {
+    try {
+        const raw = sessionStorage.getItem(
+            PENDING_AUTOMATION_KEY
+        );
+
+        return raw
+            ? normalizeAutomationCommand(
+                JSON.parse(raw)
+            )
+            : null;
+    } catch (error) {
+        return null;
+    }
+}
+
+function savePendingAutomationCommand(command) {
+    pendingAutomationCommand =
+        command
+            ? normalizeAutomationCommand(command)
+            : null;
+
+    try {
+        if (pendingAutomationCommand) {
+            sessionStorage.setItem(
+                PENDING_AUTOMATION_KEY,
+                JSON.stringify(
+                    pendingAutomationCommand
+                )
+            );
+        } else {
+            sessionStorage.removeItem(
+                PENDING_AUTOMATION_KEY
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Commande d’automatisation non mémorisée :",
+            error
+        );
+    }
+}
+
+function parseAutomationCommandFromUrl() {
+    const params = new URLSearchParams(
+        window.location.search
+    );
+    const action =
+        String(params.get("action") || "")
+            .toLowerCase();
+
+    if (!action) {
+        return null;
+    }
+
+    return normalizeAutomationCommand({
+        action,
+        playlistId:
+            params.get("playlist") ||
+            params.get("playlistId") ||
+            "",
+        mixId:
+            params.get("mix") ||
+            params.get("mixId") ||
+            "",
+        profileId:
+            params.get("profile") ||
+            params.get("profileId") ||
+            "",
+        autoplay:
+            params.get("autoplay") !== "0",
+        createdAt: Date.now()
+    });
+}
+
+function clearAutomationQueryString() {
+    const url = new URL(
+        window.location.href
+    );
+
+    for (const key of [
+        "action",
+        "playlist",
+        "playlistId",
+        "mix",
+        "mixId",
+        "profile",
+        "profileId",
+        "autoplay"
+    ]) {
+        url.searchParams.delete(key);
+    }
+
+    window.history.replaceState(
+        {},
+        document.title,
+        `${url.pathname}${url.search}${url.hash}`
+    );
+}
+
+function buildIosQuickPlayUrl() {
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+
+    url.searchParams.set(
+        "action",
+        "quickplay"
+    );
+
+    if (iosQuickPlaySettings.playlistId) {
+        url.searchParams.set(
+            "playlist",
+            iosQuickPlaySettings.playlistId
+        );
+    }
+
+    url.searchParams.set(
+        "autoplay",
+        "1"
+    );
+
+    return url.toString();
+}
+
+function getIosQuickPlayPlaylist() {
+    return playlistsCache.find(
+        (playlist) =>
+            playlist.id ===
+            iosQuickPlaySettings.playlistId
+    ) || null;
+}
+
+function findAutomationDevice(
+    devices,
+    settings = iosQuickPlaySettings
+) {
+    if (!devices.length) {
+        return null;
+    }
+
+    if (
+        settings.deviceMode === "named" &&
+        settings.deviceName
+    ) {
+        const wanted =
+            normalizeSearchText(
+                settings.deviceName
+            );
+
+        const named = devices.find(
+            (device) =>
+                normalizeSearchText(
+                    device.name
+                ).includes(wanted)
+        );
+
+        if (named) {
+            return named;
+        }
+    }
+
+    if (settings.deviceMode === "iphone") {
+        const iphone = devices.find(
+            (device) => {
+                const name =
+                    normalizeSearchText(
+                        device.name
+                    );
+                const type =
+                    normalizeSearchText(
+                        device.type
+                    );
+
+                return (
+                    name.includes("iphone") ||
+                    type === "smartphone"
+                );
+            }
+        );
+
+        if (iphone) {
+            return iphone;
+        }
+    }
+
+    if (
+        settings.deviceMode === "active" ||
+        settings.deviceMode === "iphone"
+    ) {
+        const active = devices.find(
+            (device) => device.is_active
+        );
+
+        if (active) {
+            return active;
+        }
+    }
+
+    return devices[0];
+}
+
+async function getAutomationDeviceWithRetry(
+    settings = iosQuickPlaySettings
+) {
+    let lastDevices = [];
+
+    for (
+        let attempt = 1;
+        attempt <= settings.autoRetryCount;
+        attempt += 1
+    ) {
+        try {
+            lastDevices =
+                await getAvailableDevices();
+            availableDevices = lastDevices;
+
+            const device =
+                findAutomationDevice(
+                    lastDevices,
+                    settings
+                );
+
+            if (device) {
+                return device;
+            }
+        } catch (error) {
+            console.warn(
+                `Recherche appareil ${attempt}/${settings.autoRetryCount} :`,
+                error
+            );
+        }
+
+        if (
+            attempt <
+            settings.autoRetryCount
+        ) {
+            setStatus(
+                `Recherche de l’iPhone… ${attempt}/${settings.autoRetryCount}`
+            );
+            await wait(
+                settings.retryDelayMs
+            );
+        }
+    }
+
+    return null;
+}
+
+async function startPlaylistContextPlayback(
+    playlistId,
+    deviceId,
+    {
+        shuffle = false,
+        startFromBeginning = true
+    } = {}
+) {
+    const accessToken =
+        await getValidAccessToken();
+
+    if (!accessToken) {
+        throw new Error(
+            "La connexion Spotify doit être renouvelée."
+        );
+    }
+
+    await transferPlayback(
+        deviceId,
+        false
+    );
+    await wait(700);
+
+    const url = new URL(
+        "https://api.spotify.com/v1/me/player/play"
+    );
+    url.searchParams.set(
+        "device_id",
+        deviceId
+    );
+
+    const body = {
+        context_uri:
+            `spotify:playlist:${playlistId}`
+    };
+
+    if (startFromBeginning) {
+        body.offset = {
+            position: 0
+        };
+        body.position_ms = 0;
+    }
+
+    const response = await fetch(
+        url.toString(),
+        {
+            method: "PUT",
+            headers: {
+                Authorization:
+                    `Bearer ${accessToken}`,
+                "Content-Type":
+                    "application/json"
+            },
+            body: JSON.stringify(body)
+        }
+    );
+
+    if (!response.ok) {
+        let message =
+            `Spotify a refusé la lecture (${response.status}).`;
+
+        try {
+            const payload =
+                await response.json();
+            message =
+                payload?.error?.message ||
+                message;
+        } catch (error) {
+            // Réponse sans JSON.
+        }
+
+        throw new Error(message);
+    }
+
+    await wait(500);
+
+    try {
+        await setPlaybackShuffle(
+            shuffle,
+            deviceId
+        );
+    } catch (error) {
+        console.warn(
+            "Réglage du shuffle non appliqué :",
+            error
+        );
+    }
+}
+
+async function runIosQuickPlay(
+    playlistId = ""
+) {
+    if (automationRunInProgress) {
+        return;
+    }
+
+    const resolvedPlaylistId =
+        playlistId ||
+        iosQuickPlaySettings.playlistId;
+
+    if (!resolvedPlaylistId) {
+        setStatus(
+            "Choisis d’abord la playlist fixe du raccourci iOS.",
+            "error"
+        );
+        displayPlaylists(playlistsCache);
+        return;
+    }
+
+    automationRunInProgress = true;
+    setStatus(
+        "Lecture immédiate iOS : recherche de l’iPhone…"
+    );
+
+    try {
+        if (isKnownNonPremiumAccount()) {
+            throw new Error(
+                "La lecture à distance nécessite Spotify Premium."
+            );
+        }
+
+        const device =
+            await getAutomationDeviceWithRetry(
+                iosQuickPlaySettings
+            );
+
+        if (!device) {
+            throw new Error(
+                "Aucun iPhone ou appareil Spotify disponible. Ouvre Spotify sur l’iPhone puis relance le raccourci."
+            );
+        }
+
+        setStatus(
+            `Lancement sur ${device.name}…`
+        );
+
+        await startPlaylistContextPlayback(
+            resolvedPlaylistId,
+            device.id,
+            {
+                shuffle:
+                    iosQuickPlaySettings.shuffle,
+                startFromBeginning:
+                    iosQuickPlaySettings
+                        .startFromBeginning
+            }
+        );
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+
+        contentElement.innerHTML = `
+            <section class="ios-automation-success">
+                <span>▶</span>
+                <h2>Playlist lancée</h2>
+                <p>
+                    Lecture démarrée sur
+                    <strong>
+                        ${escapeHtml(device.name)}
+                    </strong>.
+                </p>
+                <button
+                    id="backToPlaylists"
+                    class="primary-button"
+                    type="button"
+                >
+                    Ouvrir Shuffle+
+                </button>
+            </section>
+        `;
+
+        setStatus(
+            `Playlist lancée sur ${device.name}.`
+        );
+    } catch (error) {
+        console.error(error);
+        savePendingAutomationCommand(null);
+
+        contentElement.innerHTML = `
+            <section class="ios-automation-error">
+                <span>⚠️</span>
+                <h2>Lecture automatique impossible</h2>
+                <p>
+                    ${escapeHtml(
+                        error.message ||
+                        "Une erreur est survenue."
+                    )}
+                </p>
+                <button
+                    id="retryIosQuickPlayButton"
+                    class="primary-button"
+                    type="button"
+                >
+                    Réessayer
+                </button>
+                <button
+                    id="backToPlaylists"
+                    class="secondary-button"
+                    type="button"
+                >
+                    Ouvrir Shuffle+
+                </button>
+            </section>
+        `;
+
+        setStatus(
+            error.message ||
+            "Lecture automatique impossible.",
+            "error"
+        );
+    } finally {
+        automationRunInProgress = false;
+    }
+}
+
+async function executeAutomationCommand(
+    command
+) {
+    if (
+        !command ||
+        automationRunInProgress
+    ) {
+        return;
+    }
+
+    const normalized =
+        normalizeAutomationCommand(command);
+
+    if (
+        normalized.action === "quickplay" ||
+        normalized.action ===
+            "play-playlist"
+    ) {
+        await runIosQuickPlay(
+            normalized.playlistId
+        );
+        return;
+    }
+
+    if (
+        normalized.action === "launch" &&
+        normalized.mixId
+    ) {
+        await launchSavedMix(
+            normalized.mixId
+        );
+
+        if (normalized.autoplay) {
+            const device =
+                await getAutomationDeviceWithRetry(
+                    iosQuickPlaySettings
+                );
+
+            if (
+                device &&
+                selectedTracks.length
+            ) {
+                await transferPlayback(
+                    device.id,
+                    false
+                );
+                await wait(700);
+                await startPlayback(
+                    selectedTracks
+                        .slice(
+                            0,
+                            MAX_DIRECT_PLAYBACK_TRACKS
+                        )
+                        .map(
+                            (track) => track?.uri
+                        )
+                        .filter(Boolean),
+                    device.id
+                );
+            }
+        }
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+    }
+}
+
+function renderIosQuickPlayPanel() {
+    const settings =
+        normalizeIosQuickPlaySettings(
+            iosQuickPlaySettings
+        );
+    const playlistOptions = playlistsCache
+        .filter(
+            (playlist) =>
+                playlist?.id &&
+                canReadPlaylist(playlist)
+        )
+        .map((playlist) => `
+            <option
+                value="${escapeHtml(playlist.id)}"
+                ${playlist.id === settings.playlistId ? "selected" : ""}
+            >
+                ${escapeHtml(
+                    playlist.name ||
+                    "Playlist sans nom"
+                )}
+            </option>
+        `)
+        .join("");
+
+    return `
+        <section class="ios-quickplay-panel">
+            <div class="ios-quickplay-heading">
+                <div>
+                    <h3>Lecture immédiate iOS</h3>
+                    <p>
+                        Une pression sur le raccourci lance
+                        toujours la playlist choisie.
+                    </p>
+                </div>
+                <span>v3.0</span>
+            </div>
+
+            <form
+                id="iosQuickPlayForm"
+                class="ios-quickplay-form"
+            >
+                <label class="ios-quickplay-field">
+                    <span>Playlist fixe</span>
+                    <select
+                        name="playlistId"
+                        required
+                    >
+                        <option value="">
+                            Choisir une playlist
+                        </option>
+                        ${playlistOptions}
+                    </select>
+                </label>
+
+                <label class="ios-quickplay-field">
+                    <span>Appareil à privilégier</span>
+                    <select name="deviceMode">
+                        <option value="iphone" ${settings.deviceMode === "iphone" ? "selected" : ""}>
+                            iPhone ou smartphone
+                        </option>
+                        <option value="active" ${settings.deviceMode === "active" ? "selected" : ""}>
+                            Appareil Spotify actif
+                        </option>
+                        <option value="first" ${settings.deviceMode === "first" ? "selected" : ""}>
+                            Premier appareil disponible
+                        </option>
+                        <option value="named" ${settings.deviceMode === "named" ? "selected" : ""}>
+                            Appareil portant un nom précis
+                        </option>
+                    </select>
+                </label>
+
+                <label class="ios-quickplay-field">
+                    <span>Nom de l’appareil, facultatif</span>
+                    <input
+                        name="deviceName"
+                        type="text"
+                        maxlength="120"
+                        value="${escapeHtml(settings.deviceName)}"
+                        placeholder="Ex. iPhone de Max"
+                    >
+                </label>
+
+                <label class="ios-quickplay-check">
+                    <input
+                        name="shuffle"
+                        type="checkbox"
+                        ${settings.shuffle ? "checked" : ""}
+                    >
+                    <span>Activer le shuffle Spotify</span>
+                </label>
+
+                <label class="ios-quickplay-check">
+                    <input
+                        name="startFromBeginning"
+                        type="checkbox"
+                        ${settings.startFromBeginning ? "checked" : ""}
+                    >
+                    <span>
+                        Recommencer au premier morceau
+                    </span>
+                </label>
+
+                <div class="ios-quickplay-actions">
+                    <button
+                        class="ios-quickplay-save"
+                        type="submit"
+                    >
+                        Enregistrer
+                    </button>
+                    <button
+                        id="testIosQuickPlayButton"
+                        class="ios-quickplay-test"
+                        type="button"
+                        ${settings.playlistId ? "" : "disabled"}
+                    >
+                        ▶ Tester maintenant
+                    </button>
+                    <button
+                        id="copyIosShortcutUrlButton"
+                        class="ios-quickplay-copy"
+                        type="button"
+                        ${settings.playlistId ? "" : "disabled"}
+                    >
+                        Copier l’URL du raccourci
+                    </button>
+                </div>
+            </form>
+
+            <div class="ios-shortcut-instructions">
+                <strong>Raccourci iOS à créer</strong>
+                <span>
+                    1. Ouvrir l’app Spotify ·
+                    2. Attendre 1 seconde ·
+                    3. Ouvrir l’URL copiée
+                </span>
+                <code>
+                    ${escapeHtml(
+                        buildIosQuickPlayUrl()
+                    )}
+                </code>
+            </div>
+        </section>
+    `;
+}
+
+function saveIosQuickPlayFromForm(form) {
+    const formData = new FormData(form);
+    const playlistId =
+        String(
+            formData.get("playlistId") || ""
+        );
+    const playlist = playlistsCache.find(
+        (item) => item.id === playlistId
+    );
+
+    iosQuickPlaySettings =
+        normalizeIosQuickPlaySettings({
+            playlistId,
+            playlistName:
+                playlist?.name || "",
+            deviceMode:
+                formData.get("deviceMode"),
+            deviceName:
+                formData.get("deviceName"),
+            shuffle:
+                formData.get("shuffle") === "on",
+            startFromBeginning:
+                formData.get(
+                    "startFromBeginning"
+                ) === "on",
+            autoRetryCount:
+                iosQuickPlaySettings.autoRetryCount,
+            retryDelayMs:
+                iosQuickPlaySettings.retryDelayMs
+        });
+
+    saveIosQuickPlaySettings();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Raccourci iOS configuré pour « ${playlist?.name || "la playlist"} ».`
+    );
+}
+
+async function copyIosQuickPlayUrl() {
+    const url = buildIosQuickPlayUrl();
+
+    try {
+        await navigator.clipboard.writeText(
+            url
+        );
+        setStatus(
+            "URL du raccourci iOS copiée."
+        );
+    } catch (error) {
+        window.prompt(
+            "Copie cette URL dans ton raccourci iOS :",
+            url
+        );
+    }
+}
 
 function normalizeScheduleDays(values) {
     if (!Array.isArray(values)) {
@@ -1555,896 +2417,6 @@ function startScheduleWatcher() {
 
 
 
-
-function normalizeTrackMetadata(track = {}, uri = "") {
-    const images = track?.album?.images || [];
-
-    return {
-        uri:
-            uri ||
-            (typeof track?.uri === "string"
-                ? track.uri
-                : ""),
-        name:
-            typeof track?.name === "string"
-                ? track.name.slice(0, 180)
-                : "Morceau Spotify",
-        artists:
-            (track?.artists || [])
-                .map((artist) => artist?.name)
-                .filter(Boolean)
-                .join(", ")
-                .slice(0, 220),
-        album:
-            typeof track?.album?.name === "string"
-                ? track.album.name.slice(0, 180)
-                : "",
-        image:
-            images[images.length - 1]?.url ||
-            images[0]?.url ||
-            "",
-        spotifyUrl:
-            track?.external_urls?.spotify || "",
-        updatedAt: Date.now()
-    };
-}
-
-function normalizeRuleMetadata(value = {}) {
-    if (!value || typeof value !== "object") {
-        return {};
-    }
-
-    const result = {};
-    const entries = Object.entries(value)
-        .slice(0, MAX_RULE_METADATA_ITEMS);
-
-    for (const [uri, metadata] of entries) {
-        if (
-            !uri.startsWith("spotify:track:") ||
-            !metadata ||
-            typeof metadata !== "object"
-        ) {
-            continue;
-        }
-
-        result[uri] = {
-            uri,
-            name:
-                typeof metadata.name === "string"
-                    ? metadata.name.slice(0, 180)
-                    : "Morceau Spotify",
-            artists:
-                typeof metadata.artists === "string"
-                    ? metadata.artists.slice(0, 220)
-                    : "",
-            album:
-                typeof metadata.album === "string"
-                    ? metadata.album.slice(0, 180)
-                    : "",
-            image:
-                typeof metadata.image === "string"
-                    ? metadata.image
-                    : "",
-            spotifyUrl:
-                typeof metadata.spotifyUrl === "string"
-                    ? metadata.spotifyUrl
-                    : "",
-            updatedAt: Number(
-                metadata.updatedAt || Date.now()
-            )
-        };
-    }
-
-    return result;
-}
-
-function readRuleMetadata() {
-    try {
-        const raw = localStorage.getItem(
-            RULE_METADATA_KEY
-        );
-
-        return normalizeRuleMetadata(
-            raw ? JSON.parse(raw) : {}
-        );
-    } catch (error) {
-        console.warn(
-            "Métadonnées des règles illisibles :",
-            error
-        );
-        return {};
-    }
-}
-
-function saveRuleMetadata() {
-    try {
-        localStorage.setItem(
-            RULE_METADATA_KEY,
-            JSON.stringify(ruleMetadata)
-        );
-    } catch (error) {
-        console.warn(
-            "Impossible d’enregistrer les métadonnées :",
-            error
-        );
-    }
-}
-
-function rememberRuleTrack(track) {
-    if (!track?.uri) {
-        return;
-    }
-
-    ruleMetadata = {
-        ...ruleMetadata,
-        [track.uri]: normalizeTrackMetadata(track)
-    };
-
-    const entries = Object.entries(ruleMetadata)
-        .sort(
-            (first, second) =>
-                Number(second[1]?.updatedAt || 0) -
-                Number(first[1]?.updatedAt || 0)
-        )
-        .slice(0, MAX_RULE_METADATA_ITEMS);
-
-    ruleMetadata = Object.fromEntries(entries);
-    saveRuleMetadata();
-}
-
-function normalizeCleanupExceptions(values) {
-    if (!Array.isArray(values)) {
-        return [];
-    }
-
-    return [...new Set(
-        values
-            .map((value) =>
-                String(value || "").trim()
-            )
-            .filter(Boolean)
-    )].slice(0, MAX_CLEANUP_EXCEPTIONS);
-}
-
-function readCleanupExceptions() {
-    try {
-        const raw = localStorage.getItem(
-            CLEANUP_EXCEPTIONS_KEY
-        );
-
-        return normalizeCleanupExceptions(
-            raw ? JSON.parse(raw) : []
-        );
-    } catch (error) {
-        console.warn(
-            "Exceptions anti-doublons illisibles :",
-            error
-        );
-        return [];
-    }
-}
-
-function saveCleanupExceptions() {
-    try {
-        localStorage.setItem(
-            CLEANUP_EXCEPTIONS_KEY,
-            JSON.stringify(cleanupExceptions)
-        );
-    } catch (error) {
-        console.warn(
-            "Impossible d’enregistrer les exceptions :",
-            error
-        );
-    }
-}
-
-function normalizeDuplicateGroups(groups) {
-    if (!Array.isArray(groups)) {
-        return [];
-    }
-
-    return groups
-        .filter(
-            (group) =>
-                group &&
-                typeof group === "object"
-        )
-        .map((group) => ({
-            key:
-                typeof group.key === "string"
-                    ? group.key
-                    : "",
-            kept:
-                normalizeTrackMetadata(
-                    group.kept || {},
-                    group.kept?.uri || ""
-                ),
-            removed:
-                normalizeTrackMetadata(
-                    group.removed || {},
-                    group.removed?.uri || ""
-                ),
-            artist:
-                typeof group.artist === "string"
-                    ? group.artist.slice(0, 180)
-                    : "",
-            sources:
-                Array.isArray(group.sources)
-                    ? group.sources
-                        .map((value) =>
-                            String(value || "").slice(0, 120)
-                        )
-                        .filter(Boolean)
-                        .slice(0, 20)
-                    : []
-        }))
-        .slice(0, MAX_DUPLICATE_GROUPS);
-}
-
-function readLastDuplicateGroups() {
-    try {
-        const raw = localStorage.getItem(
-            LAST_DUPLICATE_GROUPS_KEY
-        );
-
-        return normalizeDuplicateGroups(
-            raw ? JSON.parse(raw) : []
-        );
-    } catch (error) {
-        console.warn(
-            "Historique des doublons illisible :",
-            error
-        );
-        return [];
-    }
-}
-
-function saveLastDuplicateGroups() {
-    try {
-        localStorage.setItem(
-            LAST_DUPLICATE_GROUPS_KEY,
-            JSON.stringify(lastDuplicateGroups)
-        );
-    } catch (error) {
-        console.warn(
-            "Impossible d’enregistrer les doublons :",
-            error
-        );
-    }
-}
-
-function getCleanupExceptionKey(
-    firstTrack,
-    secondTrack
-) {
-    const values = [
-        firstTrack?.uri || firstTrack?.id || "",
-        secondTrack?.uri || secondTrack?.id || ""
-    ]
-        .filter(Boolean)
-        .sort();
-
-    return values.join("|");
-}
-
-function hasCleanupException(
-    firstTrack,
-    secondTrack
-) {
-    const key = getCleanupExceptionKey(
-        firstTrack,
-        secondTrack
-    );
-
-    return Boolean(
-        key && cleanupExceptions.includes(key)
-    );
-}
-
-function getCurrentSettingsSnapshot() {
-    return {
-        shuffleSettings:
-            normalizeShuffleSettings(
-                currentShuffleSettings
-            ),
-        exclusionRules:
-            normalizeExclusionRules(
-                currentExclusionRules
-            ),
-        priorityRules:
-            normalizePriorityRules(
-                currentPriorityRules
-            ),
-        coherenceSettings:
-            normalizeCoherenceSettings(
-                currentCoherenceSettings
-            ),
-        intensitySettings:
-            normalizeIntensitySettings(
-                currentIntensitySettings
-            ),
-        cleanupSettings:
-            normalizeCleanupSettings(
-                currentCleanupSettings
-            )
-    };
-}
-
-function getProfileSettingsSnapshot(profile) {
-    return {
-        shuffleSettings:
-            normalizeShuffleSettings(
-                profile?.shuffleSettings
-            ),
-        exclusionRules:
-            normalizeExclusionRules(
-                profile?.exclusionRules
-            ),
-        priorityRules:
-            normalizePriorityRules(
-                profile?.priorityRules
-            ),
-        coherenceSettings:
-            normalizeCoherenceSettings(
-                profile?.coherenceSettings
-            ),
-        intensitySettings:
-            normalizeIntensitySettings(
-                profile?.intensitySettings
-            ),
-        cleanupSettings:
-            normalizeCleanupSettings(
-                profile?.cleanupSettings
-            )
-    };
-}
-
-function isActiveProfileModified() {
-    const profile = getActiveProfile();
-
-    if (!profile) {
-        return false;
-    }
-
-    return JSON.stringify(
-        getCurrentSettingsSnapshot()
-    ) !== JSON.stringify(
-        getProfileSettingsSnapshot(profile)
-    );
-}
-
-function updateActiveProfileFromCurrent() {
-    const profile = getActiveProfile();
-
-    if (!profile) {
-        return;
-    }
-
-    const snapshot = getCurrentSettingsSnapshot();
-
-    Object.assign(profile, snapshot);
-    saveMixProfiles();
-    displayPlaylists(playlistsCache);
-    setStatus(
-        `Profil « ${profile.name} » mis à jour.`
-    );
-}
-
-function restoreActiveProfileSettings() {
-    const profile = getActiveProfile();
-
-    if (!profile) {
-        return;
-    }
-
-    applyMixProfile(profile.id);
-    setStatus(
-        `Réglages du profil « ${profile.name} » restaurés.`
-    );
-}
-
-function removeTrackRule(type, uri) {
-    if (!uri) {
-        return;
-    }
-
-    if (type === "priority-track") {
-        currentPriorityRules =
-            normalizePriorityRules({
-                ...currentPriorityRules,
-                favoredTrackUris:
-                    currentPriorityRules
-                        .favoredTrackUris
-                        .filter(
-                            (item) => item !== uri
-                        )
-            });
-        savePriorityRules();
-    } else if (type === "exclusion-track") {
-        currentExclusionRules =
-            normalizeExclusionRules({
-                ...currentExclusionRules,
-                excludedTrackUris:
-                    currentExclusionRules
-                        .excludedTrackUris
-                        .filter(
-                            (item) => item !== uri
-                        )
-            });
-        saveExclusionRules();
-    }
-
-    displayPlaylists(playlistsCache);
-    setStatus("Règle supprimée.");
-}
-
-function removeTextRule(type, index) {
-    const safeIndex = Number(index);
-
-    if (!Number.isInteger(safeIndex)) {
-        return;
-    }
-
-    if (type === "priority-artist") {
-        currentPriorityRules.favoredArtists.splice(
-            safeIndex,
-            1
-        );
-        currentPriorityRules =
-            normalizePriorityRules(
-                currentPriorityRules
-            );
-        savePriorityRules();
-    } else if (type === "priority-album") {
-        currentPriorityRules.favoredAlbums.splice(
-            safeIndex,
-            1
-        );
-        currentPriorityRules =
-            normalizePriorityRules(
-                currentPriorityRules
-            );
-        savePriorityRules();
-    } else if (type === "exclusion-artist") {
-        currentExclusionRules.excludedArtists.splice(
-            safeIndex,
-            1
-        );
-        currentExclusionRules =
-            normalizeExclusionRules(
-                currentExclusionRules
-            );
-        saveExclusionRules();
-    } else if (type === "exclusion-album") {
-        currentExclusionRules.excludedAlbums.splice(
-            safeIndex,
-            1
-        );
-        currentExclusionRules =
-            normalizeExclusionRules(
-                currentExclusionRules
-            );
-        saveExclusionRules();
-    }
-
-    displayPlaylists(playlistsCache);
-    setStatus("Règle supprimée.");
-}
-
-function clearAllManagedRules() {
-    const confirmed = window.confirm(
-        "Supprimer toutes les priorités, exclusions manuelles et exceptions anti-doublons ?"
-    );
-
-    if (!confirmed) {
-        return;
-    }
-
-    currentPriorityRules =
-        normalizePriorityRules({
-            ...currentPriorityRules,
-            favoredArtists: [],
-            favoredAlbums: [],
-            favoredTrackUris: []
-        });
-    currentExclusionRules =
-        normalizeExclusionRules({
-            ...currentExclusionRules,
-            excludedArtists: [],
-            excludedAlbums: [],
-            excludedTrackUris: []
-        });
-    cleanupExceptions = [];
-    savePriorityRules();
-    saveExclusionRules();
-    saveCleanupExceptions();
-    displayPlaylists(playlistsCache);
-    setStatus(
-        "Toutes les règles manuelles ont été supprimées."
-    );
-}
-
-function addDuplicateException(groupIndex) {
-    const group = lastDuplicateGroups[
-        Number(groupIndex)
-    ];
-
-    if (!group) {
-        return;
-    }
-
-    const key = getCleanupExceptionKey(
-        group.kept,
-        group.removed
-    );
-
-    if (!key) {
-        return;
-    }
-
-    cleanupExceptions =
-        normalizeCleanupExceptions([
-            ...cleanupExceptions,
-            key
-        ]);
-    saveCleanupExceptions();
-    displayPlaylists(playlistsCache);
-    setStatus(
-        "Exception permanente ajoutée : ces deux versions resteront séparées."
-    );
-}
-
-function removeCleanupException(index) {
-    cleanupExceptions.splice(
-        Number(index),
-        1
-    );
-    cleanupExceptions =
-        normalizeCleanupExceptions(
-            cleanupExceptions
-        );
-    saveCleanupExceptions();
-    displayPlaylists(playlistsCache);
-    setStatus("Exception supprimée.");
-}
-
-function getRuleManagerEntries() {
-    const entries = [];
-
-    currentPriorityRules.favoredArtists.forEach(
-        (value, index) => entries.push({
-            type: "priority-artist",
-            category: "priority",
-            icon: "⭐",
-            title: value,
-            subtitle: "Artiste favorisé",
-            index
-        })
-    );
-
-    currentPriorityRules.favoredAlbums.forEach(
-        (value, index) => entries.push({
-            type: "priority-album",
-            category: "priority",
-            icon: "⭐",
-            title: value,
-            subtitle: "Album favorisé",
-            index
-        })
-    );
-
-    currentPriorityRules.favoredTrackUris.forEach(
-        (uri) => {
-            const metadata = ruleMetadata[uri] || {
-                uri,
-                name: "Morceau Spotify",
-                artists: "",
-                album: "",
-                image: ""
-            };
-
-            entries.push({
-                type: "priority-track",
-                category: "priority",
-                icon: "⭐",
-                title: metadata.name,
-                subtitle: [
-                    metadata.artists,
-                    metadata.album
-                ].filter(Boolean).join(" · "),
-                uri,
-                image: metadata.image
-            });
-        }
-    );
-
-    currentExclusionRules.excludedArtists.forEach(
-        (value, index) => entries.push({
-            type: "exclusion-artist",
-            category: "exclusion",
-            icon: "🚫",
-            title: value,
-            subtitle: "Artiste exclu",
-            index
-        })
-    );
-
-    currentExclusionRules.excludedAlbums.forEach(
-        (value, index) => entries.push({
-            type: "exclusion-album",
-            category: "exclusion",
-            icon: "🚫",
-            title: value,
-            subtitle: "Album exclu",
-            index
-        })
-    );
-
-    currentExclusionRules.excludedTrackUris.forEach(
-        (uri) => {
-            const metadata = ruleMetadata[uri] || {
-                uri,
-                name: "Morceau Spotify",
-                artists: "",
-                album: "",
-                image: ""
-            };
-
-            entries.push({
-                type: "exclusion-track",
-                category: "exclusion",
-                icon: "🚫",
-                title: metadata.name,
-                subtitle: [
-                    metadata.artists,
-                    metadata.album
-                ].filter(Boolean).join(" · "),
-                uri,
-                image: metadata.image
-            });
-        }
-    );
-
-    cleanupExceptions.forEach(
-        (value, index) => entries.push({
-            type: "cleanup-exception",
-            category: "exception",
-            icon: "🛡️",
-            title: "Exception anti-doublon",
-            subtitle: value
-                .split("|")
-                .map((uri) =>
-                    ruleMetadata[uri]?.name || uri
-                )
-                .join(" ↔ "),
-            index
-        })
-    );
-
-    return entries;
-}
-
-function renderRulesManagerPanel() {
-    const search = normalizeSearchText(
-        rulesManagerSearchTerm
-    );
-    const entries = getRuleManagerEntries()
-        .filter((entry) => {
-            if (
-                rulesManagerFilter !== "all" &&
-                entry.category !==
-                    rulesManagerFilter
-            ) {
-                return false;
-            }
-
-            if (!search) {
-                return true;
-            }
-
-            return normalizeSearchText([
-                entry.title,
-                entry.subtitle
-            ].join(" ")).includes(search);
-        });
-
-    const duplicateCards = lastDuplicateGroups
-        .slice(0, 20)
-        .map((group, index) => `
-            <article class="rules-duplicate-card">
-                <div>
-                    <strong>
-                        ${escapeHtml(group.kept.name)}
-                    </strong>
-                    <span>
-                        conservé · ${escapeHtml(
-                            group.kept.artists ||
-                            group.artist
-                        )}
-                    </span>
-                </div>
-                <div class="rules-duplicate-arrow">⇄</div>
-                <div>
-                    <strong>
-                        ${escapeHtml(group.removed.name)}
-                    </strong>
-                    <span>
-                        retiré
-                        ${group.sources.length
-                            ? ` · ${escapeHtml(group.sources.join(", "))}`
-                            : ""}
-                    </span>
-                </div>
-                <button
-                    type="button"
-                    data-rules-action="duplicate-exception"
-                    data-rules-index="${index}"
-                >
-                    Ne plus fusionner
-                </button>
-            </article>
-        `)
-        .join("");
-
-    const activeProfile = getActiveProfile();
-    const profileModified =
-        isActiveProfileModified();
-
-    return `
-        <section class="rules-manager-panel">
-            <div class="rules-manager-heading">
-                <div>
-                    <h3>Gestionnaire de règles et profils</h3>
-                    <p>
-                        ${currentPriorityRules.favoredTrackUris.length +
-                            currentPriorityRules.favoredArtists.length +
-                            currentPriorityRules.favoredAlbums.length}
-                        priorité(s) ·
-                        ${currentExclusionRules.excludedTrackUris.length +
-                            currentExclusionRules.excludedArtists.length +
-                            currentExclusionRules.excludedAlbums.length}
-                        exclusion(s) ·
-                        ${cleanupExceptions.length}
-                        exception(s)
-                    </p>
-                </div>
-
-                <button
-                    id="clearAllManagedRulesButton"
-                    class="rules-danger-button"
-                    type="button"
-                >
-                    Tout restaurer
-                </button>
-            </div>
-
-            ${activeProfile
-                ? `
-                    <div class="rules-profile-status ${profileModified ? "is-modified" : ""}">
-                        <div>
-                            <strong>
-                                ${escapeHtml(activeProfile.icon)}
-                                ${escapeHtml(activeProfile.name)}
-                            </strong>
-                            <span>
-                                ${profileModified
-                                    ? "Profil modifié par rapport aux réglages enregistrés"
-                                    : "Réglages conformes au profil"}
-                            </span>
-                        </div>
-
-                        ${profileModified
-                            ? `
-                                <div class="rules-profile-actions">
-                                    <button
-                                        id="updateActiveProfileButton"
-                                        type="button"
-                                    >
-                                        Mettre à jour le profil
-                                    </button>
-                                    <button
-                                        id="restoreActiveProfileButton"
-                                        type="button"
-                                    >
-                                        Revenir au profil
-                                    </button>
-                                </div>
-                            `
-                            : ""}
-                    </div>
-                `
-                : ""}
-
-            <div class="rules-manager-toolbar">
-                <label>
-                    <span>Rechercher</span>
-                    <input
-                        id="rulesManagerSearchInput"
-                        type="search"
-                        value="${escapeHtml(rulesManagerSearchTerm)}"
-                        placeholder="Titre, artiste, album…"
-                    >
-                </label>
-
-                <label>
-                    <span>Filtrer</span>
-                    <select id="rulesManagerFilterSelect">
-                        <option value="all" ${rulesManagerFilter === "all" ? "selected" : ""}>
-                            Toutes les règles
-                        </option>
-                        <option value="priority" ${rulesManagerFilter === "priority" ? "selected" : ""}>
-                            Priorités
-                        </option>
-                        <option value="exclusion" ${rulesManagerFilter === "exclusion" ? "selected" : ""}>
-                            Exclusions
-                        </option>
-                        <option value="exception" ${rulesManagerFilter === "exception" ? "selected" : ""}>
-                            Exceptions
-                        </option>
-                    </select>
-                </label>
-            </div>
-
-            <div class="rules-manager-list">
-                ${entries.length
-                    ? entries.map((entry) => `
-                        <article class="rules-manager-item">
-                            ${entry.image
-                                ? `
-                                    <img
-                                        src="${escapeHtml(entry.image)}"
-                                        alt=""
-                                    >
-                                `
-                                : `
-                                    <span class="rules-manager-icon">
-                                        ${entry.icon}
-                                    </span>
-                                `}
-                            <div>
-                                <strong>
-                                    ${escapeHtml(entry.title)}
-                                </strong>
-                                <span>
-                                    ${escapeHtml(entry.subtitle || entry.category)}
-                                </span>
-                            </div>
-                            <button
-                                type="button"
-                                data-rules-action="remove"
-                                data-rules-type="${escapeHtml(entry.type)}"
-                                data-rules-uri="${escapeHtml(entry.uri || "")}"
-                                data-rules-index="${entry.index ?? ""}"
-                                title="Supprimer cette règle"
-                            >
-                                ✕
-                            </button>
-                        </article>
-                    `).join("")
-                    : `
-                        <div class="rules-manager-empty">
-                            Aucune règle ne correspond à ce filtre.
-                        </div>
-                    `}
-            </div>
-
-            <details class="rules-duplicates-section">
-                <summary>
-                    Doublons détectés lors du dernier nettoyage
-                    · ${lastDuplicateGroups.length}
-                </summary>
-                <div class="rules-duplicates-list">
-                    ${duplicateCards || `
-                        <div class="rules-manager-empty">
-                            Aucun doublon récent enregistré.
-                        </div>
-                    `}
-                </div>
-            </details>
-        </section>
-    `;
-}
-
 function normalizeCleanupSettings(settings = {}) {
     const levels = new Set([
         "prudent",
@@ -2698,21 +2670,6 @@ function cleanTracks(
             continue;
         }
 
-        if (
-            hasCleanupException(
-                existing,
-                track
-            )
-        ) {
-            const exceptionKey =
-                `${key}:exception:${track?.uri || track?.id || selectedByKey.size}`;
-            selectedByKey.set(
-                exceptionKey,
-                track
-            );
-            continue;
-        }
-
         const exact =
             (track?.uri || track?.id) ===
             (existing?.uri || existing?.id);
@@ -2748,13 +2705,10 @@ function cleanTracks(
 
         selectedByKey.set(key, merged);
 
-        rememberRuleTrack(kept);
-        rememberRuleTrack(removed);
-
         groups.push({
-            key,
-            kept: normalizeTrackMetadata(kept),
-            removed: normalizeTrackMetadata(removed),
+            keptName: kept?.name || "Morceau",
+            removedName:
+                removed?.name || "Morceau",
             artist:
                 kept?.artists?.[0]?.name || "",
             sources:
@@ -2792,9 +2746,6 @@ function cleanTracks(
 
     lastCleanupSummary = summary;
     lastCleanupSnapshot = [...tracks];
-    lastDuplicateGroups =
-        normalizeDuplicateGroups(groups);
-    saveLastDuplicateGroups();
 
     return {
         tracks: cleanedTracks,
@@ -4504,8 +4455,6 @@ function toggleFavoredTrackAt(index) {
         .favoredTrackUris
         .includes(track.uri);
 
-    rememberRuleTrack(track);
-
     currentPriorityRules = normalizePriorityRules({
         ...currentPriorityRules,
         favoredTrackUris: favored
@@ -4946,16 +4895,11 @@ function renderMixProfilesSection() {
     const activeProfile = getActiveProfile();
 
     const cards = mixProfiles.map((profile) => `
-        <article class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""} ${profile.id === activeProfileId && isActiveProfileModified() ? "is-modified" : ""}">
+        <article class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""}">
             <div class="mix-profile-card-main">
                 <span class="mix-profile-icon">${escapeHtml(profile.icon)}</span>
                 <div>
-                    <h4>
-                        ${escapeHtml(profile.name)}
-                        ${profile.id === activeProfileId && isActiveProfileModified()
-                            ? `<span class="profile-modified-badge">Modifié</span>`
-                            : ""}
-                    </h4>
+                    <h4>${escapeHtml(profile.name)}</h4>
                     <p>${escapeHtml(profile.description || "Profil Shuffle+")}</p>
                     <small>${escapeHtml(getMixProfileSummary(profile))}</small>
                 </div>
@@ -7283,9 +7227,7 @@ function buildBackupPayload() {
             intensitySettings: currentIntensitySettings,
             adaptiveSettings: currentAdaptiveSettings,
             cleanupSettings: currentCleanupSettings,
-            ruleMetadata,
-            cleanupExceptions,
-            lastDuplicateGroups,
+            iosQuickPlaySettings,
             mixSchedules
         }
     };
@@ -7399,17 +7341,9 @@ function validateBackupPayload(payload) {
             normalizeCleanupSettings(
                 payload.data.cleanupSettings
             ),
-        ruleMetadata:
-            normalizeRuleMetadata(
-                payload.data.ruleMetadata
-            ),
-        cleanupExceptions:
-            normalizeCleanupExceptions(
-                payload.data.cleanupExceptions
-            ),
-        lastDuplicateGroups:
-            normalizeDuplicateGroups(
-                payload.data.lastDuplicateGroups
+        iosQuickPlaySettings:
+            normalizeIosQuickPlaySettings(
+                payload.data.iosQuickPlaySettings
             ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
@@ -7529,14 +7463,9 @@ async function importBackupFile(file) {
         currentCleanupSettings =
             imported.cleanupSettings;
         saveCleanupSettings();
-        ruleMetadata = imported.ruleMetadata;
-        saveRuleMetadata();
-        cleanupExceptions =
-            imported.cleanupExceptions;
-        saveCleanupExceptions();
-        lastDuplicateGroups =
-            imported.lastDuplicateGroups;
-        saveLastDuplicateGroups();
+        iosQuickPlaySettings =
+            imported.iosQuickPlaySettings;
+        saveIosQuickPlaySettings();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -8440,13 +8369,13 @@ function displayPlaylists(playlists) {
 
             ${renderBackupPanel()}
 
+            ${renderIosQuickPlayPanel()}
+
             ${renderMixSchedulesSection()}
 
             ${renderAdaptivePanel()}
 
             ${renderCleanupPanel()}
-
-            ${renderRulesManagerPanel()}
 
             ${renderMixProfilesSection()}
 
@@ -8815,8 +8744,6 @@ function excludeTrackAt(index) {
     if (!confirmed) {
         return;
     }
-
-    rememberRuleTrack(track);
 
     currentExclusionRules = normalizeExclusionRules({
         ...currentExclusionRules,
@@ -10378,6 +10305,15 @@ async function openPlaylist(playlist) {
 }
 
 async function initializeApp() {
+    const urlAutomationCommand =
+        parseAutomationCommandFromUrl();
+
+    if (urlAutomationCommand) {
+        savePendingAutomationCommand(
+            urlAutomationCommand
+        );
+    }
+
     loginButton.disabled = true;
     loginButton.textContent = "Initialisation…";
     logoutButton.hidden = true;
@@ -10427,7 +10363,14 @@ async function initializeApp() {
 
         displayPlaylists(playlistsCache);
         startScheduleWatcher();
-        setStatus("");
+
+        if (pendingAutomationCommand) {
+            await executeAutomationCommand(
+                pendingAutomationCommand
+            );
+        } else {
+            setStatus("");
+        }
     } catch (error) {
         console.error(error);
 
@@ -10479,70 +10422,30 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
-        const rulesActionButton =
+        if (
             event.target.closest(
-                "[data-rules-action]"
-            );
-
-        if (rulesActionButton) {
-            const action =
-                rulesActionButton.dataset.rulesAction || "";
-
-            if (action === "remove") {
-                const type =
-                    rulesActionButton.dataset.rulesType || "";
-                const uri =
-                    rulesActionButton.dataset.rulesUri || "";
-                const index =
-                    rulesActionButton.dataset.rulesIndex;
-
-                if (
-                    type === "priority-track" ||
-                    type === "exclusion-track"
-                ) {
-                    removeTrackRule(type, uri);
-                } else if (
-                    type === "cleanup-exception"
-                ) {
-                    removeCleanupException(index);
-                } else {
-                    removeTextRule(type, index);
-                }
-            } else if (
-                action === "duplicate-exception"
-            ) {
-                addDuplicateException(
-                    rulesActionButton.dataset.rulesIndex
-                );
-            }
-
+                "#testIosQuickPlayButton"
+            )
+        ) {
+            await runIosQuickPlay();
             return;
         }
 
         if (
             event.target.closest(
-                "#clearAllManagedRulesButton"
+                "#copyIosShortcutUrlButton"
             )
         ) {
-            clearAllManagedRules();
+            await copyIosQuickPlayUrl();
             return;
         }
 
         if (
             event.target.closest(
-                "#updateActiveProfileButton"
+                "#retryIosQuickPlayButton"
             )
         ) {
-            updateActiveProfileFromCurrent();
-            return;
-        }
-
-        if (
-            event.target.closest(
-                "#restoreActiveProfileButton"
-            )
-        ) {
-            restoreActiveProfileSettings();
+            await runIosQuickPlay();
             return;
         }
 
@@ -11115,6 +11018,16 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "iosQuickPlayForm"
+        ) {
+            event.preventDefault();
+            saveIosQuickPlayFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
             event.target.id === "mixScheduleForm"
         ) {
             event.preventDefault();
@@ -11200,16 +11113,6 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
-        if (
-            event.target.id ===
-                "rulesManagerFilterSelect"
-        ) {
-            rulesManagerFilter =
-                event.target.value || "all";
-            displayPlaylists(playlistsCache);
-            return;
-        }
-
         if (
             event.target.matches(
                 "[data-adaptive-duration-mode]"
@@ -11407,24 +11310,6 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
-        if (
-            event.target.id ===
-                "rulesManagerSearchInput"
-        ) {
-            rulesManagerSearchTerm =
-                event.target.value || "";
-            window.clearTimeout(
-                event.target._rulesSearchTimer
-            );
-            event.target._rulesSearchTimer =
-                window.setTimeout(() => {
-                    displayPlaylists(
-                        playlistsCache
-                    );
-                }, 250);
-            return;
-        }
-
         if (
             event.target.matches(
                 "[data-intensity-control]"

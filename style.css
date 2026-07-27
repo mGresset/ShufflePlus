@@ -4320,3 +4320,217 @@ y
         text-align: center;
     }
 }
+
+
+
+/* Shuffle+ v3.0.0 — Lecture immédiate iOS */
+
+.ios-quickplay-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #516f9d;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(45 78 127 / 78%) 0%,
+            rgb(20 20 20 / 96%) 72%
+        );
+}
+
+.ios-quickplay-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.ios-quickplay-heading h3 {
+    margin: 0 0 5px;
+    font-size: 21px;
+}
+
+.ios-quickplay-heading p {
+    margin: 0;
+    color: #c0d1e8;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.ios-quickplay-heading > span {
+    padding: 6px 10px;
+    border: 1px solid #7896c2;
+    border-radius: 999px;
+    color: #d7e6ff;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ios-quickplay-form {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.ios-quickplay-field {
+    display: grid;
+    gap: 7px;
+}
+
+.ios-quickplay-field > span {
+    color: #d7e3f3;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.ios-quickplay-field select,
+.ios-quickplay-field input {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 13px;
+    border: 1px solid #617da5;
+    border-radius: 11px;
+    outline: none;
+    background: #111927;
+    color: #ffffff;
+}
+
+.ios-quickplay-check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 46px;
+    padding: 10px 12px;
+    border: 1px solid #526b8d;
+    border-radius: 11px;
+    background: #121b29;
+    color: #d2ddeb;
+    font-size: 13px;
+}
+
+.ios-quickplay-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: #8bb8ff;
+}
+
+.ios-quickplay-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.ios-quickplay-save,
+.ios-quickplay-test,
+.ios-quickplay-copy {
+    min-height: 43px;
+    padding: 9px 16px;
+    border-radius: 999px;
+    font-weight: 800;
+}
+
+.ios-quickplay-save {
+    border: 0;
+    background: #8bb8ff;
+    color: #081b35;
+}
+
+.ios-quickplay-test,
+.ios-quickplay-copy {
+    border: 1px solid #6a86ad;
+    background: transparent;
+    color: #ffffff;
+}
+
+.ios-shortcut-instructions {
+    display: grid;
+    gap: 7px;
+    padding: 14px;
+    border: 1px solid #506a8c;
+    border-radius: 13px;
+    background: #101825;
+}
+
+.ios-shortcut-instructions span {
+    color: #bdcbe0;
+    font-size: 13px;
+}
+
+.ios-shortcut-instructions code {
+    overflow: auto;
+    padding: 10px;
+    border-radius: 9px;
+    background: #090e17;
+    color: #a9caff;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.ios-automation-success,
+.ios-automation-error {
+    display: grid;
+    width: min(100%, 620px);
+    min-height: 360px;
+    place-items: center;
+    align-content: center;
+    gap: 14px;
+    margin: 0 auto;
+    padding: 34px;
+    border: 1px solid #3b5d48;
+    border-radius: 18px;
+    background: #142019;
+    text-align: center;
+}
+
+.ios-automation-error {
+    border-color: #6f4348;
+    background: #28191b;
+}
+
+.ios-automation-success > span,
+.ios-automation-error > span {
+    font-size: 58px;
+}
+
+.ios-automation-success h2,
+.ios-automation-error h2 {
+    margin: 0;
+}
+
+.ios-automation-success p,
+.ios-automation-error p {
+    margin: 0 0 8px;
+    color: #c1cec5;
+}
+
+@media (max-width: 760px) {
+    .ios-quickplay-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .ios-quickplay-heading > span {
+        align-self: flex-start;
+    }
+
+    .ios-quickplay-form {
+        grid-template-columns: 1fr;
+    }
+
+    .ios-quickplay-actions {
+        display: grid;
+        grid-column: auto;
+        grid-template-columns: 1fr;
+    }
+
+    .ios-quickplay-save,
+    .ios-quickplay-test,
+    .ios-quickplay-copy {
+        width: 100%;
+    }
+}
