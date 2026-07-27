@@ -328,6 +328,141 @@ function analyzeTransition(
     };
 }
 
+
+function getTrackIntensityScore(track) {
+    const popularity = normalizeNumberOption(
+        track?.popularity,
+        0,
+        100,
+        50
+    );
+    const type = getTrackVersionType(track);
+    const duration = getTrackDurationSeconds(track);
+
+    let score = popularity;
+
+    if (track?.explicit) {
+        score += 3;
+    }
+
+    if (type === "remix") {
+        score += 9;
+    } else if (type === "live") {
+        score += 5;
+    } else if (type === "instrumental") {
+        score -= 7;
+    } else if (type === "karaoke") {
+        score -= 10;
+    }
+
+    if (duration > 0 && duration < 135) {
+        score += 4;
+    }
+
+    if (duration > 420) {
+        score -= 4;
+    }
+
+    return Math.min(
+        100,
+        Math.max(0, score)
+    );
+}
+
+function getTargetIntensity(
+    settings,
+    position,
+    totalTracks
+) {
+    const progress =
+        totalTracks <= 1
+            ? 0
+            : position / (totalTracks - 1);
+    const start = settings.startIntensity;
+    const end = settings.endIntensity;
+    const peak = settings.peakIntensity;
+
+    switch (settings.curve) {
+        case "rising":
+        case "falling":
+        case "stable":
+            return start + (end - start) * progress;
+        case "waves": {
+            const baseline =
+                start + (end - start) * progress;
+            const amplitude = Math.max(
+                8,
+                peak - Math.max(start, end)
+            );
+
+            return Math.min(
+                100,
+                Math.max(
+                    0,
+                    baseline +
+                    Math.sin(
+                        progress * Math.PI * 4
+                    ) * amplitude
+                )
+            );
+        }
+        case "central-peak":
+            return progress <= 0.5
+                ? start +
+                    (peak - start) *
+                    (progress * 2)
+                : peak +
+                    (end - peak) *
+                    ((progress - 0.5) * 2);
+        default:
+            return start;
+    }
+}
+
+function getIntensityPenalty(
+    track,
+    previousTrack,
+    options,
+    position
+) {
+    const settings = options.intensitySettings;
+    const target = getTargetIntensity(
+        settings,
+        position,
+        options.totalTracks
+    );
+    const actual = getTrackIntensityScore(track);
+    const strengthMultiplier = {
+        light: 0.65,
+        normal: 1.35,
+        strong: 2.35
+    }[settings.strength] || 1.35;
+
+    let penalty =
+        Math.abs(actual - target) *
+        strengthMultiplier;
+
+    if (
+        settings.smoothTransitions &&
+        previousTrack
+    ) {
+        const previousIntensity =
+            getTrackIntensityScore(previousTrack);
+        const jump = Math.abs(
+            actual - previousIntensity
+        );
+
+        if (jump > 24) {
+            penalty +=
+                (jump - 24) *
+                strengthMultiplier *
+                1.2;
+        }
+    }
+
+    return penalty;
+}
+
 function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
     let score = Math.random();
     const trackKey = getTrackKey(track);
@@ -382,6 +517,13 @@ function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
     score += getTransitionPenalty(
         previousTrack,
         track,
+        options,
+        position
+    );
+
+    score += getIntensityPenalty(
+        track,
+        previousTrack,
         options,
         position
     );
@@ -490,6 +632,57 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
             1000,
             90
         ),
+        totalTracks: Math.max(
+            1,
+            tracks.length
+        ),
+        intensitySettings: {
+            curve:
+                [
+                    "rising",
+                    "falling",
+                    "stable",
+                    "waves",
+                    "central-peak"
+                ].includes(
+                    customOptions.intensitySettings?.curve
+                )
+                    ? customOptions.intensitySettings.curve
+                    : "stable",
+            startIntensity:
+                normalizeNumberOption(
+                    customOptions.intensitySettings
+                        ?.startIntensity,
+                    0,
+                    100,
+                    45
+                ),
+            endIntensity:
+                normalizeNumberOption(
+                    customOptions.intensitySettings
+                        ?.endIntensity,
+                    0,
+                    100,
+                    65
+                ),
+            peakIntensity:
+                normalizeNumberOption(
+                    customOptions.intensitySettings
+                        ?.peakIntensity,
+                    0,
+                    100,
+                    85
+                ),
+            strength:
+                ["light", "normal", "strong"].includes(
+                    customOptions.intensitySettings?.strength
+                )
+                    ? customOptions.intensitySettings.strength
+                    : "normal",
+            smoothTransitions:
+                customOptions.intensitySettings
+                    ?.smoothTransitions !== false
+        },
         coherenceSettings: {
             level:
                 ["free", "balanced", "fluid"].includes(
@@ -544,6 +737,17 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
     );
 
     const orderedTracks = [];
+    const averageIntensityDeviation =
+        tracks.length
+            ? totalIntensityDeviation / tracks.length
+            : 0;
+    const intensityCurveAdherence = Math.max(
+        0,
+        Math.round(
+            100 - averageIntensityDeviation
+        )
+    );
+
     const recentTrackUris = new Set(getRecentTrackUris());
 
     while (remainingTracks.length) {
@@ -576,17 +780,82 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
     return orderedTracks;
 }
 
-export function analyzeShuffleOrder(tracks) {
+export function analyzeShuffleOrder(tracks, customOptions = {}) {
     let consecutiveArtistRepeats = 0;
     let consecutiveAlbumRepeats = 0;
     let consecutiveTrackRepeats = 0;
     let abruptTransitions = 0;
     let durationJumpTransitions = 0;
     let repeatedVersionTransitions = 0;
+    let intensityJumpTransitions = 0;
+    let totalIntensityDeviation = 0;
 
-    for (let index = 1; index < tracks.length; index += 1) {
+    const intensitySettings = {
+        curve:
+            [
+                "rising",
+                "falling",
+                "stable",
+                "waves",
+                "central-peak"
+            ].includes(
+                customOptions.intensitySettings?.curve
+            )
+                ? customOptions.intensitySettings.curve
+                : "stable",
+        startIntensity:
+            normalizeNumberOption(
+                customOptions.intensitySettings
+                    ?.startIntensity,
+                0,
+                100,
+                45
+            ),
+        endIntensity:
+            normalizeNumberOption(
+                customOptions.intensitySettings
+                    ?.endIntensity,
+                0,
+                100,
+                65
+            ),
+        peakIntensity:
+            normalizeNumberOption(
+                customOptions.intensitySettings
+                    ?.peakIntensity,
+                0,
+                100,
+                85
+            )
+    };
+
+    for (let index = 0; index < tracks.length; index += 1) {
         const currentTrack = tracks[index];
+        const targetIntensity = getTargetIntensity(
+            intensitySettings,
+            index,
+            tracks.length
+        );
+        const currentIntensity =
+            getTrackIntensityScore(currentTrack);
+
+        totalIntensityDeviation += Math.abs(
+            currentIntensity - targetIntensity
+        );
+
+        if (index === 0) {
+            continue;
+        }
         const previousTrack = tracks[index - 1];
+
+        if (
+            Math.abs(
+                getTrackIntensityScore(currentTrack) -
+                getTrackIntensityScore(previousTrack)
+            ) > 28
+        ) {
+            intensityJumpTransitions += 1;
+        }
 
         if (sharesArtist(currentTrack, previousTrack)) {
             consecutiveArtistRepeats += 1;
@@ -644,6 +913,12 @@ export function analyzeShuffleOrder(tracks) {
         recentTracksInFirstTwenty,
         abruptTransitions,
         durationJumpTransitions,
-        repeatedVersionTransitions
+        repeatedVersionTransitions,
+        intensityJumpTransitions,
+        intensityCurveAdherence,
+        averageIntensityDeviation:
+            Math.round(
+                averageIntensityDeviation * 10
+            ) / 10
     };
 }

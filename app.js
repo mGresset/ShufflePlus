@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.5.0";
+const APP_VERSION = "2.6.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -76,6 +76,16 @@ const DEFAULT_COHERENCE_SETTINGS = {
     strengthenFirstThirty: true,
     durationJumpSeconds: 150
 };
+const INTENSITY_SETTINGS_KEY =
+    "shuffleplus_intensity_settings_v1";
+const DEFAULT_INTENSITY_SETTINGS = {
+    curve: "stable",
+    startIntensity: 45,
+    endIntensity: 65,
+    peakIntensity: 85,
+    strength: "normal",
+    smoothTransitions: true
+};
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
 const MAX_MIX_SCHEDULES = 30;
@@ -102,7 +112,7 @@ const DEFAULT_MIX_PROFILES = [
         id: "profile-sport",
         name: "Sport",
         icon: "🏃",
-        description: "Rythme soutenu, peu de répétitions et titres très courts évités.",
+        description: "Rythme soutenu, montée progressive et titres très courts évités.",
         isDefault: true,
         shuffleSettings: {
             preset: "strict",
@@ -118,13 +128,25 @@ const DEFAULT_MIX_PROFILES = [
             ...DEFAULT_PRIORITY_RULES,
             intensity: "strong",
             boostFirstTwenty: true
+        },
+        coherenceSettings: {
+            ...DEFAULT_COHERENCE_SETTINGS,
+            level: "fluid"
+        },
+        intensitySettings: {
+            ...DEFAULT_INTENSITY_SETTINGS,
+            curve: "rising",
+            startIntensity: 35,
+            endIntensity: 90,
+            peakIntensity: 90,
+            strength: "strong"
         }
     },
     {
         id: "profile-soiree",
         name: "Soirée",
         icon: "🎉",
-        description: "Mélange énergique et varié, avec des répétitions limitées.",
+        description: "Deux temps forts avec une énergie élevée et variée.",
         isDefault: true,
         shuffleSettings: {
             preset: "balanced",
@@ -136,17 +158,27 @@ const DEFAULT_MIX_PROFILES = [
             ...DEFAULT_EXCLUSION_RULES,
             excludeInstrumental: true,
             excludeKaraoke: true
-        ,
+        },
         priorityRules: {
             ...DEFAULT_PRIORITY_RULES
+        },
+        coherenceSettings: {
+            ...DEFAULT_COHERENCE_SETTINGS
+        },
+        intensitySettings: {
+            ...DEFAULT_INTENSITY_SETTINGS,
+            curve: "waves",
+            startIntensity: 55,
+            endIntensity: 80,
+            peakIntensity: 95,
+            strength: "strong"
         }
-    }
     },
     {
         id: "profile-famille",
         name: "Famille",
         icon: "👨‍👩‍👧‍👦",
-        description: "Titres explicites, live, remix et karaoké masqués.",
+        description: "Ambiance stable, explicites, live, remix et karaoké masqués.",
         isDefault: true,
         shuffleSettings: {
             preset: "balanced",
@@ -160,17 +192,26 @@ const DEFAULT_MIX_PROFILES = [
             excludeLive: true,
             excludeRemix: true,
             excludeKaraoke: true
-        ,
+        },
         priorityRules: {
             ...DEFAULT_PRIORITY_RULES
+        },
+        coherenceSettings: {
+            ...DEFAULT_COHERENCE_SETTINGS
+        },
+        intensitySettings: {
+            ...DEFAULT_INTENSITY_SETTINGS,
+            curve: "stable",
+            startIntensity: 55,
+            endIntensity: 55,
+            peakIntensity: 65
         }
-    }
     },
     {
         id: "profile-decouverte",
         name: "Découverte",
         icon: "🔭",
-        description: "Espacement fort des artistes et éviction renforcée des titres récents.",
+        description: "Espacement fort des artistes et courbe en vagues.",
         isDefault: true,
         shuffleSettings: {
             preset: "strict",
@@ -180,17 +221,26 @@ const DEFAULT_MIX_PROFILES = [
         },
         exclusionRules: {
             ...DEFAULT_EXCLUSION_RULES
-        ,
+        },
         priorityRules: {
             ...DEFAULT_PRIORITY_RULES
+        },
+        coherenceSettings: {
+            ...DEFAULT_COHERENCE_SETTINGS
+        },
+        intensitySettings: {
+            ...DEFAULT_INTENSITY_SETTINGS,
+            curve: "waves",
+            startIntensity: 40,
+            endIntensity: 65,
+            peakIntensity: 85
         }
-    }
     },
     {
         id: "profile-concentration",
         name: "Concentration",
         icon: "🧠",
-        description: "Titres courts, live, remix et karaoké écartés pour une écoute régulière.",
+        description: "Énergie stable et transitions très fluides pour une écoute régulière.",
         isDefault: true,
         shuffleSettings: {
             preset: "soft",
@@ -204,11 +254,22 @@ const DEFAULT_MIX_PROFILES = [
             excludeLive: true,
             excludeRemix: true,
             excludeKaraoke: true
-        ,
+        },
         priorityRules: {
             ...DEFAULT_PRIORITY_RULES
+        },
+        coherenceSettings: {
+            ...DEFAULT_COHERENCE_SETTINGS,
+            level: "fluid"
+        },
+        intensitySettings: {
+            ...DEFAULT_INTENSITY_SETTINGS,
+            curve: "stable",
+            startIntensity: 35,
+            endIntensity: 35,
+            peakIntensity: 45,
+            strength: "strong"
         }
-    }
     }
 ];
 
@@ -288,6 +349,7 @@ let activeProfileId = readActiveProfileId();
 let currentPriorityRules = readPriorityRules();
 let lastPrioritySummary = null;
 let currentCoherenceSettings = readCoherenceSettings();
+let currentIntensitySettings = readIntensitySettings();
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -1447,6 +1509,427 @@ function startScheduleWatcher() {
     );
 }
 
+
+function normalizeIntensitySettings(settings = {}) {
+    const allowedCurves = new Set([
+        "rising",
+        "falling",
+        "stable",
+        "waves",
+        "central-peak"
+    ]);
+    const allowedStrengths = new Set([
+        "light",
+        "normal",
+        "strong"
+    ]);
+
+    return {
+        curve: allowedCurves.has(settings.curve)
+            ? settings.curve
+            : "stable",
+        startIntensity: clampInteger(
+            settings.startIntensity,
+            0,
+            100,
+            45
+        ),
+        endIntensity: clampInteger(
+            settings.endIntensity,
+            0,
+            100,
+            65
+        ),
+        peakIntensity: clampInteger(
+            settings.peakIntensity,
+            0,
+            100,
+            85
+        ),
+        strength: allowedStrengths.has(settings.strength)
+            ? settings.strength
+            : "normal",
+        smoothTransitions:
+            settings.smoothTransitions !== false
+    };
+}
+
+function readIntensitySettings() {
+    try {
+        const raw = localStorage.getItem(
+            INTENSITY_SETTINGS_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return normalizeIntensitySettings(parsed);
+    } catch (error) {
+        console.warn(
+            "Réglages d’intensité illisibles :",
+            error
+        );
+        return {
+            ...DEFAULT_INTENSITY_SETTINGS
+        };
+    }
+}
+
+function saveIntensitySettings() {
+    try {
+        localStorage.setItem(
+            INTENSITY_SETTINGS_KEY,
+            JSON.stringify(currentIntensitySettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer la courbe d’intensité :",
+            error
+        );
+    }
+}
+
+function getIntensityCurveLabel(curve = "stable") {
+    switch (curve) {
+        case "rising":
+            return "Montée progressive";
+        case "falling":
+            return "Descente progressive";
+        case "waves":
+            return "En vagues";
+        case "central-peak":
+            return "Pic central";
+        case "stable":
+        default:
+            return "Stable";
+    }
+}
+
+function getIntensityStrengthLabel(strength = "normal") {
+    switch (strength) {
+        case "light":
+            return "Légère";
+        case "strong":
+            return "Forte";
+        case "normal":
+        default:
+            return "Normale";
+    }
+}
+
+function getIntensityTargetAtProgress(
+    settings,
+    progress
+) {
+    const normalized =
+        normalizeIntensitySettings(settings);
+    const x = Math.min(1, Math.max(0, progress));
+    const start = normalized.startIntensity;
+    const end = normalized.endIntensity;
+    const peak = normalized.peakIntensity;
+
+    switch (normalized.curve) {
+        case "rising":
+            return start + (end - start) * x;
+        case "falling":
+            return start + (end - start) * x;
+        case "waves": {
+            const baseline =
+                start + (end - start) * x;
+            const amplitude =
+                Math.max(
+                    8,
+                    peak - Math.max(start, end)
+                );
+
+            return Math.min(
+                100,
+                Math.max(
+                    0,
+                    baseline +
+                    Math.sin(x * Math.PI * 4) *
+                    amplitude
+                )
+            );
+        }
+        case "central-peak":
+            return x <= 0.5
+                ? start + (peak - start) * (x * 2)
+                : peak + (end - peak) *
+                    ((x - 0.5) * 2);
+        case "stable":
+        default:
+            return start + (end - start) * x;
+    }
+}
+
+function getIntensityCurvePoints(settings) {
+    return Array.from(
+        { length: 21 },
+        (_, index) => {
+            const progress = index / 20;
+            const intensity =
+                getIntensityTargetAtProgress(
+                    settings,
+                    progress
+                );
+
+            return {
+                x: progress * 100,
+                y: 100 - intensity
+            };
+        }
+    );
+}
+
+function getIntensitySummary(
+    settings = currentIntensitySettings
+) {
+    const normalized =
+        normalizeIntensitySettings(settings);
+
+    return [
+        getIntensityCurveLabel(normalized.curve),
+        `${normalized.startIntensity}% → ` +
+            `${normalized.endIntensity}%`,
+        `pic ${normalized.peakIntensity}%`,
+        `influence ${getIntensityStrengthLabel(
+            normalized.strength
+        ).toLowerCase()}`
+    ].join(" · ");
+}
+
+function renderIntensityPreview(settings) {
+    const points = getIntensityCurvePoints(settings)
+        .map((point) =>
+            `${point.x.toFixed(1)},${point.y.toFixed(1)}`
+        )
+        .join(" ");
+
+    return `
+        <div class="intensity-preview">
+            <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label="Aperçu de la courbe d’intensité"
+            >
+                <line x1="0" y1="25" x2="100" y2="25"></line>
+                <line x1="0" y1="50" x2="100" y2="50"></line>
+                <line x1="0" y1="75" x2="100" y2="75"></line>
+                <polyline points="${points}"></polyline>
+            </svg>
+            <div class="intensity-preview-labels">
+                <span>Début</span>
+                <span>Milieu</span>
+                <span>Fin</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderIntensityPanel() {
+    const settings = normalizeIntensitySettings(
+        currentIntensitySettings
+    );
+
+    return `
+        <section class="intensity-panel">
+            <div class="intensity-panel-heading">
+                <div>
+                    <h3>Courbe d’intensité</h3>
+                    <p>
+                        ${escapeHtml(
+                            getIntensitySummary(settings)
+                        )}
+                    </p>
+                </div>
+
+                <button
+                    id="resetIntensitySettingsButton"
+                    class="intensity-reset-button"
+                    type="button"
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            ${renderIntensityPreview(settings)}
+
+            <form
+                id="intensitySettingsForm"
+                class="intensity-form"
+            >
+                <label class="intensity-field">
+                    <span>Forme de la courbe</span>
+                    <select name="curve" data-intensity-control>
+                        <option value="rising" ${settings.curve === "rising" ? "selected" : ""}>
+                            Montée progressive
+                        </option>
+                        <option value="falling" ${settings.curve === "falling" ? "selected" : ""}>
+                            Descente progressive
+                        </option>
+                        <option value="stable" ${settings.curve === "stable" ? "selected" : ""}>
+                            Stable
+                        </option>
+                        <option value="waves" ${settings.curve === "waves" ? "selected" : ""}>
+                            En vagues
+                        </option>
+                        <option value="central-peak" ${settings.curve === "central-peak" ? "selected" : ""}>
+                            Pic central
+                        </option>
+                    </select>
+                </label>
+
+                <label class="intensity-field">
+                    <span>Influence sur le mélange</span>
+                    <select name="strength">
+                        <option value="light" ${settings.strength === "light" ? "selected" : ""}>
+                            Légère
+                        </option>
+                        <option value="normal" ${settings.strength === "normal" ? "selected" : ""}>
+                            Normale
+                        </option>
+                        <option value="strong" ${settings.strength === "strong" ? "selected" : ""}>
+                            Forte
+                        </option>
+                    </select>
+                </label>
+
+                ${[
+                    ["startIntensity", "Intensité de départ", settings.startIntensity],
+                    ["endIntensity", "Intensité de fin", settings.endIntensity],
+                    ["peakIntensity", "Intensité du pic", settings.peakIntensity]
+                ].map(([name, label, value]) => `
+                    <label class="intensity-field">
+                        <span>
+                            ${label} :
+                            <strong data-intensity-value="${name}">
+                                ${value}%
+                            </strong>
+                        </span>
+                        <input
+                            name="${name}"
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="5"
+                            value="${value}"
+                            data-intensity-control
+                        >
+                    </label>
+                `).join("")}
+
+                <label class="intensity-check">
+                    <input
+                        name="smoothTransitions"
+                        type="checkbox"
+                        ${settings.smoothTransitions ? "checked" : ""}
+                    >
+                    <span>
+                        Limiter les sauts d’intensité entre
+                        deux morceaux consécutifs
+                    </span>
+                </label>
+
+                <div class="intensity-actions">
+                    <button
+                        class="intensity-save-button"
+                        type="submit"
+                    >
+                        〽 Enregistrer la courbe
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function saveIntensitySettingsFromForm(form) {
+    const formData = new FormData(form);
+
+    currentIntensitySettings =
+        normalizeIntensitySettings({
+            curve: formData.get("curve"),
+            startIntensity:
+                formData.get("startIntensity"),
+            endIntensity:
+                formData.get("endIntensity"),
+            peakIntensity:
+                formData.get("peakIntensity"),
+            strength: formData.get("strength"),
+            smoothTransitions:
+                formData.get("smoothTransitions") === "on"
+        });
+
+    saveIntensitySettings();
+
+    const activeProfile = getActiveProfile();
+
+    if (activeProfile && !activeProfile.isDefault) {
+        activeProfile.intensitySettings =
+            normalizeIntensitySettings(
+                currentIntensitySettings
+            );
+        saveMixProfiles();
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus("Courbe d’intensité enregistrée.");
+}
+
+function resetIntensitySettings() {
+    currentIntensitySettings = {
+        ...DEFAULT_INTENSITY_SETTINGS
+    };
+    saveIntensitySettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Courbe d’intensité réinitialisée.");
+}
+
+function updateIntensityPreviewFromForm(form) {
+    if (!form) {
+        return;
+    }
+
+    const formData = new FormData(form);
+    const settings = normalizeIntensitySettings({
+        curve: formData.get("curve"),
+        startIntensity: formData.get("startIntensity"),
+        endIntensity: formData.get("endIntensity"),
+        peakIntensity: formData.get("peakIntensity"),
+        strength: formData.get("strength"),
+        smoothTransitions:
+            formData.get("smoothTransitions") === "on"
+    });
+
+    for (const name of [
+        "startIntensity",
+        "endIntensity",
+        "peakIntensity"
+    ]) {
+        const output = form.querySelector(
+            `[data-intensity-value="${name}"]`
+        );
+
+        if (output) {
+            output.textContent =
+                `${settings[name]}%`;
+        }
+    }
+
+    const preview = form
+        .closest(".intensity-panel")
+        ?.querySelector(".intensity-preview");
+
+    if (preview) {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML =
+            renderIntensityPreview(settings);
+        preview.replaceWith(
+            wrapper.firstElementChild
+        );
+    }
+}
+
 function normalizeCoherenceSettings(settings = {}) {
     const allowedLevels = new Set([
         "free",
@@ -2044,6 +2527,9 @@ function normalizeMixProfile(profile = {}) {
         ),
         coherenceSettings: normalizeCoherenceSettings(
             profile.coherenceSettings
+        ),
+        intensitySettings: normalizeIntensitySettings(
+            profile.intensitySettings
         )
     };
 }
@@ -2145,11 +2631,16 @@ function applyMixProfile(profileId, {
         normalizeCoherenceSettings(
             profile.coherenceSettings
         );
+    currentIntensitySettings =
+        normalizeIntensitySettings(
+            profile.intensitySettings
+        );
     activeProfileId = profile.id;
 
     saveExclusionRules();
     savePriorityRules();
     saveCoherenceSettings();
+    saveIntensitySettings();
 
     if (persist) {
         saveActiveProfileId();
@@ -2177,9 +2668,13 @@ function clearActiveProfile() {
     currentCoherenceSettings = {
         ...DEFAULT_COHERENCE_SETTINGS
     };
+    currentIntensitySettings = {
+        ...DEFAULT_INTENSITY_SETTINGS
+    };
     saveExclusionRules();
     savePriorityRules();
     saveCoherenceSettings();
+    saveIntensitySettings();
     displayPlaylists(playlistsCache);
     setStatus("Profil actif désactivé.");
 }
@@ -2222,7 +2717,8 @@ function createProfileFromCurrentSettings() {
         shuffleSettings: currentShuffleSettings,
         exclusionRules: currentExclusionRules,
         priorityRules: currentPriorityRules,
-        coherenceSettings: currentCoherenceSettings
+        coherenceSettings: currentCoherenceSettings,
+        intensitySettings: currentIntensitySettings
     });
 
     mixProfiles = [profile, ...mixProfiles]
@@ -2371,6 +2867,10 @@ function assignProfileToSavedMix(mixId, profileId) {
             normalizeCoherenceSettings(
                 profile.coherenceSettings
             );
+        mix.intensitySettings =
+            normalizeIntensitySettings(
+                profile.intensitySettings
+            );
     }
 
     mix.updatedAt = Date.now();
@@ -2389,7 +2889,8 @@ function getMixProfileSummary(profile) {
         getShufflePresetLabel(profile.shuffleSettings),
         getExclusionRulesSummary(profile.exclusionRules),
         getPriorityRulesSummary(profile.priorityRules),
-        getCoherenceSummary(profile.coherenceSettings)
+        getCoherenceSummary(profile.coherenceSettings),
+        getIntensitySummary(profile.intensitySettings)
     ].join(" · ");
 }
 
@@ -3057,6 +3558,10 @@ function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
             normalizeCoherenceSettings(
                 currentCoherenceSettings
             ),
+        intensitySettings:
+            normalizeIntensitySettings(
+                currentIntensitySettings
+            ),
         ...recentOptions
     };
 }
@@ -3131,6 +3636,10 @@ function readSavedMixes() {
                 coherenceSettings:
                     normalizeCoherenceSettings(
                         mix.coherenceSettings
+                    ),
+                intensitySettings:
+                    normalizeIntensitySettings(
+                        mix.intensitySettings
                     )
             }))
             .slice(0, MAX_SAVED_MIXES);
@@ -3262,6 +3771,10 @@ function saveCurrentSourceSelection() {
             coherenceSettings:
                 normalizeCoherenceSettings(
                     currentCoherenceSettings
+                ),
+            intensitySettings:
+                normalizeIntensitySettings(
+                    currentIntensitySettings
                 )
         },
         ...savedMixes
@@ -3312,6 +3825,10 @@ async function launchSavedMix(mixId) {
             normalizeCoherenceSettings(
                 assignedProfile.coherenceSettings
             );
+        currentIntensitySettings =
+            normalizeIntensitySettings(
+                assignedProfile.intensitySettings
+            );
         activeProfileId = assignedProfile.id;
         saveActiveProfileId();
     } else {
@@ -3328,10 +3845,15 @@ async function launchSavedMix(mixId) {
             normalizeCoherenceSettings(
                 mix.coherenceSettings
             );
+        currentIntensitySettings =
+            normalizeIntensitySettings(
+                mix.intensitySettings
+            );
     }
     saveExclusionRules();
     savePriorityRules();
     saveCoherenceSettings();
+    saveIntensitySettings();
     pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
 
@@ -3409,6 +3931,10 @@ function saveEditedMix() {
     mix.coherenceSettings =
         normalizeCoherenceSettings(
             currentCoherenceSettings
+        );
+    mix.intensitySettings =
+        normalizeIntensitySettings(
+            currentIntensitySettings
         );
     mix.updatedAt = Date.now();
     saveSavedMixes();
@@ -3503,6 +4029,25 @@ function saveSavedMixSettings(mixId) {
                     )
             }
         );
+    mix.intensitySettings =
+        normalizeIntensitySettings(
+            selectedProfile?.intensitySettings ||
+            {
+                curve: formData.get("intensityCurve"),
+                startIntensity:
+                    formData.get("startIntensity"),
+                endIntensity:
+                    formData.get("endIntensity"),
+                peakIntensity:
+                    formData.get("peakIntensity"),
+                strength:
+                    formData.get("intensityStrength"),
+                smoothTransitions:
+                    formData.get(
+                        "smoothIntensityTransitions"
+                    ) === "on"
+            }
+        );
     mix.updatedAt = Date.now();
 
     saveSavedMixes();
@@ -3524,6 +4069,9 @@ function renderSavedMixSettings(mix) {
     );
     const coherence = normalizeCoherenceSettings(
         mix.coherenceSettings
+    );
+    const intensity = normalizeIntensitySettings(
+        mix.intensitySettings
     );
 
     return `
@@ -3674,6 +4222,74 @@ function renderSavedMixSettings(mix) {
                         ${coherence.strengthenFirstThirty ? "checked" : ""}
                     >
                     Renforcer dans les 30 premiers
+                </span>
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>Courbe d’intensité</span>
+                <select name="intensityCurve">
+                    <option value="rising" ${intensity.curve === "rising" ? "selected" : ""}>
+                        Montée progressive
+                    </option>
+                    <option value="falling" ${intensity.curve === "falling" ? "selected" : ""}>
+                        Descente progressive
+                    </option>
+                    <option value="stable" ${intensity.curve === "stable" ? "selected" : ""}>
+                        Stable
+                    </option>
+                    <option value="waves" ${intensity.curve === "waves" ? "selected" : ""}>
+                        En vagues
+                    </option>
+                    <option value="central-peak" ${intensity.curve === "central-peak" ? "selected" : ""}>
+                        Pic central
+                    </option>
+                </select>
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>Influence de la courbe</span>
+                <select name="intensityStrength">
+                    <option value="light" ${intensity.strength === "light" ? "selected" : ""}>
+                        Légère
+                    </option>
+                    <option value="normal" ${intensity.strength === "normal" ? "selected" : ""}>
+                        Normale
+                    </option>
+                    <option value="strong" ${intensity.strength === "strong" ? "selected" : ""}>
+                        Forte
+                    </option>
+                </select>
+            </label>
+
+            ${[
+                ["startIntensity", "Départ", intensity.startIntensity],
+                ["endIntensity", "Fin", intensity.endIntensity],
+                ["peakIntensity", "Pic", intensity.peakIntensity]
+            ].map(([name, label, value]) => `
+                <label class="saved-mix-setting-field">
+                    <span>
+                        Intensité ${label.toLowerCase()} :
+                        <strong>${value}%</strong>
+                    </span>
+                    <input
+                        name="${name}"
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value="${value}"
+                    >
+                </label>
+            `).join("")}
+
+            <label class="saved-mix-setting-field saved-mix-coherence-check">
+                <span>
+                    <input
+                        name="smoothIntensityTransitions"
+                        type="checkbox"
+                        ${intensity.smoothTransitions ? "checked" : ""}
+                    >
+                    Lisser les changements d’intensité
                 </span>
             </label>
 
@@ -3836,6 +4452,13 @@ function renderSavedMixesSection() {
                                 getCoherenceSummary(
                                     normalizeCoherenceSettings(
                                         mix.coherenceSettings
+                                    )
+                                )
+                            )}
+                            · ${escapeHtml(
+                                getIntensitySummary(
+                                    normalizeIntensitySettings(
+                                        mix.intensitySettings
                                     )
                                 )
                             )}
@@ -4515,6 +5138,10 @@ function normalizeImportedMixes(values) {
                 coherenceSettings:
                     normalizeCoherenceSettings(
                         mix.coherenceSettings
+                    ),
+                intensitySettings:
+                    normalizeIntensitySettings(
+                        mix.intensitySettings
                     )
             };
         })
@@ -4579,6 +5206,7 @@ function buildBackupPayload() {
             activeProfileId,
             priorityRules: currentPriorityRules,
             coherenceSettings: currentCoherenceSettings,
+            intensitySettings: currentIntensitySettings,
             mixSchedules
         }
     };
@@ -4679,6 +5307,10 @@ function validateBackupPayload(payload) {
         coherenceSettings:
             normalizeCoherenceSettings(
                 payload.data.coherenceSettings
+            ),
+        intensitySettings:
+            normalizeIntensitySettings(
+                payload.data.intensitySettings
             ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
@@ -4789,6 +5421,9 @@ async function importBackupFile(file) {
         currentCoherenceSettings =
             imported.coherenceSettings;
         saveCoherenceSettings();
+        currentIntensitySettings =
+            imported.intensitySettings;
+        saveIntensitySettings();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -5700,6 +6335,8 @@ function displayPlaylists(playlists) {
 
             ${renderCoherencePanel()}
 
+            ${renderIntensityPanel()}
+
             ${renderExclusionPanel()}
 
             ${renderSavedMixesSection()}
@@ -6035,7 +6672,12 @@ function moveTrack(fromIndex, toIndex) {
     markQueueChanged();
     renderTrackList();
     renderShuffleStats(
-        analyzeShuffleOrder(selectedTracks)
+        analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
     );
 }
 
@@ -6083,7 +6725,12 @@ function removeTrackAt(index) {
 
     renderTrackList();
     renderShuffleStats(
-        analyzeShuffleOrder(selectedTracks)
+        analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
     );
 
     const playButton = document.getElementById(
@@ -6128,7 +6775,12 @@ function resetGeneratedOrder() {
 
     renderTrackList();
     renderShuffleStats(
-        analyzeShuffleOrder(selectedTracks)
+        analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
     );
     setStatus("Ordre intelligent initial restauré.");
 }
@@ -6169,7 +6821,13 @@ function renderShuffleStats(stats = null) {
             <strong>${stats.durationJumpTransitions ?? 0}</strong>
             &nbsp;–&nbsp;
             <em>Versions spéciales consécutives</em> :
-            <strong>${stats.repeatedVersionTransitions ?? 0}</strong>.
+            <strong>${stats.repeatedVersionTransitions ?? 0}</strong>
+            &nbsp;–&nbsp;
+            <em>Adhérence à la courbe</em> :
+            <strong>${stats.intensityCurveAdherence ?? 0}%</strong>
+            &nbsp;–&nbsp;
+            <em>Sauts d’intensité</em> :
+            <strong>${stats.intensityJumpTransitions ?? 0}</strong>.
         </p>
     `;
 }
@@ -6829,6 +7487,14 @@ function displayPlaylistDetails(playlist, tracks) {
                 </strong>
                 avec un écart de durée surveillé à partir de
                 ${currentCoherenceSettings.durationJumpSeconds}s.
+                Courbe d’intensité
+                <strong>
+                    ${getIntensityCurveLabel(
+                        currentIntensitySettings.curve
+                    ).toLowerCase()}
+                </strong>
+                de ${currentIntensitySettings.startIntensity}%
+                à ${currentIntensitySettings.endIntensity}%.
             </p>
 
             <div
@@ -7342,7 +8008,12 @@ async function createSelectedMix() {
             selectedTracks
         );
         renderShuffleStats(
-            analyzeShuffleOrder(selectedTracks)
+            analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
         );
 
         const shuffleButton = document.getElementById(
@@ -7690,6 +8361,16 @@ contentElement.addEventListener(
             return;
         }
 
+        const resetIntensitySettingsButton =
+            event.target.closest(
+                "#resetIntensitySettingsButton"
+            );
+
+        if (resetIntensitySettingsButton) {
+            resetIntensitySettings();
+            return;
+        }
+
         const resetCoherenceSettingsButton =
             event.target.closest(
                 "#resetCoherenceSettingsButton"
@@ -7965,6 +8646,10 @@ contentElement.addEventListener(
                     normalizeCoherenceSettings(
                         activeProfile.coherenceSettings
                     );
+                currentIntensitySettings =
+                    normalizeIntensitySettings(
+                        activeProfile.intensitySettings
+                    );
             } else {
                 currentShuffleSettings = {
                     ...DEFAULT_SHUFFLE_SETTINGS
@@ -8099,7 +8784,12 @@ contentElement.addEventListener(
 
             renderTrackList();
             renderShuffleStats(
-                analyzeShuffleOrder(selectedTracks)
+                analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
             );
 
             shuffleButton.textContent =
@@ -8125,6 +8815,16 @@ contentElement.addEventListener(
         ) {
             event.preventDefault();
             createMixScheduleFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "intensitySettingsForm"
+        ) {
+            event.preventDefault();
+            saveIntensitySettingsFromForm(
                 event.target
             );
             return;
@@ -8353,6 +9053,19 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (
+            event.target.matches(
+                "[data-intensity-control]"
+            )
+        ) {
+            updateIntensityPreviewFromForm(
+                event.target.closest(
+                    "#intensitySettingsForm"
+                )
+            );
+            return;
+        }
+
         if (event.target.matches("[data-shuffle-setting]")) {
             const form = event.target.closest(
                 "[data-saved-mix-settings-id]"
