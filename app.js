@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.1.0";
+const APP_VERSION = "3.1.1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -1585,7 +1585,14 @@ function findAutomationDevice(
     devices,
     settings = iosQuickPlaySettings
 ) {
-    if (!devices.length) {
+    const controllableDevices = devices.filter(
+        (device) =>
+            device &&
+            device.id &&
+            device.is_restricted !== true
+    );
+
+    if (!controllableDevices.length) {
         return null;
     }
 
@@ -1598,7 +1605,7 @@ function findAutomationDevice(
                 settings.deviceName
             );
 
-        const named = devices.find(
+        const named = controllableDevices.find(
             (device) =>
                 normalizeSearchText(
                     device.name
@@ -1611,7 +1618,7 @@ function findAutomationDevice(
     }
 
     if (settings.deviceMode === "iphone") {
-        const iphone = devices.find(
+        const iphone = controllableDevices.find(
             (device) => {
                 const name =
                     normalizeSearchText(
@@ -1638,7 +1645,7 @@ function findAutomationDevice(
         settings.deviceMode === "active" ||
         settings.deviceMode === "iphone"
     ) {
-        const active = devices.find(
+        const active = controllableDevices.find(
             (device) => device.is_active
         );
 
@@ -1647,7 +1654,7 @@ function findAutomationDevice(
         }
     }
 
-    return devices[0];
+    return controllableDevices[0];
 }
 
 async function getAutomationDeviceWithRetry(
@@ -1664,6 +1671,18 @@ async function getAutomationDeviceWithRetry(
             lastDevices =
                 await getAvailableDevices();
             availableDevices = lastDevices;
+
+            if (
+                lastDevices.length &&
+                lastDevices.every(
+                    (device) =>
+                        device.is_restricted === true
+                )
+            ) {
+                throw new Error(
+                    "Spotify détecte l’appareil, mais interdit son contrôle à distance."
+                );
+            }
 
             const device =
                 settings.fallbackDeviceMode
@@ -1771,6 +1790,12 @@ async function startPlaylistContextPlayback(
                 message;
         } catch (error) {
             // Réponse sans JSON.
+        }
+
+        if (response.status === 403) {
+            throw new Error(
+                `${message} L’appareil Spotify est peut-être restreint ou non contrôlable à distance.`
+            );
         }
 
         throw new Error(message);
@@ -3024,18 +3049,29 @@ async function resolveScheduledDevice(schedule) {
         );
     }
 
+    const controllableDevices = devices.filter(
+        (device) =>
+            device.is_restricted !== true
+    );
+
+    if (!controllableDevices.length) {
+        throw new Error(
+            "Les appareils Spotify détectés refusent le contrôle à distance."
+        );
+    }
+
     return (
-        devices.find(
+        controllableDevices.find(
             (device) =>
                 device.id === schedule.deviceId
         ) ||
-        devices.find(
+        controllableDevices.find(
             (device) =>
                 schedule.deviceName &&
                 device.name === schedule.deviceName
         ) ||
-        devices.find((device) => device.is_active) ||
-        devices[0]
+        controllableDevices.find((device) => device.is_active) ||
+        controllableDevices[0]
     );
 }
 
