@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.3.0";
+const APP_VERSION = "2.4.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -68,6 +68,13 @@ const DEFAULT_PRIORITY_RULES = {
     favoredTrackUris: [],
     intensity: "normal",
     boostFirstTwenty: true
+};
+const COHERENCE_SETTINGS_KEY =
+    "shuffleplus_coherence_settings_v1";
+const DEFAULT_COHERENCE_SETTINGS = {
+    level: "balanced",
+    strengthenFirstThirty: true,
+    durationJumpSeconds: 150
 };
 const DEFAULT_EXCLUSION_RULES = {
     excludedArtists: [],
@@ -273,6 +280,7 @@ let mixProfiles = readMixProfiles();
 let activeProfileId = readActiveProfileId();
 let currentPriorityRules = readPriorityRules();
 let lastPrioritySummary = null;
+let currentCoherenceSettings = readCoherenceSettings();
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -374,6 +382,224 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+
+
+function normalizeCoherenceSettings(settings = {}) {
+    const allowedLevels = new Set([
+        "free",
+        "balanced",
+        "fluid"
+    ]);
+
+    return {
+        level: allowedLevels.has(settings.level)
+            ? settings.level
+            : "balanced",
+        strengthenFirstThirty:
+            settings.strengthenFirstThirty !== false,
+        durationJumpSeconds: clampInteger(
+            settings.durationJumpSeconds,
+            60,
+            600,
+            150
+        )
+    };
+}
+
+function readCoherenceSettings() {
+    try {
+        const raw = localStorage.getItem(
+            COHERENCE_SETTINGS_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return normalizeCoherenceSettings(parsed);
+    } catch (error) {
+        console.warn(
+            "Réglages de cohérence illisibles :",
+            error
+        );
+        return {
+            ...DEFAULT_COHERENCE_SETTINGS
+        };
+    }
+}
+
+function saveCoherenceSettings() {
+    try {
+        localStorage.setItem(
+            COHERENCE_SETTINGS_KEY,
+            JSON.stringify(currentCoherenceSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer la cohérence :",
+            error
+        );
+    }
+}
+
+function getCoherenceLevelLabel(level = "balanced") {
+    switch (level) {
+        case "free":
+            return "Libre";
+        case "fluid":
+            return "Fluide";
+        case "balanced":
+        default:
+            return "Équilibrée";
+    }
+}
+
+function getCoherenceSummary(
+    settings = currentCoherenceSettings
+) {
+    const normalized =
+        normalizeCoherenceSettings(settings);
+
+    const parts = [
+        `cohérence ${getCoherenceLevelLabel(
+            normalized.level
+        ).toLowerCase()}`,
+        `écart de durée sensible à partir de ` +
+        `${normalized.durationJumpSeconds}s`
+    ];
+
+    if (normalized.strengthenFirstThirty) {
+        parts.push("renforcée dans les 30 premiers");
+    }
+
+    return parts.join(" · ");
+}
+
+function renderCoherencePanel() {
+    const settings = normalizeCoherenceSettings(
+        currentCoherenceSettings
+    );
+
+    return `
+        <section class="coherence-panel">
+            <div class="coherence-panel-heading">
+                <div>
+                    <h3>Transitions intelligentes</h3>
+                    <p>
+                        ${escapeHtml(
+                            getCoherenceSummary(settings)
+                        )}
+                    </p>
+                </div>
+
+                <button
+                    id="resetCoherenceSettingsButton"
+                    class="coherence-reset-button"
+                    type="button"
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            <form
+                id="coherenceSettingsForm"
+                class="coherence-form"
+            >
+                <label class="coherence-field">
+                    <span>Niveau de cohérence</span>
+                    <select name="level">
+                        <option value="free" ${settings.level === "free" ? "selected" : ""}>
+                            Libre
+                        </option>
+                        <option value="balanced" ${settings.level === "balanced" ? "selected" : ""}>
+                            Équilibrée
+                        </option>
+                        <option value="fluid" ${settings.level === "fluid" ? "selected" : ""}>
+                            Fluide
+                        </option>
+                    </select>
+                </label>
+
+                <label class="coherence-field">
+                    <span>
+                        Écart de durée considéré comme brusque
+                    </span>
+                    <div class="coherence-range-row">
+                        <input
+                            name="durationJumpSeconds"
+                            type="range"
+                            min="60"
+                            max="600"
+                            step="15"
+                            value="${settings.durationJumpSeconds}"
+                            data-coherence-range
+                        >
+                        <strong data-coherence-value>
+                            ${settings.durationJumpSeconds}s
+                        </strong>
+                    </div>
+                </label>
+
+                <label class="coherence-check">
+                    <input
+                        name="strengthenFirstThirty"
+                        type="checkbox"
+                        ${settings.strengthenFirstThirty ? "checked" : ""}
+                    >
+                    <span>
+                        Renforcer la cohérence dans les
+                        30 premiers morceaux
+                    </span>
+                </label>
+
+                <div class="coherence-actions">
+                    <button
+                        class="coherence-save-button"
+                        type="submit"
+                    >
+                        ≋ Enregistrer la cohérence
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function saveCoherenceSettingsFromForm(form) {
+    const formData = new FormData(form);
+
+    currentCoherenceSettings =
+        normalizeCoherenceSettings({
+            level: formData.get("level"),
+            durationJumpSeconds:
+                formData.get("durationJumpSeconds"),
+            strengthenFirstThirty:
+                formData.get("strengthenFirstThirty") === "on"
+        });
+
+    saveCoherenceSettings();
+
+    const activeProfile = getActiveProfile();
+
+    if (activeProfile && !activeProfile.isDefault) {
+        activeProfile.coherenceSettings =
+            normalizeCoherenceSettings(
+                currentCoherenceSettings
+            );
+        saveMixProfiles();
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus("Réglages de cohérence enregistrés.");
+}
+
+function resetCoherenceSettings() {
+    currentCoherenceSettings = {
+        ...DEFAULT_COHERENCE_SETTINGS
+    };
+    saveCoherenceSettings();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Les transitions intelligentes ont été réinitialisées."
+    );
+}
 
 function normalizePriorityRules(rules = {}) {
     const allowedIntensities = new Set([
@@ -752,6 +978,9 @@ function normalizeMixProfile(profile = {}) {
         ),
         priorityRules: normalizePriorityRules(
             profile.priorityRules
+        ),
+        coherenceSettings: normalizeCoherenceSettings(
+            profile.coherenceSettings
         )
     };
 }
@@ -849,10 +1078,15 @@ function applyMixProfile(profileId, {
     currentPriorityRules = normalizePriorityRules(
         profile.priorityRules
     );
+    currentCoherenceSettings =
+        normalizeCoherenceSettings(
+            profile.coherenceSettings
+        );
     activeProfileId = profile.id;
 
     saveExclusionRules();
     savePriorityRules();
+    saveCoherenceSettings();
 
     if (persist) {
         saveActiveProfileId();
@@ -877,8 +1111,12 @@ function clearActiveProfile() {
     currentPriorityRules = {
         ...DEFAULT_PRIORITY_RULES
     };
+    currentCoherenceSettings = {
+        ...DEFAULT_COHERENCE_SETTINGS
+    };
     saveExclusionRules();
     savePriorityRules();
+    saveCoherenceSettings();
     displayPlaylists(playlistsCache);
     setStatus("Profil actif désactivé.");
 }
@@ -920,7 +1158,8 @@ function createProfileFromCurrentSettings() {
         isDefault: false,
         shuffleSettings: currentShuffleSettings,
         exclusionRules: currentExclusionRules,
-        priorityRules: currentPriorityRules
+        priorityRules: currentPriorityRules,
+        coherenceSettings: currentCoherenceSettings
     });
 
     mixProfiles = [profile, ...mixProfiles]
@@ -1065,6 +1304,10 @@ function assignProfileToSavedMix(mixId, profileId) {
         mix.priorityRules = normalizePriorityRules(
             profile.priorityRules
         );
+        mix.coherenceSettings =
+            normalizeCoherenceSettings(
+                profile.coherenceSettings
+            );
     }
 
     mix.updatedAt = Date.now();
@@ -1082,7 +1325,8 @@ function getMixProfileSummary(profile) {
     return [
         getShufflePresetLabel(profile.shuffleSettings),
         getExclusionRulesSummary(profile.exclusionRules),
-        getPriorityRulesSummary(profile.priorityRules)
+        getPriorityRulesSummary(profile.priorityRules),
+        getCoherenceSummary(profile.coherenceSettings)
     ].join(" · ");
 }
 
@@ -1746,6 +1990,10 @@ function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
         priorityRules: normalizePriorityRules(
             currentPriorityRules
         ),
+        coherenceSettings:
+            normalizeCoherenceSettings(
+                currentCoherenceSettings
+            ),
         ...recentOptions
     };
 }
@@ -1816,7 +2064,11 @@ function readSavedMixes() {
                         : "",
                 priorityRules: normalizePriorityRules(
                     mix.priorityRules
-                )
+                ),
+                coherenceSettings:
+                    normalizeCoherenceSettings(
+                        mix.coherenceSettings
+                    )
             }))
             .slice(0, MAX_SAVED_MIXES);
     } catch (error) {
@@ -1943,7 +2195,11 @@ function saveCurrentSourceSelection() {
             profileId: activeProfileId,
             priorityRules: normalizePriorityRules(
                 currentPriorityRules
-            )
+            ),
+            coherenceSettings:
+                normalizeCoherenceSettings(
+                    currentCoherenceSettings
+                )
         },
         ...savedMixes
     ];
@@ -1989,6 +2245,10 @@ async function launchSavedMix(mixId) {
         currentPriorityRules = normalizePriorityRules(
             assignedProfile.priorityRules
         );
+        currentCoherenceSettings =
+            normalizeCoherenceSettings(
+                assignedProfile.coherenceSettings
+            );
         activeProfileId = assignedProfile.id;
         saveActiveProfileId();
     } else {
@@ -2001,9 +2261,14 @@ async function launchSavedMix(mixId) {
         currentPriorityRules = normalizePriorityRules(
             mix.priorityRules
         );
+        currentCoherenceSettings =
+            normalizeCoherenceSettings(
+                mix.coherenceSettings
+            );
     }
     saveExclusionRules();
     savePriorityRules();
+    saveCoherenceSettings();
     pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
 
@@ -2078,6 +2343,10 @@ function saveEditedMix() {
     mix.priorityRules = normalizePriorityRules(
         currentPriorityRules
     );
+    mix.coherenceSettings =
+        normalizeCoherenceSettings(
+            currentCoherenceSettings
+        );
     mix.updatedAt = Date.now();
     saveSavedMixes();
 
@@ -2156,6 +2425,21 @@ function saveSavedMixSettings(mixId) {
         selectedProfile?.priorityRules ||
         currentPriorityRules
     );
+    mix.coherenceSettings =
+        normalizeCoherenceSettings(
+            selectedProfile?.coherenceSettings ||
+            {
+                level: formData.get("coherenceLevel"),
+                strengthenFirstThirty:
+                    formData.get(
+                        "strengthenFirstThirty"
+                    ) === "on",
+                durationJumpSeconds:
+                    formData.get(
+                        "durationJumpSeconds"
+                    )
+            }
+        );
     mix.updatedAt = Date.now();
 
     saveSavedMixes();
@@ -2174,6 +2458,9 @@ function renderSavedMixSettings(mix) {
 
     const settings = normalizeShuffleSettings(
         mix.shuffleSettings
+    );
+    const coherence = normalizeCoherenceSettings(
+        mix.coherenceSettings
     );
 
     return `
@@ -2282,6 +2569,49 @@ function renderSavedMixSettings(mix) {
                     value="${settings.recentAvoidance}"
                     data-shuffle-setting="recentAvoidance"
                 >
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>Cohérence des transitions</span>
+                <select name="coherenceLevel">
+                    <option value="free" ${coherence.level === "free" ? "selected" : ""}>
+                        Libre
+                    </option>
+                    <option value="balanced" ${coherence.level === "balanced" ? "selected" : ""}>
+                        Équilibrée
+                    </option>
+                    <option value="fluid" ${coherence.level === "fluid" ? "selected" : ""}>
+                        Fluide
+                    </option>
+                </select>
+            </label>
+
+            <label class="saved-mix-setting-field">
+                <span>
+                    Écart de durée brusque :
+                    <strong>
+                        ${coherence.durationJumpSeconds}s
+                    </strong>
+                </span>
+                <input
+                    name="durationJumpSeconds"
+                    type="range"
+                    min="60"
+                    max="600"
+                    step="15"
+                    value="${coherence.durationJumpSeconds}"
+                >
+            </label>
+
+            <label class="saved-mix-setting-field saved-mix-coherence-check">
+                <span>
+                    <input
+                        name="strengthenFirstThirty"
+                        type="checkbox"
+                        ${coherence.strengthenFirstThirty ? "checked" : ""}
+                    >
+                    Renforcer dans les 30 premiers
+                </span>
             </label>
 
             <div class="saved-mix-settings-actions">
@@ -2431,6 +2761,13 @@ function renderSavedMixesSection() {
                                 getPriorityRulesSummary(
                                     normalizePriorityRules(
                                         mix.priorityRules
+                                    )
+                                )
+                            )}
+                            · ${escapeHtml(
+                                getCoherenceSummary(
+                                    normalizeCoherenceSettings(
+                                        mix.coherenceSettings
                                     )
                                 )
                             )}
@@ -3106,7 +3443,11 @@ function normalizeImportedMixes(values) {
                         : "",
                 priorityRules: normalizePriorityRules(
                     mix.priorityRules
-                )
+                ),
+                coherenceSettings:
+                    normalizeCoherenceSettings(
+                        mix.coherenceSettings
+                    )
             };
         })
         .filter((mix) => mix.sourceKeys.length)
@@ -3168,7 +3509,8 @@ function buildBackupPayload() {
             exclusionRules: currentExclusionRules,
             mixProfiles,
             activeProfileId,
-            priorityRules: currentPriorityRules
+            priorityRules: currentPriorityRules,
+            coherenceSettings: currentCoherenceSettings
         }
     };
 }
@@ -3265,6 +3607,10 @@ function validateBackupPayload(payload) {
         priorityRules: normalizePriorityRules(
             payload.data.priorityRules
         ),
+        coherenceSettings:
+            normalizeCoherenceSettings(
+                payload.data.coherenceSettings
+            ),
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -3360,6 +3706,9 @@ async function importBackupFile(file) {
         currentPriorityRules =
             imported.priorityRules;
         savePriorityRules();
+        currentCoherenceSettings =
+            imported.coherenceSettings;
+        saveCoherenceSettings();
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -4265,6 +4614,8 @@ function displayPlaylists(playlists) {
 
             ${renderPriorityPanel()}
 
+            ${renderCoherencePanel()}
+
             ${renderExclusionPanel()}
 
             ${renderSavedMixesSection()}
@@ -4725,7 +5076,16 @@ function renderShuffleStats(stats = null) {
             <strong>${stats.consecutiveAlbumRepeats}</strong>
             &nbsp;–&nbsp;
             <em>Morceaux lus récemment dans les 20 premiers</em> :
-            <strong>${stats.recentTracksInFirstTwenty}</strong>.
+            <strong>${stats.recentTracksInFirstTwenty}</strong>
+            &nbsp;–&nbsp;
+            <em>Transitions brusques</em> :
+            <strong>${stats.abruptTransitions ?? 0}</strong>
+            &nbsp;–&nbsp;
+            <em>Écarts importants de durée</em> :
+            <strong>${stats.durationJumpTransitions ?? 0}</strong>
+            &nbsp;–&nbsp;
+            <em>Versions spéciales consécutives</em> :
+            <strong>${stats.repeatedVersionTransitions ?? 0}</strong>.
         </p>
     `;
 }
@@ -5377,6 +5737,14 @@ function displayPlaylistDetails(playlist, tracks) {
                 entre deux titres du même album, avec une éviction
                 ${getRecentAvoidanceLabel(currentShuffleSettings.recentAvoidance).toLowerCase()}
                 des morceaux récemment lus.
+                Transitions
+                <strong>
+                    ${getCoherenceLevelLabel(
+                        currentCoherenceSettings.level
+                    ).toLowerCase()}
+                </strong>
+                avec un écart de durée surveillé à partir de
+                ${currentCoherenceSettings.durationJumpSeconds}s.
             </p>
 
             <div
@@ -6182,6 +6550,16 @@ contentElement.addEventListener(
             return;
         }
 
+        const resetCoherenceSettingsButton =
+            event.target.closest(
+                "#resetCoherenceSettingsButton"
+            );
+
+        if (resetCoherenceSettingsButton) {
+            resetCoherenceSettings();
+            return;
+        }
+
         const resetPriorityRulesButton =
             event.target.closest("#resetPriorityRulesButton");
 
@@ -6443,6 +6821,10 @@ contentElement.addEventListener(
                     normalizePriorityRules(
                         activeProfile.priorityRules
                     );
+                currentCoherenceSettings =
+                    normalizeCoherenceSettings(
+                        activeProfile.coherenceSettings
+                    );
             } else {
                 currentShuffleSettings = {
                     ...DEFAULT_SHUFFLE_SETTINGS
@@ -6598,6 +6980,16 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (
+            event.target.id === "coherenceSettingsForm"
+        ) {
+            event.preventDefault();
+            saveCoherenceSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
         if (event.target.id === "priorityRulesForm") {
             event.preventDefault();
             savePriorityRulesFromForm(event.target);

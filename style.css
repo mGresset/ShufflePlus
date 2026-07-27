@@ -2968,3 +2968,181 @@ button:disabled {
         height: 38px;
     }
 }
+
+
+/* Shuffle+ v2.4.0 — Transitions intelligentes */
+
+.coherence-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #325f5a;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(31 85 78 / 70%) 0%,
+            rgb(20 20 20 / 96%) 72%
+        );
+}
+
+.coherence-panel-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.coherence-panel-heading h3 {
+    margin: 0 0 5px;
+    font-size: 20px;
+}
+
+.coherence-panel-heading p {
+    margin: 0;
+    color: #b7d5d1;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.coherence-reset-button {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid #4f817a;
+    border-radius: 999px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 750;
+}
+
+.coherence-reset-button:hover {
+    border-color: #5de4d1;
+    background: #173b36;
+}
+
+.coherence-form {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.coherence-field {
+    display: grid;
+    gap: 7px;
+}
+
+.coherence-field > span {
+    color: #d3e5e2;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.coherence-field select {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 13px;
+    border: 1px solid #4a706b;
+    border-radius: 11px;
+    outline: none;
+    background: #101816;
+    color: #ffffff;
+}
+
+.coherence-range-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 46px;
+    padding: 0 13px;
+    border: 1px solid #4a706b;
+    border-radius: 11px;
+    background: #101816;
+}
+
+.coherence-range-row input {
+    width: 100%;
+    accent-color: #5de4d1;
+}
+
+.coherence-range-row strong {
+    min-width: 52px;
+    color: #5de4d1;
+    text-align: right;
+}
+
+.coherence-check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 46px;
+    padding: 10px 12px;
+    border: 1px solid #405f5b;
+    border-radius: 11px;
+    background: #111a18;
+    color: #d0e1de;
+    font-size: 13px;
+}
+
+.coherence-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: #5de4d1;
+}
+
+.coherence-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+}
+
+.coherence-save-button {
+    min-height: 43px;
+    padding: 9px 16px;
+    border: 0;
+    border-radius: 999px;
+    background: #5de4d1;
+    color: #062722;
+    font-weight: 800;
+}
+
+.saved-mix-coherence-check {
+    align-self: end;
+}
+
+.saved-mix-coherence-check > span {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.saved-mix-coherence-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: #5de4d1;
+}
+
+@media (max-width: 760px) {
+    .coherence-panel-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .coherence-reset-button {
+        width: 100%;
+    }
+
+    .coherence-form {
+        grid-template-columns: 1fr;
+    }
+
+    .coherence-actions {
+        grid-column: auto;
+    }
+
+    .coherence-save-button {
+        width: 100%;
+    }
+}

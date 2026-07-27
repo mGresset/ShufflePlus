@@ -151,6 +151,183 @@ function getPriorityMatchCount(track, rules = {}) {
     return matches;
 }
 
+
+function getTrackDurationSeconds(track) {
+    return Math.max(
+        0,
+        Number(track?.duration_ms || 0) / 1000
+    );
+}
+
+function getTrackVersionType(track) {
+    const text = normalizePriorityText([
+        track?.name,
+        track?.album?.name
+    ].filter(Boolean).join(" "));
+
+    if (/\blive\b|en concert|concert\b/.test(text)) {
+        return "live";
+    }
+
+    if (/\bremix\b|\brework\b|\bedit\b/.test(text)) {
+        return "remix";
+    }
+
+    if (/\binstrumental\b/.test(text)) {
+        return "instrumental";
+    }
+
+    if (/\bkaraoke\b/.test(text)) {
+        return "karaoke";
+    }
+
+    return "standard";
+}
+
+function getDurationCategory(track) {
+    const duration = getTrackDurationSeconds(track);
+
+    if (duration < 150) {
+        return "short";
+    }
+
+    if (duration > 330) {
+        return "long";
+    }
+
+    return "medium";
+}
+
+function getTransitionPenalty(
+    previousTrack,
+    nextTrack,
+    options,
+    position
+) {
+    if (
+        !previousTrack ||
+        options.coherenceSettings.level === "free"
+    ) {
+        return 0;
+    }
+
+    const settings = options.coherenceSettings;
+    const basePenalty =
+        settings.level === "fluid" ? 85 : 38;
+    const earlyMultiplier =
+        settings.strengthenFirstThirty &&
+        position < 30
+            ? 1.45 - (position / 30) * 0.25
+            : 1;
+
+    let penalty = 0;
+
+    const previousDuration =
+        getTrackDurationSeconds(previousTrack);
+    const nextDuration =
+        getTrackDurationSeconds(nextTrack);
+    const durationDifference = Math.abs(
+        previousDuration - nextDuration
+    );
+
+    if (
+        previousDuration > 0 &&
+        nextDuration > 0 &&
+        durationDifference >=
+            settings.durationJumpSeconds
+    ) {
+        penalty += basePenalty *
+            Math.min(
+                2.2,
+                durationDifference /
+                    settings.durationJumpSeconds
+            );
+    }
+
+    const previousCategory =
+        getDurationCategory(previousTrack);
+    const nextCategory =
+        getDurationCategory(nextTrack);
+
+    if (
+        (previousCategory === "short" &&
+            nextCategory === "long") ||
+        (previousCategory === "long" &&
+            nextCategory === "short")
+    ) {
+        penalty += basePenalty * 0.75;
+    }
+
+    const previousType =
+        getTrackVersionType(previousTrack);
+    const nextType =
+        getTrackVersionType(nextTrack);
+
+    if (
+        previousType !== "standard" &&
+        previousType === nextType
+    ) {
+        penalty += basePenalty * 1.15;
+    } else if (
+        previousType !== "standard" &&
+        nextType !== "standard" &&
+        previousType !== nextType
+    ) {
+        penalty += basePenalty * 0.55;
+    }
+
+    return penalty * earlyMultiplier;
+}
+
+function analyzeTransition(
+    previousTrack,
+    nextTrack,
+    durationJumpSeconds = 150
+) {
+    const previousDuration =
+        getTrackDurationSeconds(previousTrack);
+    const nextDuration =
+        getTrackDurationSeconds(nextTrack);
+    const durationDifference = Math.abs(
+        previousDuration - nextDuration
+    );
+    const durationJump =
+        previousDuration > 0 &&
+        nextDuration > 0 &&
+        durationDifference >= durationJumpSeconds;
+
+    const previousCategory =
+        getDurationCategory(previousTrack);
+    const nextCategory =
+        getDurationCategory(nextTrack);
+    const extremeDurationSwitch =
+        (
+            previousCategory === "short" &&
+            nextCategory === "long"
+        ) ||
+        (
+            previousCategory === "long" &&
+            nextCategory === "short"
+        );
+
+    const previousType =
+        getTrackVersionType(previousTrack);
+    const nextType =
+        getTrackVersionType(nextTrack);
+    const repeatedVersion =
+        previousType !== "standard" &&
+        previousType === nextType;
+
+    return {
+        durationJump,
+        repeatedVersion,
+        abrupt:
+            durationJump ||
+            extremeDurationSwitch ||
+            repeatedVersion
+    };
+}
+
 function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
     let score = Math.random();
     const trackKey = getTrackKey(track);
@@ -198,6 +375,16 @@ function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
         }
     }
 
+
+    const previousTrack =
+        orderedTracks[position - 1];
+
+    score += getTransitionPenalty(
+        previousTrack,
+        track,
+        options,
+        position
+    );
 
     const priorityMatchCount =
         getPriorityMatchCount(
@@ -303,6 +490,25 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
             1000,
             90
         ),
+        coherenceSettings: {
+            level:
+                ["free", "balanced", "fluid"].includes(
+                    customOptions.coherenceSettings?.level
+                )
+                    ? customOptions.coherenceSettings.level
+                    : "balanced",
+            strengthenFirstThirty:
+                customOptions.coherenceSettings
+                    ?.strengthenFirstThirty !== false,
+            durationJumpSeconds:
+                normalizeNumberOption(
+                    customOptions.coherenceSettings
+                        ?.durationJumpSeconds,
+                    60,
+                    600,
+                    150
+                )
+        },
         priorityRules: {
             favoredArtists:
                 Array.isArray(
@@ -374,6 +580,9 @@ export function analyzeShuffleOrder(tracks) {
     let consecutiveArtistRepeats = 0;
     let consecutiveAlbumRepeats = 0;
     let consecutiveTrackRepeats = 0;
+    let abruptTransitions = 0;
+    let durationJumpTransitions = 0;
+    let repeatedVersionTransitions = 0;
 
     for (let index = 1; index < tracks.length; index += 1) {
         const currentTrack = tracks[index];
@@ -403,6 +612,23 @@ export function analyzeShuffleOrder(tracks) {
         ) {
             consecutiveTrackRepeats += 1;
         }
+
+        const transition = analyzeTransition(
+            previousTrack,
+            currentTrack
+        );
+
+        if (transition.abrupt) {
+            abruptTransitions += 1;
+        }
+
+        if (transition.durationJump) {
+            durationJumpTransitions += 1;
+        }
+
+        if (transition.repeatedVersion) {
+            repeatedVersionTransitions += 1;
+        }
     }
 
     const recentTrackUris = new Set(getRecentTrackUris());
@@ -415,6 +641,9 @@ export function analyzeShuffleOrder(tracks) {
         consecutiveArtistRepeats,
         consecutiveAlbumRepeats,
         consecutiveTrackRepeats,
-        recentTracksInFirstTwenty
+        recentTracksInFirstTwenty,
+        abruptTransitions,
+        durationJumpTransitions,
+        repeatedVersionTransitions
     };
 }
