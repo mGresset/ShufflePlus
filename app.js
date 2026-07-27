@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.0.0";
+const APP_VERSION = "3.1.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -120,6 +120,12 @@ const DEFAULT_IOS_QUICKPLAY_SETTINGS = {
     autoRetryCount: 5,
     retryDelayMs: 1200
 };
+const IOS_COMMANDS_KEY =
+    "shuffleplus_ios_commands_v1";
+const IOS_COMMAND_HISTORY_KEY =
+    "shuffleplus_ios_command_history_v1";
+const MAX_IOS_COMMANDS = 20;
+const MAX_IOS_COMMAND_HISTORY = 40;
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
 const MAX_MIX_SCHEDULES = 30;
@@ -391,6 +397,10 @@ let lastCleanupSummary = null;
 let lastCleanupSnapshot = null;
 let iosQuickPlaySettings =
     readIosQuickPlaySettings();
+let iosCommands = readIosCommands();
+let iosCommandHistory =
+    readIosCommandHistory();
+let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
 let automationRunInProgress = false;
@@ -457,6 +467,7 @@ function setDisconnectedInterface() {
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
     automationRunInProgress = false;
+    editingIosCommandId = "";
     activeHistoryId = "";
     lastExclusionSummary = null;
     lastPrioritySummary = null;
@@ -595,6 +606,818 @@ function saveIosQuickPlaySettings() {
     }
 }
 
+
+function createIosCommandId() {
+    if (crypto?.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    return (
+        `ios-${Date.now()}-` +
+        Math.random().toString(36).slice(2, 10)
+    );
+}
+
+function normalizeIosCommand(command = {}) {
+    const base =
+        normalizeIosQuickPlaySettings(command);
+
+    return {
+        id:
+            typeof command.id === "string" &&
+            command.id.trim()
+                ? command.id.trim().slice(0, 120)
+                : createIosCommandId(),
+        name:
+            typeof command.name === "string" &&
+            command.name.trim()
+                ? command.name.trim().slice(0, 80)
+                : "Lecture iOS",
+        icon:
+            typeof command.icon === "string" &&
+            command.icon.trim()
+                ? command.icon.trim().slice(0, 8)
+                : "▶️",
+        ...base,
+        fallbackDeviceMode:
+            ["active", "first", "iphone"].includes(
+                command.fallbackDeviceMode
+            )
+                ? command.fallbackDeviceMode
+                : "active",
+        createdAt: Number(
+            command.createdAt || Date.now()
+        ),
+        updatedAt: Number(
+            command.updatedAt ||
+            command.createdAt ||
+            Date.now()
+        )
+    };
+}
+
+function migrateLegacyIosCommand() {
+    const legacy =
+        normalizeIosQuickPlaySettings(
+            iosQuickPlaySettings
+        );
+
+    if (!legacy.playlistId) {
+        return [];
+    }
+
+    return [
+        normalizeIosCommand({
+            id: "principal",
+            name:
+                legacy.playlistName ||
+                "Playlist principale",
+            icon: "⭐",
+            ...legacy
+        })
+    ];
+}
+
+function readIosCommands() {
+    try {
+        const raw = localStorage.getItem(
+            IOS_COMMANDS_KEY
+        );
+        const parsed = raw
+            ? JSON.parse(raw)
+            : null;
+
+        if (
+            !Array.isArray(parsed) ||
+            !parsed.length
+        ) {
+            const migrated =
+                migrateLegacyIosCommand();
+
+            if (migrated.length) {
+                localStorage.setItem(
+                    IOS_COMMANDS_KEY,
+                    JSON.stringify(migrated)
+                );
+            }
+
+            return migrated;
+        }
+
+        return parsed
+            .map((command) =>
+                normalizeIosCommand(command)
+            )
+            .slice(0, MAX_IOS_COMMANDS);
+    } catch (error) {
+        console.warn(
+            "Commandes iOS illisibles :",
+            error
+        );
+        return migrateLegacyIosCommand();
+    }
+}
+
+function saveIosCommands() {
+    try {
+        localStorage.setItem(
+            IOS_COMMANDS_KEY,
+            JSON.stringify(iosCommands)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les commandes iOS :",
+            error
+        );
+    }
+}
+
+function normalizeIosCommandHistory(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return values
+        .filter(
+            (item) =>
+                item &&
+                typeof item === "object"
+        )
+        .map((item) => ({
+            id:
+                typeof item.id === "string"
+                    ? item.id
+                    : createIosCommandId(),
+            commandId:
+                typeof item.commandId === "string"
+                    ? item.commandId
+                    : "",
+            commandName:
+                typeof item.commandName === "string"
+                    ? item.commandName.slice(0, 80)
+                    : "Lecture iOS",
+            playlistName:
+                typeof item.playlistName === "string"
+                    ? item.playlistName.slice(0, 160)
+                    : "",
+            deviceName:
+                typeof item.deviceName === "string"
+                    ? item.deviceName.slice(0, 120)
+                    : "",
+            status:
+                item.status === "error"
+                    ? "error"
+                    : "success",
+            message:
+                typeof item.message === "string"
+                    ? item.message.slice(0, 240)
+                    : "",
+            createdAt: Number(
+                item.createdAt || Date.now()
+            )
+        }))
+        .slice(0, MAX_IOS_COMMAND_HISTORY);
+}
+
+function readIosCommandHistory() {
+    try {
+        const raw = localStorage.getItem(
+            IOS_COMMAND_HISTORY_KEY
+        );
+
+        return normalizeIosCommandHistory(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        return [];
+    }
+}
+
+function saveIosCommandHistory() {
+    try {
+        localStorage.setItem(
+            IOS_COMMAND_HISTORY_KEY,
+            JSON.stringify(iosCommandHistory)
+        );
+    } catch (error) {
+        console.warn(
+            "Historique iOS non enregistré :",
+            error
+        );
+    }
+}
+
+function addIosCommandHistory(entry) {
+    iosCommandHistory =
+        normalizeIosCommandHistory([
+            {
+                id: createIosCommandId(),
+                ...entry,
+                createdAt: Date.now()
+            },
+            ...iosCommandHistory
+        ]);
+    saveIosCommandHistory();
+}
+
+function getIosCommandById(commandId) {
+    return iosCommands.find(
+        (command) => command.id === commandId
+    ) || null;
+}
+
+function getPrincipalIosCommand() {
+    return (
+        getIosCommandById("principal") ||
+        iosCommands[0] ||
+        null
+    );
+}
+
+function getEffectiveIosCommand(
+    commandId = ""
+) {
+    return (
+        getIosCommandById(commandId) ||
+        getPrincipalIosCommand() ||
+        normalizeIosCommand({
+            id: "temporary",
+            name: "Lecture iOS",
+            ...iosQuickPlaySettings
+        })
+    );
+}
+
+function buildIosCommandUrl(command) {
+    const normalized =
+        normalizeIosCommand(command);
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+
+    url.searchParams.set(
+        "action",
+        "quickplay"
+    );
+    url.searchParams.set(
+        "command",
+        normalized.id
+    );
+
+    if (normalized.playlistId) {
+        url.searchParams.set(
+            "playlist",
+            normalized.playlistId
+        );
+    }
+
+    url.searchParams.set(
+        "autoplay",
+        "1"
+    );
+
+    return url.toString();
+}
+
+function saveIosCommandFromForm(form) {
+    if (
+        !editingIosCommandId &&
+        iosCommands.length >= MAX_IOS_COMMANDS
+    ) {
+        setStatus(
+            `Tu peux créer jusqu’à ${MAX_IOS_COMMANDS} commandes iOS.`,
+            "error"
+        );
+        return;
+    }
+
+    const formData = new FormData(form);
+    const playlistId =
+        String(
+            formData.get("playlistId") || ""
+        );
+    const playlist = playlistsCache.find(
+        (item) => item.id === playlistId
+    );
+    const existing = getIosCommandById(
+        editingIosCommandId
+    );
+
+    const command = normalizeIosCommand({
+        ...existing,
+        id:
+            existing?.id ||
+            (
+                iosCommands.length
+                    ? createIosCommandId()
+                    : "principal"
+            ),
+        name:
+            formData.get("name") ||
+            playlist?.name ||
+            "Lecture iOS",
+        icon:
+            formData.get("icon") ||
+            "▶️",
+        playlistId,
+        playlistName:
+            playlist?.name || "",
+        deviceMode:
+            formData.get("deviceMode"),
+        deviceName:
+            formData.get("deviceName"),
+        fallbackDeviceMode:
+            formData.get(
+                "fallbackDeviceMode"
+            ),
+        shuffle:
+            formData.get("shuffle") === "on",
+        startFromBeginning:
+            formData.get(
+                "startFromBeginning"
+            ) === "on",
+        autoRetryCount: 5,
+        retryDelayMs: 1200,
+        updatedAt: Date.now()
+    });
+
+    if (existing) {
+        iosCommands = iosCommands.map(
+            (item) =>
+                item.id === existing.id
+                    ? command
+                    : item
+        );
+    } else {
+        iosCommands = [
+            command,
+            ...iosCommands
+        ];
+    }
+
+    saveIosCommands();
+
+    if (
+        command.id === "principal" ||
+        iosCommands.length === 1
+    ) {
+        iosQuickPlaySettings =
+            normalizeIosQuickPlaySettings(
+                command
+            );
+        saveIosQuickPlaySettings();
+    }
+
+    editingIosCommandId = "";
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Commande « ${command.name} » enregistrée.`
+    );
+}
+
+function editIosCommand(commandId) {
+    if (!getIosCommandById(commandId)) {
+        return;
+    }
+
+    editingIosCommandId = commandId;
+    displayPlaylists(playlistsCache);
+
+    document
+        .getElementById("iosCommandForm")
+        ?.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+        });
+}
+
+function cancelIosCommandEdit() {
+    editingIosCommandId = "";
+    displayPlaylists(playlistsCache);
+}
+
+function duplicateIosCommand(commandId) {
+    const source =
+        getIosCommandById(commandId);
+
+    if (
+        !source ||
+        iosCommands.length >= MAX_IOS_COMMANDS
+    ) {
+        return;
+    }
+
+    const duplicate =
+        normalizeIosCommand({
+            ...source,
+            id: createIosCommandId(),
+            name: `${source.name} copie`,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        });
+
+    iosCommands = [
+        duplicate,
+        ...iosCommands
+    ];
+    saveIosCommands();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Commande « ${source.name} » dupliquée.`
+    );
+}
+
+function deleteIosCommand(commandId) {
+    const command =
+        getIosCommandById(commandId);
+
+    if (!command) {
+        return;
+    }
+
+    if (
+        !window.confirm(
+            `Supprimer la commande « ${command.name} » ?`
+        )
+    ) {
+        return;
+    }
+
+    iosCommands = iosCommands.filter(
+        (item) => item.id !== commandId
+    );
+    saveIosCommands();
+
+    if (editingIosCommandId === commandId) {
+        editingIosCommandId = "";
+    }
+
+    const principal =
+        getPrincipalIosCommand();
+
+    iosQuickPlaySettings =
+        principal
+            ? normalizeIosQuickPlaySettings(
+                principal
+            )
+            : {
+                ...DEFAULT_IOS_QUICKPLAY_SETTINGS
+            };
+    saveIosQuickPlaySettings();
+
+    displayPlaylists(playlistsCache);
+    setStatus("Commande iOS supprimée.");
+}
+
+async function copyIosCommandUrl(commandId) {
+    const command =
+        getIosCommandById(commandId);
+
+    if (!command) {
+        return;
+    }
+
+    const url =
+        buildIosCommandUrl(command);
+
+    try {
+        await navigator.clipboard.writeText(
+            url
+        );
+        setStatus(
+            `URL de « ${command.name} » copiée.`
+        );
+    } catch (error) {
+        window.prompt(
+            "Copie cette URL dans Raccourcis :",
+            url
+        );
+    }
+}
+
+function resolveIosCommandDevice(
+    devices,
+    command
+) {
+    const preferred =
+        findAutomationDevice(
+            devices,
+            command
+        );
+
+    if (preferred) {
+        return preferred;
+    }
+
+    const fallback = {
+        ...command,
+        deviceMode:
+            command.fallbackDeviceMode ||
+            "active"
+    };
+
+    return findAutomationDevice(
+        devices,
+        fallback
+    );
+}
+
+function renderIosCommandsPanel() {
+    const editingCommand =
+        getIosCommandById(
+            editingIosCommandId
+        );
+    const formCommand =
+        editingCommand ||
+        normalizeIosCommand({
+            id: "",
+            name: "",
+            icon: "▶️",
+            playlistId: "",
+            deviceMode: "iphone",
+            fallbackDeviceMode: "active",
+            shuffle: false,
+            startFromBeginning: true
+        });
+
+    const playlistOptions = playlistsCache
+        .filter(
+            (playlist) =>
+                playlist?.id &&
+                canReadPlaylist(playlist)
+        )
+        .map((playlist) => `
+            <option
+                value="${escapeHtml(playlist.id)}"
+                ${playlist.id === formCommand.playlistId ? "selected" : ""}
+            >
+                ${escapeHtml(
+                    playlist.name ||
+                    "Playlist sans nom"
+                )}
+            </option>
+        `)
+        .join("");
+
+    const cards = iosCommands
+        .map((command) => {
+            const lastRun =
+                iosCommandHistory.find(
+                    (item) =>
+                        item.commandId === command.id
+                );
+
+            return `
+                <article class="ios-command-card">
+                    <div class="ios-command-main">
+                        <span class="ios-command-icon">
+                            ${escapeHtml(command.icon)}
+                        </span>
+                        <div>
+                            <h4>
+                                ${escapeHtml(command.name)}
+                            </h4>
+                            <p>
+                                ${escapeHtml(
+                                    command.playlistName ||
+                                    "Playlist indisponible"
+                                )}
+                            </p>
+                            <small>
+                                ${command.deviceMode === "iphone"
+                                    ? "iPhone prioritaire"
+                                    : command.deviceMode === "named"
+                                        ? `Appareil : ${escapeHtml(command.deviceName || "nom à définir")}`
+                                        : command.deviceMode === "active"
+                                            ? "Appareil actif"
+                                            : "Premier appareil"}
+                                · ${command.shuffle
+                                    ? "shuffle activé"
+                                    : "ordre normal"}
+                                ${lastRun
+                                    ? ` · dernier : ${escapeHtml(lastRun.deviceName || lastRun.status)}`
+                                    : ""}
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="ios-command-actions">
+                        <button
+                            type="button"
+                            data-ios-command-action="run"
+                            data-ios-command-id="${escapeHtml(command.id)}"
+                        >
+                            ▶ Tester
+                        </button>
+                        <button
+                            type="button"
+                            data-ios-command-action="copy"
+                            data-ios-command-id="${escapeHtml(command.id)}"
+                            title="Copier l’URL"
+                        >
+                            🔗
+                        </button>
+                        <button
+                            type="button"
+                            data-ios-command-action="edit"
+                            data-ios-command-id="${escapeHtml(command.id)}"
+                            title="Modifier"
+                        >
+                            ✏️
+                        </button>
+                        <button
+                            type="button"
+                            data-ios-command-action="duplicate"
+                            data-ios-command-id="${escapeHtml(command.id)}"
+                            title="Dupliquer"
+                        >
+                            📄
+                        </button>
+                        <button
+                            type="button"
+                            data-ios-command-action="delete"
+                            data-ios-command-id="${escapeHtml(command.id)}"
+                            title="Supprimer"
+                        >
+                            🗑️
+                        </button>
+                    </div>
+                </article>
+            `;
+        })
+        .join("");
+
+    return `
+        <section class="ios-commands-panel">
+            <div class="ios-commands-heading">
+                <div>
+                    <h3>Centre de commandes iOS</h3>
+                    <p>
+                        ${iosCommands.length}/${MAX_IOS_COMMANDS}
+                        raccourci(s) configuré(s)
+                    </p>
+                </div>
+                <span>v3.1</span>
+            </div>
+
+            <form
+                id="iosCommandForm"
+                class="ios-command-form"
+            >
+                <label class="ios-command-field">
+                    <span>Nom du raccourci</span>
+                    <input
+                        name="name"
+                        type="text"
+                        maxlength="80"
+                        value="${escapeHtml(formCommand.name)}"
+                        placeholder="Ex. Playlist voiture"
+                        required
+                    >
+                </label>
+
+                <label class="ios-command-field">
+                    <span>Icône</span>
+                    <input
+                        name="icon"
+                        type="text"
+                        maxlength="8"
+                        value="${escapeHtml(formCommand.icon)}"
+                    >
+                </label>
+
+                <label class="ios-command-field">
+                    <span>Playlist</span>
+                    <select
+                        name="playlistId"
+                        required
+                    >
+                        <option value="">
+                            Choisir une playlist
+                        </option>
+                        ${playlistOptions}
+                    </select>
+                </label>
+
+                <label class="ios-command-field">
+                    <span>Appareil prioritaire</span>
+                    <select name="deviceMode">
+                        <option value="iphone" ${formCommand.deviceMode === "iphone" ? "selected" : ""}>
+                            iPhone ou smartphone
+                        </option>
+                        <option value="active" ${formCommand.deviceMode === "active" ? "selected" : ""}>
+                            Appareil actif
+                        </option>
+                        <option value="first" ${formCommand.deviceMode === "first" ? "selected" : ""}>
+                            Premier disponible
+                        </option>
+                        <option value="named" ${formCommand.deviceMode === "named" ? "selected" : ""}>
+                            Nom précis
+                        </option>
+                    </select>
+                </label>
+
+                <label class="ios-command-field">
+                    <span>Nom précis de l’appareil</span>
+                    <input
+                        name="deviceName"
+                        type="text"
+                        maxlength="120"
+                        value="${escapeHtml(formCommand.deviceName)}"
+                        placeholder="Ex. iPhone de Max"
+                    >
+                </label>
+
+                <label class="ios-command-field">
+                    <span>Appareil de secours</span>
+                    <select name="fallbackDeviceMode">
+                        <option value="active" ${formCommand.fallbackDeviceMode === "active" ? "selected" : ""}>
+                            Appareil actif
+                        </option>
+                        <option value="iphone" ${formCommand.fallbackDeviceMode === "iphone" ? "selected" : ""}>
+                            iPhone
+                        </option>
+                        <option value="first" ${formCommand.fallbackDeviceMode === "first" ? "selected" : ""}>
+                            Premier disponible
+                        </option>
+                    </select>
+                </label>
+
+                <label class="ios-command-check">
+                    <input
+                        name="shuffle"
+                        type="checkbox"
+                        ${formCommand.shuffle ? "checked" : ""}
+                    >
+                    <span>Activer le shuffle Spotify</span>
+                </label>
+
+                <label class="ios-command-check">
+                    <input
+                        name="startFromBeginning"
+                        type="checkbox"
+                        ${formCommand.startFromBeginning ? "checked" : ""}
+                    >
+                    <span>Recommencer au premier morceau</span>
+                </label>
+
+                <div class="ios-command-form-actions">
+                    ${editingCommand
+                        ? `
+                            <button
+                                id="cancelIosCommandEditButton"
+                                class="ios-command-secondary"
+                                type="button"
+                            >
+                                Annuler
+                            </button>
+                        `
+                        : ""}
+                    <button
+                        class="ios-command-save"
+                        type="submit"
+                    >
+                        ${editingCommand
+                            ? "Enregistrer les modifications"
+                            : "+ Ajouter un raccourci"}
+                    </button>
+                </div>
+            </form>
+
+            <div class="ios-commands-list">
+                ${cards || `
+                    <div class="ios-command-empty">
+                        Aucun raccourci configuré.
+                    </div>
+                `}
+            </div>
+
+            <details class="ios-command-history">
+                <summary>
+                    Historique des lancements ·
+                    ${iosCommandHistory.length}
+                </summary>
+                <div>
+                    ${iosCommandHistory
+                        .slice(0, 12)
+                        .map((item) => `
+                            <p>
+                                <strong>
+                                    ${escapeHtml(item.commandName)}
+                                </strong>
+                                · ${escapeHtml(item.deviceName || "aucun appareil")}
+                                · ${item.status === "success" ? "réussi" : "échec"}
+                            </p>
+                        `)
+                        .join("") ||
+                        "<p>Aucun lancement enregistré.</p>"}
+                </div>
+            </details>
+        </section>
+    `;
+}
+
 function normalizeAutomationCommand(command = {}) {
     const action =
         typeof command.action === "string"
@@ -612,6 +1435,10 @@ function normalizeAutomationCommand(command = {}) {
                     )
                     .trim()
                     .slice(0, 120)
+                : "",
+        commandId:
+            typeof command.commandId === "string"
+                ? command.commandId.slice(0, 120)
                 : "",
         mixId:
             typeof command.mixId === "string"
@@ -690,6 +1517,10 @@ function parseAutomationCommandFromUrl() {
             params.get("playlist") ||
             params.get("playlistId") ||
             "",
+        commandId:
+            params.get("command") ||
+            params.get("commandId") ||
+            "",
         mixId:
             params.get("mix") ||
             params.get("mixId") ||
@@ -713,6 +1544,8 @@ function clearAutomationQueryString() {
         "action",
         "playlist",
         "playlistId",
+        "command",
+        "commandId",
         "mix",
         "mixId",
         "profile",
@@ -730,29 +1563,14 @@ function clearAutomationQueryString() {
 }
 
 function buildIosQuickPlayUrl() {
-    const url = new URL(
-        window.location.origin +
-        window.location.pathname
+    return buildIosCommandUrl(
+        getPrincipalIosCommand() ||
+        normalizeIosCommand({
+            id: "principal",
+            name: "Playlist principale",
+            ...iosQuickPlaySettings
+        })
     );
-
-    url.searchParams.set(
-        "action",
-        "quickplay"
-    );
-
-    if (iosQuickPlaySettings.playlistId) {
-        url.searchParams.set(
-            "playlist",
-            iosQuickPlaySettings.playlistId
-        );
-    }
-
-    url.searchParams.set(
-        "autoplay",
-        "1"
-    );
-
-    return url.toString();
 }
 
 function getIosQuickPlayPlaylist() {
@@ -848,10 +1666,15 @@ async function getAutomationDeviceWithRetry(
             availableDevices = lastDevices;
 
             const device =
-                findAutomationDevice(
-                    lastDevices,
-                    settings
-                );
+                settings.fallbackDeviceMode
+                    ? resolveIosCommandDevice(
+                        lastDevices,
+                        settings
+                    )
+                    : findAutomationDevice(
+                        lastDevices,
+                        settings
+                    );
 
             if (device) {
                 return device;
@@ -969,15 +1792,18 @@ async function startPlaylistContextPlayback(
 }
 
 async function runIosQuickPlay(
-    playlistId = ""
+    playlistId = "",
+    commandId = ""
 ) {
     if (automationRunInProgress) {
         return;
     }
 
+    const command =
+        getEffectiveIosCommand(commandId);
     const resolvedPlaylistId =
         playlistId ||
-        iosQuickPlaySettings.playlistId;
+        command.playlistId;
 
     if (!resolvedPlaylistId) {
         setStatus(
@@ -1002,7 +1828,7 @@ async function runIosQuickPlay(
 
         const device =
             await getAutomationDeviceWithRetry(
-                iosQuickPlaySettings
+                command
             );
 
         if (!device) {
@@ -1020,9 +1846,9 @@ async function runIosQuickPlay(
             device.id,
             {
                 shuffle:
-                    iosQuickPlaySettings.shuffle,
+                    command.shuffle,
                 startFromBeginning:
-                    iosQuickPlaySettings
+                    command
                         .startFromBeginning
             }
         );
@@ -1049,6 +1875,16 @@ async function runIosQuickPlay(
                 </button>
             </section>
         `;
+
+        addIosCommandHistory({
+            commandId: command.id,
+            commandName: command.name,
+            playlistName:
+                command.playlistName || "",
+            deviceName: device.name,
+            status: "success",
+            message: "Lecture démarrée"
+        });
 
         setStatus(
             `Playlist lancée sur ${device.name}.`
@@ -1084,6 +1920,18 @@ async function runIosQuickPlay(
             </section>
         `;
 
+        addIosCommandHistory({
+            commandId: command.id,
+            commandName: command.name,
+            playlistName:
+                command.playlistName || "",
+            deviceName: "",
+            status: "error",
+            message:
+                error.message ||
+                "Lecture automatique impossible."
+        });
+
         setStatus(
             error.message ||
             "Lecture automatique impossible.",
@@ -1113,7 +1961,8 @@ async function executeAutomationCommand(
             "play-playlist"
     ) {
         await runIosQuickPlay(
-            normalized.playlistId
+            normalized.playlistId,
+            normalized.commandId
         );
         return;
     }
@@ -7228,6 +8077,8 @@ function buildBackupPayload() {
             adaptiveSettings: currentAdaptiveSettings,
             cleanupSettings: currentCleanupSettings,
             iosQuickPlaySettings,
+            iosCommands,
+            iosCommandHistory,
             mixSchedules
         }
     };
@@ -7344,6 +8195,20 @@ function validateBackupPayload(payload) {
         iosQuickPlaySettings:
             normalizeIosQuickPlaySettings(
                 payload.data.iosQuickPlaySettings
+            ),
+        iosCommands:
+            Array.isArray(
+                payload.data.iosCommands
+            )
+                ? payload.data.iosCommands
+                    .map((command) =>
+                        normalizeIosCommand(command)
+                    )
+                    .slice(0, MAX_IOS_COMMANDS)
+                : [],
+        iosCommandHistory:
+            normalizeIosCommandHistory(
+                payload.data.iosCommandHistory
             ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
@@ -7466,6 +8331,14 @@ async function importBackupFile(file) {
         iosQuickPlaySettings =
             imported.iosQuickPlaySettings;
         saveIosQuickPlaySettings();
+        iosCommands =
+            imported.iosCommands.length
+                ? imported.iosCommands
+                : migrateLegacyIosCommand();
+        saveIosCommands();
+        iosCommandHistory =
+            imported.iosCommandHistory;
+        saveIosCommandHistory();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -8369,7 +9242,7 @@ function displayPlaylists(playlists) {
 
             ${renderBackupPanel()}
 
-            ${renderIosQuickPlayPanel()}
+            ${renderIosCommandsPanel()}
 
             ${renderMixSchedulesSection()}
 
@@ -10422,12 +11295,63 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const iosCommandActionButton =
+            event.target.closest(
+                "[data-ios-command-action]"
+            );
+
+        if (iosCommandActionButton) {
+            const action =
+                iosCommandActionButton.dataset
+                    .iosCommandAction || "";
+            const commandId =
+                iosCommandActionButton.dataset
+                    .iosCommandId || "";
+
+            if (action === "run") {
+                const command =
+                    getIosCommandById(commandId);
+                await runIosQuickPlay(
+                    command?.playlistId || "",
+                    commandId
+                );
+            } else if (action === "copy") {
+                await copyIosCommandUrl(
+                    commandId
+                );
+            } else if (action === "edit") {
+                editIosCommand(commandId);
+            } else if (
+                action === "duplicate"
+            ) {
+                duplicateIosCommand(commandId);
+            } else if (
+                action === "delete"
+            ) {
+                deleteIosCommand(commandId);
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#cancelIosCommandEditButton"
+            )
+        ) {
+            cancelIosCommandEdit();
+            return;
+        }
+
         if (
             event.target.closest(
                 "#testIosQuickPlayButton"
             )
         ) {
-            await runIosQuickPlay();
+            await runIosQuickPlay(
+                "",
+                getPrincipalIosCommand()?.id || ""
+            );
             return;
         }
 
@@ -11017,6 +11941,16 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (
+            event.target.id === "iosCommandForm"
+        ) {
+            event.preventDefault();
+            saveIosCommandFromForm(
+                event.target
+            );
+            return;
+        }
+
         if (
             event.target.id === "iosQuickPlayForm"
         ) {

@@ -4534,3 +4534,278 @@ y
         width: 100%;
     }
 }
+
+
+
+/* Shuffle+ v3.1.0 — Centre de commandes iOS */
+
+.ios-commands-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #536ba3;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(49 70 126 / 82%) 0%,
+            rgb(20 20 20 / 96%) 72%
+        );
+}
+
+.ios-commands-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.ios-commands-heading h3 {
+    margin: 0 0 5px;
+    font-size: 21px;
+}
+
+.ios-commands-heading p {
+    margin: 0;
+    color: #c1cee8;
+    font-size: 14px;
+}
+
+.ios-commands-heading > span {
+    padding: 6px 10px;
+    border: 1px solid #758bc0;
+    border-radius: 999px;
+    color: #dce5ff;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ios-command-form {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 15px;
+    border: 1px solid #4b5f8d;
+    border-radius: 14px;
+    background: #111827;
+}
+
+.ios-command-field {
+    display: grid;
+    gap: 7px;
+}
+
+.ios-command-field > span {
+    color: #d5def2;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.ios-command-field input,
+.ios-command-field select {
+    width: 100%;
+    min-height: 45px;
+    padding: 0 13px;
+    border: 1px solid #5c70a0;
+    border-radius: 11px;
+    outline: none;
+    background: #0e1522;
+    color: #ffffff;
+}
+
+.ios-command-check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 45px;
+    padding: 10px 12px;
+    border: 1px solid #4d5e86;
+    border-radius: 11px;
+    background: #121a29;
+    color: #d0d9eb;
+    font-size: 13px;
+}
+
+.ios-command-check input {
+    width: 18px;
+    height: 18px;
+    accent-color: #8eb0ff;
+}
+
+.ios-command-form-actions {
+    display: flex;
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.ios-command-save,
+.ios-command-secondary {
+    min-height: 42px;
+    padding: 9px 15px;
+    border-radius: 999px;
+    font-weight: 800;
+}
+
+.ios-command-save {
+    border: 0;
+    background: #8eb0ff;
+    color: #0a1835;
+}
+
+.ios-command-secondary {
+    border: 1px solid #6478a5;
+    background: transparent;
+    color: #ffffff;
+}
+
+.ios-commands-list {
+    display: grid;
+    gap: 10px;
+}
+
+.ios-command-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid #454f72;
+    border-radius: 14px;
+    background: #121522;
+}
+
+.ios-command-main {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+}
+
+.ios-command-icon {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    place-items: center;
+    border-radius: 12px;
+    background: #24335c;
+    font-size: 21px;
+}
+
+.ios-command-main > div {
+    min-width: 0;
+}
+
+.ios-command-card h4 {
+    margin: 0 0 4px;
+}
+
+.ios-command-card p,
+.ios-command-card small {
+    display: block;
+    overflow: hidden;
+    margin: 0;
+    color: #aeb9d0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ios-command-card p {
+    font-size: 13px;
+}
+
+.ios-command-card small {
+    margin-top: 3px;
+    font-size: 12px;
+}
+
+.ios-command-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 7px;
+}
+
+.ios-command-actions button {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 7px 10px;
+    border: 1px solid #59678f;
+    border-radius: 999px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 750;
+}
+
+.ios-command-actions button:first-child {
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.ios-command-empty {
+    padding: 22px;
+    border: 1px dashed #586180;
+    border-radius: 13px;
+    color: #adb5ca;
+    text-align: center;
+}
+
+.ios-command-history {
+    padding: 13px;
+    border: 1px solid #46506e;
+    border-radius: 13px;
+    background: #10131d;
+}
+
+.ios-command-history summary {
+    cursor: pointer;
+    color: #d7ddef;
+    font-weight: 750;
+}
+
+.ios-command-history div {
+    margin-top: 10px;
+}
+
+.ios-command-history p {
+    margin: 7px 0;
+    color: #abb5ca;
+    font-size: 12px;
+}
+
+@media (max-width: 760px) {
+    .ios-commands-heading,
+    .ios-command-card {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .ios-commands-heading > span {
+        align-self: flex-start;
+    }
+
+    .ios-command-form {
+        grid-template-columns: 1fr;
+    }
+
+    .ios-command-form-actions {
+        display: grid;
+        grid-column: auto;
+        grid-template-columns: 1fr;
+    }
+
+    .ios-command-save,
+    .ios-command-secondary {
+        width: 100%;
+    }
+
+    .ios-command-actions {
+        display: grid;
+        width: 100%;
+        grid-template-columns:
+            repeat(5, minmax(0, 1fr));
+    }
+}
