@@ -2561,3 +2561,215 @@ button:disabled {
         flex-direction: column;
     }
 }
+
+
+/* Shuffle+ v2.2.0 — Profils de mix intelligents */
+
+.mix-profiles-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #2d566e;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(31 74 98 / 70%) 0%,
+            rgb(20 20 20 / 96%) 72%
+        );
+}
+
+.mix-profiles-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.mix-profiles-heading h3 {
+    margin: 0 0 5px;
+    font-size: 20px;
+}
+
+.mix-profiles-heading p {
+    margin: 0;
+    color: #b7ccd8;
+    font-size: 14px;
+}
+
+.mix-profiles-heading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.mix-profile-create,
+.mix-profile-restore {
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-weight: 750;
+}
+
+.mix-profile-create {
+    border: 0;
+    background: #62c9ff;
+    color: #08202d;
+}
+
+.mix-profile-restore {
+    border: 1px solid #4f7386;
+    background: transparent;
+    color: #ffffff;
+}
+
+.mix-profile-create:hover,
+.mix-profile-restore:hover {
+    transform: translateY(-1px);
+}
+
+.mix-profiles-list {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.mix-profile-card {
+    display: grid;
+    gap: 14px;
+    padding: 15px;
+    border: 1px solid #355569;
+    border-radius: 14px;
+    background: rgb(13 21 26 / 82%);
+}
+
+.mix-profile-card.is-active {
+    border-color: #62c9ff;
+    box-shadow: 0 0 0 2px rgb(98 201 255 / 16%);
+}
+
+.mix-profile-card-main {
+    display: flex;
+    min-width: 0;
+    gap: 12px;
+}
+
+.mix-profile-icon {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    place-items: center;
+    border-radius: 12px;
+    background: #183849;
+    font-size: 21px;
+}
+
+.mix-profile-card h4 {
+    margin: 0 0 4px;
+    font-size: 16px;
+}
+
+.mix-profile-card p {
+    margin: 0 0 5px;
+    color: #b8cbd5;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.mix-profile-card small {
+    color: #7fa4b7;
+    font-size: 12px;
+}
+
+.mix-profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.mix-profile-apply,
+.mix-profile-secondary {
+    min-height: 38px;
+    border-radius: 999px;
+    font-weight: 750;
+}
+
+.mix-profile-apply {
+    flex: 1 1 auto;
+    padding: 8px 14px;
+    border: 0;
+    background: #62c9ff;
+    color: #08202d;
+}
+
+.mix-profile-secondary {
+    width: 38px;
+    padding: 0;
+    border: 1px solid #4b6675;
+    background: transparent;
+    color: #ffffff;
+}
+
+.mix-profile-delete:hover {
+    border-color: #a45e5e;
+    background: #3a2323;
+}
+
+.active-profile-banner {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    margin: 0 0 18px;
+    padding: 14px 16px;
+    border: 1px solid #39708d;
+    border-radius: 13px;
+    background: #132630;
+}
+
+.active-profile-banner-icon {
+    font-size: 26px;
+}
+
+.active-profile-banner div {
+    display: grid;
+    gap: 3px;
+}
+
+.active-profile-banner strong {
+    color: #79d5ff;
+}
+
+.active-profile-banner span {
+    color: #b8cbd5;
+    font-size: 13px;
+}
+
+@media (max-width: 760px) {
+    .mix-profiles-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .mix-profiles-heading-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .mix-profile-create,
+    .mix-profile-restore {
+        width: 100%;
+    }
+
+    .mix-profiles-list {
+        grid-template-columns: 1fr;
+    }
+
+    .active-profile-banner {
+        align-items: flex-start;
+    }
+}

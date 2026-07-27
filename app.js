@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.1.0";
+const APP_VERSION = "2.2.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -57,6 +57,9 @@ const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
 const EXCLUSION_RULES_KEY = "shuffleplus_exclusion_rules_v1";
 const MAX_EXCLUDED_TEXT_ITEMS = 100;
+const MIX_PROFILES_KEY = "shuffleplus_mix_profiles_v1";
+const ACTIVE_PROFILE_KEY = "shuffleplus_active_profile_v1";
+const MAX_MIX_PROFILES = 20;
 const DEFAULT_EXCLUSION_RULES = {
     excludedArtists: [],
     excludedAlbums: [],
@@ -69,6 +72,101 @@ const DEFAULT_EXCLUSION_RULES = {
     excludeInstrumental: false,
     excludeKaraoke: false
 };
+
+
+const DEFAULT_MIX_PROFILES = [
+    {
+        id: "profile-sport",
+        name: "Sport",
+        icon: "🏃",
+        description: "Rythme soutenu, peu de répétitions et titres très courts évités.",
+        isDefault: true,
+        shuffleSettings: {
+            preset: "strict",
+            artistGap: 5,
+            albumGap: 3,
+            recentAvoidance: 2
+        },
+        exclusionRules: {
+            ...DEFAULT_EXCLUSION_RULES,
+            minDurationSeconds: 120
+        }
+    },
+    {
+        id: "profile-soiree",
+        name: "Soirée",
+        icon: "🎉",
+        description: "Mélange énergique et varié, avec des répétitions limitées.",
+        isDefault: true,
+        shuffleSettings: {
+            preset: "balanced",
+            artistGap: 4,
+            albumGap: 2,
+            recentAvoidance: 1
+        },
+        exclusionRules: {
+            ...DEFAULT_EXCLUSION_RULES,
+            excludeInstrumental: true,
+            excludeKaraoke: true
+        }
+    },
+    {
+        id: "profile-famille",
+        name: "Famille",
+        icon: "👨‍👩‍👧‍👦",
+        description: "Titres explicites, live, remix et karaoké masqués.",
+        isDefault: true,
+        shuffleSettings: {
+            preset: "balanced",
+            artistGap: 3,
+            albumGap: 2,
+            recentAvoidance: 2
+        },
+        exclusionRules: {
+            ...DEFAULT_EXCLUSION_RULES,
+            hideExplicit: true,
+            excludeLive: true,
+            excludeRemix: true,
+            excludeKaraoke: true
+        }
+    },
+    {
+        id: "profile-decouverte",
+        name: "Découverte",
+        icon: "🔭",
+        description: "Espacement fort des artistes et éviction renforcée des titres récents.",
+        isDefault: true,
+        shuffleSettings: {
+            preset: "strict",
+            artistGap: 7,
+            albumGap: 4,
+            recentAvoidance: 3
+        },
+        exclusionRules: {
+            ...DEFAULT_EXCLUSION_RULES
+        }
+    },
+    {
+        id: "profile-concentration",
+        name: "Concentration",
+        icon: "🧠",
+        description: "Titres courts, live, remix et karaoké écartés pour une écoute régulière.",
+        isDefault: true,
+        shuffleSettings: {
+            preset: "soft",
+            artistGap: 3,
+            albumGap: 2,
+            recentAvoidance: 1
+        },
+        exclusionRules: {
+            ...DEFAULT_EXCLUSION_RULES,
+            minDurationSeconds: 150,
+            excludeLive: true,
+            excludeRemix: true,
+            excludeKaraoke: true
+        }
+    }
+];
 
 const DEFAULT_SHUFFLE_SETTINGS = {
     preset: "balanced",
@@ -141,6 +239,8 @@ let mixHistory = readMixHistory();
 let activeHistoryId = "";
 let currentExclusionRules = readExclusionRules();
 let lastExclusionSummary = null;
+let mixProfiles = readMixProfiles();
+let activeProfileId = readActiveProfileId();
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -239,6 +339,460 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+
+
+function normalizeMixProfile(profile = {}) {
+    return {
+        id:
+            typeof profile.id === "string" && profile.id.trim()
+                ? profile.id.trim().slice(0, 120)
+                : createSavedMixId(),
+        name:
+            typeof profile.name === "string" && profile.name.trim()
+                ? profile.name.trim().slice(0, 60)
+                : "Profil personnalisé",
+        icon:
+            typeof profile.icon === "string" && profile.icon.trim()
+                ? profile.icon.trim().slice(0, 8)
+                : "🎛️",
+        description:
+            typeof profile.description === "string"
+                ? profile.description.trim().slice(0, 180)
+                : "",
+        isDefault: Boolean(profile.isDefault),
+        shuffleSettings: normalizeShuffleSettings(
+            profile.shuffleSettings
+        ),
+        exclusionRules: normalizeExclusionRules(
+            profile.exclusionRules
+        )
+    };
+}
+
+function readMixProfiles() {
+    try {
+        const raw = localStorage.getItem(MIX_PROFILES_KEY);
+        const parsed = raw ? JSON.parse(raw) : null;
+
+        if (!Array.isArray(parsed) || !parsed.length) {
+            return DEFAULT_MIX_PROFILES.map(
+                (profile) => normalizeMixProfile(profile)
+            );
+        }
+
+        return parsed
+            .map((profile) => normalizeMixProfile(profile))
+            .slice(0, MAX_MIX_PROFILES);
+    } catch (error) {
+        console.warn("Profils de mix illisibles :", error);
+        return DEFAULT_MIX_PROFILES.map(
+            (profile) => normalizeMixProfile(profile)
+        );
+    }
+}
+
+function saveMixProfiles() {
+    try {
+        localStorage.setItem(
+            MIX_PROFILES_KEY,
+            JSON.stringify(mixProfiles)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les profils :",
+            error
+        );
+    }
+}
+
+function readActiveProfileId() {
+    try {
+        return localStorage.getItem(ACTIVE_PROFILE_KEY) || "";
+    } catch (error) {
+        return "";
+    }
+}
+
+function saveActiveProfileId() {
+    try {
+        if (activeProfileId) {
+            localStorage.setItem(
+                ACTIVE_PROFILE_KEY,
+                activeProfileId
+            );
+        } else {
+            localStorage.removeItem(ACTIVE_PROFILE_KEY);
+        }
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer le profil actif :",
+            error
+        );
+    }
+}
+
+function getActiveProfile() {
+    return mixProfiles.find(
+        (profile) => profile.id === activeProfileId
+    ) || null;
+}
+
+function getProfileById(profileId) {
+    return mixProfiles.find(
+        (profile) => profile.id === profileId
+    ) || null;
+}
+
+function applyMixProfile(profileId, {
+    persist = true,
+    rerender = true
+} = {}) {
+    const profile = getProfileById(profileId);
+
+    if (!profile) {
+        return;
+    }
+
+    currentShuffleSettings = normalizeShuffleSettings(
+        profile.shuffleSettings
+    );
+    currentExclusionRules = normalizeExclusionRules(
+        profile.exclusionRules
+    );
+    activeProfileId = profile.id;
+
+    saveExclusionRules();
+
+    if (persist) {
+        saveActiveProfileId();
+    }
+
+    if (rerender) {
+        displayPlaylists(playlistsCache);
+    }
+
+    setStatus(`Profil « ${profile.name} » appliqué.`);
+}
+
+function clearActiveProfile() {
+    activeProfileId = "";
+    saveActiveProfileId();
+    currentShuffleSettings = {
+        ...DEFAULT_SHUFFLE_SETTINGS
+    };
+    currentExclusionRules = {
+        ...DEFAULT_EXCLUSION_RULES
+    };
+    saveExclusionRules();
+    displayPlaylists(playlistsCache);
+    setStatus("Profil actif désactivé.");
+}
+
+function createProfileFromCurrentSettings() {
+    if (mixProfiles.length >= MAX_MIX_PROFILES) {
+        setStatus(
+            `Tu peux enregistrer jusqu’à ${MAX_MIX_PROFILES} profils.`,
+            "error"
+        );
+        return;
+    }
+
+    const requestedName = window.prompt(
+        "Nom du nouveau profil :",
+        "Mon profil"
+    );
+
+    if (requestedName === null) {
+        return;
+    }
+
+    const name = requestedName.trim();
+
+    if (!name) {
+        setStatus(
+            "Le nom du profil ne peut pas être vide.",
+            "error"
+        );
+        return;
+    }
+
+    const profile = normalizeMixProfile({
+        id: createSavedMixId(),
+        name,
+        icon: "🎛️",
+        description:
+            "Profil personnalisé créé à partir des réglages actuels.",
+        isDefault: false,
+        shuffleSettings: currentShuffleSettings,
+        exclusionRules: currentExclusionRules
+    });
+
+    mixProfiles = [profile, ...mixProfiles]
+        .slice(0, MAX_MIX_PROFILES);
+    saveMixProfiles();
+    applyMixProfile(profile.id);
+}
+
+function duplicateMixProfile(profileId) {
+    const source = getProfileById(profileId);
+
+    if (!source) {
+        return;
+    }
+
+    if (mixProfiles.length >= MAX_MIX_PROFILES) {
+        setStatus(
+            `Tu peux enregistrer jusqu’à ${MAX_MIX_PROFILES} profils.`,
+            "error"
+        );
+        return;
+    }
+
+    const duplicate = normalizeMixProfile({
+        ...source,
+        id: createSavedMixId(),
+        name: `${source.name} copie`,
+        isDefault: false
+    });
+
+    mixProfiles = [duplicate, ...mixProfiles];
+    saveMixProfiles();
+    displayPlaylists(playlistsCache);
+    setStatus(`Profil « ${source.name} » dupliqué.`);
+}
+
+function renameMixProfile(profileId) {
+    const profile = getProfileById(profileId);
+
+    if (!profile || profile.isDefault) {
+        return;
+    }
+
+    const requestedName = window.prompt(
+        "Nouveau nom du profil :",
+        profile.name
+    );
+
+    if (requestedName === null) {
+        return;
+    }
+
+    const name = requestedName.trim();
+
+    if (!name) {
+        setStatus(
+            "Le nom du profil ne peut pas être vide.",
+            "error"
+        );
+        return;
+    }
+
+    profile.name = name.slice(0, 60);
+    saveMixProfiles();
+    displayPlaylists(playlistsCache);
+    setStatus(`Profil renommé « ${profile.name} ».`);
+}
+
+function deleteMixProfile(profileId) {
+    const profile = getProfileById(profileId);
+
+    if (!profile || profile.isDefault) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Supprimer le profil « ${profile.name} » ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    mixProfiles = mixProfiles.filter(
+        (item) => item.id !== profileId
+    );
+
+    if (activeProfileId === profileId) {
+        activeProfileId = "";
+        saveActiveProfileId();
+    }
+
+    for (const mix of savedMixes) {
+        if (mix.profileId === profileId) {
+            mix.profileId = "";
+        }
+    }
+
+    saveMixProfiles();
+    saveSavedMixes();
+    displayPlaylists(playlistsCache);
+    setStatus("Profil supprimé.");
+}
+
+function restoreDefaultMixProfiles() {
+    const customProfiles = mixProfiles.filter(
+        (profile) => !profile.isDefault
+    );
+
+    mixProfiles = [
+        ...DEFAULT_MIX_PROFILES.map(
+            (profile) => normalizeMixProfile(profile)
+        ),
+        ...customProfiles
+    ].slice(0, MAX_MIX_PROFILES);
+
+    saveMixProfiles();
+    displayPlaylists(playlistsCache);
+    setStatus("Profils par défaut restaurés.");
+}
+
+function assignProfileToSavedMix(mixId, profileId) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        return;
+    }
+
+    const profile = getProfileById(profileId);
+
+    mix.profileId = profile?.id || "";
+
+    if (profile) {
+        mix.shuffleSettings = normalizeShuffleSettings(
+            profile.shuffleSettings
+        );
+        mix.exclusionRules = normalizeExclusionRules(
+            profile.exclusionRules
+        );
+    }
+
+    mix.updatedAt = Date.now();
+    saveSavedMixes();
+    displayPlaylists(playlistsCache);
+
+    setStatus(
+        profile
+            ? `Profil « ${profile.name} » associé au mix « ${mix.name} ».`
+            : `Profil retiré du mix « ${mix.name} ».`
+    );
+}
+
+function getMixProfileSummary(profile) {
+    return [
+        getShufflePresetLabel(profile.shuffleSettings),
+        getExclusionRulesSummary(profile.exclusionRules)
+    ].join(" · ");
+}
+
+function renderMixProfilesSection() {
+    const activeProfile = getActiveProfile();
+
+    const cards = mixProfiles.map((profile) => `
+        <article class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""}">
+            <div class="mix-profile-card-main">
+                <span class="mix-profile-icon">${escapeHtml(profile.icon)}</span>
+                <div>
+                    <h4>${escapeHtml(profile.name)}</h4>
+                    <p>${escapeHtml(profile.description || "Profil Shuffle+")}</p>
+                    <small>${escapeHtml(getMixProfileSummary(profile))}</small>
+                </div>
+            </div>
+
+            <div class="mix-profile-actions">
+                <button
+                    class="mix-profile-apply"
+                    type="button"
+                    data-profile-action="apply"
+                    data-profile-id="${escapeHtml(profile.id)}"
+                >
+                    ${profile.id === activeProfileId ? "✓ Actif" : "Appliquer"}
+                </button>
+
+                <button
+                    class="mix-profile-secondary"
+                    type="button"
+                    data-profile-action="duplicate"
+                    data-profile-id="${escapeHtml(profile.id)}"
+                    title="Dupliquer"
+                >
+                    📄
+                </button>
+
+                ${profile.isDefault ? "" : `
+                    <button
+                        class="mix-profile-secondary"
+                        type="button"
+                        data-profile-action="rename"
+                        data-profile-id="${escapeHtml(profile.id)}"
+                        title="Renommer"
+                    >
+                        ✏️
+                    </button>
+
+                    <button
+                        class="mix-profile-secondary mix-profile-delete"
+                        type="button"
+                        data-profile-action="delete"
+                        data-profile-id="${escapeHtml(profile.id)}"
+                        title="Supprimer"
+                    >
+                        🗑️
+                    </button>
+                `}
+            </div>
+        </article>
+    `).join("");
+
+    return `
+        <section class="mix-profiles-panel">
+            <div class="mix-profiles-heading">
+                <div>
+                    <h3>Profils de mix intelligents</h3>
+                    <p>
+                        ${activeProfile
+                            ? `Profil actif : ${escapeHtml(activeProfile.name)}`
+                            : "Aucun profil actif"}
+                        · ${mixProfiles.length}/${MAX_MIX_PROFILES}
+                    </p>
+                </div>
+
+                <div class="mix-profiles-heading-actions">
+                    <button
+                        id="createProfileFromCurrentButton"
+                        class="mix-profile-create"
+                        type="button"
+                    >
+                        + Créer depuis les réglages actuels
+                    </button>
+
+                    <button
+                        id="restoreDefaultProfilesButton"
+                        class="mix-profile-restore"
+                        type="button"
+                    >
+                        Restaurer les profils par défaut
+                    </button>
+
+                    ${activeProfile ? `
+                        <button
+                            id="clearActiveProfileButton"
+                            class="mix-profile-restore"
+                            type="button"
+                        >
+                            Désactiver
+                        </button>
+                    ` : ""}
+                </div>
+            </div>
+
+            <div class="mix-profiles-list">
+                ${cards}
+            </div>
+        </section>
+    `;
+}
 
 function normalizeTextList(values) {
     if (!Array.isArray(values)) {
@@ -852,7 +1406,11 @@ function readSavedMixes() {
                 ),
                 exclusionRules: normalizeExclusionRules(
                     mix.exclusionRules
-                )
+                ),
+                profileId:
+                    typeof mix.profileId === "string"
+                        ? mix.profileId
+                        : ""
             }))
             .slice(0, MAX_SAVED_MIXES);
     } catch (error) {
@@ -975,7 +1533,8 @@ function saveCurrentSourceSelection() {
             },
             exclusionRules: normalizeExclusionRules(
                 currentExclusionRules
-            )
+            ),
+            profileId: activeProfileId
         },
         ...savedMixes
     ];
@@ -1007,12 +1566,27 @@ async function launchSavedMix(mixId) {
 
     editingSavedMixId = "";
     configuringSavedMixId = "";
-    currentShuffleSettings = normalizeShuffleSettings(
-        mix.shuffleSettings
+    const assignedProfile = getProfileById(
+        mix.profileId
     );
-    currentExclusionRules = normalizeExclusionRules(
-        mix.exclusionRules
-    );
+
+    if (assignedProfile) {
+        currentShuffleSettings = normalizeShuffleSettings(
+            assignedProfile.shuffleSettings
+        );
+        currentExclusionRules = normalizeExclusionRules(
+            assignedProfile.exclusionRules
+        );
+        activeProfileId = assignedProfile.id;
+        saveActiveProfileId();
+    } else {
+        currentShuffleSettings = normalizeShuffleSettings(
+            mix.shuffleSettings
+        );
+        currentExclusionRules = normalizeExclusionRules(
+            mix.exclusionRules
+        );
+    }
     saveExclusionRules();
     pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
@@ -1140,13 +1714,23 @@ function saveSavedMixSettings(mixId) {
 
     const formData = new FormData(form);
 
-    mix.shuffleSettings = normalizeShuffleSettings({
+    mix.profileId =
+        typeof formData.get("profileId") === "string"
+            ? formData.get("profileId")
+            : "";
+
+    const selectedProfile = getProfileById(mix.profileId);
+
+    mix.shuffleSettings = normalizeShuffleSettings(
+        selectedProfile?.shuffleSettings || {
         preset: formData.get("preset"),
         artistGap: formData.get("artistGap"),
         albumGap: formData.get("albumGap"),
         recentAvoidance: formData.get("recentAvoidance")
     });
+
     mix.exclusionRules = normalizeExclusionRules(
+        selectedProfile?.exclusionRules ||
         currentExclusionRules
     );
     mix.updatedAt = Date.now();
@@ -1184,6 +1768,21 @@ function renderSavedMixSettings(mix) {
                     </p>
                 </div>
             </div>
+
+            <label class="saved-mix-setting-field">
+                <span>Profil associé</span>
+                <select name="profileId">
+                    <option value="">Aucun profil</option>
+                    ${mixProfiles.map((profile) => `
+                        <option
+                            value="${escapeHtml(profile.id)}"
+                            ${mix.profileId === profile.id ? "selected" : ""}
+                        >
+                            ${escapeHtml(profile.icon)} ${escapeHtml(profile.name)}
+                        </option>
+                    `).join("")}
+                </select>
+            </label>
 
             <label class="saved-mix-setting-field">
                 <span>Mode</span>
@@ -1376,6 +1975,9 @@ function renderSavedMixesSection() {
             normalizeShuffleSettings(
                 mix.shuffleSettings
             );
+        const assignedProfile = getProfileById(
+            mix.profileId
+        );
 
         return `
             <article class="saved-mix-card">
@@ -1390,6 +1992,9 @@ function renderSavedMixesSection() {
                             ${totalCount} source${totalCount > 1 ? "s" : ""}
                             ${validCount < totalCount
                                 ? ` · ${totalCount - validCount} indisponible${totalCount - validCount > 1 ? "s" : ""}`
+                                : ""}
+                            ${assignedProfile
+                                ? ` · Profil ${escapeHtml(assignedProfile.name)}`
                                 : ""}
                             · ${getShufflePresetLabel(shuffleSettings)}
                             · ${escapeHtml(
@@ -2064,7 +2669,11 @@ function normalizeImportedMixes(values) {
                 ),
                 exclusionRules: normalizeExclusionRules(
                     mix.exclusionRules
-                )
+                ),
+                profileId:
+                    typeof mix.profileId === "string"
+                        ? mix.profileId
+                        : ""
             };
         })
         .filter((mix) => mix.sourceKeys.length)
@@ -2123,7 +2732,9 @@ function buildBackupPayload() {
             recentTrackUris: readTrackHistoryForBackup(),
             playbackQueueStates: readPlaybackQueueStates(),
             mixHistory,
-            exclusionRules: currentExclusionRules
+            exclusionRules: currentExclusionRules,
+            mixProfiles,
+            activeProfileId
         }
     };
 }
@@ -2203,6 +2814,20 @@ function validateBackupPayload(payload) {
         exclusionRules: normalizeExclusionRules(
             payload.data.exclusionRules
         ),
+        mixProfiles:
+            Array.isArray(payload.data.mixProfiles)
+                ? payload.data.mixProfiles
+                    .map((profile) =>
+                        normalizeMixProfile(profile)
+                    )
+                    .slice(0, MAX_MIX_PROFILES)
+                : DEFAULT_MIX_PROFILES.map(
+                    (profile) => normalizeMixProfile(profile)
+                ),
+        activeProfileId:
+            typeof payload.data.activeProfileId === "string"
+                ? payload.data.activeProfileId
+                : "",
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -2286,6 +2911,15 @@ async function importBackupFile(file) {
         currentExclusionRules =
             imported.exclusionRules;
         saveExclusionRules();
+        mixProfiles = imported.mixProfiles;
+        activeProfileId = mixProfiles.some(
+            (profile) =>
+                profile.id === imported.activeProfileId
+        )
+            ? imported.activeProfileId
+            : "";
+        saveMixProfiles();
+        saveActiveProfileId();
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -3186,6 +3820,8 @@ function displayPlaylists(playlists) {
             </p>
 
             ${renderBackupPanel()}
+
+            ${renderMixProfilesSection()}
 
             ${renderExclusionPanel()}
 
@@ -4222,6 +4858,24 @@ function displayPlaylistDetails(playlist, tracks) {
                 </div>
             </section>
 
+            ${getActiveProfile()
+                ? `
+                    <div class="active-profile-banner">
+                        <span class="active-profile-banner-icon">
+                            ${escapeHtml(getActiveProfile().icon)}
+                        </span>
+                        <div>
+                            <strong>
+                                Profil actif : ${escapeHtml(getActiveProfile().name)}
+                            </strong>
+                            <span>
+                                ${escapeHtml(getActiveProfile().description)}
+                            </span>
+                        </div>
+                    </div>
+                `
+                : ""}
+
             ${lastExclusionSummary?.excludedCount
                 ? `
                     <div class="exclusion-result-banner">
@@ -5000,6 +5654,55 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const profileActionButton =
+            event.target.closest("[data-profile-action]");
+
+        if (profileActionButton) {
+            const profileId =
+                profileActionButton.dataset.profileId || "";
+            const action =
+                profileActionButton.dataset.profileAction || "";
+
+            if (action === "apply") {
+                applyMixProfile(profileId);
+            } else if (action === "duplicate") {
+                duplicateMixProfile(profileId);
+            } else if (action === "rename") {
+                renameMixProfile(profileId);
+            } else if (action === "delete") {
+                deleteMixProfile(profileId);
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#createProfileFromCurrentButton"
+            )
+        ) {
+            createProfileFromCurrentSettings();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#restoreDefaultProfilesButton"
+            )
+        ) {
+            restoreDefaultMixProfiles();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearActiveProfileButton"
+            )
+        ) {
+            clearActiveProfile();
+            return;
+        }
+
         const resetExclusionRulesButton =
             event.target.closest("#resetExclusionRulesButton");
 
@@ -5236,9 +5939,23 @@ contentElement.addEventListener(
             event.target.closest("#createMixButton");
 
         if (createMixButton) {
-            currentShuffleSettings = {
-                ...DEFAULT_SHUFFLE_SETTINGS
-            };
+            const activeProfile = getActiveProfile();
+
+            if (activeProfile) {
+                currentShuffleSettings =
+                    normalizeShuffleSettings(
+                        activeProfile.shuffleSettings
+                    );
+                currentExclusionRules =
+                    normalizeExclusionRules(
+                        activeProfile.exclusionRules
+                    );
+            } else {
+                currentShuffleSettings = {
+                    ...DEFAULT_SHUFFLE_SETTINGS
+                };
+            }
+
             await createSelectedMix();
             return;
         }
@@ -5418,6 +6135,50 @@ contentElement.addEventListener(
             const [file] = event.target.files || [];
             await importBackupFile(file);
             event.target.value = "";
+            return;
+        }
+
+        if (
+            event.target.name === "profileId" &&
+            event.target.closest(
+                "[data-saved-mix-settings-id]"
+            )
+        ) {
+            const form = event.target.closest(
+                "[data-saved-mix-settings-id]"
+            );
+            const profile = getProfileById(
+                event.target.value
+            );
+
+            if (form && profile) {
+                const settings =
+                    normalizeShuffleSettings(
+                        profile.shuffleSettings
+                    );
+
+                form.elements.preset.value =
+                    settings.preset;
+                form.elements.artistGap.value =
+                    settings.artistGap;
+                form.elements.albumGap.value =
+                    settings.albumGap;
+                form.elements.recentAvoidance.value =
+                    settings.recentAvoidance;
+
+                for (const input of [
+                    form.elements.artistGap,
+                    form.elements.albumGap,
+                    form.elements.recentAvoidance
+                ]) {
+                    input.dispatchEvent(
+                        new Event("input", {
+                            bubbles: true
+                        })
+                    );
+                }
+            }
+
             return;
         }
 
