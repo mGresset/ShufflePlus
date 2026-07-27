@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.1.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -55,6 +55,20 @@ const PLAYBACK_QUEUE_STATE_KEY = "shuffleplus_playback_queue_state_v1";
 const PLAYBACK_QUEUE_STATE_TTL = 30 * 24 * 60 * 60 * 1000;
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
+const EXCLUSION_RULES_KEY = "shuffleplus_exclusion_rules_v1";
+const MAX_EXCLUDED_TEXT_ITEMS = 100;
+const DEFAULT_EXCLUSION_RULES = {
+    excludedArtists: [],
+    excludedAlbums: [],
+    excludedTrackUris: [],
+    hideExplicit: false,
+    minDurationSeconds: 0,
+    maxDurationSeconds: 0,
+    excludeLive: false,
+    excludeRemix: false,
+    excludeInstrumental: false,
+    excludeKaraoke: false
+};
 
 const DEFAULT_SHUFFLE_SETTINGS = {
     preset: "balanced",
@@ -125,6 +139,8 @@ let playbackQueueResumeKey = "";
 let pendingSavedMixResumeKey = "";
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
+let currentExclusionRules = readExclusionRules();
+let lastExclusionSummary = null;
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -184,6 +200,7 @@ function setDisconnectedInterface() {
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
     activeHistoryId = "";
+    lastExclusionSummary = null;
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -221,6 +238,433 @@ function getPlaylistSourceKey(playlistId) {
 }
 
 
+
+
+function normalizeTextList(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return [...new Set(
+        values
+            .map((value) => String(value || "").trim())
+            .filter(Boolean)
+            .slice(0, MAX_EXCLUDED_TEXT_ITEMS)
+    )];
+}
+
+function normalizeExclusionRules(rules = {}) {
+    return {
+        excludedArtists: normalizeTextList(
+            rules.excludedArtists
+        ),
+        excludedAlbums: normalizeTextList(
+            rules.excludedAlbums
+        ),
+        excludedTrackUris: normalizeTextList(
+            rules.excludedTrackUris
+        ).filter((value) => value.startsWith("spotify:track:")),
+        hideExplicit: Boolean(rules.hideExplicit),
+        minDurationSeconds: clampInteger(
+            rules.minDurationSeconds,
+            0,
+            3600,
+            0
+        ),
+        maxDurationSeconds: clampInteger(
+            rules.maxDurationSeconds,
+            0,
+            7200,
+            0
+        ),
+        excludeLive: Boolean(rules.excludeLive),
+        excludeRemix: Boolean(rules.excludeRemix),
+        excludeInstrumental: Boolean(rules.excludeInstrumental),
+        excludeKaraoke: Boolean(rules.excludeKaraoke)
+    };
+}
+
+function readExclusionRules() {
+    try {
+        const raw = localStorage.getItem(EXCLUSION_RULES_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return normalizeExclusionRules(parsed);
+    } catch (error) {
+        console.warn("Règles d’exclusion illisibles :", error);
+        return { ...DEFAULT_EXCLUSION_RULES };
+    }
+}
+
+function saveExclusionRules() {
+    try {
+        localStorage.setItem(
+            EXCLUSION_RULES_KEY,
+            JSON.stringify(currentExclusionRules)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer les exclusions :",
+            error
+        );
+    }
+}
+
+function splitRuleText(value = "") {
+    return normalizeTextList(
+        String(value)
+            .split(/\n|,/)
+            .map((item) => item.trim())
+    );
+}
+
+function includesExcludedText(value, exclusions) {
+    const normalizedValue = normalizeSearchText(value);
+
+    return exclusions.some((exclusion) =>
+        normalizedValue.includes(
+            normalizeSearchText(exclusion)
+        )
+    );
+}
+
+function getTrackExclusionReason(track, rules) {
+    const trackName = track?.name || "";
+    const albumName = track?.album?.name || "";
+    const artistNames = (track?.artists || [])
+        .map((artist) => artist?.name)
+        .filter(Boolean);
+    const durationSeconds = Math.floor(
+        Number(track?.duration_ms || 0) / 1000
+    );
+    const normalizedName = normalizeSearchText(trackName);
+
+    if (
+        track?.uri &&
+        rules.excludedTrackUris.includes(track.uri)
+    ) {
+        return "morceau";
+    }
+
+    if (
+        rules.excludedArtists.length &&
+        artistNames.some((artistName) =>
+            includesExcludedText(
+                artistName,
+                rules.excludedArtists
+            )
+        )
+    ) {
+        return "artiste";
+    }
+
+    if (
+        rules.excludedAlbums.length &&
+        includesExcludedText(
+            albumName,
+            rules.excludedAlbums
+        )
+    ) {
+        return "album";
+    }
+
+    if (rules.hideExplicit && track?.explicit === true) {
+        return "explicite";
+    }
+
+    if (
+        rules.minDurationSeconds > 0 &&
+        durationSeconds > 0 &&
+        durationSeconds < rules.minDurationSeconds
+    ) {
+        return "trop court";
+    }
+
+    if (
+        rules.maxDurationSeconds > 0 &&
+        durationSeconds > rules.maxDurationSeconds
+    ) {
+        return "trop long";
+    }
+
+    if (
+        rules.excludeLive &&
+        /\blive\b|en concert|concert\b/.test(normalizedName)
+    ) {
+        return "live";
+    }
+
+    if (
+        rules.excludeRemix &&
+        /\bremix\b|\brework\b|\bedit\b/.test(normalizedName)
+    ) {
+        return "remix";
+    }
+
+    if (
+        rules.excludeInstrumental &&
+        /\binstrumental\b/.test(normalizedName)
+    ) {
+        return "instrumental";
+    }
+
+    if (
+        rules.excludeKaraoke &&
+        /\bkaraoke\b/.test(normalizedName)
+    ) {
+        return "karaoké";
+    }
+
+    return "";
+}
+
+function applyExclusionRules(tracks, rules = currentExclusionRules) {
+    const summary = {
+        inputCount: tracks.length,
+        outputCount: 0,
+        excludedCount: 0,
+        reasons: {}
+    };
+
+    const filteredTracks = tracks.filter((track) => {
+        const reason = getTrackExclusionReason(track, rules);
+
+        if (!reason) {
+            return true;
+        }
+
+        summary.excludedCount += 1;
+        summary.reasons[reason] =
+            (summary.reasons[reason] || 0) + 1;
+
+        return false;
+    });
+
+    summary.outputCount = filteredTracks.length;
+    lastExclusionSummary = summary;
+
+    return {
+        tracks: filteredTracks,
+        summary
+    };
+}
+
+function getExclusionRulesSummary(rules = currentExclusionRules) {
+    const parts = [];
+
+    if (rules.excludedArtists.length) {
+        parts.push(
+            `${rules.excludedArtists.length} artiste` +
+            `${rules.excludedArtists.length > 1 ? "s" : ""}`
+        );
+    }
+
+    if (rules.excludedAlbums.length) {
+        parts.push(
+            `${rules.excludedAlbums.length} album` +
+            `${rules.excludedAlbums.length > 1 ? "s" : ""}`
+        );
+    }
+
+    if (rules.excludedTrackUris.length) {
+        parts.push(
+            `${rules.excludedTrackUris.length} morceau` +
+            `${rules.excludedTrackUris.length > 1 ? "x" : ""}`
+        );
+    }
+
+    if (rules.hideExplicit) {
+        parts.push("titres explicites");
+    }
+
+    if (rules.minDurationSeconds > 0) {
+        parts.push(
+            `moins de ${rules.minDurationSeconds}s`
+        );
+    }
+
+    if (rules.maxDurationSeconds > 0) {
+        parts.push(
+            `plus de ${rules.maxDurationSeconds}s`
+        );
+    }
+
+    for (const [enabled, label] of [
+        [rules.excludeLive, "live"],
+        [rules.excludeRemix, "remix"],
+        [rules.excludeInstrumental, "instrumentaux"],
+        [rules.excludeKaraoke, "karaoké"]
+    ]) {
+        if (enabled) {
+            parts.push(label);
+        }
+    }
+
+    return parts.length
+        ? parts.join(" · ")
+        : "Aucune exclusion active";
+}
+
+function renderExclusionPanel() {
+    const rules = normalizeExclusionRules(
+        currentExclusionRules
+    );
+
+    return `
+        <section class="exclusion-panel">
+            <div class="exclusion-panel-heading">
+                <div>
+                    <h3>Règles d’exclusion</h3>
+                    <p>
+                        ${escapeHtml(getExclusionRulesSummary(rules))}
+                    </p>
+                </div>
+
+                <button
+                    id="resetExclusionRulesButton"
+                    class="exclusion-reset-button"
+                    type="button"
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            <form id="exclusionRulesForm" class="exclusion-form">
+                <label class="exclusion-field exclusion-field-wide">
+                    <span>Artistes à exclure</span>
+                    <textarea
+                        name="excludedArtists"
+                        rows="3"
+                        placeholder="Un artiste par ligne ou séparé par une virgule"
+                    >${escapeHtml(rules.excludedArtists.join("\n"))}</textarea>
+                </label>
+
+                <label class="exclusion-field exclusion-field-wide">
+                    <span>Albums à exclure</span>
+                    <textarea
+                        name="excludedAlbums"
+                        rows="3"
+                        placeholder="Un album par ligne ou séparé par une virgule"
+                    >${escapeHtml(rules.excludedAlbums.join("\n"))}</textarea>
+                </label>
+
+                <label class="exclusion-field">
+                    <span>Durée minimale en secondes</span>
+                    <input
+                        name="minDurationSeconds"
+                        type="number"
+                        min="0"
+                        max="3600"
+                        value="${rules.minDurationSeconds}"
+                    >
+                </label>
+
+                <label class="exclusion-field">
+                    <span>Durée maximale en secondes</span>
+                    <input
+                        name="maxDurationSeconds"
+                        type="number"
+                        min="0"
+                        max="7200"
+                        value="${rules.maxDurationSeconds}"
+                    >
+                </label>
+
+                <label class="exclusion-check">
+                    <input
+                        name="hideExplicit"
+                        type="checkbox"
+                        ${rules.hideExplicit ? "checked" : ""}
+                    >
+                    <span>Masquer les titres explicites</span>
+                </label>
+
+                <label class="exclusion-check">
+                    <input
+                        name="excludeLive"
+                        type="checkbox"
+                        ${rules.excludeLive ? "checked" : ""}
+                    >
+                    <span>Éviter les versions live</span>
+                </label>
+
+                <label class="exclusion-check">
+                    <input
+                        name="excludeRemix"
+                        type="checkbox"
+                        ${rules.excludeRemix ? "checked" : ""}
+                    >
+                    <span>Éviter les remix</span>
+                </label>
+
+                <label class="exclusion-check">
+                    <input
+                        name="excludeInstrumental"
+                        type="checkbox"
+                        ${rules.excludeInstrumental ? "checked" : ""}
+                    >
+                    <span>Éviter les instrumentaux</span>
+                </label>
+
+                <label class="exclusion-check">
+                    <input
+                        name="excludeKaraoke"
+                        type="checkbox"
+                        ${rules.excludeKaraoke ? "checked" : ""}
+                    >
+                    <span>Éviter les versions karaoké</span>
+                </label>
+
+                <div class="exclusion-actions">
+                    <button
+                        class="exclusion-save-button"
+                        type="submit"
+                    >
+                        ✓ Enregistrer les exclusions
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function saveExclusionRulesFromForm(form) {
+    const formData = new FormData(form);
+
+    currentExclusionRules = normalizeExclusionRules({
+        ...currentExclusionRules,
+        excludedArtists: splitRuleText(
+            formData.get("excludedArtists")
+        ),
+        excludedAlbums: splitRuleText(
+            formData.get("excludedAlbums")
+        ),
+        minDurationSeconds:
+            formData.get("minDurationSeconds"),
+        maxDurationSeconds:
+            formData.get("maxDurationSeconds"),
+        hideExplicit: formData.get("hideExplicit") === "on",
+        excludeLive: formData.get("excludeLive") === "on",
+        excludeRemix: formData.get("excludeRemix") === "on",
+        excludeInstrumental:
+            formData.get("excludeInstrumental") === "on",
+        excludeKaraoke:
+            formData.get("excludeKaraoke") === "on"
+    });
+
+    saveExclusionRules();
+    displayPlaylists(playlistsCache);
+    setStatus("Règles d’exclusion enregistrées.");
+}
+
+function resetExclusionRules() {
+    currentExclusionRules = {
+        ...DEFAULT_EXCLUSION_RULES
+    };
+    saveExclusionRules();
+    displayPlaylists(playlistsCache);
+    setStatus("Toutes les exclusions ont été réinitialisées.");
+}
 
 function readFavoriteSources() {
     try {
@@ -405,6 +849,9 @@ function readSavedMixes() {
                 updatedAt: Number(mix.updatedAt || mix.createdAt || Date.now()),
                 shuffleSettings: normalizeShuffleSettings(
                     mix.shuffleSettings
+                ),
+                exclusionRules: normalizeExclusionRules(
+                    mix.exclusionRules
                 )
             }))
             .slice(0, MAX_SAVED_MIXES);
@@ -525,7 +972,10 @@ function saveCurrentSourceSelection() {
             updatedAt: Date.now(),
             shuffleSettings: {
                 ...DEFAULT_SHUFFLE_SETTINGS
-            }
+            },
+            exclusionRules: normalizeExclusionRules(
+                currentExclusionRules
+            )
         },
         ...savedMixes
     ];
@@ -560,6 +1010,10 @@ async function launchSavedMix(mixId) {
     currentShuffleSettings = normalizeShuffleSettings(
         mix.shuffleSettings
     );
+    currentExclusionRules = normalizeExclusionRules(
+        mix.exclusionRules
+    );
+    saveExclusionRules();
     pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
 
@@ -628,6 +1082,9 @@ function saveEditedMix() {
     }
 
     mix.sourceKeys = sourceKeys;
+    mix.exclusionRules = normalizeExclusionRules(
+        currentExclusionRules
+    );
     mix.updatedAt = Date.now();
     saveSavedMixes();
 
@@ -689,6 +1146,9 @@ function saveSavedMixSettings(mixId) {
         albumGap: formData.get("albumGap"),
         recentAvoidance: formData.get("recentAvoidance")
     });
+    mix.exclusionRules = normalizeExclusionRules(
+        currentExclusionRules
+    );
     mix.updatedAt = Date.now();
 
     saveSavedMixes();
@@ -932,6 +1392,13 @@ function renderSavedMixesSection() {
                                 ? ` · ${totalCount - validCount} indisponible${totalCount - validCount > 1 ? "s" : ""}`
                                 : ""}
                             · ${getShufflePresetLabel(shuffleSettings)}
+                            · ${escapeHtml(
+                                getExclusionRulesSummary(
+                                    normalizeExclusionRules(
+                                        mix.exclusionRules
+                                    )
+                                )
+                            )}
                         </p>
                         <small title="${escapeHtml(
                             mix.sourceKeys
@@ -1594,6 +2061,9 @@ function normalizeImportedMixes(values) {
                     : Date.now(),
                 shuffleSettings: normalizeShuffleSettings(
                     mix.shuffleSettings
+                ),
+                exclusionRules: normalizeExclusionRules(
+                    mix.exclusionRules
                 )
             };
         })
@@ -1652,7 +2122,8 @@ function buildBackupPayload() {
             },
             recentTrackUris: readTrackHistoryForBackup(),
             playbackQueueStates: readPlaybackQueueStates(),
-            mixHistory
+            mixHistory,
+            exclusionRules: currentExclusionRules
         }
     };
 }
@@ -1729,6 +2200,9 @@ function validateBackupPayload(payload) {
             Array.isArray(payload.data.mixHistory)
                 ? payload.data.mixHistory
                 : [],
+        exclusionRules: normalizeExclusionRules(
+            payload.data.exclusionRules
+        ),
         spotifyUserId:
             typeof payload.spotifyUserId === "string"
                 ? payload.spotifyUserId
@@ -1809,6 +2283,9 @@ async function importBackupFile(file) {
             )
             .slice(0, MAX_MIX_HISTORY_ITEMS);
         saveMixHistory();
+        currentExclusionRules =
+            imported.exclusionRules;
+        saveExclusionRules();
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -2710,6 +3187,8 @@ function displayPlaylists(playlists) {
 
             ${renderBackupPanel()}
 
+            ${renderExclusionPanel()}
+
             ${renderSavedMixesSection()}
 
             ${renderMixHistorySection()}
@@ -2922,6 +3401,17 @@ function createTrackRow(track, index) {
                 </button>
 
                 <button
+                    class="track-exclude-button"
+                    type="button"
+                    data-track-action="exclude"
+                    data-track-index="${index}"
+                    title="Exclure définitivement ce morceau"
+                    aria-label="Exclure ${trackName}"
+                >
+                    🚫
+                </button>
+
+                <button
                     class="track-remove-button"
                     type="button"
                     data-track-action="remove"
@@ -3022,6 +3512,37 @@ function moveTrack(fromIndex, toIndex) {
     renderTrackList();
     renderShuffleStats(
         analyzeShuffleOrder(selectedTracks)
+    );
+}
+
+
+function excludeTrackAt(index) {
+    const track = selectedTracks[index];
+
+    if (!track?.uri) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Exclure définitivement « ${track.name || "ce morceau"} » des prochains mix ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    currentExclusionRules = normalizeExclusionRules({
+        ...currentExclusionRules,
+        excludedTrackUris: [
+            ...currentExclusionRules.excludedTrackUris,
+            track.uri
+        ]
+    });
+
+    saveExclusionRules();
+    removeTrackAt(index);
+    setStatus(
+        `« ${track.name || "Morceau"} » ajouté aux exclusions.`
     );
 }
 
@@ -3701,6 +4222,29 @@ function displayPlaylistDetails(playlist, tracks) {
                 </div>
             </section>
 
+            ${lastExclusionSummary?.excludedCount
+                ? `
+                    <div class="exclusion-result-banner">
+                        <strong>
+                            ${lastExclusionSummary.excludedCount}
+                            morceau${lastExclusionSummary.excludedCount > 1 ? "x" : ""}
+                            exclu${lastExclusionSummary.excludedCount > 1 ? "s" : ""}
+                        </strong>
+                        <span>
+                            ${escapeHtml(
+                                Object.entries(
+                                    lastExclusionSummary.reasons
+                                )
+                                    .map(([reason, count]) =>
+                                        `${count} ${reason}`
+                                    )
+                                    .join(" · ")
+                            )}
+                        </span>
+                    </div>
+                `
+                : ""}
+
             <p class="shuffle-explanation">
                 Mode <strong>${getShufflePresetLabel(currentShuffleSettings)}</strong> :
                 au moins ${currentShuffleSettings.artistGap} morceau${currentShuffleSettings.artistGap > 1 ? "x" : ""}
@@ -4153,8 +4697,13 @@ async function createSelectedMix() {
         }
 
         const uniqueTracks = deduplicateTracks(collectedTracks);
+        const exclusionResult = applyExclusionRules(
+            uniqueTracks,
+            currentExclusionRules
+        );
+        const filteredTracks = exclusionResult.tracks;
 
-        if (!uniqueTracks.length) {
+        if (!filteredTracks.length) {
             throw new Error(
                 "Aucun morceau lisible n’a été trouvé dans les sources sélectionnées."
             );
@@ -4186,7 +4735,7 @@ async function createSelectedMix() {
             external_urls: {}
         };
 
-        sourceTracks = uniqueTracks;
+        sourceTracks = filteredTracks;
         selectedTracks = smartShuffleTracks(
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
@@ -4227,9 +4776,23 @@ async function createSelectedMix() {
             collectedTracks.length - uniqueTracks.length;
 
         const summaryParts = [
-            `${uniqueTracks.length} morceau${uniqueTracks.length > 1 ? "x" : ""} unique${uniqueTracks.length > 1 ? "s" : ""}`,
+            `${filteredTracks.length} morceau${filteredTracks.length > 1 ? "x" : ""} conservé${filteredTracks.length > 1 ? "s" : ""}`,
             `${loadedSourceNames.length} source${loadedSourceNames.length > 1 ? "s" : ""}`
         ];
+
+        if (exclusionResult.summary.excludedCount > 0) {
+            const details = Object.entries(
+                exclusionResult.summary.reasons
+            )
+                .map(([reason, count]) => `${count} ${reason}`)
+                .join(", ");
+
+            summaryParts.push(
+                `${exclusionResult.summary.excludedCount} exclusion` +
+                `${exclusionResult.summary.excludedCount > 1 ? "s" : ""}` +
+                ` (${details})`
+            );
+        }
 
         if (duplicateCount > 0) {
             summaryParts.push(
@@ -4297,12 +4860,18 @@ async function openPlaylist(playlist) {
             })
         ]);
 
-        sourceTracks = [...tracks];
+        const exclusionResult = applyExclusionRules(
+            [...tracks],
+            currentExclusionRules
+        );
+        sourceTracks = exclusionResult.tracks;
         playbackQueueResumeKey =
             playlist.sourceType === "liked"
                 ? "liked"
                 : `playlist:${playlist.id}`;
-        selectedTracks = restorePlaybackQueueState([...tracks]);
+        selectedTracks = restorePlaybackQueueState(
+            [...sourceTracks]
+        );
         originalGeneratedOrder = [...selectedTracks];
         trackSearchTerm = "";
         availableDevices = devices;
@@ -4431,6 +5000,14 @@ logoutButton.addEventListener("click", () => {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const resetExclusionRulesButton =
+            event.target.closest("#resetExclusionRulesButton");
+
+        if (resetExclusionRulesButton) {
+            resetExclusionRules();
+            return;
+        }
+
         const historyActionButton =
             event.target.closest("[data-history-action]");
 
@@ -4489,6 +5066,8 @@ contentElement.addEventListener(
                 moveTrack(index, index + 1);
             } else if (action === "remove") {
                 removeTrackAt(index);
+            } else if (action === "exclude") {
+                excludeTrackAt(index);
             }
 
             return;
@@ -4805,6 +5384,12 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (event.target.id === "exclusionRulesForm") {
+            event.preventDefault();
+            saveExclusionRulesFromForm(event.target);
+            return;
+        }
+
         if (
             event.target.matches(
                 "[data-saved-mix-settings-id]"
