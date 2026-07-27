@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "2.7.0";
+const APP_VERSION = "2.8.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -95,6 +95,16 @@ const DEFAULT_ADAPTIVE_SETTINGS = {
     durationMode: "none",
     customDurationMinutes: 60,
     targetTrackCount: 0
+};
+const CLEANUP_SETTINGS_KEY =
+    "shuffleplus_cleanup_settings_v1";
+const DEFAULT_CLEANUP_SETTINGS = {
+    enabled: true,
+    level: "normal",
+    keepRemix: true,
+    keepLive: true,
+    preferOriginal: true,
+    removeUnavailable: true
 };
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
@@ -362,6 +372,9 @@ let currentCoherenceSettings = readCoherenceSettings();
 let currentIntensitySettings = readIntensitySettings();
 let currentAdaptiveSettings = readAdaptiveSettings();
 let activeAdaptiveContext = null;
+let currentCleanupSettings = readCleanupSettings();
+let lastCleanupSummary = null;
+let lastCleanupSnapshot = null;
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -427,6 +440,8 @@ function setDisconnectedInterface() {
     activeHistoryId = "";
     lastExclusionSummary = null;
     lastPrioritySummary = null;
+    lastCleanupSummary = null;
+    lastCleanupSnapshot = null;
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -1522,6 +1537,558 @@ function startScheduleWatcher() {
 }
 
 
+
+
+function normalizeCleanupSettings(settings = {}) {
+    const levels = new Set([
+        "prudent",
+        "normal",
+        "strict"
+    ]);
+
+    return {
+        enabled: settings.enabled !== false,
+        level: levels.has(settings.level)
+            ? settings.level
+            : "normal",
+        keepRemix: settings.keepRemix !== false,
+        keepLive: settings.keepLive !== false,
+        preferOriginal:
+            settings.preferOriginal !== false,
+        removeUnavailable:
+            settings.removeUnavailable !== false
+    };
+}
+
+function readCleanupSettings() {
+    try {
+        const raw = localStorage.getItem(
+            CLEANUP_SETTINGS_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : {};
+
+        return normalizeCleanupSettings(parsed);
+    } catch (error) {
+        console.warn(
+            "Réglages de nettoyage illisibles :",
+            error
+        );
+        return {
+            ...DEFAULT_CLEANUP_SETTINGS
+        };
+    }
+}
+
+function saveCleanupSettings() {
+    try {
+        localStorage.setItem(
+            CLEANUP_SETTINGS_KEY,
+            JSON.stringify(currentCleanupSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Impossible d’enregistrer le nettoyage :",
+            error
+        );
+    }
+}
+
+function getCleanupLevelLabel(level = "normal") {
+    switch (level) {
+        case "prudent":
+            return "Prudent";
+        case "strict":
+            return "Strict";
+        case "normal":
+        default:
+            return "Normal";
+    }
+}
+
+function getTrackVariantType(track) {
+    const value = normalizeSearchText([
+        track?.name,
+        track?.album?.name
+    ].filter(Boolean).join(" "));
+
+    if (/\blive\b|concert|en public/.test(value)) {
+        return "live";
+    }
+
+    if (/\bremix\b|\brework\b|\bmix\b/.test(value)) {
+        return "remix";
+    }
+
+    if (/\bradio edit\b|\bedit\b/.test(value)) {
+        return "edit";
+    }
+
+    if (/\bremaster(?:ed)?\b|\banniversary\b/.test(value)) {
+        return "remaster";
+    }
+
+    if (/\binstrumental\b/.test(value)) {
+        return "instrumental";
+    }
+
+    return "original";
+}
+
+function getCleanupBaseTitle(track, level) {
+    let value = normalizeSearchText(track?.name || "");
+
+    if (level === "prudent") {
+        return value;
+    }
+
+    value = value
+        .replace(/\s*[\(\[\-–—]\s*(?:remaster(?:ed)?|radio edit|edit|deluxe|anniversary|bonus track)[^\)\]]*[\)\]]?/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (level === "strict") {
+        value = value
+            .replace(/\s*[\(\[\-–—]\s*(?:live|concert|remix|rework|mix|instrumental)[^\)\]]*[\)\]]?/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    return value;
+}
+
+function getCleanupTrackKey(
+    track,
+    settings = currentCleanupSettings
+) {
+    const normalized =
+        normalizeCleanupSettings(settings);
+
+    if (normalized.level === "prudent") {
+        return track?.uri || track?.id || "";
+    }
+
+    const artist = normalizeSearchText(
+        track?.artists?.[0]?.name || ""
+    );
+    const title = getCleanupBaseTitle(
+        track,
+        normalized.level
+    );
+    const variant = getTrackVariantType(track);
+
+    let variantSuffix = "";
+
+    if (
+        variant === "remix" &&
+        normalized.keepRemix
+    ) {
+        variantSuffix = ":remix";
+    } else if (
+        variant === "live" &&
+        normalized.keepLive
+    ) {
+        variantSuffix = ":live";
+    }
+
+    return `${artist}:${title}${variantSuffix}`;
+}
+
+function getCleanupTrackScore(
+    track,
+    settings = currentCleanupSettings
+) {
+    const normalized =
+        normalizeCleanupSettings(settings);
+    const variant = getTrackVariantType(track);
+    let score = Number(track?.popularity || 0);
+
+    if (track?.uri) {
+        score += 100;
+    }
+
+    if (
+        normalized.preferOriginal &&
+        variant === "original"
+    ) {
+        score += 80;
+    }
+
+    if (variant === "remaster") {
+        score += 15;
+    }
+
+    if (track?.album?.album_type === "album") {
+        score += 8;
+    }
+
+    return score;
+}
+
+function mergeCleanupSources(firstTrack, secondTrack) {
+    const sources = new Set([
+        ...(firstTrack?.__shufflePlusSources || []),
+        ...(secondTrack?.__shufflePlusSources || [])
+    ]);
+
+    return {
+        ...firstTrack,
+        __shufflePlusSources: [...sources]
+    };
+}
+
+function cleanTracks(
+    tracks,
+    settings = currentCleanupSettings
+) {
+    const normalized =
+        normalizeCleanupSettings(settings);
+    const playableTracks = normalized.removeUnavailable
+        ? tracks.filter((track) => track?.uri)
+        : [...tracks];
+    const unavailableCount =
+        tracks.length - playableTracks.length;
+
+    if (!normalized.enabled) {
+        const result = {
+            tracks: playableTracks,
+            summary: {
+                inputCount: tracks.length,
+                outputCount: playableTracks.length,
+                removedCount: unavailableCount,
+                unavailableCount,
+                exactDuplicateCount: 0,
+                similarDuplicateCount: 0,
+                variantsKept: 0,
+                durationSavedMs: 0,
+                groups: []
+            }
+        };
+        lastCleanupSummary = result.summary;
+        lastCleanupSnapshot = [...tracks];
+        return result;
+    }
+
+    const selectedByKey = new Map();
+    const groups = [];
+    let exactDuplicateCount = 0;
+    let similarDuplicateCount = 0;
+    let durationSavedMs = 0;
+    let variantsKept = 0;
+
+    for (const track of playableTracks) {
+        const key = getCleanupTrackKey(
+            track,
+            normalized
+        );
+
+        if (!key) {
+            continue;
+        }
+
+        const existing = selectedByKey.get(key);
+
+        if (!existing) {
+            selectedByKey.set(key, track);
+            continue;
+        }
+
+        const exact =
+            (track?.uri || track?.id) ===
+            (existing?.uri || existing?.id);
+
+        if (exact) {
+            exactDuplicateCount += 1;
+        } else {
+            similarDuplicateCount += 1;
+        }
+
+        durationSavedMs += Number(
+            track?.duration_ms || 0
+        );
+
+        const existingScore = getCleanupTrackScore(
+            existing,
+            normalized
+        );
+        const candidateScore = getCleanupTrackScore(
+            track,
+            normalized
+        );
+        const kept =
+            candidateScore > existingScore
+                ? track
+                : existing;
+        const removed =
+            kept === track ? existing : track;
+        const merged = mergeCleanupSources(
+            kept,
+            removed
+        );
+
+        selectedByKey.set(key, merged);
+
+        groups.push({
+            keptName: kept?.name || "Morceau",
+            removedName:
+                removed?.name || "Morceau",
+            artist:
+                kept?.artists?.[0]?.name || "",
+            sources:
+                merged.__shufflePlusSources || []
+        });
+    }
+
+    const cleanedTracks = [
+        ...selectedByKey.values()
+    ];
+
+    const variantKeys = new Set(
+        cleanedTracks.map((track) =>
+            `${normalizeSearchText(track?.artists?.[0]?.name || "")}:` +
+            `${getCleanupBaseTitle(track, "strict")}`
+        )
+    );
+    variantsKept = Math.max(
+        0,
+        cleanedTracks.length - variantKeys.size
+    );
+
+    const summary = {
+        inputCount: tracks.length,
+        outputCount: cleanedTracks.length,
+        removedCount:
+            tracks.length - cleanedTracks.length,
+        unavailableCount,
+        exactDuplicateCount,
+        similarDuplicateCount,
+        variantsKept,
+        durationSavedMs,
+        groups: groups.slice(0, 30)
+    };
+
+    lastCleanupSummary = summary;
+    lastCleanupSnapshot = [...tracks];
+
+    return {
+        tracks: cleanedTracks,
+        summary
+    };
+}
+
+function getCleanupSummary(
+    settings = currentCleanupSettings
+) {
+    const normalized =
+        normalizeCleanupSettings(settings);
+
+    if (!normalized.enabled) {
+        return "Nettoyage désactivé";
+    }
+
+    const parts = [
+        `niveau ${getCleanupLevelLabel(
+            normalized.level
+        ).toLowerCase()}`
+    ];
+
+    if (normalized.keepRemix) {
+        parts.push("remix conservés");
+    }
+
+    if (normalized.keepLive) {
+        parts.push("live conservés");
+    }
+
+    if (normalized.preferOriginal) {
+        parts.push("version originale prioritaire");
+    }
+
+    return parts.join(" · ");
+}
+
+function renderCleanupPanel() {
+    const settings = normalizeCleanupSettings(
+        currentCleanupSettings
+    );
+
+    return `
+        <section class="cleanup-panel">
+            <div class="cleanup-panel-heading">
+                <div>
+                    <h3>Nettoyage intelligent</h3>
+                    <p>
+                        ${escapeHtml(
+                            getCleanupSummary(settings)
+                        )}
+                    </p>
+                </div>
+
+                <button
+                    id="resetCleanupSettingsButton"
+                    class="cleanup-reset-button"
+                    type="button"
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            <form
+                id="cleanupSettingsForm"
+                class="cleanup-form"
+            >
+                <label class="cleanup-check cleanup-check-main">
+                    <input
+                        name="enabled"
+                        type="checkbox"
+                        ${settings.enabled ? "checked" : ""}
+                    >
+                    <span>
+                        Nettoyer automatiquement avant le mélange
+                    </span>
+                </label>
+
+                <label class="cleanup-field">
+                    <span>Niveau de nettoyage</span>
+                    <select name="level">
+                        <option value="prudent" ${settings.level === "prudent" ? "selected" : ""}>
+                            Prudent · doublons exacts
+                        </option>
+                        <option value="normal" ${settings.level === "normal" ? "selected" : ""}>
+                            Normal · même titre et artiste
+                        </option>
+                        <option value="strict" ${settings.level === "strict" ? "selected" : ""}>
+                            Strict · variantes proches
+                        </option>
+                    </select>
+                </label>
+
+                <label class="cleanup-check">
+                    <input
+                        name="keepRemix"
+                        type="checkbox"
+                        ${settings.keepRemix ? "checked" : ""}
+                    >
+                    <span>Conserver les remix séparément</span>
+                </label>
+
+                <label class="cleanup-check">
+                    <input
+                        name="keepLive"
+                        type="checkbox"
+                        ${settings.keepLive ? "checked" : ""}
+                    >
+                    <span>Conserver les versions live séparément</span>
+                </label>
+
+                <label class="cleanup-check">
+                    <input
+                        name="preferOriginal"
+                        type="checkbox"
+                        ${settings.preferOriginal ? "checked" : ""}
+                    >
+                    <span>Préférer la version originale</span>
+                </label>
+
+                <label class="cleanup-check">
+                    <input
+                        name="removeUnavailable"
+                        type="checkbox"
+                        ${settings.removeUnavailable ? "checked" : ""}
+                    >
+                    <span>Retirer les morceaux indisponibles</span>
+                </label>
+
+                <div class="cleanup-actions">
+                    <button
+                        class="cleanup-save-button"
+                        type="submit"
+                    >
+                        🧹 Enregistrer le nettoyage
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function saveCleanupSettingsFromForm(form) {
+    const formData = new FormData(form);
+
+    currentCleanupSettings =
+        normalizeCleanupSettings({
+            enabled:
+                formData.get("enabled") === "on",
+            level: formData.get("level"),
+            keepRemix:
+                formData.get("keepRemix") === "on",
+            keepLive:
+                formData.get("keepLive") === "on",
+            preferOriginal:
+                formData.get("preferOriginal") === "on",
+            removeUnavailable:
+                formData.get("removeUnavailable") === "on"
+        });
+
+    saveCleanupSettings();
+
+    const activeProfile = getActiveProfile();
+
+    if (activeProfile && !activeProfile.isDefault) {
+        activeProfile.cleanupSettings =
+            normalizeCleanupSettings(
+                currentCleanupSettings
+            );
+        saveMixProfiles();
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus("Réglages de nettoyage enregistrés.");
+}
+
+function resetCleanupSettings() {
+    currentCleanupSettings = {
+        ...DEFAULT_CLEANUP_SETTINGS
+    };
+    saveCleanupSettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Nettoyage intelligent réinitialisé.");
+}
+
+function restoreLastCleanup() {
+    if (!lastCleanupSnapshot?.length) {
+        setStatus(
+            "Aucun nettoyage récent à restaurer.",
+            "error"
+        );
+        return;
+    }
+
+    sourceTracks = [...lastCleanupSnapshot];
+    selectedTracks = smartShuffleTracks(
+        sourceTracks,
+        getShuffleEngineOptions(
+            currentShuffleSettings
+        )
+    );
+    selectedTracks = limitTracksToAdaptiveTarget(
+        selectedTracks,
+        currentAdaptiveSettings
+    );
+    originalGeneratedOrder = [...selectedTracks];
+    lastCleanupSummary = null;
+    renderTrackList();
+    renderShuffleStats(
+        analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
+    );
+    setStatus(
+        "Dernier nettoyage restauré pour ce mix."
+    );
+}
 
 function normalizeAdaptiveSettings(settings = {}) {
     const allowedDurationModes = new Set([
@@ -3064,6 +3631,9 @@ function normalizeMixProfile(profile = {}) {
         ),
         intensitySettings: normalizeIntensitySettings(
             profile.intensitySettings
+        ),
+        cleanupSettings: normalizeCleanupSettings(
+            profile.cleanupSettings
         )
     };
 }
@@ -3169,12 +3739,17 @@ function applyMixProfile(profileId, {
         normalizeIntensitySettings(
             profile.intensitySettings
         );
+    currentCleanupSettings =
+        normalizeCleanupSettings(
+            profile.cleanupSettings
+        );
     activeProfileId = profile.id;
 
     saveExclusionRules();
     savePriorityRules();
     saveCoherenceSettings();
     saveIntensitySettings();
+    saveCleanupSettings();
 
     if (persist) {
         saveActiveProfileId();
@@ -3205,10 +3780,14 @@ function clearActiveProfile() {
     currentIntensitySettings = {
         ...DEFAULT_INTENSITY_SETTINGS
     };
+    currentCleanupSettings = {
+        ...DEFAULT_CLEANUP_SETTINGS
+    };
     saveExclusionRules();
     savePriorityRules();
     saveCoherenceSettings();
     saveIntensitySettings();
+    saveCleanupSettings();
     displayPlaylists(playlistsCache);
     setStatus("Profil actif désactivé.");
 }
@@ -3252,7 +3831,8 @@ function createProfileFromCurrentSettings() {
         exclusionRules: currentExclusionRules,
         priorityRules: currentPriorityRules,
         coherenceSettings: currentCoherenceSettings,
-        intensitySettings: currentIntensitySettings
+        intensitySettings: currentIntensitySettings,
+        cleanupSettings: currentCleanupSettings
     });
 
     mixProfiles = [profile, ...mixProfiles]
@@ -3405,6 +3985,10 @@ function assignProfileToSavedMix(mixId, profileId) {
             normalizeIntensitySettings(
                 profile.intensitySettings
             );
+        mix.cleanupSettings =
+            normalizeCleanupSettings(
+                profile.cleanupSettings
+            );
     }
 
     mix.updatedAt = Date.now();
@@ -3424,7 +4008,8 @@ function getMixProfileSummary(profile) {
         getExclusionRulesSummary(profile.exclusionRules),
         getPriorityRulesSummary(profile.priorityRules),
         getCoherenceSummary(profile.coherenceSettings),
-        getIntensitySummary(profile.intensitySettings)
+        getIntensitySummary(profile.intensitySettings),
+        getCleanupSummary(profile.cleanupSettings)
     ].join(" · ");
 }
 
@@ -4174,6 +4759,10 @@ function readSavedMixes() {
                 intensitySettings:
                     normalizeIntensitySettings(
                         mix.intensitySettings
+                    ),
+                cleanupSettings:
+                    normalizeCleanupSettings(
+                        mix.cleanupSettings
                     )
             }))
             .slice(0, MAX_SAVED_MIXES);
@@ -4309,6 +4898,10 @@ function saveCurrentSourceSelection() {
             intensitySettings:
                 normalizeIntensitySettings(
                     currentIntensitySettings
+                ),
+            cleanupSettings:
+                normalizeCleanupSettings(
+                    currentCleanupSettings
                 )
         },
         ...savedMixes
@@ -4363,6 +4956,10 @@ async function launchSavedMix(mixId) {
             normalizeIntensitySettings(
                 assignedProfile.intensitySettings
             );
+        currentCleanupSettings =
+            normalizeCleanupSettings(
+                assignedProfile.cleanupSettings
+            );
         activeProfileId = assignedProfile.id;
         saveActiveProfileId();
     } else {
@@ -4383,11 +4980,16 @@ async function launchSavedMix(mixId) {
             normalizeIntensitySettings(
                 mix.intensitySettings
             );
+        currentCleanupSettings =
+            normalizeCleanupSettings(
+                mix.cleanupSettings
+            );
     }
     saveExclusionRules();
     savePriorityRules();
     saveCoherenceSettings();
     saveIntensitySettings();
+    saveCleanupSettings();
     pendingSavedMixResumeKey = `saved-mix:${mix.id}`;
     selectedSourceKeys.clear();
 
@@ -4469,6 +5071,10 @@ function saveEditedMix() {
     mix.intensitySettings =
         normalizeIntensitySettings(
             currentIntensitySettings
+        );
+    mix.cleanupSettings =
+        normalizeCleanupSettings(
+            currentCleanupSettings
         );
     mix.updatedAt = Date.now();
     saveSavedMixes();
@@ -5742,6 +6348,7 @@ function buildBackupPayload() {
             coherenceSettings: currentCoherenceSettings,
             intensitySettings: currentIntensitySettings,
             adaptiveSettings: currentAdaptiveSettings,
+            cleanupSettings: currentCleanupSettings,
             mixSchedules
         }
     };
@@ -5850,6 +6457,10 @@ function validateBackupPayload(payload) {
         adaptiveSettings:
             normalizeAdaptiveSettings(
                 payload.data.adaptiveSettings
+            ),
+        cleanupSettings:
+            normalizeCleanupSettings(
+                payload.data.cleanupSettings
             ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
@@ -5966,6 +6577,9 @@ async function importBackupFile(file) {
         currentAdaptiveSettings =
             imported.adaptiveSettings;
         saveAdaptiveSettings();
+        currentCleanupSettings =
+            imported.cleanupSettings;
+        saveCleanupSettings();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -6872,6 +7486,8 @@ function displayPlaylists(playlists) {
             ${renderMixSchedulesSection()}
 
             ${renderAdaptivePanel()}
+
+            ${renderCleanupPanel()}
 
             ${renderMixProfilesSection()}
 
@@ -8008,6 +8624,39 @@ function displayPlaylistDetails(playlist, tracks) {
                 `
                 : ""}
 
+            ${lastCleanupSummary?.removedCount
+                ? `
+                    <div class="cleanup-result-banner">
+                        <div>
+                            <strong>
+                                🧹 ${lastCleanupSummary.removedCount}
+                                doublon${lastCleanupSummary.removedCount > 1 ? "s" : ""}
+                                ou titre${lastCleanupSummary.removedCount > 1 ? "s" : ""}
+                                retiré${lastCleanupSummary.removedCount > 1 ? "s" : ""}
+                            </strong>
+                            <span>
+                                ${lastCleanupSummary.inputCount}
+                                chargés → ${lastCleanupSummary.outputCount}
+                                conservés ·
+                                ${escapeHtml(
+                                    formatLongDuration(
+                                        lastCleanupSummary.durationSavedMs
+                                    )
+                                )}
+                                économisées
+                            </span>
+                        </div>
+                        <button
+                            id="restoreLastCleanupButton"
+                            class="cleanup-restore-button"
+                            type="button"
+                        >
+                            Restaurer
+                        </button>
+                    </div>
+                `
+                : ""}
+
             ${lastPrioritySummary?.favoredTotal
                 ? `
                     <div class="priority-result-banner">
@@ -8404,22 +9053,12 @@ async function playSelectedOrder() {
 }
 
 function deduplicateTracks(tracks) {
-    const uniqueTracks = [];
-    const seenKeys = new Set();
-
-    for (const track of tracks) {
-        const key = track?.uri || track?.id || "";
-
-        if (!key || seenKeys.has(key)) {
-            continue;
-        }
-
-        seenKeys.add(key);
-        uniqueTracks.push(track);
-    }
-
-    return uniqueTracks;
+    return cleanTracks(
+        tracks,
+        currentCleanupSettings
+    ).tracks;
 }
+
 
 async function createSelectedMix() {
     applyAdaptiveContext();
@@ -8510,7 +9149,17 @@ async function createSelectedMix() {
 
             try {
                 const tracks = await source.loader();
-                collectedTracks.push(...tracks);
+                collectedTracks.push(
+                    ...tracks.map((track) => ({
+                        ...track,
+                        __shufflePlusSources: [
+                            ...new Set([
+                                ...(track?.__shufflePlusSources || []),
+                                source.name
+                            ])
+                        ]
+                    }))
+                );
                 loadedSourceNames.push(source.name);
             } catch (error) {
                 console.warn(
@@ -8521,7 +9170,11 @@ async function createSelectedMix() {
             }
         }
 
-        const uniqueTracks = deduplicateTracks(collectedTracks);
+        const cleanupResult = cleanTracks(
+            collectedTracks,
+            currentCleanupSettings
+        );
+        const uniqueTracks = cleanupResult.tracks;
         const exclusionResult = applyExclusionRules(
             uniqueTracks,
             currentExclusionRules
@@ -8698,8 +9351,12 @@ async function openPlaylist(playlist) {
             })
         ]);
 
-        const exclusionResult = applyExclusionRules(
+        const cleanupResult = cleanTracks(
             [...tracks],
+            currentCleanupSettings
+        );
+        const exclusionResult = applyExclusionRules(
+            cleanupResult.tracks,
             currentExclusionRules
         );
         sourceTracks = exclusionResult.tracks;
@@ -8944,6 +9601,25 @@ contentElement.addEventListener(
             )
         ) {
             clearActiveProfile();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#restoreLastCleanupButton"
+            )
+        ) {
+            restoreLastCleanup();
+            return;
+        }
+
+        const resetCleanupSettingsButton =
+            event.target.closest(
+                "#resetCleanupSettingsButton"
+            );
+
+        if (resetCleanupSettingsButton) {
+            resetCleanupSettings();
             return;
         }
 
@@ -9415,6 +10091,16 @@ contentElement.addEventListener(
         ) {
             event.preventDefault();
             createMixScheduleFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "cleanupSettingsForm"
+        ) {
+            event.preventDefault();
+            saveCleanupSettingsFromForm(
                 event.target
             );
             return;
