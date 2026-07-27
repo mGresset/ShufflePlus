@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "1.7.0";
+const APP_VERSION = "1.8.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -113,6 +113,9 @@ let configuringSavedMixId = "";
 let currentShuffleSettings = {
     ...DEFAULT_SHUFFLE_SETTINGS
 };
+let originalGeneratedOrder = [];
+let trackSearchTerm = "";
+let draggedTrackIndex = -1;
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -165,6 +168,9 @@ function setDisconnectedInterface() {
     editingSavedMixId = "";
     configuringSavedMixId = "";
     currentShuffleSettings = { ...DEFAULT_SHUFFLE_SETTINGS };
+    originalGeneratedOrder = [];
+    trackSearchTerm = "";
+    draggedTrackIndex = -1;
     playlistModificationDates.clear();
     playlistRecentActivity.clear();
     modificationDatesLoading = false;
@@ -2280,6 +2286,15 @@ function displayPlaylists(playlists) {
     updateMixSelectionControls();
 }
 
+
+function getTrackStableKey(track, fallbackIndex = 0) {
+    return (
+        track?.uri ||
+        track?.id ||
+        `${track?.name || "track"}-${fallbackIndex}`
+    );
+}
+
 function createTrackRow(track, index) {
     const trackName = escapeHtml(
         track.name || "Morceau indisponible"
@@ -2303,6 +2318,9 @@ function createTrackRow(track, index) {
         "";
 
     const spotifyUrl = track.external_urls?.spotify || "";
+    const trackKey = escapeHtml(
+        getTrackStableKey(track, index)
+    );
 
     const image = imageUrl
         ? `
@@ -2333,7 +2351,20 @@ function createTrackRow(track, index) {
         : `<span class="track-title">${trackName}</span>`;
 
     return `
-        <li class="track-row">
+        <li
+            class="track-row"
+            draggable="true"
+            data-track-index="${index}"
+            data-track-key="${trackKey}"
+        >
+            <span
+                class="track-drag-handle"
+                title="Faire glisser pour déplacer"
+                aria-hidden="true"
+            >
+                ⋮⋮
+            </span>
+
             <span class="track-number">
                 ${index + 1}
             </span>
@@ -2355,20 +2386,194 @@ function createTrackRow(track, index) {
             <span class="track-duration">
                 ${formatDuration(track.duration_ms)}
             </span>
+
+            <div class="track-editor-actions">
+                <button
+                    class="track-move-button"
+                    type="button"
+                    data-track-action="up"
+                    data-track-index="${index}"
+                    title="Monter"
+                    aria-label="Monter ${trackName}"
+                    ${index === 0 ? "disabled" : ""}
+                >
+                    ↑
+                </button>
+
+                <button
+                    class="track-move-button"
+                    type="button"
+                    data-track-action="down"
+                    data-track-index="${index}"
+                    title="Descendre"
+                    aria-label="Descendre ${trackName}"
+                    ${index === selectedTracks.length - 1 ? "disabled" : ""}
+                >
+                    ↓
+                </button>
+
+                <button
+                    class="track-remove-button"
+                    type="button"
+                    data-track-action="remove"
+                    data-track-index="${index}"
+                    title="Retirer de cet ordre"
+                    aria-label="Retirer ${trackName}"
+                >
+                    ✕
+                </button>
+            </div>
         </li>
     `;
 }
 
+function getVisibleTrackEntries() {
+    const normalizedQuery =
+        normalizeSearchText(trackSearchTerm);
+
+    return selectedTracks
+        .map((track, index) => ({
+            track,
+            index
+        }))
+        .filter(({ track }) => {
+            if (!normalizedQuery) {
+                return true;
+            }
+
+            const searchableText = normalizeSearchText([
+                track?.name,
+                ...(track?.artists || []).map(
+                    (artist) => artist?.name
+                ),
+                track?.album?.name
+            ].filter(Boolean).join(" "));
+
+            return searchableText.includes(normalizedQuery);
+        });
+}
+
 function renderTrackList() {
     const trackListElement = document.getElementById("trackList");
+    const trackCountElement = document.getElementById(
+        "trackEditorCount"
+    );
+    const resetButton = document.getElementById(
+        "resetGeneratedOrderButton"
+    );
 
     if (!trackListElement) {
         return;
     }
 
-    trackListElement.innerHTML = selectedTracks
-        .map(createTrackRow)
-        .join("");
+    const visibleEntries = getVisibleTrackEntries();
+
+    trackListElement.innerHTML = visibleEntries.length
+        ? visibleEntries
+            .map(({ track, index }) =>
+                createTrackRow(track, index)
+            )
+            .join("")
+        : `
+            <li class="track-editor-empty">
+                Aucun morceau ne correspond à cette recherche.
+            </li>
+        `;
+
+    if (trackCountElement) {
+        trackCountElement.textContent =
+            `${visibleEntries.length} affiché${visibleEntries.length > 1 ? "s" : ""} ` +
+            `sur ${selectedTracks.length}`;
+    }
+
+    if (resetButton) {
+        resetButton.disabled =
+            !originalGeneratedOrder.length;
+    }
+}
+
+function moveTrack(fromIndex, toIndex) {
+    if (
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= selectedTracks.length ||
+        toIndex >= selectedTracks.length ||
+        fromIndex === toIndex
+    ) {
+        return;
+    }
+
+    const [movedTrack] = selectedTracks.splice(
+        fromIndex,
+        1
+    );
+
+    selectedTracks.splice(toIndex, 0, movedTrack);
+    renderTrackList();
+    renderShuffleStats(
+        analyzeShuffleOrder(selectedTracks)
+    );
+}
+
+function removeTrackAt(index) {
+    if (
+        index < 0 ||
+        index >= selectedTracks.length
+    ) {
+        return;
+    }
+
+    const [removedTrack] = selectedTracks.splice(index, 1);
+
+    renderTrackList();
+    renderShuffleStats(
+        analyzeShuffleOrder(selectedTracks)
+    );
+
+    const playButton = document.getElementById(
+        "playSpotifyButton"
+    );
+    const saveButton = document.getElementById(
+        "showSavePlaylistButton"
+    );
+
+    if (playButton) {
+        playButton.disabled =
+            !selectedTracks.length ||
+            !availableDevices.length ||
+            isKnownNonPremiumAccount();
+    }
+
+    if (saveButton) {
+        saveButton.disabled = !selectedTracks.length;
+    }
+
+    setStatus(
+        `« ${removedTrack?.name || "Morceau"} » retiré de l’ordre actuel.`
+    );
+}
+
+function resetGeneratedOrder() {
+    if (!originalGeneratedOrder.length) {
+        return;
+    }
+
+    selectedTracks = [...originalGeneratedOrder];
+    trackSearchTerm = "";
+
+    const searchInput = document.getElementById(
+        "trackOrderSearchInput"
+    );
+
+    if (searchInput) {
+        searchInput.value = "";
+    }
+
+    renderTrackList();
+    renderShuffleStats(
+        analyzeShuffleOrder(selectedTracks)
+    );
+    setStatus("Ordre intelligent initial restauré.");
 }
 
 function renderShuffleStats(stats = null) {
@@ -2927,6 +3132,48 @@ function displayPlaylistDetails(playlist, tracks) {
                 </p>
             </section>
 
+            <section class="track-editor-panel" aria-label="Édition de l’ordre">
+                <div class="track-editor-heading">
+                    <div>
+                        <h3>Modifier l’ordre</h3>
+                        <p>
+                            Fais glisser les morceaux sur ordinateur,
+                            ou utilise les flèches sur mobile.
+                        </p>
+                    </div>
+
+                    <span id="trackEditorCount">
+                        ${tracks.length} affiché${tracks.length > 1 ? "s" : ""}
+                        sur ${tracks.length}
+                    </span>
+                </div>
+
+                <div class="track-editor-toolbar">
+                    <label
+                        class="track-editor-search"
+                        for="trackOrderSearchInput"
+                    >
+                        <span>Rechercher dans l’ordre</span>
+                        <input
+                            id="trackOrderSearchInput"
+                            type="search"
+                            placeholder="Titre, artiste ou album…"
+                            value="${escapeHtml(trackSearchTerm)}"
+                            autocomplete="off"
+                        >
+                    </label>
+
+                    <button
+                        id="resetGeneratedOrderButton"
+                        class="track-editor-reset"
+                        type="button"
+                        ${originalGeneratedOrder.length ? "" : "disabled"}
+                    >
+                        ↺ Rétablir l’ordre intelligent
+                    </button>
+                </div>
+            </section>
+
             <p class="shuffle-explanation">
                 Mode <strong>${getShufflePresetLabel(currentShuffleSettings)}</strong> :
                 au moins ${currentShuffleSettings.artistGap} morceau${currentShuffleSettings.artistGap > 1 ? "x" : ""}
@@ -3332,6 +3579,8 @@ async function createSelectedMix() {
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
         );
+        originalGeneratedOrder = [...selectedTracks];
+        trackSearchTerm = "";
 
         displayPlaylistDetails(
             selectedPlaylist,
@@ -3425,6 +3674,8 @@ async function openPlaylist(playlist) {
 
         sourceTracks = [...tracks];
         selectedTracks = [...tracks];
+        originalGeneratedOrder = [...selectedTracks];
+        trackSearchTerm = "";
         availableDevices = devices;
 
         displayPlaylistDetails(
@@ -3564,6 +3815,35 @@ contentElement.addEventListener(
 
         if (importBackupButton) {
             document.getElementById("backupFileInput")?.click();
+            return;
+        }
+
+        const trackActionButton =
+            event.target.closest("[data-track-action]");
+
+        if (trackActionButton) {
+            const action =
+                trackActionButton.dataset.trackAction || "";
+            const index = Number(
+                trackActionButton.dataset.trackIndex
+            );
+
+            if (action === "up") {
+                moveTrack(index, index - 1);
+            } else if (action === "down") {
+                moveTrack(index, index + 1);
+            } else if (action === "remove") {
+                removeTrackAt(index);
+            }
+
+            return;
+        }
+
+        const resetGeneratedOrderButton =
+            event.target.closest("#resetGeneratedOrderButton");
+
+        if (resetGeneratedOrderButton) {
+            resetGeneratedOrder();
             return;
         }
 
@@ -3826,6 +4106,16 @@ contentElement.addEventListener(
                 sourceTracks,
                 getShuffleEngineOptions(currentShuffleSettings)
             );
+            originalGeneratedOrder = [...selectedTracks];
+            trackSearchTerm = "";
+
+            const trackSearchInput = document.getElementById(
+                "trackOrderSearchInput"
+            );
+
+            if (trackSearchInput) {
+                trackSearchInput.value = "";
+            }
 
             renderTrackList();
             renderShuffleStats(
@@ -4026,6 +4316,29 @@ contentElement.addEventListener(
             return;
         }
 
+        if (event.target.id === "trackOrderSearchInput") {
+            trackSearchTerm = event.target.value;
+            renderTrackList();
+
+            const searchInput = document.getElementById(
+                "trackOrderSearchInput"
+            );
+
+            if (searchInput) {
+                const cursorPosition =
+                    event.target.selectionStart ??
+                    trackSearchTerm.length;
+
+                searchInput.focus();
+                searchInput.setSelectionRange(
+                    cursorPosition,
+                    cursorPosition
+                );
+            }
+
+            return;
+        }
+
         if (event.target.id !== "librarySearchInput") {
             return;
         }
@@ -4046,6 +4359,105 @@ contentElement.addEventListener(
             );
             searchInput.setSelectionRange(nextCursor, nextCursor);
         }
+    }
+);
+
+
+contentElement.addEventListener(
+    "dragstart",
+    (event) => {
+        const row = event.target.closest(
+            ".track-row[data-track-index]"
+        );
+
+        if (!row) {
+            return;
+        }
+
+        draggedTrackIndex = Number(
+            row.dataset.trackIndex
+        );
+
+        row.classList.add("is-dragging");
+
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData(
+                "text/plain",
+                String(draggedTrackIndex)
+            );
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "dragover",
+    (event) => {
+        const row = event.target.closest(
+            ".track-row[data-track-index]"
+        );
+
+        if (!row || draggedTrackIndex < 0) {
+            return;
+        }
+
+        event.preventDefault();
+
+        document
+            .querySelectorAll(".track-row.is-drag-target")
+            .forEach((item) =>
+                item.classList.remove("is-drag-target")
+            );
+
+        row.classList.add("is-drag-target");
+
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = "move";
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "drop",
+    (event) => {
+        const row = event.target.closest(
+            ".track-row[data-track-index]"
+        );
+
+        if (!row || draggedTrackIndex < 0) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const targetIndex = Number(
+            row.dataset.trackIndex
+        );
+
+        moveTrack(
+            draggedTrackIndex,
+            targetIndex
+        );
+
+        draggedTrackIndex = -1;
+    }
+);
+
+contentElement.addEventListener(
+    "dragend",
+    () => {
+        draggedTrackIndex = -1;
+
+        document
+            .querySelectorAll(
+                ".track-row.is-dragging, .track-row.is-drag-target"
+            )
+            .forEach((row) => {
+                row.classList.remove(
+                    "is-dragging",
+                    "is-drag-target"
+                );
+            });
     }
 );
 

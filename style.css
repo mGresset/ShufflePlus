@@ -1916,3 +1916,226 @@ button:disabled {
         width: 100%;
     }
 }
+
+
+/* Shuffle+ v1.8.0 — Édition manuelle de l’ordre */
+
+.track-editor-panel {
+    display: grid;
+    gap: 16px;
+    margin: 0 0 22px;
+    padding: 18px;
+    border: 1px solid #4a3f68;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(55 43 89 / 72%) 0%,
+            rgb(20 20 20 / 96%) 74%
+        );
+}
+
+.track-editor-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.track-editor-heading h3 {
+    margin: 0 0 5px;
+    font-size: 20px;
+}
+
+.track-editor-heading p {
+    margin: 0;
+    color: #c2bad8;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.track-editor-heading > span {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border: 1px solid #5f527d;
+    border-radius: 999px;
+    color: #d7cef0;
+    font-size: 13px;
+    font-weight: 750;
+}
+
+.track-editor-toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+}
+
+.track-editor-search {
+    display: grid;
+    gap: 7px;
+}
+
+.track-editor-search > span {
+    color: #c8c0dc;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.track-editor-search input {
+    min-height: 46px;
+    padding: 0 14px;
+    border: 1px solid #554a70;
+    border-radius: 11px;
+    outline: none;
+    background: #121118;
+    color: #ffffff;
+}
+
+.track-editor-search input:focus {
+    border-color: #1ed760;
+    box-shadow: 0 0 0 3px rgb(30 215 96 / 14%);
+}
+
+.track-editor-reset {
+    min-height: 46px;
+    padding: 9px 16px;
+    border: 1px solid #5b5370;
+    border-radius: 999px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 750;
+}
+
+.track-editor-reset:hover:not(:disabled) {
+    border-color: #8b79e8;
+    background: #2e2940;
+}
+
+.track-row {
+    grid-template-columns:
+        24px 34px 48px minmax(180px, 1.5fr)
+        minmax(130px, 1fr) 52px auto;
+}
+
+.track-drag-handle {
+    color: #6f6f6f;
+    font-size: 18px;
+    letter-spacing: -4px;
+    cursor: grab;
+    user-select: none;
+}
+
+.track-row:active .track-drag-handle {
+    cursor: grabbing;
+}
+
+.track-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.track-move-button,
+.track-remove-button {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: #ffffff;
+    font-weight: 800;
+}
+
+.track-move-button {
+    border: 1px solid #454545;
+}
+
+.track-remove-button {
+    border: 1px solid #694747;
+    color: #ffb0b0;
+}
+
+.track-move-button:hover:not(:disabled) {
+    border-color: #8b79e8;
+    background: #2d2940;
+}
+
+.track-remove-button:hover:not(:disabled) {
+    border-color: #a45e5e;
+    background: #3a2323;
+}
+
+.track-row.is-dragging {
+    opacity: 0.45;
+}
+
+.track-row.is-drag-target {
+    outline: 2px solid #1ed760;
+    outline-offset: -2px;
+    background: #17251c;
+}
+
+.track-editor-empty {
+    padding: 36px 20px;
+    border: 1px dashed #3e3e3e;
+    border-radius: 14px;
+    color: #a7a7a7;
+    text-align: center;
+}
+
+@media (max-width: 900px) {
+    .track-row {
+        grid-template-columns:
+            22px 28px 46px minmax(0, 1fr) auto;
+    }
+
+    .track-album,
+    .track-duration {
+        display: none;
+    }
+
+    .track-editor-actions {
+        grid-column: 4 / -1;
+        justify-content: flex-end;
+        padding-bottom: 4px;
+    }
+}
+
+@media (max-width: 700px) {
+    .track-editor-heading,
+    .track-editor-toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .track-editor-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .track-editor-heading > span {
+        align-self: flex-start;
+    }
+
+    .track-editor-reset {
+        width: 100%;
+    }
+
+    .track-row {
+        grid-template-columns:
+            20px 26px 44px minmax(0, 1fr);
+        padding-inline: 5px;
+    }
+
+    .track-editor-actions {
+        grid-column: 3 / -1;
+    }
+
+    .track-move-button,
+    .track-remove-button {
+        width: 38px;
+        height: 38px;
+    }
+}
