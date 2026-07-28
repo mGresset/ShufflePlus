@@ -37,7 +37,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.3.3";
+const APP_VERSION = "3.3.3-hotfix1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -11554,9 +11554,14 @@ async function initializeApp() {
         );
     }
 
-    loginButton.disabled = true;
-    loginButton.textContent = "Initialisation…";
-    logoutButton.hidden = true;
+    if (loginButton) {
+        loginButton.disabled = true;
+        loginButton.textContent = "Initialisation…";
+    }
+
+    if (logoutButton) {
+        logoutButton.hidden = true;
+    }
 
     setStatus("Initialisation de Shuffle+…");
 
@@ -11625,16 +11630,26 @@ async function initializeApp() {
             setStatus("");
         }
     } catch (error) {
-        console.error(error);
+        console.error("Initialisation échouée :", error);
 
+        // Une erreur Adaptive DJ ou API ne doit jamais bloquer la connexion Spotify.
         setDisconnectedInterface();
-        setStatus(error.message, "error");
 
-        loginButton.textContent =
-            "Réessayer la connexion";
+        if (loginButton) {
+            loginButton.disabled = false;
+            loginButton.textContent =
+                "Se connecter à Spotify";
+        }
+
+        setStatus(
+            error?.message ||
+            "Une erreur est survenue pendant l'initialisation.",
+            "error"
+        );
     }
 }
 
+if (loginButton) {
 loginButton.addEventListener("click", async () => {
     loginButton.disabled = true;
     loginButton.textContent =
@@ -11654,7 +11669,9 @@ loginButton.addEventListener("click", async () => {
         setStatus(error.message, "error");
     }
 });
+}
 
+if (logoutButton) {
 logoutButton.addEventListener("click", () => {
     if (scheduleCheckTimer) {
         window.clearInterval(
@@ -11671,7 +11688,9 @@ logoutButton.addEventListener("click", () => {
 
     setDisconnectedInterface();
 });
+}
 
+if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
@@ -12877,5 +12896,7 @@ contentElement.addEventListener(
             });
     }
 );
+
+}
 
 initializeApp();
