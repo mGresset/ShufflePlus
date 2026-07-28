@@ -27,7 +27,7 @@ import {
 } from "./spotify-api.js";
 
 import {
-    getAdaptiveContext
+    getAdaptiveSlot
 } from "./adaptive-dj.js";
 
 const versionElement = document.querySelector(".version");
@@ -905,7 +905,7 @@ function buildIosCommandUrl(command) {
     );
 
     if (normalized.commandType === "adaptive") {
-        const context = getAdaptiveContext();
+        const context = getAdaptiveSlot();
         url.searchParams.set(
             "context",
             context.id
@@ -2185,7 +2185,7 @@ async function executeAutomationCommand(
             );
 
         const context =
-            getAdaptiveContext();
+            getAdaptiveSlot();
 
         setStatus(
             `Adaptive DJ : ${context.name}`
