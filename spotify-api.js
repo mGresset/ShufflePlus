@@ -317,6 +317,43 @@ export async function startPlayback(trackUris, deviceId = "") {
     );
 }
 
+
+export async function getCurrentPlayback() {
+    return spotifyFetch("/me/player");
+}
+
+function buildPlaybackDeviceQuery(deviceId = "") {
+    const parameters = new URLSearchParams();
+
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    const query = parameters.toString();
+    return query ? `?${query}` : "";
+}
+
+export async function resumePlayback(deviceId = "") {
+    await spotifyFetch(
+        `/me/player/play${buildPlaybackDeviceQuery(deviceId)}`,
+        { method: "PUT" }
+    );
+}
+
+export async function pausePlayback(deviceId = "") {
+    await spotifyFetch(
+        `/me/player/pause${buildPlaybackDeviceQuery(deviceId)}`,
+        { method: "PUT" }
+    );
+}
+
+export async function skipToNext(deviceId = "") {
+    await spotifyFetch(
+        `/me/player/next${buildPlaybackDeviceQuery(deviceId)}`,
+        { method: "POST" }
+    );
+}
+
 function wait(milliseconds) {
     return new Promise((resolve) => {
         window.setTimeout(resolve, milliseconds);

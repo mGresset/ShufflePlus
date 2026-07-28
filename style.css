@@ -6635,3 +6635,345 @@ y
         grid-column: 2;
     }
 }
+
+
+/* Shuffle+ v4.3.0 — Mode conduite */
+
+.app-menu {
+    grid-template-columns:
+        repeat(6, minmax(0, 1fr));
+}
+
+body.is-driving-mode {
+    overscroll-behavior: none;
+}
+
+body.is-driving-mode #content {
+    max-width: 920px;
+    margin-inline: auto;
+}
+
+.driving-mode-page {
+    display: grid;
+    min-height: min(760px, calc(100dvh - 120px));
+    align-content: start;
+    gap: 16px;
+    padding: clamp(14px, 3vw, 26px);
+    border: 1px solid #4d683d;
+    border-radius: 24px;
+    background:
+        radial-gradient(
+            circle at 50% 0%,
+            rgb(30 215 96 / 16%),
+            transparent 42%
+        ),
+        #0b0d0b;
+    box-shadow: 0 24px 70px rgb(0 0 0 / 38%);
+}
+
+.driving-mode-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.driving-mode-header span {
+    color: #8de7ac;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: .8px;
+    text-transform: uppercase;
+}
+
+.driving-mode-header h2 {
+    margin: 4px 0 0;
+    font-size: clamp(26px, 5vw, 46px);
+}
+
+.driving-exit-button {
+    min-height: 48px;
+    padding: 10px 18px;
+    border: 1px solid #665f5f;
+    border-radius: 999px;
+    background: #1c1b1b;
+    color: #fff;
+    font-weight: 850;
+}
+
+.driving-exit-button.is-armed {
+    border-color: #d96868;
+    background: #642a2a;
+}
+
+.driving-safety-note {
+    margin: 0;
+    padding: 11px 14px;
+    border-radius: 12px;
+    background: #342d17;
+    color: #f1d98a;
+    font-weight: 750;
+    text-align: center;
+}
+
+.driving-context-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid #365844;
+    border-radius: 16px;
+    background: #102118;
+}
+
+.driving-context-card > span,
+.driving-context-card small {
+    color: #9fbaa8;
+}
+
+.driving-context-card strong {
+    font-size: 20px;
+}
+
+.driving-now-playing {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    align-items: center;
+    gap: 20px;
+    padding: clamp(16px, 3vw, 24px);
+    border: 1px solid #34453a;
+    border-radius: 20px;
+    background: #121713;
+}
+
+.driving-now-playing img,
+.driving-cover-placeholder {
+    width: 118px;
+    height: 118px;
+    border-radius: 16px;
+    object-fit: cover;
+}
+
+.driving-cover-placeholder {
+    display: grid;
+    place-items: center;
+    background: #213326;
+    font-size: 48px;
+}
+
+.driving-now-playing span {
+    color: #8be6aa;
+    font-size: 13px;
+    font-weight: 850;
+    text-transform: uppercase;
+}
+
+.driving-now-playing h3 {
+    overflow: hidden;
+    margin: 7px 0 4px;
+    font-size: clamp(24px, 5vw, 40px);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.driving-now-playing p,
+.driving-now-playing small {
+    margin: 0;
+    color: #b7c2ba;
+}
+
+.driving-main-controls {
+    display: grid;
+    grid-template-columns: 1.35fr 1fr 1fr;
+    gap: 12px;
+}
+
+.driving-control {
+    display: grid;
+    min-height: 126px;
+    place-items: center;
+    align-content: center;
+    gap: 5px;
+    padding: 15px;
+    border: 1px solid #52655a;
+    border-radius: 22px;
+    background: #171d19;
+    color: #fff;
+    text-align: center;
+}
+
+.driving-control span {
+    font-size: 36px;
+}
+
+.driving-control strong {
+    font-size: clamp(17px, 3vw, 24px);
+}
+
+.driving-control small {
+    color: #b9c7be;
+}
+
+.driving-control-primary {
+    border-color: #23894a;
+    background:
+        linear-gradient(135deg, #175f32, #0d2918);
+}
+
+.driving-control:disabled {
+    opacity: .48;
+}
+
+.driving-feedback-controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.driving-feedback-controls button {
+    min-height: 68px;
+    border: 1px solid #4d5b52;
+    border-radius: 18px;
+    background: #171b18;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 850;
+}
+
+.driving-feedback-controls button.is-active {
+    border-color: #1ed760;
+    background: #174428;
+}
+
+.driving-secondary-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 16px;
+}
+
+.driving-secondary-controls button,
+.driving-secondary-controls label {
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid #3d4b42;
+    border-radius: 999px;
+    background: #121612;
+    color: #d3dbd5;
+    font-weight: 750;
+}
+
+.driving-secondary-controls label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.driving-secondary-controls input {
+    width: 18px;
+    height: 18px;
+    accent-color: #1ed760;
+}
+
+.driving-message {
+    min-height: 48px;
+    margin: 0;
+    padding: 13px 16px;
+    border-radius: 13px;
+    background: #171c18;
+    color: #cbd4cd;
+    text-align: center;
+    font-weight: 750;
+}
+
+.driving-message.success {
+    background: #173522;
+    color: #a9edbd;
+}
+
+.driving-message.warning {
+    background: #3a321b;
+    color: #f2dd98;
+}
+
+.driving-message.error {
+    background: #452326;
+    color: #ffb4ba;
+}
+
+@media (max-width: 940px) {
+    .app-menu {
+        grid-template-columns:
+            repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 700px) {
+    .driving-mode-page {
+        min-height: calc(100dvh - 86px);
+        border-radius: 18px;
+    }
+
+    .driving-mode-header {
+        align-items: flex-start;
+    }
+
+    .driving-mode-header h2 {
+        font-size: 28px;
+    }
+
+    .driving-context-card {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+
+    .driving-now-playing {
+        grid-template-columns: 82px minmax(0, 1fr);
+        gap: 14px;
+    }
+
+    .driving-now-playing img,
+    .driving-cover-placeholder {
+        width: 82px;
+        height: 82px;
+        border-radius: 13px;
+    }
+
+    .driving-now-playing h3 {
+        font-size: 23px;
+    }
+
+    .driving-main-controls {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .driving-control-primary {
+        grid-column: 1 / -1;
+    }
+
+    .driving-control {
+        min-height: 112px;
+    }
+}
+
+@media (max-width: 430px) {
+    .driving-mode-header {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .driving-exit-button {
+        width: 100%;
+    }
+
+    .driving-feedback-controls,
+    .driving-main-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .driving-control-primary {
+        grid-column: auto;
+    }
+}

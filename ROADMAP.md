@@ -2,26 +2,25 @@
 
 ## Version stable actuelle
 
-### v4.2.0 — Feedback musical
-
-- retours « J’aime », « Pas maintenant » et « Trop répétitif » ;
-- apprentissage local titre par titre ;
-- priorité renforcée pour les titres aimés ;
-- pauses temporaires de 7 ou 30 jours ;
-- prise en compte dans les futurs mix et Smart Queue ;
-- historique visible dans Intelligence ;
-- sauvegarde et restauration des retours ;
-- PWA et mise à jour du cache conservées.
-
-## Étape suivante
-
-### v4.3 — Mode conduite
+### v4.3.0 — Mode conduite
 
 - interface très simplifiée ;
 - grandes commandes ;
 - lancement Adaptive DJ en une action ;
-- lecture et remplacement du prochain titre ;
-- limitation des manipulations pendant un trajet.
+- pause, reprise et titre suivant ;
+- feedback rapide sur le morceau actif ;
+- maintien optionnel de l’écran allumé ;
+- raccourci PWA dédié ;
+- réglages inclus dans la sauvegarde.
+
+## Étape suivante
+
+### v4.4 — Profils et commandes vocales
+
+- commandes adaptées à Siri et Raccourcis iOS ;
+- phrases courtes pour lancer un contexte ou un mix ;
+- retours visuels plus accessibles ;
+- profils de conduite configurables.
 
 ## Évolution majeure envisagée
 

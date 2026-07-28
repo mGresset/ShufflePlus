@@ -17,9 +17,13 @@ import {
     getPlaylistItems,
     getMySavedTracks,
     getAvailableDevices,
+    getCurrentPlayback,
     transferPlayback,
     setPlaybackShuffle,
     startPlayback,
+    resumePlayback,
+    pausePlayback,
+    skipToNext,
     createPrivatePlaylist,
     addItemsToPlaylist,
     getPlaylistLastAddedAt,
@@ -50,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.2.0";
+const APP_VERSION = "4.3.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -86,6 +90,15 @@ const DEFAULT_MUSIC_FEEDBACK_STATE = {
     records: {},
     events: [],
     updatedAt: 0
+};
+const DRIVING_MODE_SETTINGS_KEY =
+    "shuffleplus_driving_mode_settings_v1";
+const DRIVING_MODE_REFRESH_MS = 8000;
+const DRIVING_MODE_ACTION_COOLDOWN_MS = 900;
+const DEFAULT_DRIVING_MODE_SETTINGS = {
+    keepScreenAwake: true,
+    autoRefresh: true,
+    showFeedback: true
 };
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
@@ -471,6 +484,16 @@ let playbackQueueResumeKey = "";
 let pendingSavedMixResumeKey = "";
 let smartQueueSession = readSmartQueueSession();
 let musicFeedbackState = readMusicFeedbackState();
+let drivingModeSettings = readDrivingModeSettings();
+let drivingPlaybackState = null;
+let drivingRefreshTimer = 0;
+let drivingWakeLock = null;
+let drivingActionBusy = false;
+let drivingExitArmedUntil = 0;
+let drivingMessage = {
+    text: "",
+    type: ""
+};
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -1509,20 +1532,19 @@ function buildMusicFeedbackRecord(
     };
 }
 
-function applyMusicFeedbackAt(
-    index,
+function applyMusicFeedbackToTrack(
+    track,
     action,
-    source = "track-menu"
+    source = "track-menu",
+    renderTarget = "track-list"
 ) {
-    const track = selectedTracks[index];
     const key = getMusicFeedbackTrackKey(track);
 
     if (!track || !key) {
-        setStatus(
-            "Ce morceau ne peut pas recevoir de feedback.",
-            "error"
-        );
-        return;
+        const message =
+            "Ce morceau ne peut pas recevoir de feedback.";
+        setStatus(message, "error");
+        return null;
     }
 
     const previous =
@@ -1535,10 +1557,10 @@ function applyMusicFeedbackAt(
         );
 
     if (!record) {
-        return;
+        return null;
     }
 
-    const event = normalizeMusicFeedbackEvent({
+    const feedbackEvent = normalizeMusicFeedbackEvent({
         id: createIosCommandId(),
         trackKey: key,
         trackName: record.trackName,
@@ -1556,7 +1578,7 @@ function applyMusicFeedbackAt(
                 [key]: record
             },
             events: [
-                event,
+                feedbackEvent,
                 ...musicFeedbackState.events
             ],
             updatedAt: Date.now()
@@ -1576,8 +1598,6 @@ function applyMusicFeedbackAt(
                 : getMusicFeedbackLabel(finalAction)
     });
 
-    renderTrackList();
-
     const expiry =
         getMusicFeedbackExpiryLabel(record);
     const message =
@@ -1587,7 +1607,32 @@ function applyMusicFeedbackAt(
                 ? `« ${record.trackName} » sera davantage favorisé dans les prochains mix.`
                 : `« ${record.trackName} » sera écarté jusqu’au ${expiry}.`;
 
-    setStatus(message);
+    if (renderTarget === "driving") {
+        setDrivingMessage(message, "success");
+        renderDrivingModePage();
+    } else {
+        renderTrackList();
+        setStatus(message);
+    }
+
+    return {
+        record,
+        finalAction,
+        message
+    };
+}
+
+function applyMusicFeedbackAt(
+    index,
+    action,
+    source = "track-menu"
+) {
+    return applyMusicFeedbackToTrack(
+        selectedTracks[index],
+        action,
+        source,
+        "track-list"
+    );
 }
 
 function getMusicFeedbackSummary() {
@@ -3340,12 +3385,570 @@ function clearIntelligenceAnalytics() {
     );
 }
 
+
+function normalizeDrivingModeSettings(settings = {}) {
+    return {
+        keepScreenAwake:
+            settings.keepScreenAwake !== false,
+        autoRefresh:
+            settings.autoRefresh !== false,
+        showFeedback:
+            settings.showFeedback !== false
+    };
+}
+
+function readDrivingModeSettings() {
+    try {
+        const raw = localStorage.getItem(
+            DRIVING_MODE_SETTINGS_KEY
+        );
+
+        return normalizeDrivingModeSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_DRIVING_MODE_SETTINGS
+        );
+    } catch (error) {
+        return normalizeDrivingModeSettings(
+            DEFAULT_DRIVING_MODE_SETTINGS
+        );
+    }
+}
+
+function saveDrivingModeSettings() {
+    drivingModeSettings =
+        normalizeDrivingModeSettings(
+            drivingModeSettings
+        );
+
+    try {
+        localStorage.setItem(
+            DRIVING_MODE_SETTINGS_KEY,
+            JSON.stringify(drivingModeSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages du mode conduite non enregistrés :",
+            error
+        );
+    }
+}
+
+function setDrivingMessage(text = "", type = "") {
+    drivingMessage = {
+        text: String(text || "").slice(0, 260),
+        type: ["success", "error", "warning"].includes(type)
+            ? type
+            : ""
+    };
+}
+
+function getDrivingCurrentTrack() {
+    const item = drivingPlaybackState?.item;
+
+    return item?.type === "track" && item?.uri
+        ? item
+        : null;
+}
+
+function getDrivingDeviceId() {
+    return drivingPlaybackState?.device?.id || "";
+}
+
+function getDrivingTrackArtists(track) {
+    return (track?.artists || [])
+        .map((artist) => artist?.name)
+        .filter(Boolean)
+        .join(", ");
+}
+
+function getDrivingCurrentFeedbackAction(track) {
+    return getActiveMusicFeedbackAction(
+        getMusicFeedbackRecord(track)
+    );
+}
+
+function renderDrivingModePage() {
+    const adaptive = getAdaptiveDjMix();
+    const track = getDrivingCurrentTrack();
+    const isPlaying = Boolean(
+        drivingPlaybackState?.is_playing
+    );
+    const deviceName =
+        drivingPlaybackState?.device?.name ||
+        "Aucun appareil actif";
+    const feedbackAction =
+        getDrivingCurrentFeedbackAction(track);
+    const imageUrl =
+        track?.album?.images?.[0]?.url || "";
+    const exitArmed =
+        drivingExitArmedUntil > Date.now();
+    const wakeLockAvailable =
+        "wakeLock" in navigator;
+
+    contentElement.innerHTML = `
+        <section class="driving-mode-page" aria-label="Mode conduite">
+            <header class="driving-mode-header">
+                <div>
+                    <span>🚗 Mode conduite</span>
+                    <h2>Commandes essentielles</h2>
+                </div>
+
+                <button
+                    id="exitDrivingModeButton"
+                    class="driving-exit-button ${exitArmed ? "is-armed" : ""}"
+                    type="button"
+                >
+                    ${exitArmed ? "Confirmer la sortie" : "Quitter"}
+                </button>
+            </header>
+
+            <p class="driving-safety-note">
+                Utilise ces commandes uniquement lorsque la situation permet de le faire sans danger.
+            </p>
+
+            <section class="driving-context-card">
+                <span>Contexte actuel</span>
+                <strong>${escapeHtml(adaptive.slot.label)}</strong>
+                <small>
+                    ${adaptive.mix
+                        ? `Mix : ${escapeHtml(adaptive.mix.name)}`
+                        : "Aucun mix associé à ce créneau"}
+                </small>
+            </section>
+
+            <section class="driving-now-playing ${track ? "has-track" : "is-empty"}">
+                ${imageUrl
+                    ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="eager">`
+                    : `<div class="driving-cover-placeholder" aria-hidden="true">🎵</div>`}
+
+                <div>
+                    <span>${isPlaying ? "Lecture en cours" : "Lecture en pause"}</span>
+                    <h3>${escapeHtml(track?.name || "Aucun titre actif")}</h3>
+                    <p>${escapeHtml(getDrivingTrackArtists(track) || deviceName)}</p>
+                    <small>${escapeHtml(deviceName)}</small>
+                </div>
+            </section>
+
+            <div class="driving-main-controls">
+                <button
+                    id="drivingAdaptiveButton"
+                    class="driving-control driving-control-primary"
+                    type="button"
+                    ${drivingActionBusy || !adaptive.mix ? "disabled" : ""}
+                >
+                    <span aria-hidden="true">🤖</span>
+                    <strong>Lancer Adaptive DJ</strong>
+                    <small>${escapeHtml(adaptive.slot.label)}</small>
+                </button>
+
+                <button
+                    id="drivingPlayPauseButton"
+                    class="driving-control"
+                    type="button"
+                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
+                >
+                    <span aria-hidden="true">${isPlaying ? "⏸" : "▶"}</span>
+                    <strong>${isPlaying ? "Pause" : "Reprendre"}</strong>
+                </button>
+
+                <button
+                    id="drivingNextButton"
+                    class="driving-control"
+                    type="button"
+                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
+                >
+                    <span aria-hidden="true">⏭</span>
+                    <strong>Titre suivant</strong>
+                </button>
+            </div>
+
+            ${drivingModeSettings.showFeedback ? `
+                <section class="driving-feedback-controls">
+                    <button
+                        type="button"
+                        data-driving-feedback="like"
+                        class="${feedbackAction === "like" ? "is-active" : ""}"
+                        ${drivingActionBusy || !track ? "disabled" : ""}
+                    >
+                        💚 J’aime
+                    </button>
+
+                    <button
+                        type="button"
+                        data-driving-feedback="not-now"
+                        class="${feedbackAction === "not-now" ? "is-active" : ""}"
+                        ${drivingActionBusy || !track ? "disabled" : ""}
+                    >
+                        ⏳ Pas maintenant
+                    </button>
+                </section>
+            ` : ""}
+
+            <div class="driving-secondary-controls">
+                <button
+                    id="drivingRefreshButton"
+                    type="button"
+                    ${drivingActionBusy ? "disabled" : ""}
+                >
+                    ↻ Actualiser le titre
+                </button>
+
+                <label>
+                    <input
+                        id="drivingWakeLockInput"
+                        type="checkbox"
+                        ${drivingModeSettings.keepScreenAwake ? "checked" : ""}
+                        ${wakeLockAvailable ? "" : "disabled"}
+                    >
+                    Garder l’écran allumé
+                </label>
+
+                <label>
+                    <input
+                        id="drivingAutoRefreshInput"
+                        type="checkbox"
+                        ${drivingModeSettings.autoRefresh ? "checked" : ""}
+                    >
+                    Actualisation automatique
+                </label>
+            </div>
+
+            <p
+                class="driving-message ${escapeHtml(drivingMessage.type)}"
+                aria-live="polite"
+            >
+                ${escapeHtml(
+                    drivingMessage.text ||
+                    (drivingActionBusy
+                        ? "Commande en cours…"
+                        : "Prêt.")
+                )}
+            </p>
+        </section>
+    `;
+
+    document.body.classList.add("is-driving-mode");
+}
+
+function stopDrivingRefreshTimer() {
+    if (drivingRefreshTimer) {
+        window.clearInterval(drivingRefreshTimer);
+        drivingRefreshTimer = 0;
+    }
+}
+
+function startDrivingRefreshTimer() {
+    stopDrivingRefreshTimer();
+
+    if (!drivingModeSettings.autoRefresh) {
+        return;
+    }
+
+    drivingRefreshTimer = window.setInterval(
+        () => {
+            if (
+                activeAppMenu === "driving" &&
+                document.visibilityState === "visible" &&
+                !drivingActionBusy
+            ) {
+                refreshDrivingPlayback({
+                    silent: true
+                });
+            }
+        },
+        DRIVING_MODE_REFRESH_MS
+    );
+}
+
+async function requestDrivingWakeLock() {
+    if (
+        !drivingModeSettings.keepScreenAwake ||
+        !("wakeLock" in navigator) ||
+        document.visibilityState !== "visible"
+    ) {
+        return;
+    }
+
+    try {
+        if (!drivingWakeLock) {
+            drivingWakeLock =
+                await navigator.wakeLock.request(
+                    "screen"
+                );
+            drivingWakeLock.addEventListener(
+                "release",
+                () => {
+                    drivingWakeLock = null;
+                },
+                { once: true }
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Verrouillage de l’écran indisponible :",
+            error
+        );
+    }
+}
+
+async function releaseDrivingWakeLock() {
+    try {
+        await drivingWakeLock?.release();
+    } catch (error) {
+        console.warn(error);
+    } finally {
+        drivingWakeLock = null;
+    }
+}
+
+async function refreshDrivingPlayback({
+    silent = false,
+    render = true
+} = {}) {
+    try {
+        drivingPlaybackState =
+            await getCurrentPlayback();
+
+        if (!silent) {
+            setDrivingMessage(
+                drivingPlaybackState?.item
+                    ? "Lecture Spotify actualisée."
+                    : "Aucune lecture Spotify active.",
+                drivingPlaybackState?.item
+                    ? "success"
+                    : "warning"
+            );
+        }
+    } catch (error) {
+        console.error(error);
+        if (!silent) {
+            setDrivingMessage(
+                getPlaybackErrorMessage(error),
+                "error"
+            );
+        }
+    }
+
+    if (
+        render &&
+        activeAppMenu === "driving"
+    ) {
+        renderDrivingModePage();
+    }
+
+    return drivingPlaybackState;
+}
+
+async function enterDrivingMode({
+    refresh = true
+} = {}) {
+    activeAppMenu = "driving";
+    saveActiveAppMenu();
+    drivingExitArmedUntil = 0;
+    setDrivingMessage(
+        "Mode conduite prêt.",
+        "success"
+    );
+    renderDrivingModePage();
+    startDrivingRefreshTimer();
+    await requestDrivingWakeLock();
+
+    if (refresh) {
+        await refreshDrivingPlayback({
+            silent: true
+        });
+    }
+}
+
+async function exitDrivingMode() {
+    if (drivingExitArmedUntil <= Date.now()) {
+        drivingExitArmedUntil =
+            Date.now() + 5000;
+        setDrivingMessage(
+            "Appuie une seconde fois sur « Confirmer la sortie ».",
+            "warning"
+        );
+        renderDrivingModePage();
+        return;
+    }
+
+    stopDrivingRefreshTimer();
+    await releaseDrivingWakeLock();
+    document.body.classList.remove(
+        "is-driving-mode"
+    );
+    drivingExitArmedUntil = 0;
+    activeAppMenu = "music";
+    saveActiveAppMenu();
+    displayPlaylists(playlistsCache);
+    setStatus("Mode conduite fermé.");
+}
+
+async function runDrivingAction(action) {
+    if (drivingActionBusy) {
+        return;
+    }
+
+    drivingActionBusy = true;
+    setDrivingMessage(
+        "Commande en cours…"
+    );
+    renderDrivingModePage();
+
+    try {
+        await action();
+        await new Promise((resolve) => {
+            window.setTimeout(
+                resolve,
+                DRIVING_MODE_ACTION_COOLDOWN_MS
+            );
+        });
+    } catch (error) {
+        console.error(error);
+        setDrivingMessage(
+            getPlaybackErrorMessage(error),
+            "error"
+        );
+    } finally {
+        drivingActionBusy = false;
+        if (activeAppMenu === "driving") {
+            renderDrivingModePage();
+        }
+    }
+}
+
+async function launchDrivingAdaptiveDj() {
+    await runDrivingAction(async () => {
+        const result = await runAdaptiveDj({
+            autoplay: true
+        });
+        activeAppMenu = "driving";
+        saveActiveAppMenu();
+        drivingPlaybackState =
+            await getCurrentPlayback().catch(
+                () => null
+            );
+        setDrivingMessage(
+            result?.mix?.name
+                ? `« ${result.mix.name} » lancé.`
+                : "Adaptive DJ lancé.",
+            "success"
+        );
+        startDrivingRefreshTimer();
+        await requestDrivingWakeLock();
+    });
+}
+
+async function toggleDrivingPlayback() {
+    await runDrivingAction(async () => {
+        const state =
+            drivingPlaybackState ||
+            await getCurrentPlayback();
+        const deviceId = state?.device?.id || "";
+
+        if (!deviceId) {
+            throw new Error(
+                "Aucun appareil Spotify actif."
+            );
+        }
+
+        if (state.is_playing) {
+            await pausePlayback(deviceId);
+            setDrivingMessage(
+                "Lecture mise en pause.",
+                "success"
+            );
+        } else {
+            await resumePlayback(deviceId);
+            setDrivingMessage(
+                "Lecture reprise.",
+                "success"
+            );
+        }
+
+        await new Promise((resolve) =>
+            window.setTimeout(resolve, 550)
+        );
+        drivingPlaybackState =
+            await getCurrentPlayback();
+    });
+}
+
+async function skipDrivingTrack() {
+    await runDrivingAction(async () => {
+        const state =
+            drivingPlaybackState ||
+            await getCurrentPlayback();
+        const deviceId = state?.device?.id || "";
+
+        if (!deviceId) {
+            throw new Error(
+                "Aucun appareil Spotify actif."
+            );
+        }
+
+        await skipToNext(deviceId);
+        setDrivingMessage(
+            "Passage au titre suivant.",
+            "success"
+        );
+        await new Promise((resolve) =>
+            window.setTimeout(resolve, 700)
+        );
+        drivingPlaybackState =
+            await getCurrentPlayback();
+    });
+}
+
+function applyDrivingFeedback(action) {
+    const track = getDrivingCurrentTrack();
+
+    if (!track) {
+        setDrivingMessage(
+            "Aucun titre actif pour ce feedback.",
+            "error"
+        );
+        renderDrivingModePage();
+        return;
+    }
+
+    applyMusicFeedbackToTrack(
+        track,
+        action,
+        "driving-mode",
+        "driving"
+    );
+}
+
+function applyDrivingViewFromUrl() {
+    const url = new URL(
+        window.location.href
+    );
+
+    if (
+        String(
+            url.searchParams.get("view") || ""
+        ).toLowerCase() === "driving"
+    ) {
+        activeAppMenu = "driving";
+        saveActiveAppMenu();
+        url.searchParams.delete("view");
+        window.history.replaceState(
+            {},
+            document.title,
+            `${url.pathname}${url.search}${url.hash}`
+        );
+    }
+}
+
 function normalizeActiveAppMenu(value = "") {
     return [
         "music",
         "mixes",
         "adaptive",
         "intelligence",
+        "driving",
         "settings"
     ].includes(value)
         ? value
@@ -5130,6 +5733,7 @@ function renderAppMenu() {
         ["mixes", "🔀", "Mix & iOS"],
         ["adaptive", "🤖", "Adaptive DJ"],
         ["intelligence", "🧠", "Intelligence"],
+        ["driving", "🚗", "Conduite"],
         ["settings", "⚙️", "Réglages"]
     ];
 
@@ -13687,6 +14291,7 @@ function buildBackupPayload() {
             adaptiveLearningState,
             intelligenceAnalytics,
             musicFeedbackState,
+            drivingModeSettings,
             mixSchedules
         }
     };
@@ -13841,6 +14446,11 @@ function validateBackupPayload(payload) {
                 payload.data.musicFeedbackState ||
                 DEFAULT_MUSIC_FEEDBACK_STATE
             ),
+        drivingModeSettings:
+            normalizeDrivingModeSettings(
+                payload.data.drivingModeSettings ||
+                DEFAULT_DRIVING_MODE_SETTINGS
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -13985,6 +14595,9 @@ async function importBackupFile(file) {
         musicFeedbackState =
             imported.musicFeedbackState;
         saveMusicFeedbackState();
+        drivingModeSettings =
+            imported.drivingModeSettings;
+        saveDrivingModeSettings();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -14622,6 +15235,16 @@ function updateMixSelectionControls() {
 }
 
 function displayPlaylists(playlists) {
+    if (activeAppMenu === "driving") {
+        renderDrivingModePage();
+        startDrivingRefreshTimer();
+        return;
+    }
+
+    document.body.classList.remove(
+        "is-driving-mode"
+    );
+    stopDrivingRefreshTimer();
     selectedPlaylist = null;
     sourceTracks = [];
     selectedTracks = [];
@@ -17755,6 +18378,8 @@ async function openPlaylist(playlist) {
 }
 
 async function initializeApp() {
+    applyDrivingViewFromUrl();
+
     const urlAutomationCommand =
         parseAutomationCommandFromUrl();
 
@@ -17825,6 +18450,14 @@ async function initializeApp() {
             `Bienvenue ${displayName} 👋`;
 
         displayPlaylists(playlistsCache);
+
+        if (activeAppMenu === "driving") {
+            await refreshDrivingPlayback({
+                silent: true
+            });
+            await requestDrivingWakeLock();
+        }
+
         startScheduleWatcher();
 
         if (pendingAutomationCommand) {
@@ -17963,6 +18596,65 @@ contentElement.addEventListener(
     async (event) => {
         if (
             event.target.closest(
+                "#drivingAdaptiveButton"
+            )
+        ) {
+            await launchDrivingAdaptiveDj();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#drivingPlayPauseButton"
+            )
+        ) {
+            await toggleDrivingPlayback();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#drivingNextButton"
+            )
+        ) {
+            await skipDrivingTrack();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#drivingRefreshButton"
+            )
+        ) {
+            await refreshDrivingPlayback();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exitDrivingModeButton"
+            )
+        ) {
+            await exitDrivingMode();
+            return;
+        }
+
+        const drivingFeedbackButton =
+            event.target.closest(
+                "[data-driving-feedback]"
+            );
+
+        if (drivingFeedbackButton) {
+            applyDrivingFeedback(
+                drivingFeedbackButton.dataset
+                    .drivingFeedback ||
+                "neutral"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#installPwaSettingsButton"
             )
         ) {
@@ -18047,10 +18739,22 @@ contentElement.addEventListener(
             );
 
         if (appMenuButton) {
-            activeAppMenu =
+            const requestedMenu =
                 normalizeActiveAppMenu(
                     appMenuButton.dataset.appMenu
                 );
+
+            if (requestedMenu === "driving") {
+                await enterDrivingMode();
+                return;
+            }
+
+            stopDrivingRefreshTimer();
+            await releaseDrivingWakeLock();
+            document.body.classList.remove(
+                "is-driving-mode"
+            );
+            activeAppMenu = requestedMenu;
             saveActiveAppMenu();
             displayPlaylists(
                 playlistsCache
@@ -18890,6 +19594,44 @@ contentElement.addEventListener(
     (event) => {
         if (
             event.target.id ===
+            "drivingWakeLockInput"
+        ) {
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    keepScreenAwake:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+
+            if (event.target.checked) {
+                requestDrivingWakeLock();
+            } else {
+                releaseDrivingWakeLock();
+            }
+
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "drivingAutoRefreshInput"
+        ) {
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    autoRefresh:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+            startDrivingRefreshTimer();
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
             "intelligenceRangeInput"
         ) {
             intelligenceAnalytics =
@@ -19599,6 +20341,21 @@ contentElement.addEventListener(
 );
 
 }
+
+document.addEventListener(
+    "visibilitychange",
+    () => {
+        if (
+            activeAppMenu === "driving" &&
+            document.visibilityState === "visible"
+        ) {
+            requestDrivingWakeLock();
+            refreshDrivingPlayback({
+                silent: true
+            });
+        }
+    }
+);
 
 initializePwa();
 initializeApp();

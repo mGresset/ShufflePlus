@@ -781,7 +781,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=4.2.0"></script>
+<script type="module" src="./app.js?v=4.3.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -910,7 +910,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=4.2.0"></script>
+<script type="module" src="./app.js?v=4.3.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -975,3 +975,20 @@ Pistes prévues : sauvegarde distante chiffrée, synchronisation entre iPhone et
 ## Licence et usage
 
 Projet personnel. Ajouter ici la licence choisie avant une diffusion publique ou une contribution externe.
+
+
+## Mode conduite — v4.3.0
+
+Le menu **🚗 Conduite** propose une interface séparée et très lisible avec uniquement les commandes essentielles :
+
+- lancer Adaptive DJ en une action ;
+- mettre la lecture en pause ou la reprendre ;
+- passer au titre suivant ;
+- afficher le morceau et l’appareil Spotify actifs ;
+- enregistrer rapidement « J’aime » ou « Pas maintenant » ;
+- maintenir l’écran allumé lorsque l’appareil le permet ;
+- actualiser automatiquement l’état de la lecture.
+
+La sortie du mode conduite demande deux pressions successives afin de limiter les fermetures accidentelles. La PWA expose également un raccourci direct vers `?view=driving`.
+
+Le mode conduite réduit les interactions, mais ne doit être manipulé que lorsque la situation permet d’utiliser l’écran sans danger.
