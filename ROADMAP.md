@@ -1,6 +1,6 @@
 # Feuille de route Shuffle+
 
-## Version actuelle — v4.7.0
+## Version actuelle — v4.7.1
 
 - appairage local entre deux installations ;
 - invitations temporaires et confirmations ;

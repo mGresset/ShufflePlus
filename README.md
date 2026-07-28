@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.6.0 — Préparation à la synchronisation**
+Version documentée : **4.7.1 — Appairage local (correctif de stabilité)**
 
 ## Sommaire
 

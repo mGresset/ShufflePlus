@@ -1,0 +1,13 @@
+Shuffle+ v4.7.1 — Installation
+
+1. Remplacer tous les fichiers du dépôt par ceux de ce ZIP.
+2. Publier :
+   git add .
+   git commit -m "v4.7.1 - Fix dataUpdatedAt"
+   git pull --rebase origin main
+   git push origin main
+3. Dans la PWA : Réglages → Rechercher une mise à jour.
+4. Si la version 4.7.0 reste affichée, fermer complètement l’application et la
+   rouvrir. En dernier recours, supprimer puis réinstaller la PWA.
+
+Le correctif ne supprime pas les réglages ni les données locales.

@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.7.0";
+const APP_VERSION = "4.7.1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -15855,46 +15855,51 @@ function normalizeImportedPreferences(preferences = {}) {
 }
 
 function buildBackupPayload() {
+    const data = {
+        favoriteSourceKeys: [...favoriteSourceKeys],
+        savedMixes,
+        preferences: {
+            searchTerm: librarySearchTerm,
+            filter: libraryFilter,
+            sort: librarySort
+        },
+        recentTrackUris: readTrackHistoryForBackup(),
+        playbackQueueStates: readPlaybackQueueStates(),
+        mixHistory,
+        exclusionRules: currentExclusionRules,
+        mixProfiles,
+        activeProfileId,
+        priorityRules: currentPriorityRules,
+        coherenceSettings: currentCoherenceSettings,
+        intensitySettings: currentIntensitySettings,
+        adaptiveSettings: currentAdaptiveSettings,
+        cleanupSettings: currentCleanupSettings,
+        iosQuickPlaySettings,
+        iosCommands,
+        iosCommandHistory,
+        adaptiveDjMenuSettings,
+        adaptiveDjMenuHistory,
+        adaptiveLearningState,
+        intelligenceAnalytics,
+        musicFeedbackState,
+        drivingModeSettings,
+        quickContextsState,
+        mixSchedules
+    };
+
+    const updatedAt =
+        getSyncDataUpdatedAt(data);
+
     return {
         format: BACKUP_FORMAT,
         schemaVersion: BACKUP_SCHEMA_VERSION,
         appVersion: APP_VERSION,
         exportedAt: new Date().toISOString(),
         dataUpdatedAt: new Date(
-            dataUpdatedAt || Date.now()
+            updatedAt || Date.now()
         ).toISOString(),
         spotifyUserId: currentUserId || "",
-        data: {
-            favoriteSourceKeys: [...favoriteSourceKeys],
-            savedMixes,
-            preferences: {
-                searchTerm: librarySearchTerm,
-                filter: libraryFilter,
-                sort: librarySort
-            },
-            recentTrackUris: readTrackHistoryForBackup(),
-            playbackQueueStates: readPlaybackQueueStates(),
-            mixHistory,
-            exclusionRules: currentExclusionRules,
-            mixProfiles,
-            activeProfileId,
-            priorityRules: currentPriorityRules,
-            coherenceSettings: currentCoherenceSettings,
-            intensitySettings: currentIntensitySettings,
-            adaptiveSettings: currentAdaptiveSettings,
-            cleanupSettings: currentCleanupSettings,
-            iosQuickPlaySettings,
-            iosCommands,
-            iosCommandHistory,
-            adaptiveDjMenuSettings,
-            adaptiveDjMenuHistory,
-            adaptiveLearningState,
-            intelligenceAnalytics,
-            musicFeedbackState,
-            drivingModeSettings,
-            quickContextsState,
-            mixSchedules
-        }
+        data
     };
 }
 
