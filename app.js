@@ -37,8 +37,20 @@ const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
+const installAppButton =
+    document.getElementById("installAppButton");
+const networkBannerElement =
+    document.getElementById("networkBanner");
+const pwaInstallGuideElement =
+    document.getElementById("pwaInstallGuide");
+const pwaUpdateBannerElement =
+    document.getElementById("pwaUpdateBanner");
+const applyPwaUpdateButton =
+    document.getElementById("applyPwaUpdateButton");
+const dismissPwaUpdateButton =
+    document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "3.7.0";
+const APP_VERSION = "4.0.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -479,6 +491,9 @@ let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
 let pendingScheduledPlayback = null;
+let deferredPwaInstallPrompt = null;
+let pwaRegistration = null;
+let pwaReloadRequested = false;
 
 versionElement.textContent = `Version ${APP_VERSION}`;
 
@@ -559,6 +574,448 @@ function setDisconnectedInterface() {
 function setConnectedInterface() {
     loginButton.hidden = true;
     logoutButton.hidden = false;
+}
+
+function isIosDevice() {
+    const platform = navigator.userAgent || "";
+    const touchMac =
+        navigator.platform === "MacIntel" &&
+        navigator.maxTouchPoints > 1;
+
+    return /iPad|iPhone|iPod/.test(platform) || touchMac;
+}
+
+function isStandalonePwa() {
+    return (
+        window.matchMedia(
+            "(display-mode: standalone)"
+        ).matches ||
+        window.navigator.standalone === true
+    );
+}
+
+function getPwaInstallState() {
+    if (isStandalonePwa()) {
+        return {
+            id: "installed",
+            label: "Installée",
+            description:
+                "Shuffle+ fonctionne déjà comme une application autonome."
+        };
+    }
+
+    if (deferredPwaInstallPrompt) {
+        return {
+            id: "available",
+            label: "Installation disponible",
+            description:
+                "Ce navigateur peut installer Shuffle+ directement."
+        };
+    }
+
+    if (isIosDevice()) {
+        return {
+            id: "ios",
+            label: "Ajout manuel sur iPhone",
+            description:
+                "Dans Safari, utilise Partager puis Sur l’écran d’accueil."
+        };
+    }
+
+    return {
+        id: "browser",
+        label: "Selon le navigateur",
+        description:
+            "Utilise le menu du navigateur pour installer l’application lorsqu’il le propose."
+    };
+}
+
+function syncPwaInstallControls() {
+    if (!installAppButton) {
+        return;
+    }
+
+    const state = getPwaInstallState();
+    const shouldShow =
+        state.id === "available" ||
+        state.id === "ios";
+
+    installAppButton.hidden = !shouldShow;
+    installAppButton.disabled =
+        state.id === "installed";
+    installAppButton.textContent =
+        state.id === "ios"
+            ? "＋ Ajouter à l’écran d’accueil"
+            : "⬇ Installer l’application";
+}
+
+function refreshPwaPanel() {
+    const currentPanel =
+        document.getElementById("pwaSettingsPanel");
+
+    if (currentPanel) {
+        currentPanel.outerHTML =
+            renderPwaSettingsPanel();
+    }
+}
+
+function updateNetworkStatus() {
+    const offline = !navigator.onLine;
+    document.body.classList.toggle(
+        "is-offline",
+        offline
+    );
+
+    if (networkBannerElement) {
+        networkBannerElement.hidden = !offline;
+    }
+}
+
+function showPwaInstallGuide() {
+    if (!pwaInstallGuideElement) {
+        return;
+    }
+
+    const ios = isIosDevice();
+    const installed = isStandalonePwa();
+
+    pwaInstallGuideElement.innerHTML = installed
+        ? `
+            <div>
+                <strong>Shuffle+ est déjà installée.</strong>
+                <p>
+                    Ouvre-la depuis ton écran d’accueil ou ton menu d’applications.
+                </p>
+            </div>
+            <button
+                type="button"
+                data-close-pwa-guide
+                aria-label="Fermer"
+            >×</button>
+        `
+        : ios
+            ? `
+                <div>
+                    <strong>Installer Shuffle+ sur iPhone ou iPad</strong>
+                    <ol>
+                        <li>Ouvre cette page dans Safari.</li>
+                        <li>Touche le bouton Partager.</li>
+                        <li>Choisis « Sur l’écran d’accueil ».</li>
+                        <li>Valide avec « Ajouter ».</li>
+                    </ol>
+                </div>
+                <button
+                    type="button"
+                    data-close-pwa-guide
+                    aria-label="Fermer"
+                >×</button>
+            `
+            : `
+                <div>
+                    <strong>Installer Shuffle+</strong>
+                    <p>
+                        Ouvre le menu de ton navigateur puis choisis
+                        « Installer l’application » ou
+                        « Ajouter à l’écran d’accueil ».
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    data-close-pwa-guide
+                    aria-label="Fermer"
+                >×</button>
+            `;
+
+    pwaInstallGuideElement.hidden = false;
+    pwaInstallGuideElement.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+    });
+}
+
+async function requestPwaInstallation() {
+    if (isStandalonePwa()) {
+        showPwaInstallGuide();
+        return;
+    }
+
+    if (!deferredPwaInstallPrompt) {
+        showPwaInstallGuide();
+        return;
+    }
+
+    try {
+        deferredPwaInstallPrompt.prompt();
+        const choice =
+            await deferredPwaInstallPrompt.userChoice;
+
+        deferredPwaInstallPrompt = null;
+        syncPwaInstallControls();
+        refreshPwaPanel();
+
+        if (choice?.outcome === "accepted") {
+            setStatus(
+                "Installation de Shuffle+ lancée."
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Installation PWA impossible :",
+            error
+        );
+        showPwaInstallGuide();
+    }
+}
+
+function showPwaUpdateBanner() {
+    if (pwaUpdateBannerElement) {
+        pwaUpdateBannerElement.hidden = false;
+    }
+}
+
+function hidePwaUpdateBanner() {
+    if (pwaUpdateBannerElement) {
+        pwaUpdateBannerElement.hidden = true;
+    }
+}
+
+async function checkForPwaUpdate() {
+    if (!pwaRegistration) {
+        setStatus(
+            "Le service d’installation n’est pas encore prêt."
+        );
+        return;
+    }
+
+    try {
+        setStatus(
+            "Recherche d’une mise à jour…"
+        );
+        await pwaRegistration.update();
+
+        if (pwaRegistration.waiting) {
+            showPwaUpdateBanner();
+            setStatus(
+                "Une mise à jour est prête."
+            );
+        } else {
+            setStatus(
+                "Shuffle+ est à jour."
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Recherche de mise à jour impossible :",
+            error
+        );
+        setStatus(
+            "Impossible de vérifier la mise à jour.",
+            "error"
+        );
+    }
+}
+
+function watchPwaRegistration(registration) {
+    if (registration.waiting &&
+        navigator.serviceWorker.controller) {
+        showPwaUpdateBanner();
+    }
+
+    registration.addEventListener(
+        "updatefound",
+        () => {
+            const worker =
+                registration.installing;
+
+            if (!worker) {
+                return;
+            }
+
+            worker.addEventListener(
+                "statechange",
+                () => {
+                    if (
+                        worker.state === "installed" &&
+                        navigator.serviceWorker.controller
+                    ) {
+                        showPwaUpdateBanner();
+                    }
+                }
+            );
+        }
+    );
+}
+
+async function registerPwa() {
+    if (!("serviceWorker" in navigator)) {
+        syncPwaInstallControls();
+        return;
+    }
+
+    try {
+        pwaRegistration =
+            await navigator.serviceWorker.register(
+                "./service-worker.js",
+                { scope: "./" }
+            );
+
+        watchPwaRegistration(
+            pwaRegistration
+        );
+        refreshPwaPanel();
+    } catch (error) {
+        console.warn(
+            "Service worker non enregistré :",
+            error
+        );
+    }
+}
+
+function initializePwa() {
+    updateNetworkStatus();
+    syncPwaInstallControls();
+    registerPwa();
+
+    window.addEventListener(
+        "online",
+        updateNetworkStatus
+    );
+    window.addEventListener(
+        "offline",
+        updateNetworkStatus
+    );
+
+    window.addEventListener(
+        "beforeinstallprompt",
+        (event) => {
+            event.preventDefault();
+            deferredPwaInstallPrompt = event;
+            syncPwaInstallControls();
+            refreshPwaPanel();
+        }
+    );
+
+    window.addEventListener(
+        "appinstalled",
+        () => {
+            deferredPwaInstallPrompt = null;
+            syncPwaInstallControls();
+            refreshPwaPanel();
+            setStatus(
+                "Shuffle+ est installée."
+            );
+        }
+    );
+
+    navigator.serviceWorker?.addEventListener(
+        "controllerchange",
+        () => {
+            if (!pwaReloadRequested) {
+                return;
+            }
+
+            pwaReloadRequested = false;
+            window.location.reload();
+        }
+    );
+
+    document.addEventListener(
+        "visibilitychange",
+        () => {
+            if (
+                document.visibilityState === "visible" &&
+                pwaRegistration
+            ) {
+                pwaRegistration.update().catch(
+                    () => {}
+                );
+            }
+        }
+    );
+}
+
+function renderPwaSettingsPanel() {
+    const state = getPwaInstallState();
+    const serviceWorkerSupported =
+        "serviceWorker" in navigator;
+    const cacheAvailable =
+        "caches" in window;
+
+    return `
+        <section
+            id="pwaSettingsPanel"
+            class="settings-panel pwa-settings-panel"
+        >
+            <div class="panel-heading">
+                <div>
+                    <h3>📲 Application installable</h3>
+                    <p>
+                        Installe Shuffle+ comme une application et garde
+                        l’interface disponible même sans réseau.
+                    </p>
+                </div>
+                <span class="pwa-state-badge pwa-state-${state.id}">
+                    ${escapeHtml(state.label)}
+                </span>
+            </div>
+
+            <p class="pwa-state-description">
+                ${escapeHtml(state.description)}
+            </p>
+
+            <div class="pwa-capabilities">
+                <span>
+                    ${serviceWorkerSupported ? "✅" : "❌"}
+                    Cache de l’interface
+                </span>
+                <span>
+                    ${cacheAvailable ? "✅" : "❌"}
+                    Ressources hors connexion
+                </span>
+                <span>
+                    ${isStandalonePwa() ? "✅" : "ℹ️"}
+                    Mode application
+                </span>
+            </div>
+
+            <div class="pwa-settings-actions">
+                <button
+                    id="installPwaSettingsButton"
+                    type="button"
+                    ${state.id === "installed"
+                        ? "disabled"
+                        : ""}
+                >
+                    ${state.id === "installed"
+                        ? "Application installée"
+                        : "Installer Shuffle+"}
+                </button>
+
+                <button
+                    id="showPwaInstructionsButton"
+                    type="button"
+                >
+                    Instructions d’installation
+                </button>
+
+                <button
+                    id="checkPwaUpdateButton"
+                    type="button"
+                    ${serviceWorkerSupported
+                        ? ""
+                        : "disabled"}
+                >
+                    Rechercher une mise à jour
+                </button>
+            </div>
+
+            <p class="pwa-offline-note">
+                Le cache permet d’ouvrir l’interface hors connexion.
+                Le chargement des playlists et la lecture Spotify exigent
+                toujours une connexion Internet.
+            </p>
+        </section>
+    `;
 }
 
 function getPlaylistTotal(playlist) {
@@ -13839,6 +14296,7 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="settings"
             >
+                ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
                 ${renderCleanupPanel()}
                 ${renderMixProfilesSection()}
@@ -15828,6 +16286,55 @@ async function initializeApp() {
     }
 }
 
+if (installAppButton) {
+installAppButton.addEventListener(
+    "click",
+    requestPwaInstallation
+);
+}
+
+if (pwaInstallGuideElement) {
+pwaInstallGuideElement.addEventListener(
+    "click",
+    (event) => {
+        if (
+            event.target.closest(
+                "[data-close-pwa-guide]"
+            )
+        ) {
+            pwaInstallGuideElement.hidden = true;
+        }
+    }
+);
+}
+
+if (applyPwaUpdateButton) {
+applyPwaUpdateButton.addEventListener(
+    "click",
+    () => {
+        const waitingWorker =
+            pwaRegistration?.waiting;
+
+        if (!waitingWorker) {
+            hidePwaUpdateBanner();
+            return;
+        }
+
+        pwaReloadRequested = true;
+        waitingWorker.postMessage({
+            type: "SKIP_WAITING"
+        });
+    }
+);
+}
+
+if (dismissPwaUpdateButton) {
+dismissPwaUpdateButton.addEventListener(
+    "click",
+    hidePwaUpdateBanner
+);
+}
+
 if (loginButton) {
 loginButton.addEventListener("click", async () => {
     loginButton.disabled = true;
@@ -15873,6 +16380,33 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        if (
+            event.target.closest(
+                "#installPwaSettingsButton"
+            )
+        ) {
+            await requestPwaInstallation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#showPwaInstructionsButton"
+            )
+        ) {
+            showPwaInstallGuide();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#checkPwaUpdateButton"
+            )
+        ) {
+            await checkForPwaUpdate();
+            return;
+        }
+
         const appMenuButton =
             event.target.closest(
                 "[data-app-menu]"
@@ -17386,4 +17920,5 @@ contentElement.addEventListener(
 
 }
 
+initializePwa();
 initializeApp();

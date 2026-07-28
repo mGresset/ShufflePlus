@@ -10,15 +10,51 @@
 
     <meta
         name="description"
-        content="Shuffle+ — une meilleure façon de mélanger tes playlists Spotify."
+        content="Shuffle+ — mix intelligent, Adaptive DJ et automatisation Spotify."
+    >
+
+    <meta name="theme-color" content="#1ed760">
+    <meta name="color-scheme" content="dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta
+        name="apple-mobile-web-app-status-bar-style"
+        content="black-translucent"
+    >
+    <meta
+        name="apple-mobile-web-app-title"
+        content="Shuffle+"
     >
 
     <title>Shuffle+</title>
 
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./favicon.ico" sizes="any">
+    <link
+        rel="icon"
+        type="image/png"
+        sizes="192x192"
+        href="./icons/icon-192.png"
+    >
+    <link
+        rel="apple-touch-icon"
+        sizes="180x180"
+        href="./icons/apple-touch-icon-180.png"
+    >
     <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
+    <div
+        id="networkBanner"
+        class="network-banner"
+        role="status"
+        aria-live="polite"
+        hidden
+    >
+        Mode hors connexion : l’interface reste disponible, mais Spotify nécessite Internet.
+    </div>
+
     <main class="app">
         <header class="hero">
             <div class="brand">
@@ -52,6 +88,15 @@
                 >
                     Se déconnecter
                 </button>
+
+                <button
+                    id="installAppButton"
+                    class="secondary-button pwa-install-header-button"
+                    type="button"
+                    hidden
+                >
+                    ⬇ Installer l’application
+                </button>
             </div>
 
             <p
@@ -61,9 +106,36 @@
             ></p>
         </header>
 
+        <aside
+            id="pwaInstallGuide"
+            class="pwa-install-guide"
+            aria-live="polite"
+            hidden
+        ></aside>
+
         <div id="content"></div>
     </main>
 
-    <script type="module" src="./app.js?v=3.7.0"></script>
+    <aside
+        id="pwaUpdateBanner"
+        class="pwa-update-banner"
+        aria-live="polite"
+        hidden
+    >
+        <div>
+            <strong>Une mise à jour de Shuffle+ est prête.</strong>
+            <span>Recharge l’application pour l’activer.</span>
+        </div>
+        <div class="pwa-update-actions">
+            <button id="applyPwaUpdateButton" type="button">
+                Mettre à jour
+            </button>
+            <button id="dismissPwaUpdateButton" type="button">
+                Plus tard
+            </button>
+        </div>
+    </aside>
+
+    <script type="module" src="./app.js?v=4.0.0"></script>
 </body>
 </html>

@@ -5961,3 +5961,237 @@ y
         width: 100%;
     }
 }
+
+
+/* Shuffle+ v4.0.0 — PWA installable */
+
+.network-banner {
+    position: sticky;
+    z-index: 100;
+    top: 0;
+    padding: 10px 18px;
+    border-bottom: 1px solid #8e6722;
+    background: #3b2a0d;
+    color: #ffd989;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 750;
+}
+
+.pwa-install-header-button {
+    border-color: #347c4d;
+    color: #8df0ad;
+}
+
+.pwa-install-guide {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin: 18px 0;
+    padding: 18px 52px 18px 20px;
+    border: 1px solid #397a51;
+    border-radius: 16px;
+    background: #10281a;
+    color: #d8f7e2;
+}
+
+.pwa-install-guide[hidden] {
+    display: none;
+}
+
+.pwa-install-guide strong {
+    display: block;
+    margin-bottom: 7px;
+    color: #8cf0ad;
+    font-size: 17px;
+}
+
+.pwa-install-guide p,
+.pwa-install-guide ol {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.pwa-install-guide ol {
+    padding-left: 20px;
+}
+
+.pwa-install-guide > button {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 999px;
+    background: #1d472d;
+    color: #ffffff;
+    font-size: 22px;
+}
+
+.pwa-update-banner {
+    position: fixed;
+    z-index: 200;
+    right: 18px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: 18px;
+    display: flex;
+    max-width: 760px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin: 0 auto;
+    padding: 16px 18px;
+    border: 1px solid #4b8f63;
+    border-radius: 16px;
+    background: rgb(13 34 21 / 97%);
+    box-shadow: 0 20px 60px rgb(0 0 0 / 48%);
+    color: #ffffff;
+    backdrop-filter: blur(18px);
+}
+
+.pwa-update-banner[hidden] {
+    display: none;
+}
+
+.pwa-update-banner strong,
+.pwa-update-banner span {
+    display: block;
+}
+
+.pwa-update-banner span {
+    margin-top: 4px;
+    color: #b9d8c3;
+    font-size: 13px;
+}
+
+.pwa-update-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.pwa-update-actions button {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid #3d8055;
+    border-radius: 999px;
+    background: #1ed760;
+    color: #07190d;
+    font-weight: 850;
+}
+
+.pwa-update-actions button:last-child {
+    background: transparent;
+    color: #d8f7e2;
+}
+
+.pwa-settings-panel {
+    border-color: #315d40;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(22 62 36 / 70%),
+            rgb(18 18 18 / 96%) 65%
+        );
+}
+
+.pwa-state-badge {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #2a2a2a;
+    color: #d0d0d0;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.pwa-state-installed,
+.pwa-state-available {
+    background: #1d5d36;
+    color: #9cf0b8;
+}
+
+.pwa-state-ios {
+    background: #243a62;
+    color: #b7d1ff;
+}
+
+.pwa-state-description,
+.pwa-offline-note {
+    color: #b8c8bd;
+    line-height: 1.55;
+}
+
+.pwa-capabilities {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 14px 0;
+}
+
+.pwa-capabilities span {
+    padding: 12px;
+    border: 1px solid #2f4938;
+    border-radius: 12px;
+    background: #101913;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.pwa-settings-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.pwa-settings-actions button {
+    min-height: 42px;
+    padding: 8px 14px;
+    border: 1px solid #3c7350;
+    border-radius: 999px;
+    background: #173923;
+    color: #d9f7e3;
+    font-weight: 800;
+}
+
+.pwa-settings-actions button:first-child {
+    border-color: #1ed760;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.pwa-settings-actions button:disabled {
+    opacity: 0.55;
+}
+
+@media (display-mode: standalone) {
+    body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .hero {
+        padding-top: max(16px, env(safe-area-inset-top));
+    }
+}
+
+@media (max-width: 700px) {
+    .pwa-update-banner {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .pwa-update-actions,
+    .pwa-update-actions button,
+    .pwa-settings-actions button {
+        width: 100%;
+    }
+
+    .pwa-capabilities {
+        grid-template-columns: 1fr;
+    }
+}

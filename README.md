@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **3.7.0 — Historique enrichi et corrections**
+Version documentée : **4.0.0 — PWA installable**
 
 ## Sommaire
 
@@ -15,6 +15,7 @@ Version documentée : **3.7.0 — Historique enrichi et corrections**
 - [Adaptive Learning](#adaptive-learning)
 - [Adaptation automatique](#adaptation-automatique)
 - [Intelligence Dashboard](#intelligence-dashboard)
+- [Application installable PWA](#application-installable-pwa)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
 - [Sauvegarde des données](#sauvegarde-des-données)
@@ -117,7 +118,7 @@ L’application est une application web statique : elle fonctionne directement d
 
 ## Navigation dans l’application
 
-Depuis la version 3.7.0, l’interface est divisée en cinq menus afin d’éviter une longue succession de blocs.
+Depuis la version 4.0.0, l’interface est divisée en cinq menus afin d’éviter une longue succession de blocs.
 
 ### 🎵 Ma musique
 
@@ -181,6 +182,7 @@ La « durée potentielle » additionne les durées des titres envoyés à Spotif
 
 Ce menu contient :
 
+- l’installation PWA, son état et la recherche de mises à jour ;
 - l’export et l’import des données ;
 - le nettoyage des doublons ;
 - les profils de mix ;
@@ -492,6 +494,47 @@ Ce score sert à comparer les ordres générés par Shuffle+. Il ne constitue pa
 
 Le bouton « Exporter le rapport » crée un fichier JSON contenant le résumé de la période choisie, les classements, les profils Adaptive et les événements locaux correspondants. La sauvegarde générale de Shuffle+ inclut également les données Intelligence.
 
+## Application installable PWA
+
+Depuis la version 4.0.0, Shuffle+ est une Progressive Web App (PWA).
+
+### Installation sur ordinateur ou Android
+
+Lorsque le navigateur autorise l’installation, le bouton **Installer l’application** apparaît dans l’en-tête et dans **Réglages → Application installable**.
+
+L’installation ouvre ensuite Shuffle+ dans une fenêtre autonome, avec son icône dans le menu des applications.
+
+### Installation sur iPhone ou iPad
+
+Apple ne fournit pas toujours de bouton d’installation automatique. Dans Safari :
+
+1. ouvrir Shuffle+ ;
+2. toucher **Partager** ;
+3. choisir **Sur l’écran d’accueil** ;
+4. confirmer avec **Ajouter**.
+
+### Fonctionnement hors connexion
+
+Le service worker met en cache l’interface, les scripts, les styles, le manifeste et les icônes. Shuffle+ peut ainsi s’ouvrir sans réseau et afficher ses écrans déjà installés.
+
+Les données Spotify ne sont pas mises en cache par Shuffle+ : la connexion au compte, le chargement des playlists, la détection des appareils et la lecture nécessitent toujours Internet.
+
+### Mises à jour
+
+Lorsqu’une nouvelle version du service worker est prête, Shuffle+ affiche un bandeau **Une mise à jour est prête**. Le bouton **Mettre à jour** active la nouvelle version puis recharge l’application.
+
+Une vérification manuelle est aussi disponible dans **Réglages → Application installable**.
+
+### Raccourci Adaptive DJ
+
+Le manifeste expose un raccourci d’application vers :
+
+```text
+?action=adaptive&autoplay=1
+```
+
+Sa disponibilité dépend du système et du navigateur. Le raccourci Apple existant reste le mode recommandé sur iPhone pour ouvrir Spotify avant Shuffle+.
+
 ## Commandes iOS et Raccourcis
 
 ### Types de commandes
@@ -700,7 +743,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=3.7.0"></script>
+<script type="module" src="./app.js?v=4.0.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -718,17 +761,21 @@ ShufflePlus/
 ├── storage.js
 ├── shuffle-engine.js
 ├── adaptive-dj.js
+├── manifest.webmanifest
+├── service-worker.js
+├── favicon.ico
+├── icons/
 ├── README.md
 └── fichiers de notes de version
 ```
 
 ### `index.html`
 
-Structure minimale de la page, boutons de connexion et conteneur principal de l’application.
+Structure de la page, métadonnées PWA, boutons de connexion et d’installation, bandeaux réseau et mise à jour, puis conteneur principal.
 
 ### `style.css`
 
-Design responsive, composants, menus, cartes, formulaires, états de lecture, interface Adaptive DJ, panneau Adaptive Learning et adaptation automatique.
+Design responsive, composants, menus, cartes, formulaires, états de lecture, interface Adaptive DJ, panneau Adaptive Learning et interface PWA.
 
 ### `app.js`
 
@@ -745,7 +792,8 @@ Fichier central de l’application :
 - programmations ;
 - Adaptive DJ ;
 - Adaptive Learning et adaptation automatique ;
-- sauvegarde et restauration.
+- sauvegarde et restauration ;
+- installation PWA, état réseau et mises à jour du service worker.
 
 La version 3.3.4 privilégie cette intégration afin d’éviter la multiplication de petits modules d’interface.
 
@@ -772,6 +820,18 @@ Algorithme de mélange, historique récent, priorités, cohérence et analyse de
 ### `adaptive-dj.js`
 
 Définition des cinq créneaux horaires et résolution du contexte courant.
+
+### `manifest.webmanifest`
+
+Nom, couleurs, icônes, mode autonome, périmètre d’installation et raccourci Adaptive DJ.
+
+### `service-worker.js`
+
+Cache de l’interface, ouverture hors connexion, nettoyage des anciens caches et activation contrôlée des mises à jour.
+
+### `icons/` et `favicon.ico`
+
+Icônes standard, Apple Touch Icon et icône maskable utilisées par les navigateurs et les systèmes d’exploitation.
 
 ## Données locales et confidentialité
 
@@ -812,7 +872,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=3.7.0"></script>
+<script type="module" src="./app.js?v=4.0.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -835,9 +895,17 @@ Vérifier :
 3. attendre une seconde ;
 4. relancer la commande Shuffle+.
 
-### `favicon.ico` renvoie 404
+### L’installation n’est pas proposée
 
-Cette erreur indique simplement qu’aucune icône de site n’est installée. Elle ne bloque pas l’application.
+- vérifier que le site est ouvert en HTTPS ;
+- attendre la fin du premier chargement ;
+- sur iPhone, utiliser Safari puis **Partager → Sur l’écran d’accueil** ;
+- sur ordinateur, consulter le menu du navigateur ;
+- vérifier la Console pour une erreur d’enregistrement du service worker.
+
+### Une ancienne version reste affichée
+
+Ouvrir **Réglages → Application installable → Rechercher une mise à jour**. Lorsqu’un bandeau apparaît, choisir **Mettre à jour**. En dernier recours, fermer complètement l’application puis la rouvrir.
 
 ### Les réglages ont disparu
 
@@ -849,18 +917,19 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 - la détection d’appareil peut demander que Spotify soit déjà ouvert ;
 - certaines fonctions de lecture ne sont pas disponibles pour tous les niveaux de compte ;
 - les réglages ne sont pas synchronisés entre appareils ;
-- les programmations sont locales et nécessitent que la page puisse s’exécuter ;
+- les programmations sont locales et nécessitent que l’application soit ouverte ;
 - Shuffle+ ne réalise pas de transition audio réelle entre les morceaux ;
 - Adaptive Learning 3.5.0 apprend les choix de mix, mais pas encore les skips ou préférences titre par titre ;
-- l’adaptation automatique s’exécute au lancement d’Adaptive DJ et non lorsque la page est fermée ;
+- l’adaptation automatique s’exécute au lancement d’Adaptive DJ et non lorsque l’application est fermée ;
+- le cache PWA conserve l’interface, mais ne rend pas les appels Spotify utilisables hors connexion ;
 - les tendances semaine / week-end sont visibles, mais les associations automatiques restent communes au créneau ;
 - les données musicales accessibles ne contiennent pas toujours assez d’informations pour mesurer précisément l’énergie ou le tempo.
 
 ## Évolution prévue
 
-### Version 4.0 — Application installable
+### Version 4.1 — Confort PWA et partage
 
-Objectif : transformer Shuffle+ en PWA installable sur iPhone et ordinateur, avec icônes, manifeste, meilleure gestion hors ligne de l’interface et raccourcis d’application.
+Pistes prévues : amélioration de l’écran de lancement, partage de configurations, diagnostic du cache et options d’interface propres au mode installé.
 
 ## Licence et usage
 
