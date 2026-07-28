@@ -1,9 +1,9 @@
-const CACHE_VERSION = "shuffleplus-v4.3.0-shell";
+const CACHE_VERSION = "shuffleplus-v4.4.0-shell";
 const APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css",
-    "./app.js?v=4.3.0",
+    "./style.css?v=4.4.0",
+    "./app.js?v=4.4.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
@@ -112,8 +112,14 @@ self.addEventListener("fetch", (event) => {
     if ([
         "script",
         "style",
+        "manifest"
+    ].includes(request.destination)) {
+        event.respondWith(networkFirst(request));
+        return;
+    }
+
+    if ([
         "image",
-        "manifest",
         "font"
     ].includes(request.destination)) {
         event.respondWith(cacheFirst(request));

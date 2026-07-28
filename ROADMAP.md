@@ -2,25 +2,25 @@
 
 ## Version stable actuelle
 
-### v4.3.0 — Mode conduite
+### v4.4.0 — Voice & Quick Control
 
-- interface très simplifiée ;
-- grandes commandes ;
-- lancement Adaptive DJ en une action ;
-- pause, reprise et titre suivant ;
-- feedback rapide sur le morceau actif ;
-- maintien optionnel de l’écran allumé ;
-- raccourci PWA dédié ;
-- réglages inclus dans la sauvegarde.
+- menu de commandes rapides ;
+- lecture, pause, reprise et titre suivant ;
+- feedback sur le morceau Spotify actif ;
+- reconnaissance vocale locale avec détection de capacité ;
+- phrases françaises pour Adaptive DJ et les contrôles essentiels ;
+- URLs prêtes à copier dans Raccourcis iOS ;
+- nouveaux raccourcis PWA ;
+- chargement network-first des modules pour éviter les versions mélangées en cache.
 
 ## Étape suivante
 
-### v4.4 — Profils et commandes vocales
+### v4.5 — Contextes et profils rapides
 
-- commandes adaptées à Siri et Raccourcis iOS ;
-- phrases courtes pour lancer un contexte ou un mix ;
-- retours visuels plus accessibles ;
-- profils de conduite configurables.
+- profils « trajet », « travail », « soirée » et « nuit » personnalisables ;
+- commandes rapides liées à un profil précis ;
+- écran de création de raccourcis guidé ;
+- amélioration du retour visuel après une commande externe.
 
 ## Évolution majeure envisagée
 
@@ -30,4 +30,5 @@
 - sauvegarde distante ;
 - synchronisation iPhone / ordinateur ;
 - restauration des réglages ;
-- plusieurs profils.
+- plusieurs profils ;
+- architecture serveur avec authentification et chiffrement adaptés.

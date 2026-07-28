@@ -781,7 +781,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=4.3.0"></script>
+<script type="module" src="./app.js?v=4.4.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -910,7 +910,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=4.3.0"></script>
+<script type="module" src="./app.js?v=4.4.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -965,9 +965,9 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 
 ## Évolution prévue
 
-### Version 4.3 — Mode conduite
+### Version 4.4 — Voice & Quick Control
 
-Pistes prévues : interface simplifiée, grandes commandes, lancement Adaptive DJ en une action et réduction des manipulations pendant les trajets.
+Version actuelle : commandes rapides, reconnaissance vocale locale lorsque le navigateur la prend en charge, URLs prêtes pour Raccourcis iOS et actions PWA.
 
 ### Version 5.0 — Synchronisation serveur
 
@@ -992,3 +992,47 @@ Le menu **🚗 Conduite** propose une interface séparée et très lisible avec 
 La sortie du mode conduite demande deux pressions successives afin de limiter les fermetures accidentelles. La PWA expose également un raccourci direct vers `?view=driving`.
 
 Le mode conduite réduit les interactions, mais ne doit être manipulé que lorsque la situation permet d’utiliser l’écran sans danger.
+## Voice & Quick Control — v4.4.0
+
+Le menu **⚡ Rapide** rassemble les actions les plus courantes dans une interface compacte :
+
+- lancer Adaptive DJ ;
+- mettre en pause ou reprendre Spotify ;
+- passer au titre suivant ;
+- aimer le titre actif ;
+- écarter temporairement le titre actif ;
+- ouvrir le mode conduite.
+
+### Commande vocale
+
+Lorsque le navigateur expose la reconnaissance vocale Web, le bouton **Écouter** permet d’utiliser des phrases courtes en français, notamment :
+
+- « lance le trajet » ;
+- « pause » ;
+- « reprends » ;
+- « suivant » ;
+- « j’aime ce titre » ;
+- « pas maintenant » ;
+- « mode conduite ».
+
+La reconnaissance vocale dépend du navigateur et de l’autorisation du microphone. Elle n’est pas présentée comme un remplacement natif de Siri. Sur iPhone, la méthode la plus fiable reste l’application **Raccourcis**, avec les URLs fournies dans le menu Rapide.
+
+### Raccourcis URL
+
+Les principales commandes peuvent être déclenchées avec :
+
+```text
+?action=adaptive&autoplay=1
+?action=playpause
+?action=next
+?action=like-current
+?action=not-now-current
+?view=quick
+?view=driving
+```
+
+Après une redirection Spotify, Shuffle+ mémorise la commande puis l’exécute une fois la connexion rétablie.
+
+### Stabilité PWA
+
+Depuis la v4.4.0, les scripts, feuilles de style et manifestes utilisent une stratégie **network-first** dans le service worker. Cela réduit le risque qu’un nouveau `app.js` soit combiné avec un ancien `spotify-api.js` resté en cache.

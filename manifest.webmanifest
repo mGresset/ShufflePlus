@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Mix intelligent, Adaptive DJ, mode conduite, automatisation iOS et tableau de bord Spotify.",
+  "description": "Mix intelligent, Adaptive DJ, commandes vocales et rapides, mode conduite et automatisation Spotify.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",
@@ -37,6 +37,19 @@
   ],
   "shortcuts": [
     {
+      "name": "Commandes rapides",
+      "short_name": "Rapide",
+      "description": "Ouvrir les principales commandes Shuffle+.",
+      "url": "./?view=quick",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
       "name": "Lancer Adaptive DJ",
       "short_name": "Adaptive DJ",
       "description": "Choisir et lancer le mix adapté au créneau actuel.",
@@ -50,7 +63,20 @@
       ]
     },
     {
-      "name": "Ouvrir le mode conduite",
+      "name": "Titre suivant",
+      "short_name": "Suivant",
+      "description": "Passer au prochain morceau Spotify.",
+      "url": "./?action=next",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Mode conduite",
       "short_name": "Conduite",
       "description": "Afficher les grandes commandes essentielles de Shuffle+.",
       "url": "./?view=driving",

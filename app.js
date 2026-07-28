@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.3.0";
+const APP_VERSION = "4.4.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -100,6 +100,45 @@ const DEFAULT_DRIVING_MODE_SETTINGS = {
     autoRefresh: true,
     showFeedback: true
 };
+const QUICK_CONTROL_LANGUAGE = "fr-FR";
+const QUICK_CONTROL_ACTIONS = [
+    {
+        id: "adaptive",
+        icon: "🤖",
+        label: "Lancer Adaptive DJ",
+        description: "Choisit le mix correspondant au contexte actuel."
+    },
+    {
+        id: "playpause",
+        icon: "⏯️",
+        label: "Pause / reprise",
+        description: "Bascule l’état de la lecture Spotify."
+    },
+    {
+        id: "next",
+        icon: "⏭️",
+        label: "Titre suivant",
+        description: "Passe immédiatement au morceau suivant."
+    },
+    {
+        id: "like-current",
+        icon: "💚",
+        label: "J’aime le titre",
+        description: "Favorise le morceau actif dans les prochains mix."
+    },
+    {
+        id: "not-now-current",
+        icon: "⏳",
+        label: "Pas maintenant",
+        description: "Écarte temporairement le morceau actif."
+    },
+    {
+        id: "driving",
+        icon: "🚗",
+        label: "Mode conduite",
+        description: "Ouvre l’interface simplifiée pour les trajets."
+    }
+];
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
 const EXCLUSION_RULES_KEY = "shuffleplus_exclusion_rules_v1";
@@ -491,6 +530,14 @@ let drivingWakeLock = null;
 let drivingActionBusy = false;
 let drivingExitArmedUntil = 0;
 let drivingMessage = {
+    text: "",
+    type: ""
+};
+let quickPlaybackState = null;
+let quickControlBusy = false;
+let quickVoiceRecognition = null;
+let quickVoiceListening = false;
+let quickControlMessage = {
     text: "",
     type: ""
 };
@@ -1610,6 +1657,11 @@ function applyMusicFeedbackToTrack(
     if (renderTarget === "driving") {
         setDrivingMessage(message, "success");
         renderDrivingModePage();
+    } else if (renderTarget === "quick") {
+        setQuickControlMessage(message, "success");
+        if (activeAppMenu === "quick") {
+            renderQuickControlPage();
+        }
     } else {
         renderTrackList();
         setStatus(message);
@@ -3921,17 +3973,729 @@ function applyDrivingFeedback(action) {
     );
 }
 
+function setQuickControlMessage(
+    text = "",
+    type = ""
+) {
+    quickControlMessage = {
+        text: String(text || ""),
+        type: ["success", "error", "info"]
+            .includes(type)
+            ? type
+            : ""
+    };
+}
+
+function getQuickCurrentTrack() {
+    const item = quickPlaybackState?.item;
+
+    return item?.type === "track"
+        ? item
+        : null;
+}
+
+function getQuickTrackArtists(track) {
+    return (track?.artists || [])
+        .map((artist) => artist?.name)
+        .filter(Boolean)
+        .join(", ");
+}
+
+function buildQuickControlUrl(
+    action,
+    options = {}
+) {
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+
+    if (action === "quick") {
+        url.searchParams.set("view", "quick");
+        return url.toString();
+    }
+
+    if (action === "driving") {
+        url.searchParams.set("view", "driving");
+        return url.toString();
+    }
+
+    url.searchParams.set("action", action);
+
+    if (options.contextId) {
+        url.searchParams.set(
+            "context",
+            options.contextId
+        );
+    }
+
+    if (action === "adaptive") {
+        url.searchParams.set("autoplay", "1");
+    }
+
+    return url.toString();
+}
+
+async function copyQuickControlUrl(action) {
+    const url = buildQuickControlUrl(action);
+
+    try {
+        await navigator.clipboard.writeText(url);
+        setQuickControlMessage(
+            "Lien copié. Tu peux le coller dans Raccourcis iOS.",
+            "success"
+        );
+    } catch (error) {
+        window.prompt(
+            "Copie cette URL dans Raccourcis :",
+            url
+        );
+    }
+
+    if (activeAppMenu === "quick") {
+        renderQuickControlPage();
+    }
+}
+
+function renderQuickControlPage() {
+    const track = getQuickCurrentTrack();
+    const isPlaying = Boolean(
+        quickPlaybackState?.is_playing
+    );
+    const deviceName =
+        quickPlaybackState?.device?.name ||
+        "Aucun appareil actif";
+    const voiceSupported = Boolean(
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition
+    );
+
+    const shortcutActions = [
+        ["quick", "⚡ Ouvrir les commandes rapides"],
+        ["adaptive", "🤖 Lancer Adaptive DJ"],
+        ["playpause", "⏯️ Pause / reprise"],
+        ["next", "⏭️ Titre suivant"],
+        ["like-current", "💚 J’aime le titre actif"],
+        ["not-now-current", "⏳ Pas maintenant"],
+        ["driving", "🚗 Ouvrir le mode conduite"]
+    ];
+
+    const html = `
+        <section
+            class="quick-control-page"
+            aria-label="Commandes rapides"
+        >
+            <div class="quick-control-hero">
+                <div>
+                    <span class="quick-control-kicker">
+                        🎙️ Voice & Quick Control
+                    </span>
+                    <h3>Une action, sans chercher dans les menus</h3>
+                    <p>
+                        Utilise les gros boutons, une commande vocale
+                        ou une URL dans Raccourcis iOS.
+                    </p>
+                </div>
+
+                <button
+                    id="quickRefreshButton"
+                    class="quick-refresh-button"
+                    type="button"
+                    ${quickControlBusy ? "disabled" : ""}
+                >
+                    ↻ Actualiser
+                </button>
+            </div>
+
+            <section class="quick-now-playing">
+                <div class="quick-now-playing-cover">
+                    ${track?.album?.images?.[0]?.url
+                        ? `<img
+                            src="${escapeHtml(track.album.images[0].url)}"
+                            alt=""
+                        >`
+                        : "🎵"}
+                </div>
+                <div>
+                    <span>
+                        ${isPlaying ? "Lecture en cours" : "Lecture en pause"}
+                    </span>
+                    <strong>
+                        ${escapeHtml(
+                            track?.name ||
+                            "Aucun morceau actif"
+                        )}
+                    </strong>
+                    <small>
+                        ${escapeHtml(
+                            track
+                                ? getQuickTrackArtists(track)
+                                : deviceName
+                        )}
+                    </small>
+                </div>
+                <span class="quick-device-pill">
+                    ${escapeHtml(deviceName)}
+                </span>
+            </section>
+
+            <div class="quick-action-grid">
+                ${QUICK_CONTROL_ACTIONS.map(
+                    (action) => `
+                        <button
+                            type="button"
+                            class="quick-action-button"
+                            data-quick-action="${escapeHtml(action.id)}"
+                            ${quickControlBusy ? "disabled" : ""}
+                        >
+                            <span aria-hidden="true">
+                                ${action.icon}
+                            </span>
+                            <strong>
+                                ${escapeHtml(action.label)}
+                            </strong>
+                            <small>
+                                ${escapeHtml(action.description)}
+                            </small>
+                        </button>
+                    `
+                ).join("")}
+            </div>
+
+            <section class="voice-control-card">
+                <div>
+                    <span class="quick-control-kicker">
+                        🎙️ Commande vocale locale
+                    </span>
+                    <h4>
+                        ${voiceSupported
+                            ? "Parle à Shuffle+"
+                            : "Reconnaissance vocale indisponible"}
+                    </h4>
+                    <p>
+                        Exemples : « lance le trajet », « pause »,
+                        « reprends », « suivant », « j’aime ce titre »,
+                        « pas maintenant » ou « mode conduite ».
+                    </p>
+                </div>
+
+                <button
+                    id="quickVoiceButton"
+                    class="voice-control-button
+                    ${quickVoiceListening ? "is-listening" : ""}"
+                    type="button"
+                    ${!voiceSupported || quickControlBusy
+                        ? "disabled"
+                        : ""}
+                >
+                    ${quickVoiceListening
+                        ? "■ Arrêter"
+                        : "🎙️ Écouter"}
+                </button>
+            </section>
+
+            <p
+                class="quick-control-message
+                ${escapeHtml(quickControlMessage.type)}"
+                aria-live="polite"
+            >
+                ${escapeHtml(
+                    quickControlMessage.text ||
+                    (quickControlBusy
+                        ? "Commande en cours…"
+                        : "Prêt.")
+                )}
+            </p>
+
+            <details class="quick-shortcuts-panel">
+                <summary>
+                    URLs pour Raccourcis iOS
+                </summary>
+                <div class="quick-shortcut-list">
+                    ${shortcutActions.map(
+                        ([action, label]) => `
+                            <div class="quick-shortcut-row">
+                                <div>
+                                    <strong>
+                                        ${escapeHtml(label)}
+                                    </strong>
+                                    <code>
+                                        ${escapeHtml(
+                                            buildQuickControlUrl(action)
+                                        )}
+                                    </code>
+                                </div>
+                                <button
+                                    type="button"
+                                    data-copy-quick-url="${escapeHtml(action)}"
+                                >
+                                    Copier
+                                </button>
+                            </div>
+                        `
+                    ).join("")}
+                </div>
+            </details>
+        </section>
+    `;
+
+    if (activeAppMenu === "quick") {
+        const page = contentElement.querySelector(
+            '[data-app-menu-page="quick"]'
+        );
+
+        if (page) {
+            page.innerHTML = html;
+        }
+    }
+
+    return html;
+}
+
+async function refreshQuickControlPlayback({
+    silent = false
+} = {}) {
+    try {
+        quickPlaybackState =
+            await getCurrentPlayback();
+
+        if (!silent) {
+            setQuickControlMessage(
+                quickPlaybackState?.item
+                    ? "Lecture Spotify actualisée."
+                    : "Aucune lecture Spotify active.",
+                "info"
+            );
+        }
+    } catch (error) {
+        quickPlaybackState = null;
+        setQuickControlMessage(
+            getPlaybackErrorMessage(error),
+            "error"
+        );
+    }
+
+    if (activeAppMenu === "quick") {
+        renderQuickControlPage();
+    }
+
+    return quickPlaybackState;
+}
+
+async function runQuickControlAction(
+    action,
+    options = {}
+) {
+    const normalizedAction = String(
+        action || ""
+    ).toLowerCase();
+
+    if (quickControlBusy) {
+        return;
+    }
+
+    quickControlBusy = true;
+    setQuickControlMessage(
+        "Commande en cours…",
+        "info"
+    );
+
+    if (activeAppMenu === "quick") {
+        renderQuickControlPage();
+    }
+
+    try {
+        if (normalizedAction === "adaptive") {
+            const result = await runAdaptiveDj({
+                forcedSlotId:
+                    options.contextId || "",
+                autoplay: true
+            });
+            quickPlaybackState =
+                await getCurrentPlayback().catch(
+                    () => null
+                );
+            setQuickControlMessage(
+                result?.mix?.name
+                    ? `« ${result.mix.name} » lancé.`
+                    : "Adaptive DJ lancé.",
+                "success"
+            );
+        } else if (
+            [
+                "playpause",
+                "pause",
+                "resume",
+                "next",
+                "like-current",
+                "not-now-current",
+                "repetitive-current"
+            ].includes(normalizedAction)
+        ) {
+            const state =
+                await getCurrentPlayback();
+            const deviceId = state?.device?.id || "";
+            const track =
+                state?.item?.type === "track"
+                    ? state.item
+                    : null;
+
+            if (
+                ["playpause", "pause", "resume", "next"]
+                    .includes(normalizedAction) &&
+                !deviceId
+            ) {
+                throw new Error(
+                    "Aucun appareil Spotify actif."
+                );
+            }
+
+            if (normalizedAction === "playpause") {
+                if (state?.is_playing) {
+                    await pausePlayback(deviceId);
+                    setQuickControlMessage(
+                        "Lecture mise en pause.",
+                        "success"
+                    );
+                } else {
+                    await resumePlayback(deviceId);
+                    setQuickControlMessage(
+                        "Lecture reprise.",
+                        "success"
+                    );
+                }
+            } else if (normalizedAction === "pause") {
+                await pausePlayback(deviceId);
+                setQuickControlMessage(
+                    "Lecture mise en pause.",
+                    "success"
+                );
+            } else if (normalizedAction === "resume") {
+                await resumePlayback(deviceId);
+                setQuickControlMessage(
+                    "Lecture reprise.",
+                    "success"
+                );
+            } else if (normalizedAction === "next") {
+                await skipToNext(deviceId);
+                setQuickControlMessage(
+                    "Passage au titre suivant.",
+                    "success"
+                );
+            } else {
+                if (!track) {
+                    throw new Error(
+                        "Aucun titre actif pour ce feedback."
+                    );
+                }
+
+                const feedbackAction =
+                    normalizedAction === "like-current"
+                        ? "like"
+                        : normalizedAction === "not-now-current"
+                            ? "not-now"
+                            : "repetitive";
+                const result = applyMusicFeedbackToTrack(
+                    track,
+                    feedbackAction,
+                    options.source || "quick-control",
+                    "quick"
+                );
+
+                if (result?.message) {
+                    setQuickControlMessage(
+                        result.message,
+                        "success"
+                    );
+                }
+            }
+
+            await new Promise((resolve) =>
+                window.setTimeout(resolve, 500)
+            );
+            quickPlaybackState =
+                await getCurrentPlayback().catch(
+                    () => state
+                );
+        } else if (normalizedAction === "driving") {
+            await enterDrivingMode();
+            return;
+        } else if (normalizedAction === "quick") {
+            activeAppMenu = "quick";
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+            await refreshQuickControlPlayback({
+                silent: true
+            });
+        } else {
+            throw new Error(
+                "Commande rapide inconnue."
+            );
+        }
+    } catch (error) {
+        console.error(error);
+        setQuickControlMessage(
+            getPlaybackErrorMessage(error),
+            "error"
+        );
+        throw error;
+    } finally {
+        quickControlBusy = false;
+        if (activeAppMenu === "quick") {
+            renderQuickControlPage();
+        }
+    }
+}
+
+function normalizeVoiceCommandText(value = "") {
+    return String(value)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s'-]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function parseVoiceQuickCommand(transcript = "") {
+    const text = normalizeVoiceCommandText(
+        transcript
+    );
+
+    if (!text) {
+        return null;
+    }
+
+    if (
+        text.includes("pas maintenant") ||
+        text.includes("plus tard")
+    ) {
+        return {
+            action: "not-now-current"
+        };
+    }
+
+    if (
+        text.includes("trop repetitif") ||
+        text.includes("trop entendu")
+    ) {
+        return {
+            action: "repetitive-current"
+        };
+    }
+
+    if (
+        text.includes("j aime") ||
+        text.includes("jaime") ||
+        text.includes("aime ce titre")
+    ) {
+        return {
+            action: "like-current"
+        };
+    }
+
+    if (
+        text.includes("suivant") ||
+        text.includes("prochain") ||
+        text.includes("change de musique")
+    ) {
+        return {
+            action: "next"
+        };
+    }
+
+    if (
+        text.includes("pause") ||
+        text.includes("arrete la musique")
+    ) {
+        return {
+            action: "pause"
+        };
+    }
+
+    if (
+        text.includes("reprends") ||
+        text.includes("reprendre") ||
+        text.includes("relance la musique")
+    ) {
+        return {
+            action: "resume"
+        };
+    }
+
+    if (
+        text.includes("conduite") ||
+        text.includes("voiture")
+    ) {
+        return {
+            action: "driving"
+        };
+    }
+
+    const contexts = [
+        ["morning", ["matin", "reveil"]],
+        ["focus", ["focus", "travail", "journee"]],
+        ["drive", ["trajet", "route"]],
+        ["evening", ["soiree", "soir", "party"]],
+        ["night", ["nuit", "dormir", "calme"]]
+    ];
+
+    for (const [contextId, words] of contexts) {
+        if (
+            words.some((word) =>
+                text.includes(word)
+            )
+        ) {
+            return {
+                action: "adaptive",
+                contextId
+            };
+        }
+    }
+
+    if (
+        text.includes("adaptive") ||
+        text.includes("lance shuffle") ||
+        text.includes("mets de la musique")
+    ) {
+        return {
+            action: "adaptive"
+        };
+    }
+
+    return null;
+}
+
+function stopQuickVoiceRecognition() {
+    try {
+        quickVoiceRecognition?.stop();
+    } catch (error) {
+        console.warn(
+            "Arrêt vocal impossible :",
+            error
+        );
+    }
+}
+
+function startQuickVoiceRecognition() {
+    const Recognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+    if (!Recognition) {
+        setQuickControlMessage(
+            "La reconnaissance vocale n’est pas disponible dans ce navigateur.",
+            "error"
+        );
+        renderQuickControlPage();
+        return;
+    }
+
+    if (quickVoiceListening) {
+        stopQuickVoiceRecognition();
+        return;
+    }
+
+    const recognition = new Recognition();
+    quickVoiceRecognition = recognition;
+    quickVoiceListening = true;
+    recognition.lang = QUICK_CONTROL_LANGUAGE;
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    setQuickControlMessage(
+        "Je t’écoute…",
+        "info"
+    );
+    renderQuickControlPage();
+
+    recognition.addEventListener(
+        "result",
+        async (event) => {
+            const transcript =
+                event.results?.[0]?.[0]
+                    ?.transcript || "";
+            const command =
+                parseVoiceQuickCommand(transcript);
+
+            if (!command) {
+                setQuickControlMessage(
+                    `Commande non reconnue : « ${transcript} »`,
+                    "error"
+                );
+                return;
+            }
+
+            setQuickControlMessage(
+                `Commande reconnue : « ${transcript} »`,
+                "info"
+            );
+
+            try {
+                await runQuickControlAction(
+                    command.action,
+                    {
+                        contextId:
+                            command.contextId || "",
+                        source: "voice-control"
+                    }
+                );
+            } catch (error) {
+                // Le message utilisateur est déjà géré.
+            }
+        }
+    );
+
+    recognition.addEventListener(
+        "error",
+        (event) => {
+            const message =
+                event.error === "not-allowed"
+                    ? "Autorise l’accès au microphone pour utiliser les commandes vocales."
+                    : `Reconnaissance vocale interrompue : ${event.error}.`;
+            setQuickControlMessage(
+                message,
+                "error"
+            );
+        }
+    );
+
+    recognition.addEventListener(
+        "end",
+        () => {
+            quickVoiceListening = false;
+            quickVoiceRecognition = null;
+            if (activeAppMenu === "quick") {
+                renderQuickControlPage();
+            }
+        }
+    );
+
+    try {
+        recognition.start();
+    } catch (error) {
+        quickVoiceListening = false;
+        quickVoiceRecognition = null;
+        setQuickControlMessage(
+            "Le microphone n’a pas pu démarrer.",
+            "error"
+        );
+        renderQuickControlPage();
+    }
+}
+
 function applyDrivingViewFromUrl() {
     const url = new URL(
         window.location.href
     );
 
-    if (
-        String(
-            url.searchParams.get("view") || ""
-        ).toLowerCase() === "driving"
-    ) {
-        activeAppMenu = "driving";
+    const requestedView = String(
+        url.searchParams.get("view") || ""
+    ).toLowerCase();
+
+    if (["driving", "quick"].includes(requestedView)) {
+        activeAppMenu = requestedView;
         saveActiveAppMenu();
         url.searchParams.delete("view");
         window.history.replaceState(
@@ -3948,6 +4712,7 @@ function normalizeActiveAppMenu(value = "") {
         "mixes",
         "adaptive",
         "intelligence",
+        "quick",
         "driving",
         "settings"
     ].includes(value)
@@ -5733,6 +6498,7 @@ function renderAppMenu() {
         ["mixes", "🔀", "Mix & iOS"],
         ["adaptive", "🤖", "Adaptive DJ"],
         ["intelligence", "🧠", "Intelligence"],
+        ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
         ["settings", "⚙️", "Réglages"]
     ];
@@ -7937,6 +8703,33 @@ async function executeAutomationCommand(
             autoplay:
                 normalized.autoplay
         });
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+        return;
+    }
+
+    if (
+        [
+            "playpause",
+            "pause",
+            "resume",
+            "next",
+            "like-current",
+            "not-now-current",
+            "repetitive-current",
+            "driving",
+            "quick"
+        ].includes(normalized.action)
+    ) {
+        await runQuickControlAction(
+            normalized.action,
+            {
+                contextId:
+                    normalized.contextId,
+                source: "shortcut-url"
+            }
+        );
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
@@ -15631,6 +16424,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "quick"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="quick"
+            >
+                ${renderQuickControlPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "settings"
                     ? "is-active"
                     : ""}"
@@ -18456,6 +19259,10 @@ async function initializeApp() {
                 silent: true
             });
             await requestDrivingWakeLock();
+        } else if (activeAppMenu === "quick") {
+            await refreshQuickControlPlayback({
+                silent: true
+            });
         }
 
         startScheduleWatcher();
@@ -18594,6 +19401,54 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const quickActionButton =
+            event.target.closest(
+                "[data-quick-action]"
+            );
+
+        if (quickActionButton) {
+            try {
+                await runQuickControlAction(
+                    quickActionButton.dataset
+                        .quickAction || ""
+                );
+            } catch (error) {
+                // Message déjà affiché dans l’interface rapide.
+            }
+            return;
+        }
+
+        const copyQuickUrlButton =
+            event.target.closest(
+                "[data-copy-quick-url]"
+            );
+
+        if (copyQuickUrlButton) {
+            await copyQuickControlUrl(
+                copyQuickUrlButton.dataset
+                    .copyQuickUrl || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#quickRefreshButton"
+            )
+        ) {
+            await refreshQuickControlPlayback();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#quickVoiceButton"
+            )
+        ) {
+            startQuickVoiceRecognition();
+            return;
+        }
+
         if (
             event.target.closest(
                 "#drivingAdaptiveButton"
@@ -18759,6 +19614,12 @@ contentElement.addEventListener(
             displayPlaylists(
                 playlistsCache
             );
+
+            if (requestedMenu === "quick") {
+                await refreshQuickControlPlayback({
+                    silent: true
+                });
+            }
             return;
         }
 

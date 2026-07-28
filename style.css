@@ -6977,3 +6977,303 @@ body.is-driving-mode #content {
         grid-column: auto;
     }
 }
+
+
+/* Shuffle+ v4.4.0 — Voice & Quick Control */
+
+.quick-control-page {
+    display: grid;
+    gap: 16px;
+}
+
+.quick-control-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid #2f6553;
+    border-radius: 18px;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(23 76 57 / 92%) 0%,
+            rgb(17 17 17 / 98%) 72%
+        );
+}
+
+.quick-control-kicker {
+    color: #8df0bd;
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.7px;
+    text-transform: uppercase;
+}
+
+.quick-control-hero h3,
+.voice-control-card h4 {
+    margin: 7px 0 6px;
+}
+
+.quick-control-hero p,
+.voice-control-card p {
+    margin: 0;
+    color: #b9c8c0;
+    line-height: 1.55;
+}
+
+.quick-refresh-button,
+.voice-control-button {
+    min-height: 46px;
+    padding: 10px 17px;
+    border: 1px solid #4b836e;
+    border-radius: 999px;
+    background: #10271f;
+    color: #d8ffea;
+    font-weight: 800;
+}
+
+.quick-now-playing {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid #343a37;
+    border-radius: 16px;
+    background: #151817;
+}
+
+.quick-now-playing-cover {
+    display: grid;
+    width: 64px;
+    height: 64px;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 12px;
+    background: #242a27;
+    font-size: 28px;
+}
+
+.quick-now-playing-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.quick-now-playing > div:nth-child(2) {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.quick-now-playing span,
+.quick-now-playing small {
+    color: #96a79f;
+}
+
+.quick-now-playing strong,
+.quick-now-playing small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quick-device-pill {
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #24372f;
+    color: #9ee9c1 !important;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.quick-action-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.quick-action-button {
+    display: grid;
+    min-height: 138px;
+    align-content: center;
+    gap: 8px;
+    padding: 18px;
+    border: 1px solid #3a4540;
+    border-radius: 16px;
+    background: #161a18;
+    color: #ffffff;
+    text-align: left;
+}
+
+.quick-action-button:hover {
+    border-color: #4f9a78;
+    background: #1b2a23;
+}
+
+.quick-action-button > span {
+    font-size: 30px;
+}
+
+.quick-action-button strong {
+    font-size: 16px;
+}
+
+.quick-action-button small {
+    color: #9ca9a3;
+    line-height: 1.4;
+}
+
+.voice-control-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 20px;
+    border: 1px solid #5d477d;
+    border-radius: 16px;
+    background: #1c1723;
+}
+
+.voice-control-button {
+    flex: 0 0 auto;
+    border-color: #7657a1;
+    background: #2d2040;
+}
+
+.voice-control-button.is-listening {
+    border-color: #ff7373;
+    background: #4b2228;
+    color: #ffd5d5;
+    animation: quick-listening-pulse 1.2s infinite;
+}
+
+@keyframes quick-listening-pulse {
+    50% {
+        transform: scale(1.03);
+        box-shadow: 0 0 0 8px rgb(255 100 100 / 10%);
+    }
+}
+
+.quick-control-message {
+    min-height: 24px;
+    margin: 0;
+    padding: 10px 13px;
+    border-radius: 11px;
+    background: #151817;
+    color: #b9c3be;
+}
+
+.quick-control-message.success {
+    background: #153523;
+    color: #a8efc3;
+}
+
+.quick-control-message.error {
+    background: #402027;
+    color: #ffc0c7;
+}
+
+.quick-control-message.info {
+    background: #1a2d3d;
+    color: #b9def7;
+}
+
+.quick-shortcuts-panel {
+    padding: 16px;
+    border: 1px solid #353b38;
+    border-radius: 14px;
+    background: #141615;
+}
+
+.quick-shortcuts-panel summary {
+    cursor: pointer;
+    font-weight: 850;
+}
+
+.quick-shortcut-list {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.quick-shortcut-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 11px;
+    background: #1b1f1d;
+}
+
+.quick-shortcut-row > div {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+}
+
+.quick-shortcut-row code {
+    overflow: hidden;
+    color: #9eb2a8;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quick-shortcut-row button {
+    min-height: 38px;
+    padding: 8px 13px;
+    border: 1px solid #49705e;
+    border-radius: 999px;
+    background: transparent;
+    color: #c8f4dc;
+    font-weight: 800;
+}
+
+@media (max-width: 880px) {
+    .quick-action-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .quick-control-hero,
+    .voice-control-card {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .quick-refresh-button,
+    .voice-control-button {
+        width: 100%;
+    }
+
+    .quick-now-playing {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .quick-device-pill {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+
+    .quick-action-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-action-button {
+        min-height: 112px;
+    }
+
+    .quick-shortcut-row {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-shortcut-row button {
+        width: 100%;
+    }
+}
