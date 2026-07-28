@@ -781,7 +781,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=4.4.0"></script>
+<script type="module" src="./app.js?v=4.5.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -910,7 +910,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=4.4.0"></script>
+<script type="module" src="./app.js?v=4.5.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -1036,3 +1036,34 @@ Après une redirection Spotify, Shuffle+ mémorise la commande puis l’exécute
 ### Stabilité PWA
 
 Depuis la v4.4.0, les scripts, feuilles de style et manifestes utilisent une stratégie **network-first** dans le service worker. Cela réduit le risque qu’un nouveau `app.js` soit combiné avec un ancien `spotify-api.js` resté en cache.
+
+
+## Contextes et profils rapides — v4.5.0
+
+Le menu **⚡ Rapide** contient désormais quatre profils configurables :
+
+- **Trajet** ;
+- **Travail** ;
+- **Soirée** ;
+- **Nuit**.
+
+Chaque profil rapide peut associer :
+
+- un nom et une icône ;
+- un mix enregistré ;
+- un profil de réglages de mélange ;
+- le lancement automatique de Spotify ou une simple préparation du mix.
+
+Lorsqu’un profil est lancé, Shuffle+ applique d’abord le profil de réglages choisi, régénère le mix associé puis l’envoie à l’appareil Spotify sélectionné. Les commandes vocales utilisent en priorité ces profils lorsqu’ils sont configurés.
+
+### Raccourcis iOS guidés
+
+L’assistant intégré génère une URL de cette forme :
+
+```text
+?action=quick-context&context=drive&autoplay=1
+```
+
+Dans l’application Raccourcis, il suffit de créer un raccourci utilisant l’action **Ouvrir les URL**, de coller l’adresse, puis de choisir un nom prononçable avec Siri.
+
+Après une commande externe, le menu Rapide affiche un bandeau indiquant le profil demandé, le mix traité, l’appareil utilisé ou l’erreur rencontrée.

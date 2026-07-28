@@ -2,25 +2,24 @@
 
 ## Version stable actuelle
 
-### v4.4.0 — Voice & Quick Control
+### v4.5.0 — Contextes et profils rapides
 
-- menu de commandes rapides ;
-- lecture, pause, reprise et titre suivant ;
-- feedback sur le morceau Spotify actif ;
-- reconnaissance vocale locale avec détection de capacité ;
-- phrases françaises pour Adaptive DJ et les contrôles essentiels ;
-- URLs prêtes à copier dans Raccourcis iOS ;
-- nouveaux raccourcis PWA ;
-- chargement network-first des modules pour éviter les versions mélangées en cache.
+- profils Trajet, Travail, Soirée et Nuit personnalisables ;
+- mix et profil de réglages associés à chaque contexte ;
+- commandes rapides et vocales liées au contexte ;
+- assistant de création de raccourcis iOS ;
+- retour visuel après une commande externe ;
+- sauvegarde locale des profils rapides.
 
 ## Étape suivante
 
-### v4.5 — Contextes et profils rapides
+### v4.6 — Préparation à la synchronisation
 
-- profils « trajet », « travail », « soirée » et « nuit » personnalisables ;
-- commandes rapides liées à un profil précis ;
-- écran de création de raccourcis guidé ;
-- amélioration du retour visuel après une commande externe.
+- identifiant local d’installation ;
+- aperçu des données synchronisables ;
+- résolution des conflits entre appareils ;
+- export de diagnostic de synchronisation ;
+- contrat d’API documenté sans imposer encore de serveur.
 
 ## Évolution majeure envisagée
 

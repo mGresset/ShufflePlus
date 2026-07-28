@@ -7277,3 +7277,245 @@ body.is-driving-mode #content {
         width: 100%;
     }
 }
+
+
+/* Shuffle+ v4.5.0 — Contextes et profils rapides */
+
+.quick-contexts-section {
+    display: grid;
+    gap: 14px;
+    padding: 18px;
+    border: 1px solid #314d3b;
+    border-radius: 18px;
+    background: linear-gradient(145deg, #132018, #111111 72%);
+}
+
+.quick-contexts-heading h4,
+.quick-shortcut-wizard h4 {
+    margin: 5px 0;
+    font-size: 22px;
+}
+
+.quick-contexts-heading p {
+    margin: 0;
+    color: #aeb9b1;
+}
+
+.quick-context-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.quick-context-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #33463a;
+    border-radius: 14px;
+    background: #101511;
+}
+
+.quick-context-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 13px;
+    background: #1b2a20;
+    font-size: 23px;
+}
+
+.quick-context-card div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.quick-context-card small {
+    overflow: hidden;
+    color: #98a49b;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.quick-context-card button,
+.quick-context-form-actions button,
+.quick-shortcut-wizard button {
+    min-height: 42px;
+    padding: 9px 14px;
+    border: 1px solid #397f50;
+    border-radius: 999px;
+    background: #173f25;
+    color: #9ef0b5;
+    font-weight: 800;
+}
+
+.quick-context-card button:disabled {
+    border-color: #373737;
+    background: #242424;
+    color: #777777;
+}
+
+.quick-external-result {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid #486357;
+    border-radius: 14px;
+    background: #142019;
+}
+
+.quick-external-result.error {
+    border-color: #7b3d45;
+    background: #261518;
+}
+
+.quick-external-result div {
+    display: grid;
+    gap: 3px;
+}
+
+.quick-external-result span,
+.quick-external-result small {
+    color: #aab6ae;
+}
+
+.quick-external-result button {
+    border: 0;
+    background: transparent;
+    color: #ffffff;
+    font-size: 25px;
+}
+
+.quick-context-config-panel,
+.quick-shortcut-wizard {
+    padding: 17px;
+    border: 1px solid #343434;
+    border-radius: 16px;
+    background: #121212;
+}
+
+.quick-context-config-panel summary {
+    cursor: pointer;
+    font-weight: 850;
+}
+
+.quick-context-config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.quick-context-config-grid fieldset {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #353535;
+    border-radius: 13px;
+}
+
+.quick-context-config-grid legend {
+    padding: 0 6px;
+    font-weight: 850;
+}
+
+.quick-context-config-grid label {
+    display: grid;
+    gap: 6px;
+}
+
+.quick-context-config-grid input,
+.quick-context-config-grid select,
+.quick-shortcut-wizard select {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid #424242;
+    border-radius: 10px;
+    background: #0b0b0b;
+    color: #ffffff;
+}
+
+.quick-context-autoplay {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+}
+
+.quick-context-autoplay input {
+    width: 18px;
+    min-height: 18px;
+    accent-color: #1ed760;
+}
+
+.quick-context-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.quick-shortcut-wizard {
+    display: grid;
+    gap: 14px;
+}
+
+.quick-shortcut-wizard-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.quick-shortcut-wizard-grid > * {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+    min-width: 0;
+    padding: 13px;
+    border-radius: 12px;
+    background: #0d0d0d;
+}
+
+.quick-shortcut-wizard code {
+    display: block;
+    overflow-wrap: anywhere;
+    color: #9aeab1;
+    font-size: 12px;
+}
+
+.quick-shortcut-wizard ol {
+    margin: 0;
+    padding-left: 20px;
+    color: #b7b7b7;
+    line-height: 1.55;
+}
+
+@media (max-width: 800px) {
+    .quick-context-grid,
+    .quick-context-config-grid,
+    .quick-shortcut-wizard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .quick-context-card {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .quick-context-card button {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .quick-context-form-actions {
+        flex-direction: column;
+    }
+
+    .quick-context-form-actions button {
+        width: 100%;
+    }
+}

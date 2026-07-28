@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.4.0";
+const APP_VERSION = "4.5.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -137,6 +137,46 @@ const QUICK_CONTROL_ACTIONS = [
         icon: "🚗",
         label: "Mode conduite",
         description: "Ouvre l’interface simplifiée pour les trajets."
+    }
+];
+const QUICK_CONTEXTS_KEY =
+    "shuffleplus_quick_contexts_v1";
+const QUICK_EXTERNAL_RESULT_KEY =
+    "shuffleplus_quick_external_result_v1";
+const QUICK_EXTERNAL_RESULT_TTL =
+    24 * 60 * 60 * 1000;
+const DEFAULT_QUICK_CONTEXTS = [
+    {
+        id: "drive",
+        name: "Trajet",
+        icon: "🚗",
+        mixId: "",
+        profileId: "",
+        autoplay: true
+    },
+    {
+        id: "work",
+        name: "Travail",
+        icon: "💼",
+        mixId: "",
+        profileId: "profile-concentration",
+        autoplay: true
+    },
+    {
+        id: "party",
+        name: "Soirée",
+        icon: "🎉",
+        mixId: "",
+        profileId: "profile-soiree",
+        autoplay: true
+    },
+    {
+        id: "night",
+        name: "Nuit",
+        icon: "🌙",
+        mixId: "",
+        profileId: "",
+        autoplay: true
     }
 ];
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
@@ -541,6 +581,10 @@ let quickControlMessage = {
     text: "",
     type: ""
 };
+let quickContextsState = readQuickContextsState();
+let quickExternalResult = readQuickExternalResult();
+let quickShortcutWizardContextId =
+    quickContextsState[0]?.id || "drive";
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -3973,6 +4017,478 @@ function applyDrivingFeedback(action) {
     );
 }
 
+function normalizeQuickContext(context = {}, fallback = {}) {
+    const allowedIds = new Set([
+        "drive",
+        "work",
+        "party",
+        "night"
+    ]);
+    const fallbackId = allowedIds.has(fallback.id)
+        ? fallback.id
+        : "drive";
+    const id = allowedIds.has(context.id)
+        ? context.id
+        : fallbackId;
+
+    return {
+        id,
+        name:
+            typeof context.name === "string" &&
+            context.name.trim()
+                ? context.name.trim().slice(0, 40)
+                : fallback.name || "Contexte",
+        icon:
+            typeof context.icon === "string" &&
+            context.icon.trim()
+                ? context.icon.trim().slice(0, 8)
+                : fallback.icon || "🎧",
+        mixId:
+            typeof context.mixId === "string"
+                ? context.mixId.trim().slice(0, 120)
+                : "",
+        profileId:
+            typeof context.profileId === "string"
+                ? context.profileId.trim().slice(0, 120)
+                : "",
+        autoplay: context.autoplay !== false
+    };
+}
+
+function normalizeQuickContextsState(values = []) {
+    const source = Array.isArray(values)
+        ? values
+        : [];
+    const byId = new Map(
+        source
+            .filter((item) => item && typeof item === "object")
+            .map((item) => [item.id, item])
+    );
+
+    return DEFAULT_QUICK_CONTEXTS.map(
+        (fallback) => normalizeQuickContext(
+            byId.get(fallback.id) || fallback,
+            fallback
+        )
+    );
+}
+
+function readQuickContextsState() {
+    try {
+        const raw = localStorage.getItem(
+            QUICK_CONTEXTS_KEY
+        );
+        return normalizeQuickContextsState(
+            raw ? JSON.parse(raw) : DEFAULT_QUICK_CONTEXTS
+        );
+    } catch (error) {
+        console.warn(
+            "Contextes rapides illisibles :",
+            error
+        );
+        return normalizeQuickContextsState(
+            DEFAULT_QUICK_CONTEXTS
+        );
+    }
+}
+
+function saveQuickContextsState() {
+    try {
+        localStorage.setItem(
+            QUICK_CONTEXTS_KEY,
+            JSON.stringify(quickContextsState)
+        );
+    } catch (error) {
+        console.warn(
+            "Contextes rapides non enregistrés :",
+            error
+        );
+    }
+}
+
+function getQuickContextById(contextId = "") {
+    return quickContextsState.find(
+        (context) => context.id === contextId
+    ) || null;
+}
+
+function normalizeQuickExternalResult(result = {}) {
+    const status = ["success", "error", "info"]
+        .includes(result.status)
+        ? result.status
+        : "info";
+
+    return {
+        status,
+        contextId:
+            typeof result.contextId === "string"
+                ? result.contextId.slice(0, 40)
+                : "",
+        contextName:
+            typeof result.contextName === "string"
+                ? result.contextName.slice(0, 80)
+                : "Commande externe",
+        mixName:
+            typeof result.mixName === "string"
+                ? result.mixName.slice(0, 120)
+                : "",
+        deviceName:
+            typeof result.deviceName === "string"
+                ? result.deviceName.slice(0, 120)
+                : "",
+        message:
+            typeof result.message === "string"
+                ? result.message.slice(0, 240)
+                : "",
+        createdAt: Number(
+            result.createdAt || Date.now()
+        )
+    };
+}
+
+function readQuickExternalResult() {
+    try {
+        const raw = localStorage.getItem(
+            QUICK_EXTERNAL_RESULT_KEY
+        );
+        if (!raw) {
+            return null;
+        }
+        const result = normalizeQuickExternalResult(
+            JSON.parse(raw)
+        );
+        if (
+            Date.now() - result.createdAt >
+            QUICK_EXTERNAL_RESULT_TTL
+        ) {
+            localStorage.removeItem(
+                QUICK_EXTERNAL_RESULT_KEY
+            );
+            return null;
+        }
+        return result;
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveQuickExternalResult(result = null) {
+    quickExternalResult = result
+        ? normalizeQuickExternalResult(result)
+        : null;
+    try {
+        if (quickExternalResult) {
+            localStorage.setItem(
+                QUICK_EXTERNAL_RESULT_KEY,
+                JSON.stringify(quickExternalResult)
+            );
+        } else {
+            localStorage.removeItem(
+                QUICK_EXTERNAL_RESULT_KEY
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Résultat de commande externe non enregistré :",
+            error
+        );
+    }
+}
+
+function buildQuickContextUrl(contextOrId) {
+    const context = typeof contextOrId === "string"
+        ? getQuickContextById(contextOrId)
+        : contextOrId;
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+    url.searchParams.set(
+        "action",
+        "quick-context"
+    );
+    url.searchParams.set(
+        "context",
+        context?.id || "drive"
+    );
+    url.searchParams.set(
+        "autoplay",
+        context?.autoplay === false ? "0" : "1"
+    );
+    return url.toString();
+}
+
+async function copyQuickContextUrl(contextId) {
+    const context = getQuickContextById(contextId);
+    if (!context) {
+        setQuickControlMessage(
+            "Contexte rapide introuvable.",
+            "error"
+        );
+        renderQuickControlPage();
+        return;
+    }
+    const url = buildQuickContextUrl(context);
+    try {
+        await navigator.clipboard.writeText(url);
+        setQuickControlMessage(
+            `Lien « ${context.name} » copié pour Raccourcis iOS.`,
+            "success"
+        );
+    } catch (error) {
+        window.prompt(
+            `Copie le lien « ${context.name} » :`,
+            url
+        );
+    }
+    renderQuickControlPage();
+}
+
+function saveQuickContextsFromForm(form) {
+    const data = new FormData(form);
+    quickContextsState = normalizeQuickContextsState(
+        DEFAULT_QUICK_CONTEXTS.map((fallback) => ({
+            id: fallback.id,
+            name: String(
+                data.get(`${fallback.id}-name`) ||
+                fallback.name
+            ),
+            icon: String(
+                data.get(`${fallback.id}-icon`) ||
+                fallback.icon
+            ),
+            mixId: String(
+                data.get(`${fallback.id}-mixId`) || ""
+            ),
+            profileId: String(
+                data.get(`${fallback.id}-profileId`) || ""
+            ),
+            autoplay:
+                data.get(`${fallback.id}-autoplay`) === "on"
+        }))
+    );
+    saveQuickContextsState();
+    setQuickControlMessage(
+        "Profils rapides enregistrés.",
+        "success"
+    );
+    renderQuickControlPage();
+    setStatus("Profils rapides enregistrés.");
+}
+
+function resetQuickContexts() {
+    const confirmed = window.confirm(
+        "Restaurer les quatre profils rapides par défaut ?"
+    );
+    if (!confirmed) {
+        return;
+    }
+    quickContextsState = normalizeQuickContextsState(
+        DEFAULT_QUICK_CONTEXTS
+    );
+    quickShortcutWizardContextId =
+        quickContextsState[0]?.id || "drive";
+    saveQuickContextsState();
+    setQuickControlMessage(
+        "Profils rapides restaurés.",
+        "success"
+    );
+    renderQuickControlPage();
+}
+
+function renderQuickExternalResult() {
+    if (!quickExternalResult) {
+        return "";
+    }
+    const result = quickExternalResult;
+    return `
+        <aside class="quick-external-result ${escapeHtml(result.status)}">
+            <div>
+                <span>Commande externe</span>
+                <strong>
+                    ${result.status === "success" ? "✓" : result.status === "error" ? "!" : "i"}
+                    ${escapeHtml(result.contextName)}
+                </strong>
+                <small>
+                    ${escapeHtml(
+                        result.message ||
+                        (result.mixName
+                            ? `Mix « ${result.mixName} » traité.`
+                            : "Commande traitée.")
+                    )}
+                    ${result.deviceName
+                        ? ` · ${escapeHtml(result.deviceName)}`
+                        : ""}
+                </small>
+            </div>
+            <button
+                id="dismissQuickExternalResultButton"
+                type="button"
+                aria-label="Masquer le résultat"
+            >
+                ×
+            </button>
+        </aside>
+    `;
+}
+
+async function runQuickContext(
+    contextId,
+    {
+        autoplay,
+        source = "quick-context"
+    } = {}
+) {
+    const context = getQuickContextById(contextId);
+    if (!context) {
+        throw new Error(
+            "Ce profil rapide n’existe pas."
+        );
+    }
+    const mix = savedMixes.find(
+        (item) => item.id === context.mixId
+    );
+    if (!mix) {
+        throw new Error(
+            `Associe d’abord un mix au profil « ${context.name} ».`
+        );
+    }
+
+    const shouldAutoplay =
+        typeof autoplay === "boolean"
+            ? autoplay
+            : context.autoplay;
+    let deviceName = "";
+
+    try {
+        if (context.profileId) {
+            const profile = getProfileById(
+                context.profileId
+            );
+            if (profile) {
+                applyMixProfile(profile.id, {
+                    persist: true,
+                    rerender: false
+                });
+            }
+        }
+
+        setStatus(
+            `${context.icon} ${context.name} : préparation de « ${mix.name} »…`
+        );
+        const prepared = await launchSavedMix(
+            mix.id
+        );
+        if (!prepared) {
+            throw new Error(
+                "Le mix du profil rapide n’a pas pu être préparé."
+            );
+        }
+
+        if (shouldAutoplay && selectedTracks.length) {
+            const command =
+                getPrincipalIosCommand() ||
+                normalizeIosCommand({
+                    id: `quick-${context.id}`,
+                    name: context.name,
+                    icon: context.icon,
+                    deviceMode: "iphone",
+                    fallbackDeviceMode: "active",
+                    autoplay: true
+                });
+            const device =
+                await getAutomationDeviceWithRetry(
+                    command
+                );
+            if (!device) {
+                throw new Error(
+                    "Aucun appareil Spotify disponible."
+                );
+            }
+            const uris = selectedTracks
+                .slice(0, MAX_DIRECT_PLAYBACK_TRACKS)
+                .map((track) => track?.uri)
+                .filter(Boolean);
+            if (!uris.length) {
+                throw new Error(
+                    "Le mix ne contient aucun morceau lisible."
+                );
+            }
+            await startPlayback(uris, device.id);
+            try {
+                await setPlaybackShuffle(
+                    false,
+                    device.id
+                );
+            } catch (error) {
+                console.warn(
+                    "Shuffle Spotify non modifié :",
+                    error
+                );
+            }
+            rememberPlaybackOrder(
+                selectedTracks.slice(0, uris.length)
+            );
+            addTracksSentToHistory(
+                uris.length,
+                selectedTracks.slice(0, uris.length),
+                `quick-context-${context.id}`,
+                device.name
+            );
+            deviceName = device.name;
+        }
+
+        recordAdaptiveLearningObservation({
+            mixId: mix.id,
+            source: "quick-context"
+        });
+
+        const message = shouldAutoplay
+            ? `« ${mix.name} » lancé${deviceName ? ` sur ${deviceName}` : ""}.`
+            : `« ${mix.name} » préparé.`;
+        setQuickControlMessage(message, "success");
+        setStatus(`${context.icon} ${context.name} · ${message}`);
+
+        if (source === "shortcut-url") {
+            saveQuickExternalResult({
+                status: "success",
+                contextId: context.id,
+                contextName: `${context.icon} ${context.name}`,
+                mixName: mix.name,
+                deviceName,
+                message,
+                createdAt: Date.now()
+            });
+            activeAppMenu = "quick";
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+        }
+
+        return {
+            context,
+            mix,
+            deviceName
+        };
+    } catch (error) {
+        if (source === "shortcut-url") {
+            saveQuickExternalResult({
+                status: "error",
+                contextId: context.id,
+                contextName: `${context.icon} ${context.name}`,
+                mixName: mix.name,
+                message:
+                    error.message ||
+                    "Commande externe impossible.",
+                createdAt: Date.now()
+            });
+            activeAppMenu = "quick";
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+        }
+        throw error;
+    }
+}
+
 function setQuickControlMessage(
     text = "",
     type = ""
@@ -4070,6 +4586,29 @@ function renderQuickControlPage() {
         window.webkitSpeechRecognition
     );
 
+    const quickMixOptions = (selectedId = "") =>
+        savedMixes.map((mix) => `
+            <option
+                value="${escapeHtml(mix.id)}"
+                ${mix.id === selectedId ? "selected" : ""}
+            >
+                ${escapeHtml(mix.name)}
+            </option>
+        `).join("");
+    const quickProfileOptions = (selectedId = "") =>
+        mixProfiles.map((profile) => `
+            <option
+                value="${escapeHtml(profile.id)}"
+                ${profile.id === selectedId ? "selected" : ""}
+            >
+                ${escapeHtml(profile.icon)}
+                ${escapeHtml(profile.name)}
+            </option>
+        `).join("");
+    const wizardContext =
+        getQuickContextById(
+            quickShortcutWizardContextId
+        ) || quickContextsState[0];
     const shortcutActions = [
         ["quick", "⚡ Ouvrir les commandes rapides"],
         ["adaptive", "🤖 Lancer Adaptive DJ"],
@@ -4106,6 +4645,59 @@ function renderQuickControlPage() {
                     ↻ Actualiser
                 </button>
             </div>
+
+            ${renderQuickExternalResult()}
+
+            <section class="quick-contexts-section">
+                <div class="quick-contexts-heading">
+                    <div>
+                        <span class="quick-control-kicker">
+                            ⚡ Profils rapides
+                        </span>
+                        <h4>Trajet, travail, soirée et nuit</h4>
+                        <p>
+                            Chaque profil peut appliquer un réglage de mix,
+                            générer un mix enregistré et lancer Spotify.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="quick-context-grid">
+                    ${quickContextsState.map((context) => {
+                        const mix = savedMixes.find(
+                            (item) => item.id === context.mixId
+                        );
+                        const profile = getProfileById(
+                            context.profileId
+                        );
+                        return `
+                            <article class="quick-context-card">
+                                <span class="quick-context-icon">
+                                    ${escapeHtml(context.icon)}
+                                </span>
+                                <div>
+                                    <strong>${escapeHtml(context.name)}</strong>
+                                    <small>
+                                        ${mix
+                                            ? escapeHtml(mix.name)
+                                            : "Aucun mix associé"}
+                                        ${profile
+                                            ? ` · ${escapeHtml(profile.name)}`
+                                            : ""}
+                                    </small>
+                                </div>
+                                <button
+                                    type="button"
+                                    data-launch-quick-context="${escapeHtml(context.id)}"
+                                    ${mix && !quickControlBusy ? "" : "disabled"}
+                                >
+                                    ${context.autoplay ? "▶ Lancer" : "Préparer"}
+                                </button>
+                            </article>
+                        `;
+                    }).join("")}
+                </div>
+            </section>
 
             <section class="quick-now-playing">
                 <div class="quick-now-playing-cover">
@@ -4207,9 +4799,121 @@ function renderQuickControlPage() {
                 )}
             </p>
 
+            <details class="quick-context-config-panel" open>
+                <summary>
+                    Configurer les profils rapides
+                </summary>
+                <form id="quickContextsForm">
+                    <div class="quick-context-config-grid">
+                        ${quickContextsState.map((context) => `
+                            <fieldset>
+                                <legend>
+                                    ${escapeHtml(context.icon)}
+                                    ${escapeHtml(context.name)}
+                                </legend>
+                                <label>
+                                    <span>Icône</span>
+                                    <input
+                                        name="${escapeHtml(context.id)}-icon"
+                                        value="${escapeHtml(context.icon)}"
+                                        maxlength="8"
+                                    >
+                                </label>
+                                <label>
+                                    <span>Nom</span>
+                                    <input
+                                        name="${escapeHtml(context.id)}-name"
+                                        value="${escapeHtml(context.name)}"
+                                        maxlength="40"
+                                    >
+                                </label>
+                                <label>
+                                    <span>Mix enregistré</span>
+                                    <select name="${escapeHtml(context.id)}-mixId">
+                                        <option value="">Aucun mix</option>
+                                        ${quickMixOptions(context.mixId)}
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>Profil de réglages</span>
+                                    <select name="${escapeHtml(context.id)}-profileId">
+                                        <option value="">Aucun profil</option>
+                                        ${quickProfileOptions(context.profileId)}
+                                    </select>
+                                </label>
+                                <label class="quick-context-autoplay">
+                                    <input
+                                        type="checkbox"
+                                        name="${escapeHtml(context.id)}-autoplay"
+                                        ${context.autoplay ? "checked" : ""}
+                                    >
+                                    <span>Lancer Spotify automatiquement</span>
+                                </label>
+                            </fieldset>
+                        `).join("")}
+                    </div>
+                    <div class="quick-context-form-actions">
+                        <button
+                            id="resetQuickContextsButton"
+                            type="button"
+                        >
+                            Restaurer les valeurs par défaut
+                        </button>
+                        <button type="submit">
+                            Enregistrer les profils rapides
+                        </button>
+                    </div>
+                </form>
+            </details>
+
+            <section class="quick-shortcut-wizard">
+                <div>
+                    <span class="quick-control-kicker">
+                        📱 Assistant Raccourcis iOS
+                    </span>
+                    <h4>Créer un déclencheur en trois étapes</h4>
+                </div>
+                <div class="quick-shortcut-wizard-grid">
+                    <label>
+                        <span>1. Choisis le profil</span>
+                        <select id="quickShortcutContextSelect">
+                            ${quickContextsState.map((context) => `
+                                <option
+                                    value="${escapeHtml(context.id)}"
+                                    ${wizardContext?.id === context.id ? "selected" : ""}
+                                >
+                                    ${escapeHtml(context.icon)}
+                                    ${escapeHtml(context.name)}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <div>
+                        <span>2. Copie son URL</span>
+                        <code>
+                            ${escapeHtml(buildQuickContextUrl(wizardContext))}
+                        </code>
+                        <button
+                            type="button"
+                            data-copy-quick-context-url="${escapeHtml(wizardContext?.id || "drive")}"
+                        >
+                            Copier l’URL
+                        </button>
+                    </div>
+                    <div>
+                        <span>3. Dans Raccourcis</span>
+                        <ol>
+                            <li>Crée un nouveau raccourci.</li>
+                            <li>Ajoute l’action « Ouvrir les URL ».</li>
+                            <li>Colle l’URL et donne-lui un nom Siri.</li>
+                        </ol>
+                    </div>
+                </div>
+            </section>
+
             <details class="quick-shortcuts-panel">
                 <summary>
-                    URLs pour Raccourcis iOS
+                    Toutes les URLs de contrôle
                 </summary>
                 <div class="quick-shortcut-list">
                     ${shortcutActions.map(
@@ -4305,7 +5009,30 @@ async function runQuickControlAction(
     }
 
     try {
-        if (normalizedAction === "adaptive") {
+        if (normalizedAction === "quick-context") {
+            const result = await runQuickContext(
+                options.contextId || "",
+                {
+                    autoplay:
+                        typeof options.autoplay === "boolean"
+                            ? options.autoplay
+                            : undefined,
+                    source:
+                        options.source ||
+                        "quick-control"
+                }
+            );
+            quickPlaybackState =
+                await getCurrentPlayback().catch(
+                    () => null
+                );
+            setQuickControlMessage(
+                result?.mix?.name
+                    ? `« ${result.mix.name} » lancé.`
+                    : "Profil rapide lancé.",
+                "success"
+            );
+        } else if (normalizedAction === "adaptive") {
             const result = await runAdaptiveDj({
                 forcedSlotId:
                     options.contextId || "",
@@ -4530,6 +5257,33 @@ function parseVoiceQuickCommand(transcript = "") {
         return {
             action: "driving"
         };
+    }
+
+    const quickContextAliases = {
+        drive: ["trajet", "route", "voiture"],
+        work: ["travail", "focus", "bureau"],
+        party: ["soiree", "fete", "party"],
+        night: ["nuit", "calme", "dormir"]
+    };
+
+    for (const context of quickContextsState) {
+        if (!context.mixId) {
+            continue;
+        }
+        const normalizedName =
+            normalizeVoiceCommandText(context.name);
+        const aliases = [
+            normalizedName,
+            ...(quickContextAliases[context.id] || [])
+        ].filter(Boolean);
+        if (
+            aliases.some((word) => text.includes(word))
+        ) {
+            return {
+                action: "quick-context",
+                contextId: context.id
+            };
+        }
     }
 
     const contexts = [
@@ -8691,6 +9445,23 @@ async function executeAutomationCommand(
             normalized.playlistId,
             normalized.commandId
         );
+        return;
+    }
+
+    if (
+        normalized.action === "quick-context"
+    ) {
+        await runQuickContext(
+            normalized.contextId,
+            {
+                autoplay:
+                    normalized.autoplay,
+                source: "shortcut-url"
+            }
+        );
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
         return;
     }
 
@@ -15085,6 +15856,7 @@ function buildBackupPayload() {
             intelligenceAnalytics,
             musicFeedbackState,
             drivingModeSettings,
+            quickContextsState,
             mixSchedules
         }
     };
@@ -15244,6 +16016,11 @@ function validateBackupPayload(payload) {
                 payload.data.drivingModeSettings ||
                 DEFAULT_DRIVING_MODE_SETTINGS
             ),
+        quickContextsState:
+            normalizeQuickContextsState(
+                payload.data.quickContextsState ||
+                DEFAULT_QUICK_CONTEXTS
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -15391,6 +16168,9 @@ async function importBackupFile(file) {
         drivingModeSettings =
             imported.drivingModeSettings;
         saveDrivingModeSettings();
+        quickContextsState =
+            imported.quickContextsState;
+        saveQuickContextsState();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -19401,6 +20181,60 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const quickContextButton =
+            event.target.closest(
+                "[data-launch-quick-context]"
+            );
+
+        if (quickContextButton) {
+            try {
+                await runQuickControlAction(
+                    "quick-context",
+                    {
+                        contextId:
+                            quickContextButton.dataset
+                                .launchQuickContext || "",
+                        source: "quick-context-card"
+                    }
+                );
+            } catch (error) {
+                // Message déjà affiché.
+            }
+            return;
+        }
+
+        const copyQuickContextButton =
+            event.target.closest(
+                "[data-copy-quick-context-url]"
+            );
+
+        if (copyQuickContextButton) {
+            await copyQuickContextUrl(
+                copyQuickContextButton.dataset
+                    .copyQuickContextUrl || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#dismissQuickExternalResultButton"
+            )
+        ) {
+            saveQuickExternalResult(null);
+            renderQuickControlPage();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetQuickContextsButton"
+            )
+        ) {
+            resetQuickContexts();
+            return;
+        }
+
         const quickActionButton =
             event.target.closest(
                 "[data-quick-action]"
@@ -20673,6 +21507,16 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "quickContextsForm"
+        ) {
+            event.preventDefault();
+            saveQuickContextsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
             event.target.id === "adaptiveDjMenuForm"
         ) {
             event.preventDefault();
@@ -20788,6 +21632,16 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (
+            event.target.id ===
+            "quickShortcutContextSelect"
+        ) {
+            quickShortcutWizardContextId =
+                event.target.value;
+            renderQuickControlPage();
+            return;
+        }
+
         if (
             event.target.matches(
                 "[data-adaptive-duration-mode]"
