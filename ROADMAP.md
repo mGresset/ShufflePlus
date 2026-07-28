@@ -2,25 +2,27 @@
 
 ## Version stable actuelle
 
-### v3.5.0 — Adaptation automatique optionnelle
+### v3.6.0 — Intelligence Dashboard
 
-- désactivée par défaut ;
-- seuil de confiance configurable ;
-- minimum de choix concordants configurable ;
-- application au lancement réel d’Adaptive DJ ;
-- journal des changements ;
-- retour arrière manuel ;
-- retour arrière automatique en cas d’échec ;
-- absence de boucle d’auto-renforcement.
+- nouveau menu Intelligence ;
+- statistiques locales par période ;
+- mix, artistes et albums dominants ;
+- suivi des lancements et durées potentielles ;
+- confiance Adaptive DJ par créneau ;
+- suivi des suggestions et adaptations automatiques ;
+- score de santé du mélange ;
+- journal d’activité local ;
+- export d’un rapport JSON ;
+- intégration à la sauvegarde générale.
 
 ## Prochaines étapes
 
-### v3.6 — Statistiques d’écoute
+### v3.7 — Historique enrichi et corrections utilisateur
 
-- tendances par créneau et type de jour ;
-- historique enrichi ;
-- statistiques des mix et sources ;
-- prise en compte des données Spotify réellement disponibles.
+- événements individuels plus détaillés ;
+- comparaison avant/après modification manuelle ;
+- tendances semaine et week-end ;
+- meilleure distinction entre génération, envoi et écoute réellement connue.
 
 ### v4.0 — PWA installable
 

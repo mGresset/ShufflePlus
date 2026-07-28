@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **3.5.0 — Adaptation automatique optionnelle**
+Version documentée : **3.6.0 — Intelligence Dashboard**
 
 ## Sommaire
 
@@ -14,6 +14,7 @@ Version documentée : **3.5.0 — Adaptation automatique optionnelle**
 - [Adaptive DJ](#adaptive-dj)
 - [Adaptive Learning](#adaptive-learning)
 - [Adaptation automatique](#adaptation-automatique)
+- [Intelligence Dashboard](#intelligence-dashboard)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
 - [Sauvegarde des données](#sauvegarde-des-données)
@@ -116,7 +117,7 @@ L’application est une application web statique : elle fonctionne directement d
 
 ## Navigation dans l’application
 
-Depuis la version 3.3.4, l’interface est divisée en quatre menus afin d’éviter une longue succession de blocs.
+Depuis la version 3.6.0, l’interface est divisée en cinq menus afin d’éviter une longue succession de blocs.
 
 ### 🎵 Ma musique
 
@@ -154,6 +155,21 @@ Ce menu permet :
 - de consulter l’historique Adaptive DJ ;
 - d’activer Adaptive Learning, consulter sa confiance et appliquer ou ignorer ses suggestions ;
 - d’autoriser l’adaptation automatique, régler ses seuils et annuler un changement.
+
+### 🧠 Intelligence
+
+Ce menu fournit un tableau de bord local :
+
+- activité sur 7 jours, 30 jours, 6 mois ou toute la période ;
+- nombre de mix générés et de lancements suivis ;
+- nombre et durée potentielle des titres envoyés à Spotify ;
+- mix, artistes et albums dominants ;
+- confiance Adaptive DJ par créneau ;
+- suivi des adaptations automatiques ;
+- score de santé du mélange ;
+- export d’un rapport JSON indépendant.
+
+La « durée potentielle » additionne les durées des titres envoyés à Spotify. Shuffle+ ne peut pas confirmer que chaque titre a été écouté intégralement. Les statistiques sont donc des mesures de préparation et d’envoi, pas un historique Spotify officiel.
 
 ### ⚙️ Réglages
 
@@ -435,6 +451,40 @@ Si la préparation ou la lecture du nouveau mix échoue, Shuffle+ restaure autom
 ### Garde-fou contre l’auto-renforcement
 
 Les lancements Adaptive DJ restent enregistrés dans l’historique, mais leur poids est nul dans le calcul des préférences. Shuffle+ ne peut donc pas augmenter sa confiance simplement en répétant sa propre décision.
+
+## Intelligence Dashboard
+
+La version 3.6 ajoute un tableau de bord sans créer de nouveau module JavaScript. Les événements sont enregistrés dans le stockage local du navigateur au moment où un mix est généré ou envoyé à Spotify.
+
+### Mesures disponibles
+
+- mix générés ;
+- lancements envoyés à Spotify ;
+- nombre de titres envoyés ;
+- durée potentielle calculée à partir de `duration_ms` ;
+- mix les plus utilisés ;
+- artistes et albums les plus présents dans les ordres suivis ;
+- confiance Adaptive Learning par créneau ;
+- suggestions acceptées ou ignorées ;
+- changements automatiques appliqués ou annulés ;
+- qualité du dernier ordre disponible.
+
+### Score de santé du mélange
+
+Le score est une synthèse interne sur 100 construite à partir de :
+
+- séparation des artistes ;
+- séparation des albums ;
+- transitions brusques ;
+- titres récents dans les vingt premiers ;
+- respect de la courbe d’intensité ;
+- diversité des artistes et des albums.
+
+Ce score sert à comparer les ordres générés par Shuffle+. Il ne constitue pas une mesure musicale universelle.
+
+### Export du rapport
+
+Le bouton « Exporter le rapport » crée un fichier JSON contenant le résumé de la période choisie, les classements, les profils Adaptive et les événements locaux correspondants. La sauvegarde générale de Shuffle+ inclut également les données Intelligence.
 
 ## Commandes iOS et Raccourcis
 

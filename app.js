@@ -38,7 +38,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.5.0";
+const APP_VERSION = "3.6.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -170,6 +170,14 @@ const DEFAULT_ADAPTIVE_LEARNING_STATE = {
     dismissedSuggestions: [],
     acceptedSuggestions: [],
     autoApplyHistory: [],
+    updatedAt: 0
+};
+const INTELLIGENCE_ANALYTICS_KEY =
+    "shuffleplus_intelligence_analytics_v1";
+const MAX_INTELLIGENCE_EVENTS = 500;
+const DEFAULT_INTELLIGENCE_ANALYTICS = {
+    rangeDays: 30,
+    events: [],
     updatedAt: 0
 };
 const MIX_SCHEDULES_KEY =
@@ -453,6 +461,8 @@ let adaptiveDjMenuHistory =
     readAdaptiveDjMenuHistory();
 let adaptiveLearningState =
     readAdaptiveLearningState();
+let intelligenceAnalytics =
+    readIntelligenceAnalytics();
 let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
@@ -571,11 +581,1040 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+function normalizeIntelligenceRanking(
+    values = [],
+    limit = 8
+) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return values
+        .filter(
+            (item) =>
+                item &&
+                typeof item === "object" &&
+                typeof item.name === "string"
+        )
+        .map((item) => ({
+            name: item.name.trim().slice(0, 120),
+            count: Math.max(
+                0,
+                Number(item.count || 0)
+            )
+        }))
+        .filter(
+            (item) =>
+                item.name &&
+                item.count > 0
+        )
+        .slice(0, limit);
+}
+
+function normalizeIntelligenceQuality(
+    quality = null
+) {
+    if (!quality || typeof quality !== "object") {
+        return null;
+    }
+
+    const numericKeys = [
+        "consecutiveArtistRepeats",
+        "consecutiveAlbumRepeats",
+        "consecutiveTrackRepeats",
+        "recentTracksInFirstTwenty",
+        "abruptTransitions",
+        "durationJumpTransitions",
+        "repeatedVersionTransitions",
+        "intensityJumpTransitions",
+        "intensityCurveAdherence",
+        "averageIntensityDeviation"
+    ];
+    const normalized = {};
+
+    for (const key of numericKeys) {
+        normalized[key] = Math.max(
+            0,
+            Number(quality[key] || 0)
+        );
+    }
+
+    return normalized;
+}
+
+function normalizeIntelligenceEvent(item = {}) {
+    const allowedTypes = new Set([
+        "mix-generated",
+        "playback",
+        "adaptive",
+        "schedule",
+        "ios"
+    ]);
+
+    return {
+        id:
+            typeof item.id === "string"
+                ? item.id.slice(0, 120)
+                : createIosCommandId(),
+        type: allowedTypes.has(item.type)
+            ? item.type
+            : "mix-generated",
+        mixId:
+            typeof item.mixId === "string"
+                ? item.mixId.slice(0, 120)
+                : "",
+        mixName:
+            typeof item.mixName === "string"
+                ? item.mixName.slice(0, 120)
+                : "Mix Shuffle+",
+        source:
+            typeof item.source === "string"
+                ? item.source.slice(0, 40)
+                : "manual",
+        slotId:
+            typeof item.slotId === "string"
+                ? item.slotId.slice(0, 40)
+                : "",
+        deviceName:
+            typeof item.deviceName === "string"
+                ? item.deviceName.slice(0, 120)
+                : "",
+        trackCount: Math.max(
+            0,
+            Number(item.trackCount || 0)
+        ),
+        durationMs: Math.max(
+            0,
+            Number(item.durationMs || 0)
+        ),
+        uniqueArtists: Math.max(
+            0,
+            Number(item.uniqueArtists || 0)
+        ),
+        uniqueAlbums: Math.max(
+            0,
+            Number(item.uniqueAlbums || 0)
+        ),
+        topArtists: normalizeIntelligenceRanking(
+            item.topArtists
+        ),
+        topAlbums: normalizeIntelligenceRanking(
+            item.topAlbums
+        ),
+        quality: normalizeIntelligenceQuality(
+            item.quality
+        ),
+        createdAt: Number(
+            item.createdAt || Date.now()
+        )
+    };
+}
+
+function normalizeIntelligenceAnalytics(
+    state = {}
+) {
+    const allowedRanges = new Set([
+        0,
+        7,
+        30,
+        180
+    ]);
+    const requestedRange = Number(
+        state.rangeDays
+    );
+    const events = Array.isArray(state.events)
+        ? state.events
+            .map((item) =>
+                normalizeIntelligenceEvent(item)
+            )
+            .filter(
+                (item) =>
+                    item.createdAt > 0
+            )
+            .sort(
+                (first, second) =>
+                    second.createdAt -
+                    first.createdAt
+            )
+            .slice(0, MAX_INTELLIGENCE_EVENTS)
+        : [];
+
+    return {
+        rangeDays: allowedRanges.has(
+            requestedRange
+        )
+            ? requestedRange
+            : 30,
+        events,
+        updatedAt: Number(
+            state.updatedAt || Date.now()
+        )
+    };
+}
+
+function readIntelligenceAnalytics() {
+    try {
+        const raw = localStorage.getItem(
+            INTELLIGENCE_ANALYTICS_KEY
+        );
+
+        return normalizeIntelligenceAnalytics(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_INTELLIGENCE_ANALYTICS
+        );
+    } catch (error) {
+        console.warn(
+            "Statistiques Intelligence illisibles :",
+            error
+        );
+        return normalizeIntelligenceAnalytics(
+            DEFAULT_INTELLIGENCE_ANALYTICS
+        );
+    }
+}
+
+function saveIntelligenceAnalytics() {
+    intelligenceAnalytics =
+        normalizeIntelligenceAnalytics({
+            ...intelligenceAnalytics,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            INTELLIGENCE_ANALYTICS_KEY,
+            JSON.stringify(
+                intelligenceAnalytics
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Statistiques Intelligence non enregistrées :",
+            error
+        );
+    }
+}
+
+function summarizeTracksForIntelligence(
+    tracks = []
+) {
+    const validTracks = Array.isArray(tracks)
+        ? tracks.filter(Boolean)
+        : [];
+    const artists = [];
+    const albums = [];
+    let durationMs = 0;
+
+    for (const track of validTracks) {
+        durationMs += Math.max(
+            0,
+            Number(track?.duration_ms || 0)
+        );
+
+        for (const artist of track?.artists || []) {
+            if (artist?.name) {
+                artists.push(artist.name);
+            }
+        }
+
+        if (track?.album?.name) {
+            albums.push(track.album.name);
+        }
+    }
+
+    return {
+        trackCount: validTracks.length,
+        durationMs,
+        uniqueArtists:
+            new Set(artists).size,
+        uniqueAlbums:
+            new Set(albums).size,
+        topArtists: countTopValues(
+            artists,
+            8
+        ),
+        topAlbums: countTopValues(
+            albums,
+            8
+        )
+    };
+}
+
+function recordIntelligenceEvent({
+    type = "mix-generated",
+    mixId = "",
+    mixName = "Mix Shuffle+",
+    source = "manual",
+    slotId = "",
+    deviceName = "",
+    tracks = [],
+    trackCount = 0,
+    durationMs = 0,
+    quality = null,
+    createdAt = Date.now()
+} = {}) {
+    const trackSummary =
+        summarizeTracksForIntelligence(
+            tracks
+        );
+    const event = normalizeIntelligenceEvent({
+        id: createIosCommandId(),
+        type,
+        mixId,
+        mixName,
+        source,
+        slotId,
+        deviceName,
+        trackCount:
+            trackSummary.trackCount ||
+            trackCount,
+        durationMs:
+            trackSummary.durationMs ||
+            durationMs,
+        uniqueArtists:
+            trackSummary.uniqueArtists,
+        uniqueAlbums:
+            trackSummary.uniqueAlbums,
+        topArtists:
+            trackSummary.topArtists,
+        topAlbums:
+            trackSummary.topAlbums,
+        quality,
+        createdAt
+    });
+
+    intelligenceAnalytics =
+        normalizeIntelligenceAnalytics({
+            ...intelligenceAnalytics,
+            events: [
+                event,
+                ...intelligenceAnalytics.events
+            ]
+        });
+    saveIntelligenceAnalytics();
+
+    return event;
+}
+
+function getIntelligencePeriodStart() {
+    const rangeDays = Number(
+        intelligenceAnalytics.rangeDays || 0
+    );
+
+    if (!rangeDays) {
+        return 0;
+    }
+
+    return Date.now() -
+        rangeDays * 24 * 60 * 60 * 1000;
+}
+
+function getFilteredIntelligenceEvents() {
+    const start =
+        getIntelligencePeriodStart();
+
+    return intelligenceAnalytics.events
+        .filter(
+            (item) =>
+                !start ||
+                item.createdAt >= start
+        );
+}
+
+function mergeIntelligenceRankings(
+    events = [],
+    field = "topArtists",
+    limit = 8
+) {
+    const totals = new Map();
+
+    for (const event of events) {
+        for (const item of event[field] || []) {
+            totals.set(
+                item.name,
+                (totals.get(item.name) || 0) +
+                Number(item.count || 0)
+            );
+        }
+    }
+
+    return [...totals.entries()]
+        .sort(
+            (first, second) =>
+                second[1] - first[1] ||
+                first[0].localeCompare(
+                    second[0],
+                    "fr",
+                    { sensitivity: "base" }
+                )
+        )
+        .slice(0, limit)
+        .map(([name, count]) => ({
+            name,
+            count
+        }));
+}
+
+function formatIntelligenceDuration(
+    durationMs = 0
+) {
+    const totalMinutes = Math.round(
+        Math.max(0, durationMs) /
+        (60 * 1000)
+    );
+    const hours = Math.floor(
+        totalMinutes / 60
+    );
+    const minutes = totalMinutes % 60;
+
+    if (!hours) {
+        return `${minutes} min`;
+    }
+
+    return `${hours} h ${String(minutes)
+        .padStart(2, "0")}`;
+}
+
+function getIntelligenceQualityScore({
+    stats = null,
+    trackCount = 0,
+    uniqueArtists = 0,
+    uniqueAlbums = 0
+} = {}) {
+    if (!stats || trackCount < 2) {
+        return null;
+    }
+
+    const transitions = Math.max(
+        1,
+        trackCount - 1
+    );
+    const firstTwentyCount = Math.min(
+        20,
+        trackCount
+    );
+    const toScore = (value, total) =>
+        Math.max(
+            0,
+            Math.round(
+                100 -
+                (Math.max(0, value) /
+                    Math.max(1, total)) *
+                    100
+            )
+        );
+    const artistScore = toScore(
+        stats.consecutiveArtistRepeats,
+        transitions
+    );
+    const albumScore = toScore(
+        stats.consecutiveAlbumRepeats,
+        transitions
+    );
+    const transitionScore = toScore(
+        stats.abruptTransitions,
+        transitions
+    );
+    const recentScore = toScore(
+        stats.recentTracksInFirstTwenty,
+        firstTwentyCount
+    );
+    const intensityScore = Math.min(
+        100,
+        Math.max(
+            0,
+            Math.round(
+                stats.intensityCurveAdherence || 0
+            )
+        )
+    );
+    const artistDiversity = Math.min(
+        100,
+        Math.round(
+            (uniqueArtists /
+                Math.max(1, trackCount)) *
+                140
+        )
+    );
+    const albumDiversity = Math.min(
+        100,
+        Math.round(
+            (uniqueAlbums /
+                Math.max(1, trackCount)) *
+                125
+        )
+    );
+    const diversityScore = Math.round(
+        (artistDiversity +
+            albumDiversity) / 2
+    );
+    const overall = Math.round(
+        (
+            artistScore +
+            albumScore +
+            transitionScore +
+            recentScore +
+            intensityScore +
+            diversityScore
+        ) / 6
+    );
+
+    return {
+        overall,
+        artistScore,
+        albumScore,
+        transitionScore,
+        recentScore,
+        intensityScore,
+        diversityScore
+    };
+}
+
+function getIntelligenceSummary() {
+    const events =
+        getFilteredIntelligenceEvents();
+    const playbackEvents = events.filter(
+        (item) =>
+            [
+                "playback",
+                "adaptive",
+                "schedule",
+                "ios"
+            ].includes(item.type)
+    );
+    const generatedEvents = events.filter(
+        (item) =>
+            item.type === "mix-generated"
+    );
+    const rankingEvents = playbackEvents.length
+        ? playbackEvents
+        : generatedEvents;
+    const mixTotals = new Map();
+
+    for (const event of rankingEvents) {
+        const name =
+            event.mixName ||
+            "Mix Shuffle+";
+        const current = mixTotals.get(name) || {
+            name,
+            count: 0,
+            tracks: 0,
+            durationMs: 0
+        };
+        current.count += 1;
+        current.tracks += event.trackCount;
+        current.durationMs += event.durationMs;
+        mixTotals.set(name, current);
+    }
+
+    const topMixes = [...mixTotals.values()]
+        .sort(
+            (first, second) =>
+                second.count - first.count ||
+                second.tracks - first.tracks
+        )
+        .slice(0, 8);
+    const patterns =
+        getAdaptiveLearningPatterns();
+    const confidencePatterns = patterns.filter(
+        (item) =>
+            item.observationCount > 0
+    );
+    const globalConfidence =
+        confidencePatterns.length
+            ? Math.round(
+                confidencePatterns.reduce(
+                    (sum, item) =>
+                        sum + item.confidence,
+                    0
+                ) /
+                confidencePatterns.length
+            )
+            : 0;
+    const latestQualityEvent = events.find(
+        (item) => item.quality
+    );
+    const liveSummary = selectedTracks.length
+        ? summarizeTracksForIntelligence(
+            selectedTracks
+        )
+        : null;
+    const liveQuality = selectedTracks.length
+        ? analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
+        : null;
+    const qualitySource = liveQuality
+        ? {
+            stats: liveQuality,
+            trackCount: liveSummary.trackCount,
+            uniqueArtists:
+                liveSummary.uniqueArtists,
+            uniqueAlbums:
+                liveSummary.uniqueAlbums,
+            label: "Ordre actuellement affiché"
+        }
+        : latestQualityEvent
+            ? {
+                stats: latestQualityEvent.quality,
+                trackCount:
+                    latestQualityEvent.trackCount,
+                uniqueArtists:
+                    latestQualityEvent.uniqueArtists,
+                uniqueAlbums:
+                    latestQualityEvent.uniqueAlbums,
+                label:
+                    latestQualityEvent.mixName ||
+                    "Dernier mix analysé"
+            }
+            : null;
+    const quality = qualitySource
+        ? getIntelligenceQualityScore(
+            qualitySource
+        )
+        : null;
+    const automaticHistory =
+        adaptiveLearningState.autoApplyHistory || [];
+
+    return {
+        events,
+        playbackEvents,
+        generatedEvents,
+        rankingSource:
+            playbackEvents.length
+                ? "lectures envoyées"
+                : "mix générés",
+        totalTracks: playbackEvents.reduce(
+            (sum, item) =>
+                sum + item.trackCount,
+            0
+        ),
+        totalDurationMs: playbackEvents.reduce(
+            (sum, item) =>
+                sum + item.durationMs,
+            0
+        ),
+        topMixes,
+        topArtists:
+            mergeIntelligenceRankings(
+                rankingEvents,
+                "topArtists"
+            ),
+        topAlbums:
+            mergeIntelligenceRankings(
+                rankingEvents,
+                "topAlbums"
+            ),
+        patterns,
+        globalConfidence,
+        qualitySource,
+        quality,
+        automaticApplied:
+            automaticHistory.filter(
+                (item) =>
+                    item.status === "applied"
+            ).length,
+        automaticReverted:
+            automaticHistory.filter(
+                (item) =>
+                    [
+                        "reverted",
+                        "rollback"
+                    ].includes(item.status)
+            ).length,
+        acceptedSuggestions:
+            adaptiveLearningState
+                .acceptedSuggestions.length,
+        dismissedSuggestions:
+            adaptiveLearningState
+                .dismissedSuggestions.length
+    };
+}
+
+function renderIntelligenceRanking(
+    title,
+    values = [],
+    emptyText = "Pas encore assez de données."
+) {
+    return `
+        <section class="intelligence-ranking-card">
+            <h4>${escapeHtml(title)}</h4>
+            ${values.length
+                ? `
+                    <ol>
+                        ${values.map(
+                            (item, index) => `
+                                <li>
+                                    <span class="intelligence-ranking-index">
+                                        ${index + 1}
+                                    </span>
+                                    <span class="intelligence-ranking-name">
+                                        ${escapeHtml(item.name)}
+                                    </span>
+                                    <strong>
+                                        ${Number(item.count || 0)}
+                                    </strong>
+                                </li>
+                            `
+                        ).join("")}
+                    </ol>
+                `
+                : `
+                    <p class="intelligence-empty">
+                        ${escapeHtml(emptyText)}
+                    </p>
+                `}
+        </section>
+    `;
+}
+
+function renderIntelligenceDashboard() {
+    const summary =
+        getIntelligenceSummary();
+    const rangeOptions = [
+        [7, "7 jours"],
+        [30, "30 jours"],
+        [180, "6 mois"],
+        [0, "Toutes les données"]
+    ];
+    const quality = summary.quality;
+    const qualityBars = quality
+        ? [
+            ["Artistes séparés", quality.artistScore],
+            ["Albums séparés", quality.albumScore],
+            ["Transitions", quality.transitionScore],
+            ["Titres récents", quality.recentScore],
+            ["Courbe d’intensité", quality.intensityScore],
+            ["Diversité", quality.diversityScore]
+        ].map(([label, value]) => `
+            <div class="intelligence-quality-row">
+                <span>${escapeHtml(label)}</span>
+                <div class="intelligence-quality-track">
+                    <i style="width:${Math.max(0, Math.min(100, value))}%"></i>
+                </div>
+                <strong>${value}%</strong>
+            </div>
+        `).join("")
+        : "";
+    const patterns = summary.patterns
+        .map((pattern) => `
+            <article class="intelligence-pattern-card">
+                <div>
+                    <span>${escapeHtml(pattern.slot.label)}</span>
+                    <strong>
+                        ${pattern.candidateMix
+                            ? escapeHtml(pattern.candidateMix.name)
+                            : "Aucune habitude fiable"}
+                    </strong>
+                    <small>
+                        ${pattern.observationCount} observation${pattern.observationCount > 1 ? "s" : ""}
+                        ${pattern.dominantDayType === "weekday"
+                            ? " · surtout en semaine"
+                            : pattern.dominantDayType === "weekend"
+                                ? " · surtout le week-end"
+                                : ""}
+                    </small>
+                </div>
+                <span class="intelligence-confidence ${pattern.confidence >= 70 ? "is-high" : pattern.confidence >= 45 ? "is-medium" : "is-low"}">
+                    ${pattern.confidence}%
+                </span>
+            </article>
+        `)
+        .join("");
+
+    return `
+        <section class="intelligence-dashboard">
+            <div class="intelligence-hero">
+                <div>
+                    <span class="intelligence-kicker">
+                        🧠 Intelligence Shuffle+
+                    </span>
+                    <h3>Tableau de bord</h3>
+                    <p>
+                        Analyse locale des mix générés, des ordres envoyés
+                        à Spotify et des décisions Adaptive DJ.
+                    </p>
+                </div>
+
+                <div class="intelligence-toolbar">
+                    <label>
+                        <span>Période</span>
+                        <select id="intelligenceRangeInput">
+                            ${rangeOptions.map(([value, label]) => `
+                                <option
+                                    value="${value}"
+                                    ${Number(intelligenceAnalytics.rangeDays) === value
+                                        ? "selected"
+                                        : ""}
+                                >
+                                    ${label}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+
+                    <button
+                        id="exportIntelligenceButton"
+                        type="button"
+                    >
+                        ⬇ Exporter le rapport
+                    </button>
+
+                    <button
+                        id="clearIntelligenceButton"
+                        class="is-danger"
+                        type="button"
+                        ${intelligenceAnalytics.events.length
+                            ? ""
+                            : "disabled"}
+                    >
+                        Réinitialiser
+                    </button>
+                </div>
+            </div>
+
+            <div class="intelligence-metrics-grid">
+                <article>
+                    <span>Mix générés</span>
+                    <strong>${summary.generatedEvents.length}</strong>
+                    <small>sur la période choisie</small>
+                </article>
+                <article>
+                    <span>Lancements suivis</span>
+                    <strong>${summary.playbackEvents.length}</strong>
+                    <small>envoyés à Spotify</small>
+                </article>
+                <article>
+                    <span>Titres envoyés</span>
+                    <strong>${summary.totalTracks}</strong>
+                    <small>lecture réelle non vérifiable</small>
+                </article>
+                <article>
+                    <span>Durée potentielle</span>
+                    <strong>${formatIntelligenceDuration(summary.totalDurationMs)}</strong>
+                    <small>somme des durées envoyées</small>
+                </article>
+                <article>
+                    <span>Confiance Adaptive</span>
+                    <strong>${summary.globalConfidence}%</strong>
+                    <small>moyenne des créneaux observés</small>
+                </article>
+                <article>
+                    <span>Auto-adaptations</span>
+                    <strong>${summary.automaticApplied}</strong>
+                    <small>${summary.automaticReverted} annulée${summary.automaticReverted > 1 ? "s" : ""}</small>
+                </article>
+            </div>
+
+            <p class="intelligence-data-note">
+                Les classements ci-dessous reposent sur les
+                ${summary.rankingSource}. Shuffle+ ne prétend pas mesurer
+                le temps réellement écouté après l’envoi à Spotify.
+            </p>
+
+            <div class="intelligence-rankings-grid">
+                ${renderIntelligenceRanking(
+                    "Mix les plus utilisés",
+                    summary.topMixes
+                )}
+                ${renderIntelligenceRanking(
+                    "Artistes dominants",
+                    summary.topArtists
+                )}
+                ${renderIntelligenceRanking(
+                    "Albums dominants",
+                    summary.topAlbums
+                )}
+            </div>
+
+            <section class="intelligence-adaptive-section">
+                <div class="intelligence-section-heading">
+                    <div>
+                        <h4>Habitudes Adaptive DJ</h4>
+                        <p>
+                            ${adaptiveLearningState.observations.length}
+                            observation${adaptiveLearningState.observations.length > 1 ? "s" : ""}
+                            · ${summary.acceptedSuggestions} suggestion${summary.acceptedSuggestions > 1 ? "s" : ""} appliquée${summary.acceptedSuggestions > 1 ? "s" : ""}
+                            · ${summary.dismissedSuggestions} ignorée${summary.dismissedSuggestions > 1 ? "s" : ""}
+                        </p>
+                    </div>
+                </div>
+                <div class="intelligence-pattern-grid">
+                    ${patterns}
+                </div>
+            </section>
+
+            <section class="intelligence-quality-section">
+                <div class="intelligence-section-heading">
+                    <div>
+                        <h4>Santé du mélange</h4>
+                        <p>
+                            ${summary.qualitySource
+                                ? escapeHtml(summary.qualitySource.label)
+                                : "Génère un mix pour obtenir une analyse."}
+                        </p>
+                    </div>
+                    ${quality
+                        ? `<strong class="intelligence-quality-score">${quality.overall}/100</strong>`
+                        : ""}
+                </div>
+
+                ${quality
+                    ? `<div class="intelligence-quality-list">${qualityBars}</div>`
+                    : `<p class="intelligence-empty">Aucune analyse de qualité disponible.</p>`}
+            </section>
+
+            <details class="intelligence-activity-log">
+                <summary>
+                    Activité locale · ${summary.events.length} événement${summary.events.length > 1 ? "s" : ""}
+                </summary>
+                <ul>
+                    ${summary.events.slice(0, 20).map((item) => `
+                        <li>
+                            <span>
+                                ${item.type === "mix-generated"
+                                    ? "🔀 Mix généré"
+                                    : item.type === "adaptive"
+                                        ? "🤖 Adaptive DJ"
+                                        : item.type === "schedule"
+                                            ? "🗓️ Programmation"
+                                            : item.type === "ios"
+                                                ? "📱 Commande iOS"
+                                                : "▶ Lecture"}
+                            </span>
+                            <strong>${escapeHtml(item.mixName)}</strong>
+                            <small>
+                                ${item.trackCount} titre${item.trackCount > 1 ? "s" : ""}
+                                · ${formatIntelligenceDuration(item.durationMs)}
+                                · ${formatHistoryDate(item.createdAt)}
+                            </small>
+                        </li>
+                    `).join("") || "<li>Aucune activité sur cette période.</li>"}
+                </ul>
+            </details>
+        </section>
+    `;
+}
+
+function downloadIntelligenceReport() {
+    try {
+        const summary =
+            getIntelligenceSummary();
+        const payload = {
+            format: "shuffleplus-intelligence-report",
+            schemaVersion: 1,
+            appVersion: APP_VERSION,
+            exportedAt: new Date().toISOString(),
+            rangeDays:
+                intelligenceAnalytics.rangeDays,
+            summary: {
+                generatedMixes:
+                    summary.generatedEvents.length,
+                trackedLaunches:
+                    summary.playbackEvents.length,
+                tracksSent:
+                    summary.totalTracks,
+                potentialDurationMs:
+                    summary.totalDurationMs,
+                adaptiveConfidence:
+                    summary.globalConfidence,
+                automaticApplied:
+                    summary.automaticApplied,
+                automaticReverted:
+                    summary.automaticReverted,
+                topMixes: summary.topMixes,
+                topArtists: summary.topArtists,
+                topAlbums: summary.topAlbums,
+                adaptivePatterns:
+                    summary.patterns.map(
+                        (pattern) => ({
+                            slotId:
+                                pattern.slot.id,
+                            slotLabel:
+                                pattern.slot.label,
+                            observationCount:
+                                pattern.observationCount,
+                            preferenceCount:
+                                pattern.preferenceCount,
+                            confidence:
+                                pattern.confidence,
+                            mixId:
+                                pattern.candidateMixId,
+                            mixName:
+                                pattern.candidateMix?.name || "",
+                            dominantDayType:
+                                pattern.dominantDayType
+                        })
+                    ),
+                quality: summary.quality
+            },
+            events: summary.events
+        };
+        const blob = new Blob(
+            [JSON.stringify(payload, null, 2)],
+            { type: "application/json" }
+        );
+        const url = URL.createObjectURL(blob);
+        const date = new Date();
+        const datePart = [
+            date.getFullYear(),
+            String(date.getMonth() + 1)
+                .padStart(2, "0"),
+            String(date.getDate())
+                .padStart(2, "0")
+        ].join("-");
+        const link = document.createElement("a");
+        link.href = url;
+        link.download =
+            `shuffleplus-intelligence-${datePart}.json`;
+        document.body.append(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        setStatus(
+            "Rapport Intelligence exporté."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            "Impossible d’exporter le rapport Intelligence.",
+            "error"
+        );
+    }
+}
+
+function clearIntelligenceAnalytics() {
+    const confirmed = window.confirm(
+        "Supprimer les statistiques Intelligence locales ? Les réglages Adaptive Learning restent conservés."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    intelligenceAnalytics =
+        normalizeIntelligenceAnalytics({
+            ...DEFAULT_INTELLIGENCE_ANALYTICS,
+            rangeDays:
+                intelligenceAnalytics.rangeDays
+        });
+    saveIntelligenceAnalytics();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Statistiques Intelligence réinitialisées."
+    );
+}
+
 function normalizeActiveAppMenu(value = "") {
     return [
         "music",
         "mixes",
         "adaptive",
+        "intelligence",
         "settings"
     ].includes(value)
         ? value
@@ -2359,6 +3398,7 @@ function renderAppMenu() {
         ["music", "🎵", "Ma musique"],
         ["mixes", "🔀", "Mix & iOS"],
         ["adaptive", "🤖", "Adaptive DJ"],
+        ["intelligence", "🧠", "Intelligence"],
         ["settings", "⚙️", "Réglages"]
     ];
 
@@ -2773,6 +3813,15 @@ async function runAdaptiveDj({
                     0,
                     uris.length
                 )
+            );
+            addTracksSentToHistory(
+                uris.length,
+                selectedTracks.slice(
+                    0,
+                    uris.length
+                ),
+                "adaptive",
+                device.name
             );
 
             deviceName = device.name;
@@ -5800,7 +6849,13 @@ async function playScheduledCurrentMix(schedule) {
         )
     );
     addTracksSentToHistory(
-        playbackUris.length
+        playbackUris.length,
+        selectedTracks.slice(
+            0,
+            playbackUris.length
+        ),
+        "schedule",
+        device.name
     );
 }
 
@@ -10270,7 +11325,10 @@ function registerMixHistoryLaunch({
     name,
     sourceKeys,
     shuffleSettings,
-    tracks
+    tracks,
+    mixId = "",
+    source = "manual",
+    slotId = ""
 }) {
     const normalizedSourceKeys = [...new Set(
         sourceKeys.filter(
@@ -10328,9 +11386,35 @@ function registerMixHistoryLaunch({
     );
 
     saveMixHistory();
+
+    const trackSummary =
+        summarizeTracksForIntelligence(
+            tracks
+        );
+    recordIntelligenceEvent({
+        type: "mix-generated",
+        mixId: mixId || activeHistoryId,
+        mixName: name || "Mix Shuffle+",
+        source,
+        slotId,
+        tracks,
+        quality: analyzeShuffleOrder(
+            tracks,
+            getShuffleEngineOptions(
+                shuffleSettings
+            )
+        ),
+        durationMs:
+            trackSummary.durationMs
+    });
 }
 
-function addTracksSentToHistory(count) {
+function addTracksSentToHistory(
+    count,
+    tracks = [],
+    source = "manual",
+    deviceName = ""
+) {
     if (!activeHistoryId || count <= 0) {
         return;
     }
@@ -10346,6 +11430,32 @@ function addTracksSentToHistory(count) {
     item.totalTracksSent += count;
     item.lastLaunchedAt = Date.now();
     saveMixHistory();
+
+    const eventTracks = Array.isArray(tracks) &&
+        tracks.length
+            ? tracks.slice(0, count)
+            : selectedTracks.slice(0, count);
+    const type = source === "adaptive"
+        ? "adaptive"
+        : source === "schedule"
+            ? "schedule"
+            : source === "ios"
+                ? "ios"
+                : "playback";
+
+    recordIntelligenceEvent({
+        type,
+        mixId: item.id,
+        mixName: item.name,
+        source,
+        slotId:
+            source === "adaptive"
+                ? getAdaptiveSlot().id
+                : "",
+        deviceName,
+        tracks: eventTracks,
+        trackCount: count
+    });
 }
 
 function formatHistoryDate(timestamp) {
@@ -10795,6 +11905,7 @@ function buildBackupPayload() {
             adaptiveDjMenuSettings,
             adaptiveDjMenuHistory,
             adaptiveLearningState,
+            intelligenceAnalytics,
             mixSchedules
         }
     };
@@ -10939,6 +12050,11 @@ function validateBackupPayload(payload) {
                 payload.data.adaptiveLearningState ||
                 DEFAULT_ADAPTIVE_LEARNING_STATE
             ),
+        intelligenceAnalytics:
+            normalizeIntelligenceAnalytics(
+                payload.data.intelligenceAnalytics ||
+                DEFAULT_INTELLIGENCE_ANALYTICS
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -11077,6 +12193,9 @@ async function importBackupFile(file) {
         adaptiveLearningState =
             imported.adaptiveLearningState;
         saveAdaptiveLearningState();
+        intelligenceAnalytics =
+            imported.intelligenceAnalytics;
+        saveIntelligenceAnalytics();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -12086,6 +13205,16 @@ function displayPlaylists(playlists) {
             >
                 ${renderAdaptiveDjMenu()}
                 ${renderAdaptivePanel()}
+            </div>
+
+            <div
+                class="app-menu-page
+                ${activeAppMenu === "intelligence"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="intelligence"
+            >
+                ${renderIntelligenceDashboard()}
             </div>
 
             <div
@@ -13562,7 +14691,15 @@ async function playSelectedOrder() {
         playbackQueueCursor = queueBlock.end;
         saveCurrentPlaybackQueueState();
         rememberPlaybackOrder(queueBlock.tracks);
-        addTracksSentToHistory(queueBlock.tracks.length);
+        addTracksSentToHistory(
+            queueBlock.tracks.length,
+            queueBlock.tracks,
+            "manual",
+            availableDevices.find(
+                (device) =>
+                    device.id === deviceId
+            )?.name || ""
+        );
         const remaining = queueBlock.allPlayableTracks.length - playbackQueueCursor;
         playbackMessage.textContent = remaining > 0
             ? `Bloc ${queueBlock.start + 1}–${queueBlock.end} lancé. ${remaining} morceau${remaining > 1 ? "x" : ""} reste${remaining > 1 ? "nt" : ""} à envoyer.`
@@ -13758,11 +14895,33 @@ async function createSelectedMix() {
         originalGeneratedOrder = [...selectedTracks];
         trackSearchTerm = "";
 
+        const generatedSavedMixId =
+            pendingSavedMixResumeKey.startsWith(
+                "saved-mix:"
+            )
+                ? pendingSavedMixResumeKey.replace(
+                    /^saved-mix:/,
+                    ""
+                )
+                : "";
+        const generatedSavedMix =
+            savedMixes.find(
+                (item) =>
+                    item.id === generatedSavedMixId
+            );
+
         registerMixHistoryLaunch({
-            name: selectedPlaylist.name,
+            name:
+                generatedSavedMix?.name ||
+                selectedPlaylist.name,
             sourceKeys: selectedKeys,
             shuffleSettings: currentShuffleSettings,
-            tracks: selectedTracks
+            tracks: selectedTracks,
+            mixId: generatedSavedMixId,
+            source:
+                generatedSavedMixId
+                    ? "saved-mix"
+                    : "manual"
         });
 
         pendingSavedMixResumeKey = "";
@@ -14113,6 +15272,24 @@ contentElement.addEventListener(
             displayPlaylists(
                 playlistsCache
             );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportIntelligenceButton"
+            )
+        ) {
+            downloadIntelligenceReport();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearIntelligenceButton"
+            )
+        ) {
+            clearIntelligenceAnalytics();
             return;
         }
 
@@ -14879,6 +16056,24 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (
+            event.target.id ===
+            "intelligenceRangeInput"
+        ) {
+            intelligenceAnalytics =
+                normalizeIntelligenceAnalytics({
+                    ...intelligenceAnalytics,
+                    rangeDays:
+                        Number(event.target.value)
+                });
+            saveIntelligenceAnalytics();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Période du tableau Intelligence mise à jour."
+            );
+            return;
+        }
+
         if (
             event.target.id ===
             "adaptiveLearningEnabledInput"
