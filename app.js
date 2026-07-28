@@ -38,7 +38,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.6.0";
+const APP_VERSION = "3.7.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -177,9 +177,15 @@ const INTELLIGENCE_ANALYTICS_KEY =
 const MAX_INTELLIGENCE_EVENTS = 500;
 const DEFAULT_INTELLIGENCE_ANALYTICS = {
     rangeDays: 30,
+    eventTypeFilter: "all",
+    dayTypeFilter: "all",
     events: [],
     updatedAt: 0
 };
+const LAST_ADAPTIVE_PROPOSAL_KEY =
+    "shuffleplus_last_adaptive_proposal_v1";
+const ADAPTIVE_CORRECTION_WINDOW =
+    30 * 60 * 1000;
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
 const MAX_MIX_SCHEDULES = 30;
@@ -463,6 +469,8 @@ let adaptiveLearningState =
     readAdaptiveLearningState();
 let intelligenceAnalytics =
     readIntelligenceAnalytics();
+let lastAdaptiveProposal =
+    readLastAdaptiveProposal();
 let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
@@ -648,17 +656,42 @@ function normalizeIntelligenceEvent(item = {}) {
         "playback",
         "adaptive",
         "schedule",
-        "ios"
+        "ios",
+        "correction",
+        "listening-confirmed"
     ]);
+    const allowedEvidence = new Set([
+        "generated",
+        "sent",
+        "user-confirmed"
+    ]);
+    const createdAt = Number(
+        item.createdAt || Date.now()
+    );
+    const date = new Date(createdAt);
+    const defaultDayType = [0, 6].includes(
+        date.getDay()
+    )
+        ? "weekend"
+        : "weekday";
+    const type = allowedTypes.has(item.type)
+        ? item.type
+        : "mix-generated";
+    const defaultEvidence =
+        type === "mix-generated"
+            ? "generated"
+            : type === "listening-confirmed"
+                ? "user-confirmed"
+                : type === "correction"
+                    ? "generated"
+                    : "sent";
 
     return {
         id:
             typeof item.id === "string"
                 ? item.id.slice(0, 120)
                 : createIosCommandId(),
-        type: allowedTypes.has(item.type)
-            ? item.type
-            : "mix-generated",
+        type,
         mixId:
             typeof item.mixId === "string"
                 ? item.mixId.slice(0, 120)
@@ -704,9 +737,51 @@ function normalizeIntelligenceEvent(item = {}) {
         quality: normalizeIntelligenceQuality(
             item.quality
         ),
-        createdAt: Number(
-            item.createdAt || Date.now()
+        evidence: allowedEvidence.has(
+            item.evidence
         )
+            ? item.evidence
+            : defaultEvidence,
+        dayType:
+            item.dayType === "weekend"
+                ? "weekend"
+                : item.dayType === "weekday"
+                    ? "weekday"
+                    : defaultDayType,
+        hour: Math.min(
+            23,
+            Math.max(
+                0,
+                Number.isFinite(Number(item.hour))
+                    ? Number(item.hour)
+                    : date.getHours()
+            )
+        ),
+        relatedEventId:
+            typeof item.relatedEventId === "string"
+                ? item.relatedEventId.slice(0, 120)
+                : "",
+        beforeMixId:
+            typeof item.beforeMixId === "string"
+                ? item.beforeMixId.slice(0, 120)
+                : "",
+        beforeMixName:
+            typeof item.beforeMixName === "string"
+                ? item.beforeMixName.slice(0, 120)
+                : "",
+        afterMixId:
+            typeof item.afterMixId === "string"
+                ? item.afterMixId.slice(0, 120)
+                : "",
+        afterMixName:
+            typeof item.afterMixName === "string"
+                ? item.afterMixName.slice(0, 120)
+                : "",
+        reason:
+            typeof item.reason === "string"
+                ? item.reason.slice(0, 180)
+                : "",
+        createdAt
     };
 }
 
@@ -718,6 +793,18 @@ function normalizeIntelligenceAnalytics(
         7,
         30,
         180
+    ]);
+    const allowedTypeFilters = new Set([
+        "all",
+        "mix-generated",
+        "sent",
+        "correction",
+        "listening-confirmed"
+    ]);
+    const allowedDayFilters = new Set([
+        "all",
+        "weekday",
+        "weekend"
     ]);
     const requestedRange = Number(
         state.rangeDays
@@ -745,6 +832,18 @@ function normalizeIntelligenceAnalytics(
         )
             ? requestedRange
             : 30,
+        eventTypeFilter:
+            allowedTypeFilters.has(
+                state.eventTypeFilter
+            )
+                ? state.eventTypeFilter
+                : "all",
+        dayTypeFilter:
+            allowedDayFilters.has(
+                state.dayTypeFilter
+            )
+                ? state.dayTypeFilter
+                : "all",
         events,
         updatedAt: Number(
             state.updatedAt || Date.now()
@@ -852,6 +951,13 @@ function recordIntelligenceEvent({
     trackCount = 0,
     durationMs = 0,
     quality = null,
+    evidence = "",
+    relatedEventId = "",
+    beforeMixId = "",
+    beforeMixName = "",
+    afterMixId = "",
+    afterMixName = "",
+    reason = "",
     createdAt = Date.now()
 } = {}) {
     const trackSummary =
@@ -881,6 +987,13 @@ function recordIntelligenceEvent({
         topAlbums:
             trackSummary.topAlbums,
         quality,
+        evidence,
+        relatedEventId,
+        beforeMixId,
+        beforeMixName,
+        afterMixId,
+        afterMixName,
+        reason,
         createdAt
     });
 
@@ -895,6 +1008,310 @@ function recordIntelligenceEvent({
     saveIntelligenceAnalytics();
 
     return event;
+}
+
+function normalizeLastAdaptiveProposal(
+    value = null
+) {
+    if (!value || typeof value !== "object") {
+        return null;
+    }
+
+    const createdAt = Number(
+        value.createdAt || 0
+    );
+
+    if (
+        !createdAt ||
+        Date.now() - createdAt >
+            ADAPTIVE_CORRECTION_WINDOW
+    ) {
+        return null;
+    }
+
+    return {
+        slotId:
+            typeof value.slotId === "string"
+                ? value.slotId.slice(0, 40)
+                : "",
+        slotLabel:
+            typeof value.slotLabel === "string"
+                ? value.slotLabel.slice(0, 100)
+                : "Adaptive DJ",
+        mixId:
+            typeof value.mixId === "string"
+                ? value.mixId.slice(0, 120)
+                : "",
+        mixName:
+            typeof value.mixName === "string"
+                ? value.mixName.slice(0, 120)
+                : "",
+        relatedEventId:
+            typeof value.relatedEventId === "string"
+                ? value.relatedEventId.slice(0, 120)
+                : "",
+        createdAt
+    };
+}
+
+function readLastAdaptiveProposal() {
+    try {
+        const raw = localStorage.getItem(
+            LAST_ADAPTIVE_PROPOSAL_KEY
+        );
+        const value = normalizeLastAdaptiveProposal(
+            raw ? JSON.parse(raw) : null
+        );
+
+        if (!value && raw) {
+            localStorage.removeItem(
+                LAST_ADAPTIVE_PROPOSAL_KEY
+            );
+        }
+
+        return value;
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveLastAdaptiveProposal(value) {
+    lastAdaptiveProposal =
+        normalizeLastAdaptiveProposal(value);
+
+    try {
+        if (lastAdaptiveProposal) {
+            localStorage.setItem(
+                LAST_ADAPTIVE_PROPOSAL_KEY,
+                JSON.stringify(
+                    lastAdaptiveProposal
+                )
+            );
+        } else {
+            localStorage.removeItem(
+                LAST_ADAPTIVE_PROPOSAL_KEY
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Proposition Adaptive non mémorisée :",
+            error
+        );
+    }
+}
+
+function rememberAdaptiveProposal({
+    slot,
+    mix,
+    relatedEventId = ""
+} = {}) {
+    if (!slot || !mix) {
+        return;
+    }
+
+    saveLastAdaptiveProposal({
+        slotId: slot.id,
+        slotLabel: slot.label,
+        mixId: mix.id,
+        mixName: mix.name,
+        relatedEventId,
+        createdAt: Date.now()
+    });
+}
+
+function getSavedMixName(mixId = "") {
+    return savedMixes.find(
+        (item) => item.id === mixId
+    )?.name || "Mix inconnu";
+}
+
+function recordManualAdaptiveCorrection(
+    chosenMixId = ""
+) {
+    const proposal =
+        normalizeLastAdaptiveProposal(
+            lastAdaptiveProposal
+        );
+
+    if (!proposal || !chosenMixId) {
+        saveLastAdaptiveProposal(null);
+        return false;
+    }
+
+    if (proposal.mixId === chosenMixId) {
+        saveLastAdaptiveProposal(null);
+        return false;
+    }
+
+    const chosenMixName =
+        getSavedMixName(chosenMixId);
+
+    recordIntelligenceEvent({
+        type: "correction",
+        mixId: chosenMixId,
+        mixName: chosenMixName,
+        source: "manual-after-adaptive",
+        slotId: proposal.slotId,
+        relatedEventId:
+            proposal.relatedEventId,
+        beforeMixId: proposal.mixId,
+        beforeMixName: proposal.mixName,
+        afterMixId: chosenMixId,
+        afterMixName: chosenMixName,
+        reason:
+            "Un autre mix a été lancé manuellement dans les 30 minutes suivant Adaptive DJ."
+    });
+
+    recordAdaptiveLearningObservation({
+        mixId: chosenMixId,
+        source: "correction",
+        slotId: proposal.slotId
+    });
+
+    saveLastAdaptiveProposal(null);
+    return true;
+}
+
+function confirmIntelligenceListening(
+    eventId = ""
+) {
+    const sourceEvent =
+        intelligenceAnalytics.events.find(
+            (item) => item.id === eventId
+        );
+
+    if (!sourceEvent) {
+        return;
+    }
+
+    const alreadyConfirmed =
+        intelligenceAnalytics.events.some(
+            (item) =>
+                item.type ===
+                    "listening-confirmed" &&
+                item.relatedEventId === eventId
+        );
+
+    if (alreadyConfirmed) {
+        setStatus(
+            "Cette lecture est déjà confirmée."
+        );
+        return;
+    }
+
+    recordIntelligenceEvent({
+        type: "listening-confirmed",
+        mixId: sourceEvent.mixId,
+        mixName: sourceEvent.mixName,
+        source: "user-confirmation",
+        slotId: sourceEvent.slotId,
+        deviceName: sourceEvent.deviceName,
+        trackCount: sourceEvent.trackCount,
+        durationMs: sourceEvent.durationMs,
+        evidence: "user-confirmed",
+        relatedEventId: sourceEvent.id,
+        reason:
+            "Lecture confirmée manuellement par l’utilisateur."
+    });
+
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Écoute de « ${sourceEvent.mixName} » confirmée.`
+    );
+}
+
+function getIntelligenceEventLabel(item) {
+    if (item.type === "mix-generated") {
+        return "🔀 Mix généré";
+    }
+    if (item.type === "adaptive") {
+        return "🤖 Adaptive DJ";
+    }
+    if (item.type === "schedule") {
+        return "🗓️ Programmation";
+    }
+    if (item.type === "ios") {
+        return "📱 Commande iOS";
+    }
+    if (item.type === "correction") {
+        return "↪ Correction";
+    }
+    if (item.type === "listening-confirmed") {
+        return "✅ Écoute confirmée";
+    }
+    return "▶ Lecture envoyée";
+}
+
+function getIntelligenceEvidenceLabel(item) {
+    if (item.evidence === "user-confirmed") {
+        return "confirmé par toi";
+    }
+    if (item.evidence === "sent") {
+        return "envoyé à Spotify";
+    }
+    return "généré localement";
+}
+
+function getIntelligenceDayTrend(
+    events = [],
+    dayType = "weekday"
+) {
+    const matching = events.filter(
+        (item) => item.dayType === dayType
+    );
+    const totals = new Map();
+
+    for (const item of matching) {
+        const key = item.mixName ||
+            "Mix Shuffle+";
+        totals.set(
+            key,
+            (totals.get(key) || 0) + 1
+        );
+    }
+
+    const top = [...totals.entries()]
+        .sort(
+            (first, second) =>
+                second[1] - first[1]
+        )[0] || null;
+
+    return {
+        dayType,
+        launchCount: matching.length,
+        topMixName: top?.[0] || "",
+        topMixCount: top?.[1] || 0
+    };
+}
+
+function getFilteredIntelligenceActivity(
+    events = []
+) {
+    return events.filter((item) => {
+        const typeFilter =
+            intelligenceAnalytics
+                .eventTypeFilter;
+        const dayFilter =
+            intelligenceAnalytics
+                .dayTypeFilter;
+        const typeMatches =
+            typeFilter === "all" ||
+            item.type === typeFilter ||
+            (
+                typeFilter === "sent" &&
+                [
+                    "playback",
+                    "adaptive",
+                    "schedule",
+                    "ios"
+                ].includes(item.type)
+            );
+        const dayMatches =
+            dayFilter === "all" ||
+            item.dayType === dayFilter;
+
+        return typeMatches && dayMatches;
+    });
 }
 
 function getIntelligencePeriodStart() {
@@ -1087,6 +1504,20 @@ function getIntelligenceSummary() {
         (item) =>
             item.type === "mix-generated"
     );
+    const correctionEvents = events.filter(
+        (item) =>
+            item.type === "correction"
+    );
+    const confirmedEvents = events.filter(
+        (item) =>
+            item.type ===
+                "listening-confirmed"
+    );
+    const confirmedRelatedIds = new Set(
+        confirmedEvents.map(
+            (item) => item.relatedEventId
+        )
+    );
     const rankingEvents = playbackEvents.length
         ? playbackEvents
         : generatedEvents;
@@ -1182,8 +1613,25 @@ function getIntelligenceSummary() {
 
     return {
         events,
+        activityEvents:
+            getFilteredIntelligenceActivity(
+                events
+            ),
         playbackEvents,
         generatedEvents,
+        correctionEvents,
+        confirmedEvents,
+        confirmedRelatedIds,
+        weekdayTrend:
+            getIntelligenceDayTrend(
+                playbackEvents,
+                "weekday"
+            ),
+        weekendTrend:
+            getIntelligenceDayTrend(
+                playbackEvents,
+                "weekend"
+            ),
         rankingSource:
             playbackEvents.length
                 ? "lectures envoyées"
@@ -1198,6 +1646,17 @@ function getIntelligenceSummary() {
                 sum + item.durationMs,
             0
         ),
+        confirmedTracks: confirmedEvents.reduce(
+            (sum, item) =>
+                sum + item.trackCount,
+            0
+        ),
+        confirmedDurationMs:
+            confirmedEvents.reduce(
+                (sum, item) =>
+                    sum + item.durationMs,
+                0
+            ),
         topMixes,
         topArtists:
             mergeIntelligenceRankings(
@@ -1281,6 +1740,18 @@ function renderIntelligenceDashboard() {
         [180, "6 mois"],
         [0, "Toutes les données"]
     ];
+    const typeOptions = [
+        ["all", "Tous les événements"],
+        ["mix-generated", "Mix générés"],
+        ["sent", "Lectures envoyées"],
+        ["correction", "Corrections"],
+        ["listening-confirmed", "Écoutes confirmées"]
+    ];
+    const dayOptions = [
+        ["all", "Tous les jours"],
+        ["weekday", "Semaine"],
+        ["weekend", "Week-end"]
+    ];
     const quality = summary.quality;
     const qualityBars = quality
         ? [
@@ -1325,6 +1796,85 @@ function renderIntelligenceDashboard() {
             </article>
         `)
         .join("");
+    const trendCard = (title, icon, trend) => `
+        <article class="intelligence-trend-card">
+            <span>${icon} ${title}</span>
+            <strong>
+                ${trend.topMixName
+                    ? escapeHtml(trend.topMixName)
+                    : "Pas encore de tendance"}
+            </strong>
+            <small>
+                ${trend.launchCount} lancement${trend.launchCount > 1 ? "s" : ""}
+                ${trend.topMixCount
+                    ? ` · ${trend.topMixCount} pour le mix dominant`
+                    : ""}
+            </small>
+        </article>
+    `;
+    const correctionRows = summary.correctionEvents
+        .slice(0, 12)
+        .map((item) => `
+            <li>
+                <span>${escapeHtml(item.beforeMixName || "Choix initial")}</span>
+                <b aria-hidden="true">→</b>
+                <strong>${escapeHtml(item.afterMixName || item.mixName)}</strong>
+                <small>
+                    ${item.dayType === "weekend" ? "week-end" : "semaine"}
+                    · ${formatHistoryDate(item.createdAt)}
+                </small>
+            </li>
+        `).join("");
+    const activityRows = summary.activityEvents
+        .slice(0, 40)
+        .map((item) => {
+            const isSent = [
+                "playback",
+                "adaptive",
+                "schedule",
+                "ios"
+            ].includes(item.type);
+            const canConfirm = isSent &&
+                !summary.confirmedRelatedIds.has(
+                    item.id
+                );
+            const correctionText =
+                item.type === "correction"
+                    ? `${escapeHtml(item.beforeMixName || "Choix initial")} → ${escapeHtml(item.afterMixName || item.mixName)}`
+                    : escapeHtml(item.mixName);
+
+            return `
+                <li class="intelligence-event-row">
+                    <span class="intelligence-event-type">
+                        ${getIntelligenceEventLabel(item)}
+                    </span>
+                    <strong>${correctionText}</strong>
+                    <small>
+                        ${item.trackCount
+                            ? `${item.trackCount} titre${item.trackCount > 1 ? "s" : ""} · `
+                            : ""}
+                        ${item.durationMs
+                            ? `${formatIntelligenceDuration(item.durationMs)} · `
+                            : ""}
+                        ${item.dayType === "weekend" ? "week-end" : "semaine"}
+                        · ${String(item.hour).padStart(2, "0")} h
+                        · ${getIntelligenceEvidenceLabel(item)}
+                        · ${formatHistoryDate(item.createdAt)}
+                    </small>
+                    ${canConfirm
+                        ? `
+                            <button
+                                type="button"
+                                class="intelligence-confirm-button"
+                                data-confirm-intelligence-event="${escapeHtml(item.id)}"
+                            >
+                                ✓ Confirmer l’écoute
+                            </button>
+                        `
+                        : ""}
+                </li>
+            `;
+        }).join("");
 
     return `
         <section class="intelligence-dashboard">
@@ -1333,10 +1883,10 @@ function renderIntelligenceDashboard() {
                     <span class="intelligence-kicker">
                         🧠 Intelligence Shuffle+
                     </span>
-                    <h3>Tableau de bord</h3>
+                    <h3>Historique enrichi</h3>
                     <p>
-                        Analyse locale des mix générés, des ordres envoyés
-                        à Spotify et des décisions Adaptive DJ.
+                        Distingue ce qui a été généré, envoyé à Spotify,
+                        corrigé manuellement et réellement confirmé par toi.
                     </p>
                 </div>
 
@@ -1345,33 +1895,36 @@ function renderIntelligenceDashboard() {
                         <span>Période</span>
                         <select id="intelligenceRangeInput">
                             ${rangeOptions.map(([value, label]) => `
-                                <option
-                                    value="${value}"
-                                    ${Number(intelligenceAnalytics.rangeDays) === value
-                                        ? "selected"
-                                        : ""}
-                                >
+                                <option value="${value}" ${Number(intelligenceAnalytics.rangeDays) === value ? "selected" : ""}>
                                     ${label}
                                 </option>
                             `).join("")}
                         </select>
                     </label>
-
-                    <button
-                        id="exportIntelligenceButton"
-                        type="button"
-                    >
+                    <label>
+                        <span>Événement</span>
+                        <select id="intelligenceTypeInput">
+                            ${typeOptions.map(([value, label]) => `
+                                <option value="${value}" ${intelligenceAnalytics.eventTypeFilter === value ? "selected" : ""}>
+                                    ${label}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <label>
+                        <span>Jour</span>
+                        <select id="intelligenceDayTypeInput">
+                            ${dayOptions.map(([value, label]) => `
+                                <option value="${value}" ${intelligenceAnalytics.dayTypeFilter === value ? "selected" : ""}>
+                                    ${label}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <button id="exportIntelligenceButton" type="button">
                         ⬇ Exporter le rapport
                     </button>
-
-                    <button
-                        id="clearIntelligenceButton"
-                        class="is-danger"
-                        type="button"
-                        ${intelligenceAnalytics.events.length
-                            ? ""
-                            : "disabled"}
-                    >
+                    <button id="clearIntelligenceButton" class="is-danger" type="button" ${intelligenceAnalytics.events.length ? "" : "disabled"}>
                         Réinitialiser
                     </button>
                 </div>
@@ -1381,22 +1934,32 @@ function renderIntelligenceDashboard() {
                 <article>
                     <span>Mix générés</span>
                     <strong>${summary.generatedEvents.length}</strong>
-                    <small>sur la période choisie</small>
+                    <small>créés localement</small>
                 </article>
                 <article>
-                    <span>Lancements suivis</span>
+                    <span>Envoyés à Spotify</span>
                     <strong>${summary.playbackEvents.length}</strong>
-                    <small>envoyés à Spotify</small>
+                    <small>départ demandé, écoute non garantie</small>
+                </article>
+                <article>
+                    <span>Écoutes confirmées</span>
+                    <strong>${summary.confirmedEvents.length}</strong>
+                    <small>validées manuellement</small>
+                </article>
+                <article>
+                    <span>Corrections détectées</span>
+                    <strong>${summary.correctionEvents.length}</strong>
+                    <small>avant / après Adaptive DJ</small>
                 </article>
                 <article>
                     <span>Titres envoyés</span>
                     <strong>${summary.totalTracks}</strong>
-                    <small>lecture réelle non vérifiable</small>
+                    <small>${summary.confirmedTracks} confirmés</small>
                 </article>
                 <article>
                     <span>Durée potentielle</span>
                     <strong>${formatIntelligenceDuration(summary.totalDurationMs)}</strong>
-                    <small>somme des durées envoyées</small>
+                    <small>${formatIntelligenceDuration(summary.confirmedDurationMs)} confirmée</small>
                 </article>
                 <article>
                     <span>Confiance Adaptive</span>
@@ -1411,25 +1974,46 @@ function renderIntelligenceDashboard() {
             </div>
 
             <p class="intelligence-data-note">
-                Les classements ci-dessous reposent sur les
-                ${summary.rankingSource}. Shuffle+ ne prétend pas mesurer
-                le temps réellement écouté après l’envoi à Spotify.
+                « Généré » signifie que Shuffle+ a créé un ordre. « Envoyé »
+                signifie qu’une commande de lecture a été transmise à Spotify.
+                « Confirmé » signifie que tu as indiqué avoir réellement écouté
+                ce lancement. Shuffle+ ne transforme jamais une durée potentielle
+                en temps d’écoute certain sans cette confirmation.
             </p>
 
+            <section class="intelligence-trends-section">
+                <div class="intelligence-section-heading">
+                    <div>
+                        <h4>Semaine et week-end</h4>
+                        <p>Comparaison des lancements envoyés à Spotify.</p>
+                    </div>
+                </div>
+                <div class="intelligence-trend-grid">
+                    ${trendCard("Semaine", "🏙️", summary.weekdayTrend)}
+                    ${trendCard("Week-end", "🌤️", summary.weekendTrend)}
+                </div>
+            </section>
+
             <div class="intelligence-rankings-grid">
-                ${renderIntelligenceRanking(
-                    "Mix les plus utilisés",
-                    summary.topMixes
-                )}
-                ${renderIntelligenceRanking(
-                    "Artistes dominants",
-                    summary.topArtists
-                )}
-                ${renderIntelligenceRanking(
-                    "Albums dominants",
-                    summary.topAlbums
-                )}
+                ${renderIntelligenceRanking("Mix les plus utilisés", summary.topMixes)}
+                ${renderIntelligenceRanking("Artistes dominants", summary.topArtists)}
+                ${renderIntelligenceRanking("Albums dominants", summary.topAlbums)}
             </div>
+
+            <section class="intelligence-corrections-section">
+                <div class="intelligence-section-heading">
+                    <div>
+                        <h4>Corrections utilisateur</h4>
+                        <p>
+                            Un changement de mix effectué dans les 30 minutes
+                            après Adaptive DJ est mémorisé comme une correction.
+                        </p>
+                    </div>
+                </div>
+                <ul class="intelligence-correction-list">
+                    ${correctionRows || "<li>Aucune correction détectée sur cette période.</li>"}
+                </ul>
+            </section>
 
             <section class="intelligence-adaptive-section">
                 <div class="intelligence-section-heading">
@@ -1458,42 +2042,19 @@ function renderIntelligenceDashboard() {
                                 : "Génère un mix pour obtenir une analyse."}
                         </p>
                     </div>
-                    ${quality
-                        ? `<strong class="intelligence-quality-score">${quality.overall}/100</strong>`
-                        : ""}
+                    ${quality ? `<strong class="intelligence-quality-score">${quality.overall}/100</strong>` : ""}
                 </div>
-
                 ${quality
                     ? `<div class="intelligence-quality-list">${qualityBars}</div>`
                     : `<p class="intelligence-empty">Aucune analyse de qualité disponible.</p>`}
             </section>
 
-            <details class="intelligence-activity-log">
+            <details class="intelligence-activity-log" open>
                 <summary>
-                    Activité locale · ${summary.events.length} événement${summary.events.length > 1 ? "s" : ""}
+                    Activité filtrée · ${summary.activityEvents.length} événement${summary.activityEvents.length > 1 ? "s" : ""}
                 </summary>
                 <ul>
-                    ${summary.events.slice(0, 20).map((item) => `
-                        <li>
-                            <span>
-                                ${item.type === "mix-generated"
-                                    ? "🔀 Mix généré"
-                                    : item.type === "adaptive"
-                                        ? "🤖 Adaptive DJ"
-                                        : item.type === "schedule"
-                                            ? "🗓️ Programmation"
-                                            : item.type === "ios"
-                                                ? "📱 Commande iOS"
-                                                : "▶ Lecture"}
-                            </span>
-                            <strong>${escapeHtml(item.mixName)}</strong>
-                            <small>
-                                ${item.trackCount} titre${item.trackCount > 1 ? "s" : ""}
-                                · ${formatIntelligenceDuration(item.durationMs)}
-                                · ${formatHistoryDate(item.createdAt)}
-                            </small>
-                        </li>
-                    `).join("") || "<li>Aucune activité sur cette période.</li>"}
+                    ${activityRows || "<li>Aucune activité pour ces filtres.</li>"}
                 </ul>
             </details>
         </section>
@@ -1506,26 +2067,44 @@ function downloadIntelligenceReport() {
             getIntelligenceSummary();
         const payload = {
             format: "shuffleplus-intelligence-report",
-            schemaVersion: 1,
+            schemaVersion: 2,
             appVersion: APP_VERSION,
             exportedAt: new Date().toISOString(),
-            rangeDays:
-                intelligenceAnalytics.rangeDays,
+            filters: {
+                rangeDays:
+                    intelligenceAnalytics.rangeDays,
+                eventType:
+                    intelligenceAnalytics.eventTypeFilter,
+                dayType:
+                    intelligenceAnalytics.dayTypeFilter
+            },
             summary: {
                 generatedMixes:
                     summary.generatedEvents.length,
-                trackedLaunches:
+                sentToSpotify:
                     summary.playbackEvents.length,
+                userConfirmed:
+                    summary.confirmedEvents.length,
+                corrections:
+                    summary.correctionEvents.length,
                 tracksSent:
                     summary.totalTracks,
+                tracksConfirmed:
+                    summary.confirmedTracks,
                 potentialDurationMs:
                     summary.totalDurationMs,
+                confirmedDurationMs:
+                    summary.confirmedDurationMs,
                 adaptiveConfidence:
                     summary.globalConfidence,
                 automaticApplied:
                     summary.automaticApplied,
                 automaticReverted:
                     summary.automaticReverted,
+                weekdayTrend:
+                    summary.weekdayTrend,
+                weekendTrend:
+                    summary.weekendTrend,
                 topMixes: summary.topMixes,
                 topArtists: summary.topArtists,
                 topAlbums: summary.topAlbums,
@@ -1576,7 +2155,7 @@ function downloadIntelligenceReport() {
         link.remove();
         URL.revokeObjectURL(url);
         setStatus(
-            "Rapport Intelligence exporté."
+            "Rapport Intelligence enrichi exporté."
         );
     } catch (error) {
         console.error(error);
@@ -1600,7 +2179,11 @@ function clearIntelligenceAnalytics() {
         normalizeIntelligenceAnalytics({
             ...DEFAULT_INTELLIGENCE_ANALYTICS,
             rangeDays:
-                intelligenceAnalytics.rangeDays
+                intelligenceAnalytics.rangeDays,
+            eventTypeFilter:
+                intelligenceAnalytics.eventTypeFilter,
+            dayTypeFilter:
+                intelligenceAnalytics.dayTypeFilter
         });
     saveIntelligenceAnalytics();
     displayPlaylists(playlistsCache);
@@ -3673,6 +4256,26 @@ function saveAdaptiveDjMenuFromForm(form) {
                 source: "configuration",
                 slotId: slot.id
             });
+            recordIntelligenceEvent({
+                type: "correction",
+                mixId,
+                mixName: getSavedMixName(mixId),
+                source: "adaptive-configuration",
+                slotId: slot.id,
+                beforeMixId:
+                    previousSlots[slot.id] || "",
+                beforeMixName:
+                    previousSlots[slot.id]
+                        ? getSavedMixName(
+                            previousSlots[slot.id]
+                        )
+                        : "Aucun mix",
+                afterMixId: mixId,
+                afterMixName:
+                    getSavedMixName(mixId),
+                reason:
+                    "Association du créneau Adaptive DJ modifiée manuellement."
+            });
         }
     }
 
@@ -3853,6 +4456,18 @@ async function runAdaptiveDj({
                 mixId,
                 source: "adaptive",
                 slotId: slot.id
+            });
+            const latestAdaptiveEvent =
+                intelligenceAnalytics.events.find(
+                    (item) =>
+                        item.type === "adaptive" &&
+                        item.mixId === mixId
+                );
+            rememberAdaptiveProposal({
+                slot,
+                mix,
+                relatedEventId:
+                    latestAdaptiveEvent?.id || ""
             });
         }
 
@@ -15284,6 +15899,19 @@ contentElement.addEventListener(
             return;
         }
 
+        const confirmIntelligenceButton =
+            event.target.closest(
+                "[data-confirm-intelligence-event]"
+            );
+
+        if (confirmIntelligenceButton) {
+            confirmIntelligenceListening(
+                confirmIntelligenceButton.dataset
+                    .confirmIntelligenceEvent || ""
+            );
+            return;
+        }
+
         if (
             event.target.closest(
                 "#clearIntelligenceButton"
@@ -15737,6 +16365,9 @@ contentElement.addEventListener(
                     await launchSavedMix(mixId);
 
                 if (prepared) {
+                    recordManualAdaptiveCorrection(
+                        mixId
+                    );
                     recordAdaptiveLearningObservation({
                         mixId,
                         source: "manual"
@@ -16070,6 +16701,42 @@ contentElement.addEventListener(
             displayPlaylists(playlistsCache);
             setStatus(
                 "Période du tableau Intelligence mise à jour."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "intelligenceTypeInput"
+        ) {
+            intelligenceAnalytics =
+                normalizeIntelligenceAnalytics({
+                    ...intelligenceAnalytics,
+                    eventTypeFilter:
+                        event.target.value
+                });
+            saveIntelligenceAnalytics();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Filtre d’événements mis à jour."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "intelligenceDayTypeInput"
+        ) {
+            intelligenceAnalytics =
+                normalizeIntelligenceAnalytics({
+                    ...intelligenceAnalytics,
+                    dayTypeFilter:
+                        event.target.value
+                });
+            saveIntelligenceAnalytics();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Filtre semaine / week-end mis à jour."
             );
             return;
         }

@@ -2,32 +2,24 @@
 
 ## Version stable actuelle
 
-### v3.6.0 — Intelligence Dashboard
+### v3.7.0 — Historique enrichi et corrections
 
-- nouveau menu Intelligence ;
-- statistiques locales par période ;
-- mix, artistes et albums dominants ;
-- suivi des lancements et durées potentielles ;
-- confiance Adaptive DJ par créneau ;
-- suivi des suggestions et adaptations automatiques ;
-- score de santé du mélange ;
-- journal d’activité local ;
-- export d’un rapport JSON ;
-- intégration à la sauvegarde générale.
+- événements individuels détaillés ;
+- distinction entre ordre généré, lecture envoyée et écoute confirmée ;
+- confirmation manuelle de l’écoute ;
+- détection des corrections après Adaptive DJ ;
+- comparaison avant / après ;
+- tendances séparées semaine et week-end ;
+- filtres de l’activité par type et type de jour ;
+- rapport Intelligence JSON enrichi.
 
-## Prochaines étapes
-
-### v3.7 — Historique enrichi et corrections utilisateur
-
-- événements individuels plus détaillés ;
-- comparaison avant/après modification manuelle ;
-- tendances semaine et week-end ;
-- meilleure distinction entre génération, envoi et écoute réellement connue.
+## Prochaine étape
 
 ### v4.0 — PWA installable
 
 - manifeste web ;
 - icônes ;
-- installation iPhone et ordinateur ;
+- installation sur iPhone et ordinateur ;
 - cache de l’interface ;
-- lancement plus proche d’une application native.
+- écran et comportement plus proches d’une application native ;
+- conservation du raccourci iOS comme mode de lancement principal.

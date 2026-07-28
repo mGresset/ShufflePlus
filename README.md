@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **3.6.0 — Intelligence Dashboard**
+Version documentée : **3.7.0 — Historique enrichi et corrections**
 
 ## Sommaire
 
@@ -117,7 +117,7 @@ L’application est une application web statique : elle fonctionne directement d
 
 ## Navigation dans l’application
 
-Depuis la version 3.6.0, l’interface est divisée en cinq menus afin d’éviter une longue succession de blocs.
+Depuis la version 3.7.0, l’interface est divisée en cinq menus afin d’éviter une longue succession de blocs.
 
 ### 🎵 Ma musique
 
@@ -167,7 +167,13 @@ Ce menu fournit un tableau de bord local :
 - confiance Adaptive DJ par créneau ;
 - suivi des adaptations automatiques ;
 - score de santé du mélange ;
-- export d’un rapport JSON indépendant.
+- export d’un rapport JSON indépendant ;
+- distinction entre mix généré, commande envoyée et écoute confirmée ;
+- filtres par type d’événement et semaine / week-end ;
+- comparaison avant / après lorsqu’un choix Adaptive DJ est corrigé ;
+- confirmation manuelle d’une écoute réellement effectuée.
+
+Une correction est détectée lorsqu’un autre mix est lancé manuellement dans les 30 minutes suivant Adaptive DJ. Ce mécanisme reste local et peut être réinitialisé avec les statistiques Intelligence.
 
 La « durée potentielle » additionne les durées des titres envoyés à Spotify. Shuffle+ ne peut pas confirmer que chaque titre a été écouté intégralement. Les statistiques sont donc des mesures de préparation et d’envoi, pas un historique Spotify officiel.
 
@@ -694,7 +700,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=3.5.0"></script>
+<script type="module" src="./app.js?v=3.7.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -806,7 +812,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=3.5.0"></script>
+<script type="module" src="./app.js?v=3.7.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -847,14 +853,10 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 - Shuffle+ ne réalise pas de transition audio réelle entre les morceaux ;
 - Adaptive Learning 3.5.0 apprend les choix de mix, mais pas encore les skips ou préférences titre par titre ;
 - l’adaptation automatique s’exécute au lancement d’Adaptive DJ et non lorsque la page est fermée ;
-- les suggestions restent communes au créneau et ne distinguent pas encore automatiquement semaine et week-end ;
+- les tendances semaine / week-end sont visibles, mais les associations automatiques restent communes au créneau ;
 - les données musicales accessibles ne contiennent pas toujours assez d’informations pour mesurer précisément l’énergie ou le tempo.
 
 ## Évolution prévue
-
-### Version 3.6 — Statistiques d’écoute
-
-Objectif : enrichir les tendances par période, type de jour, mix, artiste et source, dans la limite des informations réellement accessibles.
 
 ### Version 4.0 — Application installable
 
