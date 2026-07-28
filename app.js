@@ -27,6 +27,7 @@ import {
 } from "./spotify-api.js";
 
 import {
+    ADAPTIVE_SLOTS,
     getAdaptiveSlot
 } from "./adaptive-dj.js";
 
@@ -37,7 +38,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.3.3-hotfix1";
+const APP_VERSION = "3.3.4";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -130,6 +131,23 @@ const IOS_COMMAND_HISTORY_KEY =
     "shuffleplus_ios_command_history_v1";
 const MAX_IOS_COMMANDS = 20;
 const MAX_IOS_COMMAND_HISTORY = 40;
+const APP_MENU_KEY =
+    "shuffleplus_active_menu_v1";
+const ADAPTIVE_DJ_MENU_KEY =
+    "shuffleplus_adaptive_dj_menu_v1";
+const ADAPTIVE_DJ_HISTORY_KEY =
+    "shuffleplus_adaptive_dj_history_v1";
+const MAX_ADAPTIVE_DJ_HISTORY = 40;
+const DEFAULT_ADAPTIVE_DJ_MENU_SETTINGS = {
+    enabled: true,
+    slots: {
+        morning: "",
+        focus: "",
+        drive: "",
+        evening: "",
+        night: ""
+    }
+};
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
 const MAX_MIX_SCHEDULES = 30;
@@ -404,6 +422,11 @@ let iosQuickPlaySettings =
 let iosCommands = readIosCommands();
 let iosCommandHistory =
     readIosCommandHistory();
+let activeAppMenu = readActiveAppMenu();
+let adaptiveDjMenuSettings =
+    readAdaptiveDjMenuSettings();
+let adaptiveDjMenuHistory =
+    readAdaptiveDjMenuHistory();
 let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
@@ -519,6 +542,681 @@ function getPlaylistSourceKey(playlistId) {
 
 
 
+
+
+
+function normalizeActiveAppMenu(value = "") {
+    return [
+        "music",
+        "mixes",
+        "adaptive",
+        "settings"
+    ].includes(value)
+        ? value
+        : "music";
+}
+
+function readActiveAppMenu() {
+    try {
+        return normalizeActiveAppMenu(
+            localStorage.getItem(APP_MENU_KEY) ||
+            "music"
+        );
+    } catch (error) {
+        return "music";
+    }
+}
+
+function saveActiveAppMenu() {
+    try {
+        localStorage.setItem(
+            APP_MENU_KEY,
+            activeAppMenu
+        );
+    } catch (error) {
+        console.warn(
+            "Menu actif non enregistré :",
+            error
+        );
+    }
+}
+
+function normalizeAdaptiveDjMenuSettings(
+    settings = {}
+) {
+    const sourceSlots =
+        settings?.slots &&
+        typeof settings.slots === "object"
+            ? settings.slots
+            : {};
+
+    const slots = {};
+
+    for (const slot of ADAPTIVE_SLOTS) {
+        slots[slot.id] =
+            typeof sourceSlots[slot.id] === "string"
+                ? sourceSlots[slot.id]
+                    .trim()
+                    .slice(0, 120)
+                : "";
+    }
+
+    return {
+        enabled: settings.enabled !== false,
+        slots
+    };
+}
+
+function readAdaptiveDjMenuSettings() {
+    try {
+        const raw = localStorage.getItem(
+            ADAPTIVE_DJ_MENU_KEY
+        );
+
+        return normalizeAdaptiveDjMenuSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_ADAPTIVE_DJ_MENU_SETTINGS
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages Adaptive DJ illisibles :",
+            error
+        );
+        return normalizeAdaptiveDjMenuSettings(
+            DEFAULT_ADAPTIVE_DJ_MENU_SETTINGS
+        );
+    }
+}
+
+function saveAdaptiveDjMenuSettings() {
+    try {
+        localStorage.setItem(
+            ADAPTIVE_DJ_MENU_KEY,
+            JSON.stringify(
+                adaptiveDjMenuSettings
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages Adaptive DJ non enregistrés :",
+            error
+        );
+    }
+}
+
+function normalizeAdaptiveDjMenuHistory(
+    values = []
+) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return values
+        .filter(
+            (item) =>
+                item &&
+                typeof item === "object"
+        )
+        .map((item) => ({
+            id:
+                typeof item.id === "string"
+                    ? item.id
+                    : createIosCommandId(),
+            slotId:
+                typeof item.slotId === "string"
+                    ? item.slotId
+                    : "",
+            slotLabel:
+                typeof item.slotLabel === "string"
+                    ? item.slotLabel.slice(0, 80)
+                    : "Adaptive DJ",
+            mixId:
+                typeof item.mixId === "string"
+                    ? item.mixId
+                    : "",
+            mixName:
+                typeof item.mixName === "string"
+                    ? item.mixName.slice(0, 120)
+                    : "",
+            deviceName:
+                typeof item.deviceName === "string"
+                    ? item.deviceName.slice(0, 120)
+                    : "",
+            status:
+                item.status === "error"
+                    ? "error"
+                    : "success",
+            message:
+                typeof item.message === "string"
+                    ? item.message.slice(0, 240)
+                    : "",
+            createdAt: Number(
+                item.createdAt ||
+                Date.now()
+            )
+        }))
+        .slice(0, MAX_ADAPTIVE_DJ_HISTORY);
+}
+
+function readAdaptiveDjMenuHistory() {
+    try {
+        const raw = localStorage.getItem(
+            ADAPTIVE_DJ_HISTORY_KEY
+        );
+
+        return normalizeAdaptiveDjMenuHistory(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        return [];
+    }
+}
+
+function saveAdaptiveDjMenuHistory() {
+    try {
+        localStorage.setItem(
+            ADAPTIVE_DJ_HISTORY_KEY,
+            JSON.stringify(
+                adaptiveDjMenuHistory
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Historique Adaptive DJ non enregistré :",
+            error
+        );
+    }
+}
+
+function addAdaptiveDjMenuHistory(entry) {
+    adaptiveDjMenuHistory =
+        normalizeAdaptiveDjMenuHistory([
+            {
+                id: createIosCommandId(),
+                ...entry,
+                createdAt: Date.now()
+            },
+            ...adaptiveDjMenuHistory
+        ]);
+
+    saveAdaptiveDjMenuHistory();
+}
+
+function getAdaptiveSlotById(slotId = "") {
+    return (
+        ADAPTIVE_SLOTS.find(
+            (slot) => slot.id === slotId
+        ) ||
+        getAdaptiveSlot()
+    );
+}
+
+function getAdaptiveDjMix(slotId = "") {
+    const resolvedSlot =
+        getAdaptiveSlotById(slotId);
+    const mixId =
+        adaptiveDjMenuSettings
+            .slots[resolvedSlot.id] || "";
+
+    return {
+        slot: resolvedSlot,
+        mixId,
+        mix:
+            savedMixes.find(
+                (item) => item.id === mixId
+            ) || null
+    };
+}
+
+function buildAdaptiveDjShortcutUrl() {
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+
+    url.searchParams.set(
+        "action",
+        "adaptive"
+    );
+    url.searchParams.set(
+        "autoplay",
+        "1"
+    );
+
+    return url.toString();
+}
+
+function renderAppMenu() {
+    const items = [
+        ["music", "🎵", "Ma musique"],
+        ["mixes", "🔀", "Mix & iOS"],
+        ["adaptive", "🤖", "Adaptive DJ"],
+        ["settings", "⚙️", "Réglages"]
+    ];
+
+    return `
+        <nav
+            class="app-menu"
+            aria-label="Navigation Shuffle+"
+        >
+            ${items.map(
+                ([id, icon, label]) => `
+                    <button
+                        type="button"
+                        class="app-menu-button
+                        ${activeAppMenu === id
+                            ? "is-active"
+                            : ""}"
+                        data-app-menu="${id}"
+                        aria-current="${activeAppMenu === id
+                            ? "page"
+                            : "false"}"
+                    >
+                        <span aria-hidden="true">
+                            ${icon}
+                        </span>
+                        <span>${label}</span>
+                    </button>
+                `
+            ).join("")}
+        </nav>
+    `;
+}
+
+function renderAdaptiveDjMenu() {
+    const current =
+        getAdaptiveDjMix();
+    const currentMixName =
+        current.mix?.name ||
+        "Aucun mix associé";
+
+    const mixOptions = (selectedId = "") =>
+        savedMixes
+            .map((mix) => `
+                <option
+                    value="${escapeHtml(mix.id)}"
+                    ${mix.id === selectedId
+                        ? "selected"
+                        : ""}
+                >
+                    ${escapeHtml(mix.name)}
+                </option>
+            `)
+            .join("");
+
+    const history = adaptiveDjMenuHistory
+        .slice(0, 10)
+        .map((item) => `
+            <li>
+                <span>
+                    ${escapeHtml(item.slotLabel)}
+                </span>
+                <strong>
+                    ${escapeHtml(
+                        item.mixName ||
+                        "Mix non défini"
+                    )}
+                </strong>
+                <small>
+                    ${new Intl.DateTimeFormat(
+                        "fr-FR",
+                        {
+                            dateStyle: "short",
+                            timeStyle: "short"
+                        }
+                    ).format(
+                        new Date(item.createdAt)
+                    )}
+                    · ${item.status === "success"
+                        ? "réussi"
+                        : "échec"}
+                    ${item.deviceName
+                        ? ` · ${escapeHtml(item.deviceName)}`
+                        : ""}
+                </small>
+            </li>
+        `)
+        .join("");
+
+    return `
+        <section class="adaptive-menu-page">
+            <div class="adaptive-menu-hero">
+                <div>
+                    <span class="adaptive-menu-kicker">
+                        🤖 Adaptive DJ
+                    </span>
+                    <h3>
+                        ${escapeHtml(current.slot.label)}
+                    </h3>
+                    <p>
+                        Il est
+                        ${String(
+                            new Date().getHours()
+                        ).padStart(2, "0")}h${String(
+                            new Date().getMinutes()
+                        ).padStart(2, "0")}
+                        · mix sélectionné :
+                        <strong>
+                            ${escapeHtml(currentMixName)}
+                        </strong>
+                    </p>
+                </div>
+
+                <span class="adaptive-menu-status
+                    ${adaptiveDjMenuSettings.enabled
+                        ? "is-enabled"
+                        : "is-disabled"}"
+                >
+                    ${adaptiveDjMenuSettings.enabled
+                        ? "Actif"
+                        : "Désactivé"}
+                </span>
+            </div>
+
+            <div class="adaptive-menu-actions">
+                <button
+                    id="runAdaptiveDjNowButton"
+                    class="adaptive-menu-primary"
+                    type="button"
+                    ${adaptiveDjMenuSettings.enabled &&
+                    current.mix
+                        ? ""
+                        : "disabled"}
+                >
+                    ▶ Lancer maintenant
+                </button>
+
+                <button
+                    id="copyAdaptiveDjUrlButton"
+                    class="adaptive-menu-secondary"
+                    type="button"
+                >
+                    🔗 Copier l’URL iOS
+                </button>
+            </div>
+
+            <form
+                id="adaptiveDjMenuForm"
+                class="adaptive-menu-form"
+            >
+                <label class="adaptive-menu-toggle">
+                    <input
+                        name="enabled"
+                        type="checkbox"
+                        ${adaptiveDjMenuSettings.enabled
+                            ? "checked"
+                            : ""}
+                    >
+                    <span>
+                        Activer Adaptive DJ
+                    </span>
+                </label>
+
+                <div class="adaptive-slot-grid">
+                    ${ADAPTIVE_SLOTS.map((slot) => `
+                        <label class="adaptive-slot-field">
+                            <span>
+                                ${escapeHtml(slot.label)}
+                            </span>
+                            <small>
+                                ${String(slot.start)
+                                    .padStart(2, "0")}h
+                                →
+                                ${String(slot.end)
+                                    .padStart(2, "0")}h
+                            </small>
+                            <select
+                                name="slot-${escapeHtml(slot.id)}"
+                            >
+                                <option value="">
+                                    Aucun mix
+                                </option>
+                                ${mixOptions(
+                                    adaptiveDjMenuSettings
+                                        .slots[slot.id] ||
+                                    ""
+                                )}
+                            </select>
+                        </label>
+                    `).join("")}
+                </div>
+
+                <div class="adaptive-test-row">
+                    <label>
+                        <span>Simuler un contexte</span>
+                        <select name="testSlotId">
+                            ${ADAPTIVE_SLOTS.map(
+                                (slot) => `
+                                    <option
+                                        value="${escapeHtml(slot.id)}"
+                                    >
+                                        ${escapeHtml(slot.label)}
+                                    </option>
+                                `
+                            ).join("")}
+                        </select>
+                    </label>
+
+                    <button
+                        id="testAdaptiveDjButton"
+                        class="adaptive-menu-secondary"
+                        type="button"
+                    >
+                        Tester ce créneau
+                    </button>
+
+                    <button
+                        class="adaptive-menu-save"
+                        type="submit"
+                    >
+                        Enregistrer
+                    </button>
+                </div>
+            </form>
+
+            <details class="adaptive-menu-history">
+                <summary>
+                    Historique Adaptive DJ ·
+                    ${adaptiveDjMenuHistory.length}
+                </summary>
+                <ul>
+                    ${history ||
+                    "<li>Aucun lancement enregistré.</li>"}
+                </ul>
+            </details>
+        </section>
+    `;
+}
+
+function saveAdaptiveDjMenuFromForm(form) {
+    const data = new FormData(form);
+    const slots = {};
+
+    for (const slot of ADAPTIVE_SLOTS) {
+        slots[slot.id] = String(
+            data.get(`slot-${slot.id}`) ||
+            ""
+        );
+    }
+
+    adaptiveDjMenuSettings =
+        normalizeAdaptiveDjMenuSettings({
+            enabled:
+                data.get("enabled") === "on",
+            slots
+        });
+
+    saveAdaptiveDjMenuSettings();
+    displayPlaylists(playlistsCache);
+
+    setStatus(
+        "Configuration Adaptive DJ enregistrée."
+    );
+}
+
+async function copyAdaptiveDjShortcutUrl() {
+    const url =
+        buildAdaptiveDjShortcutUrl();
+
+    try {
+        await navigator.clipboard.writeText(
+            url
+        );
+        setStatus(
+            "URL Adaptive DJ copiée."
+        );
+    } catch (error) {
+        window.prompt(
+            "Copie cette URL dans Raccourcis :",
+            url
+        );
+    }
+}
+
+async function runAdaptiveDj({
+    forcedSlotId = "",
+    autoplay = true
+} = {}) {
+    if (!adaptiveDjMenuSettings.enabled) {
+        throw new Error(
+            "Adaptive DJ est désactivé."
+        );
+    }
+
+    const {
+        slot,
+        mixId,
+        mix
+    } = getAdaptiveDjMix(
+        forcedSlotId
+    );
+
+    if (!mixId || !mix) {
+        throw new Error(
+            `Aucun mix n’est associé à ${slot.label}.`
+        );
+    }
+
+    setStatus(
+        `Adaptive DJ : préparation de ${slot.label}…`
+    );
+
+    try {
+        await launchSavedMix(mixId);
+
+        let deviceName = "";
+
+        if (
+            autoplay &&
+            selectedTracks.length
+        ) {
+            const command =
+                getPrincipalIosCommand() ||
+                normalizeIosCommand({
+                    id: "adaptive",
+                    name: "Adaptive DJ",
+                    icon: "🤖",
+                    deviceMode: "iphone",
+                    fallbackDeviceMode: "active",
+                    autoplay: true
+                });
+
+            const device =
+                await getAutomationDeviceWithRetry(
+                    command
+                );
+
+            if (!device) {
+                throw new Error(
+                    "Aucun appareil Spotify disponible."
+                );
+            }
+
+            const uris = selectedTracks
+                .slice(
+                    0,
+                    MAX_DIRECT_PLAYBACK_TRACKS
+                )
+                .map(
+                    (track) => track?.uri
+                )
+                .filter(Boolean);
+
+            if (!uris.length) {
+                throw new Error(
+                    "Le mix ne contient aucun morceau lisible."
+                );
+            }
+
+            await startPlayback(
+                uris,
+                device.id
+            );
+
+            try {
+                await setPlaybackShuffle(
+                    false,
+                    device.id
+                );
+            } catch (error) {
+                console.warn(
+                    "Shuffle Spotify non modifié :",
+                    error
+                );
+            }
+
+            rememberPlaybackOrder(
+                selectedTracks.slice(
+                    0,
+                    uris.length
+                )
+            );
+
+            deviceName = device.name;
+        }
+
+        addAdaptiveDjMenuHistory({
+            slotId: slot.id,
+            slotLabel: slot.label,
+            mixId,
+            mixName: mix.name,
+            deviceName,
+            status: "success",
+            message:
+                autoplay
+                    ? "Mix lancé"
+                    : "Mix préparé"
+        });
+
+        setStatus(
+            `${slot.label} · « ${mix.name} »` +
+            (deviceName
+                ? ` lancé sur ${deviceName}.`
+                : " préparé.")
+        );
+
+        return {
+            slot,
+            mix,
+            deviceName
+        };
+    } catch (error) {
+        addAdaptiveDjMenuHistory({
+            slotId: slot.id,
+            slotLabel: slot.label,
+            mixId,
+            mixName: mix.name,
+            deviceName: "",
+            status: "error",
+            message:
+                error.message ||
+                "Échec Adaptive DJ"
+        });
+
+        throw error;
+    }
+}
 
 
 function normalizeIosQuickPlaySettings(
@@ -1631,6 +2329,10 @@ function normalizeAutomationCommand(command = {}) {
             typeof command.profileId === "string"
                 ? command.profileId.slice(0, 120)
                 : "",
+        contextId:
+            typeof command.contextId === "string"
+                ? command.contextId.slice(0, 40)
+                : "",
         autoplay:
             command.autoplay !== false,
         createdAt: Number(
@@ -1712,6 +2414,10 @@ function parseAutomationCommandFromUrl() {
             params.get("profile") ||
             params.get("profileId") ||
             "",
+        contextId:
+            params.get("context") ||
+            params.get("mood") ||
+            "",
         autoplay:
             params.get("autoplay") !== "0",
         createdAt: Date.now()
@@ -1733,6 +2439,8 @@ function clearAutomationQueryString() {
         "mixId",
         "profile",
         "profileId",
+        "context",
+        "mood",
         "autoplay"
     ]) {
         url.searchParams.delete(key);
@@ -2179,27 +2887,12 @@ async function executeAutomationCommand(
     if (
         normalized.action === "adaptive"
     ) {
-        const command =
-            getEffectiveIosCommand(
-                normalized.commandId
-            );
-
-        const context =
-            getAdaptiveSlot();
-
-        setStatus(
-            `Adaptive DJ : ${context.name}`
-        );
-
-        if (!command.mixId) {
-            throw new Error(
-                "Aucun mix associé au contexte Adaptive DJ."
-            );
-        }
-
-        await launchSavedMix(
-            command.mixId
-        );
+        await runAdaptiveDj({
+            forcedSlotId:
+                normalized.contextId,
+            autoplay:
+                normalized.autoplay
+        });
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
@@ -8446,6 +9139,8 @@ function buildBackupPayload() {
             iosQuickPlaySettings,
             iosCommands,
             iosCommandHistory,
+            adaptiveDjMenuSettings,
+            adaptiveDjMenuHistory,
             mixSchedules
         }
     };
@@ -8577,6 +9272,14 @@ function validateBackupPayload(payload) {
             normalizeIosCommandHistory(
                 payload.data.iosCommandHistory
             ),
+        adaptiveDjMenuSettings:
+            normalizeAdaptiveDjMenuSettings(
+                payload.data.adaptiveDjMenuSettings
+            ),
+        adaptiveDjMenuHistory:
+            normalizeAdaptiveDjMenuHistory(
+                payload.data.adaptiveDjMenuHistory
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -8706,6 +9409,12 @@ async function importBackupFile(file) {
         iosCommandHistory =
             imported.iosCommandHistory;
         saveIosCommandHistory();
+        adaptiveDjMenuSettings =
+            imported.adaptiveDjMenuSettings;
+        saveAdaptiveDjMenuSettings();
+        adaptiveDjMenuHistory =
+            imported.adaptiveDjMenuHistory;
+        saveAdaptiveDjMenuHistory();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -9534,6 +10243,15 @@ function displayPlaylists(playlists) {
                 </div>
             </div>
 
+            ${renderAppMenu()}
+
+            <div
+                class="app-menu-page
+                ${activeAppMenu === "music"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="music"
+            >
             <section class="library-toolbar" aria-label="Recherche et filtres">
                 <label class="library-search-field" for="librarySearchInput">
                     <span>Rechercher</span>
@@ -9606,30 +10324,6 @@ function displayPlaylists(playlists) {
             : ""
         }
             </p>
-
-            ${renderBackupPanel()}
-
-            ${renderIosCommandsPanel()}
-
-            ${renderMixSchedulesSection()}
-
-            ${renderAdaptivePanel()}
-
-            ${renderCleanupPanel()}
-
-            ${renderMixProfilesSection()}
-
-            ${renderPriorityPanel()}
-
-            ${renderCoherencePanel()}
-
-            ${renderIntensityPanel()}
-
-            ${renderExclusionPanel()}
-
-            ${renderSavedMixesSection()}
-
-            ${renderMixHistorySection()}
 
             <section id="mixBuilder" class="mix-builder ${editingSavedMixId ? "is-editing" : ""}" aria-label="Créateur de mix">
                 <div class="mix-builder-copy">
@@ -9706,6 +10400,47 @@ function displayPlaylists(playlists) {
             </p>
 
             ${emptyState}
+            </div>
+
+            <div
+                class="app-menu-page
+                ${activeAppMenu === "mixes"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="mixes"
+            >
+                ${renderIosCommandsPanel()}
+                ${renderSavedMixesSection()}
+                ${renderMixSchedulesSection()}
+                ${renderMixHistorySection()}
+            </div>
+
+            <div
+                class="app-menu-page
+                ${activeAppMenu === "adaptive"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="adaptive"
+            >
+                ${renderAdaptiveDjMenu()}
+                ${renderAdaptivePanel()}
+            </div>
+
+            <div
+                class="app-menu-page
+                ${activeAppMenu === "settings"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="settings"
+            >
+                ${renderBackupPanel()}
+                ${renderCleanupPanel()}
+                ${renderMixProfilesSection()}
+                ${renderPriorityPanel()}
+                ${renderCoherencePanel()}
+                ${renderIntensityPanel()}
+                ${renderExclusionPanel()}
+            </div>
         </section>
     `;
 
@@ -11702,6 +12437,79 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const appMenuButton =
+            event.target.closest(
+                "[data-app-menu]"
+            );
+
+        if (appMenuButton) {
+            activeAppMenu =
+                normalizeActiveAppMenu(
+                    appMenuButton.dataset.appMenu
+                );
+            saveActiveAppMenu();
+            displayPlaylists(
+                playlistsCache
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#runAdaptiveDjNowButton"
+            )
+        ) {
+            try {
+                await runAdaptiveDj();
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "Adaptive DJ n’a pas pu démarrer.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testAdaptiveDjButton"
+            )
+        ) {
+            const form =
+                event.target.closest(
+                    "#adaptiveDjMenuForm"
+                );
+            const slotId =
+                form?.elements?.testSlotId
+                    ?.value || "";
+
+            try {
+                await runAdaptiveDj({
+                    forcedSlotId: slotId,
+                    autoplay: false
+                });
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "Test Adaptive DJ impossible.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copyAdaptiveDjUrlButton"
+            )
+        ) {
+            await copyAdaptiveDjShortcutUrl();
+            return;
+        }
+
         const iosCommandActionButton =
             event.target.closest(
                 "[data-ios-command-action]"
@@ -12399,6 +13207,16 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (
+            event.target.id === "adaptiveDjMenuForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveDjMenuFromForm(
+                event.target
+            );
+            return;
+        }
+
         if (
             event.target.id === "iosCommandForm"
         ) {
