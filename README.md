@@ -1093,3 +1093,29 @@ L’assistant intégré génère une URL de cette forme :
 Dans l’application Raccourcis, il suffit de créer un raccourci utilisant l’action **Ouvrir les URL**, de coller l’adresse, puis de choisir un nom prononçable avec Siri.
 
 Après une commande externe, le menu Rapide affiche un bandeau indiquant le profil demandé, le mix traité, l’appareil utilisé ou l’erreur rencontrée.
+
+## v4.7 — Appairage local et simulation
+
+La section **Réglages → Synchronisation multi-appareils** permet désormais de relier deux installations Shuffle+ sans serveur.
+
+### Procédure d’appairage
+
+1. Sur le premier appareil, créer une invitation.
+2. Copier le jeton ou exporter l’invitation JSON.
+3. Sur le second appareil, coller le jeton ou importer le fichier.
+4. Le second appareil télécharge une confirmation.
+5. Importer cette confirmation sur le premier appareil.
+
+L’invitation expire après 15 minutes. Une fois les deux appareils appairés, Shuffle+ peut comparer leurs dernières empreintes connues, simuler le sens conseillé de l’échange et générer un paquet ciblé.
+
+### Ce que « simulation » signifie
+
+La simulation ne déplace pas encore les données automatiquement. Elle compare :
+
+- l’empreinte des données locales ;
+- la dernière empreinte connue de l’autre appareil ;
+- les dates de modification disponibles ;
+- la politique de conflit sélectionnée.
+
+Elle indique ensuite si les appareils semblent déjà synchronisés, si les données locales devraient être envoyées ou si un paquet plus récent devrait être demandé à l’autre appareil.
+

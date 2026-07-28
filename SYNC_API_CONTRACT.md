@@ -90,3 +90,13 @@ Révoque une ancienne installation.
 - serveur distant ;
 - synchronisation en arrière-plan ;
 - fusion champ par champ entièrement automatique.
+
+## Appairage local v4.7
+
+La v4.7 valide deux nouveaux objets avant leur transport futur par le serveur :
+
+- `shuffleplus-pairing-invitation` : invitation temporaire contenant l’identité de l’installation source, une expiration, un code de contrôle et une preuve secrète ;
+- `shuffleplus-pairing-acceptance` : confirmation retournée par le second appareil, ciblée vers l’installation d’origine.
+
+Le futur serveur ne devra jamais journaliser le contenu des sauvegardes en clair. Il devra uniquement transporter des enveloppes chiffrées, vérifier leur expiration et empêcher la réutilisation d’une invitation consommée.
+

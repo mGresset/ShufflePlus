@@ -1,36 +1,23 @@
 # Feuille de route Shuffle+
 
-## Version stable actuelle
+## Version actuelle — v4.7.0
 
-### v4.6.0 — Préparation à la synchronisation
+- appairage local entre deux installations ;
+- invitations temporaires et confirmations ;
+- appareils de confiance ;
+- simulation de synchronisation ;
+- paquets ciblés et journal des sessions.
 
-- identifiant local d’installation ;
-- aperçu des données synchronisables ;
-- paquets JSON versionnés ;
-- analyse des différences entre appareils ;
-- politiques de résolution des conflits ;
-- diagnostic de synchronisation ;
-- contrat d’API documenté ;
-- aucun serveur actif à ce stade.
+## Prochaine étape — v4.8
 
-## Étape suivante
+- fusion sélective des catégories de données ;
+- aperçu détaillé des différences avant import ;
+- choix par catégorie : mix, profils, feedbacks, apprentissage et historiques.
 
-### v4.7 — Appairage et simulation de synchronisation
+## v5.0
 
-- code d’appairage temporaire entre deux appareils ;
-- simulation locale des révisions serveur ;
-- journal des changements synchronisables ;
-- prévisualisation d’une fusion avant application ;
-- préparation de l’authentification du futur compte Shuffle+.
-
-## Évolution majeure envisagée
-
-### v5.0 — Synchronisation serveur
-
-- compte Shuffle+ ;
-- sauvegarde distante ;
+- serveur Shuffle+ ;
+- compte de synchronisation ;
+- échange automatique chiffré ;
 - synchronisation iPhone / ordinateur ;
-- restauration des réglages ;
-- gestion des appareils ;
-- résolution des conflits avec révisions serveur ;
-- chiffrement et suppression des données distantes.
+- reprise et résolution de conflits à distance.

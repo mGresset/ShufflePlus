@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.6.0";
+const APP_VERSION = "4.7.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -156,6 +156,21 @@ const SYNC_MAX_FILE_SIZE = 5 * 1024 * 1024;
 const DEFAULT_SYNC_SETTINGS = {
     conflictPolicy: "manual"
 };
+const SYNC_PAIRED_DEVICES_KEY =
+    "shuffleplus_sync_paired_devices_v1";
+const SYNC_PAIRING_INVITES_KEY =
+    "shuffleplus_sync_pairing_invites_v1";
+const SYNC_SESSION_HISTORY_KEY =
+    "shuffleplus_sync_session_history_v1";
+const SYNC_PAIRING_INVITE_FORMAT =
+    "shuffleplus-pairing-invitation";
+const SYNC_PAIRING_ACCEPT_FORMAT =
+    "shuffleplus-pairing-acceptance";
+const SYNC_PAIRING_SCHEMA_VERSION = 1;
+const SYNC_PAIRING_TTL = 15 * 60 * 1000;
+const MAX_SYNC_PAIRED_DEVICES = 12;
+const MAX_SYNC_PAIRING_INVITES = 8;
+const MAX_SYNC_SESSION_HISTORY = 40;
 const DEFAULT_QUICK_CONTEXTS = [
     {
         id: "drive",
@@ -599,6 +614,10 @@ let quickShortcutWizardContextId =
 let syncInstallation = readSyncInstallation();
 let syncSettings = readSyncSettings();
 let pendingSyncPackage = null;
+let syncPairedDevices = readSyncPairedDevices();
+let syncPairingInvites = readSyncPairingInvites();
+let syncSessionHistory = readSyncSessionHistory();
+let syncSimulationResult = null;
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -16459,7 +16478,7 @@ function getSyncDataUpdatedAt(data = {}) {
     );
 }
 
-function buildSyncPackage() {
+function buildSyncPackage(targetPeer = null) {
     const backup = buildBackupPayload();
     const serializedData = JSON.stringify(backup.data);
     const dataUpdatedAt = getSyncDataUpdatedAt(
@@ -16475,6 +16494,16 @@ function buildSyncPackage() {
         sourceInstallation: {
             ...syncInstallation
         },
+        targetInstallationId:
+            targetPeer?.id || "",
+        syncSessionId:
+            targetPeer
+                ? createSyncIdentifier()
+                : "",
+        dataUpdatedAt:
+            new Date(
+                dataUpdatedAt || Date.now()
+            ).toISOString(),
         conflictPolicy: syncSettings.conflictPolicy,
         fingerprint: hashSyncContent(serializedData),
         byteSize: new TextEncoder().encode(
@@ -16672,6 +16701,9 @@ async function analyzeSyncPackageFile(file) {
         pendingSyncPackage = validateSyncPackage(
             JSON.parse(text)
         );
+        registerSyncPackageSource(
+            pendingSyncPackage
+        );
         refreshSyncPreparationPanel();
         setStatus(
             "Paquet analysé : choisis comment résoudre le conflit."
@@ -16854,6 +16886,1261 @@ function renderSyncConflictAnalysis() {
     `;
 }
 
+
+function normalizeSyncPairedDevice(value = {}) {
+    const id =
+        typeof value.id === "string"
+            ? value.id.trim().slice(0, 120)
+            : "";
+
+    if (!id || id === syncInstallation.id) {
+        return null;
+    }
+
+    return {
+        id,
+        label:
+            typeof value.label === "string" &&
+            value.label.trim()
+                ? value.label.trim().slice(0, 80)
+                : "Appareil Shuffle+",
+        spotifyUserId:
+            typeof value.spotifyUserId === "string"
+                ? value.spotifyUserId.slice(0, 160)
+                : "",
+        pairedAt: Number(
+            value.pairedAt || Date.now()
+        ),
+        lastSeenAt: Number(
+            value.lastSeenAt ||
+            value.pairedAt ||
+            Date.now()
+        ),
+        lastSyncAt: Number(
+            value.lastSyncAt || 0
+        ),
+        lastSentAt: Number(
+            value.lastSentAt || 0
+        ),
+        lastFingerprint:
+            typeof value.lastFingerprint === "string"
+                ? value.lastFingerprint.slice(0, 80)
+                : "",
+        lastDataUpdatedAt:
+            typeof value.lastDataUpdatedAt === "string"
+                ? value.lastDataUpdatedAt
+                : "",
+        lastSummary:
+            value.lastSummary &&
+            typeof value.lastSummary === "object"
+                ? value.lastSummary
+                : {},
+        trustKey:
+            typeof value.trustKey === "string"
+                ? value.trustKey.slice(0, 120)
+                : "",
+        status:
+            value.status === "pending"
+                ? "pending"
+                : "paired"
+    };
+}
+
+function normalizeSyncPairedDevices(values = []) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    const unique = new Map();
+
+    for (const value of values) {
+        const device = normalizeSyncPairedDevice(
+            value
+        );
+
+        if (!device) {
+            continue;
+        }
+
+        const previous = unique.get(device.id);
+        if (
+            !previous ||
+            device.lastSeenAt >= previous.lastSeenAt
+        ) {
+            unique.set(device.id, device);
+        }
+    }
+
+    return [...unique.values()]
+        .sort(
+            (left, right) =>
+                right.lastSeenAt - left.lastSeenAt
+        )
+        .slice(0, MAX_SYNC_PAIRED_DEVICES);
+}
+
+function readSyncPairedDevices() {
+    try {
+        const raw = localStorage.getItem(
+            SYNC_PAIRED_DEVICES_KEY
+        );
+        return normalizeSyncPairedDevices(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        return [];
+    }
+}
+
+function saveSyncPairedDevices() {
+    syncPairedDevices =
+        normalizeSyncPairedDevices(
+            syncPairedDevices
+        );
+
+    try {
+        localStorage.setItem(
+            SYNC_PAIRED_DEVICES_KEY,
+            JSON.stringify(syncPairedDevices)
+        );
+    } catch (error) {
+        console.warn(
+            "Appareils appairés non enregistrés :",
+            error
+        );
+    }
+}
+
+function normalizeSyncPairingInvite(value = {}) {
+    const invitationId =
+        typeof value.invitationId === "string"
+            ? value.invitationId.slice(0, 120)
+            : "";
+    const code = String(value.code || "")
+        .replace(/\D/g, "")
+        .slice(0, 6);
+    const secret =
+        typeof value.secret === "string"
+            ? value.secret.slice(0, 180)
+            : "";
+
+    if (!invitationId || code.length !== 6 || !secret) {
+        return null;
+    }
+
+    return {
+        invitationId,
+        code,
+        secret,
+        createdAt: Number(value.createdAt || Date.now()),
+        expiresAt: Number(
+            value.expiresAt ||
+            Date.now() + SYNC_PAIRING_TTL
+        ),
+        acceptedAt: Number(value.acceptedAt || 0),
+        acceptedInstallationId:
+            typeof value.acceptedInstallationId === "string"
+                ? value.acceptedInstallationId.slice(0, 120)
+                : ""
+    };
+}
+
+function normalizeSyncPairingInvites(values = []) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+
+    return values
+        .map(normalizeSyncPairingInvite)
+        .filter(Boolean)
+        .filter(
+            (invite) =>
+                invite.expiresAt >= cutoff
+        )
+        .sort(
+            (left, right) =>
+                right.createdAt - left.createdAt
+        )
+        .slice(0, MAX_SYNC_PAIRING_INVITES);
+}
+
+function readSyncPairingInvites() {
+    try {
+        const raw = localStorage.getItem(
+            SYNC_PAIRING_INVITES_KEY
+        );
+        return normalizeSyncPairingInvites(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        return [];
+    }
+}
+
+function saveSyncPairingInvites() {
+    syncPairingInvites =
+        normalizeSyncPairingInvites(
+            syncPairingInvites
+        );
+
+    try {
+        localStorage.setItem(
+            SYNC_PAIRING_INVITES_KEY,
+            JSON.stringify(syncPairingInvites)
+        );
+    } catch (error) {
+        console.warn(
+            "Invitations d’appairage non enregistrées :",
+            error
+        );
+    }
+}
+
+function normalizeSyncSessionHistory(values = []) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return values
+        .filter(
+            (item) =>
+                item && typeof item === "object"
+        )
+        .map((item) => ({
+            id:
+                typeof item.id === "string"
+                    ? item.id
+                    : createSyncIdentifier(),
+            type:
+                typeof item.type === "string"
+                    ? item.type.slice(0, 40)
+                    : "sync",
+            peerId:
+                typeof item.peerId === "string"
+                    ? item.peerId.slice(0, 120)
+                    : "",
+            peerLabel:
+                typeof item.peerLabel === "string"
+                    ? item.peerLabel.slice(0, 80)
+                    : "Appareil Shuffle+",
+            status:
+                item.status === "error"
+                    ? "error"
+                    : item.status === "warning"
+                        ? "warning"
+                        : "success",
+            message:
+                typeof item.message === "string"
+                    ? item.message.slice(0, 240)
+                    : "",
+            createdAt: Number(
+                item.createdAt || Date.now()
+            )
+        }))
+        .sort(
+            (left, right) =>
+                right.createdAt - left.createdAt
+        )
+        .slice(0, MAX_SYNC_SESSION_HISTORY);
+}
+
+function readSyncSessionHistory() {
+    try {
+        const raw = localStorage.getItem(
+            SYNC_SESSION_HISTORY_KEY
+        );
+        return normalizeSyncSessionHistory(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        return [];
+    }
+}
+
+function saveSyncSessionHistory() {
+    syncSessionHistory =
+        normalizeSyncSessionHistory(
+            syncSessionHistory
+        );
+
+    try {
+        localStorage.setItem(
+            SYNC_SESSION_HISTORY_KEY,
+            JSON.stringify(syncSessionHistory)
+        );
+    } catch (error) {
+        console.warn(
+            "Historique de synchronisation non enregistré :",
+            error
+        );
+    }
+}
+
+function addSyncSessionHistory(entry = {}) {
+    syncSessionHistory =
+        normalizeSyncSessionHistory([
+            {
+                id: createSyncIdentifier(),
+                ...entry,
+                createdAt: Date.now()
+            },
+            ...syncSessionHistory
+        ]);
+    saveSyncSessionHistory();
+}
+
+function encodeSyncPairingToken(payload) {
+    const bytes = new TextEncoder().encode(
+        JSON.stringify(payload)
+    );
+    let binary = "";
+
+    for (const byte of bytes) {
+        binary += String.fromCharCode(byte);
+    }
+
+    return btoa(binary)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
+}
+
+function decodeSyncPairingToken(token = "") {
+    const normalized = String(token)
+        .trim()
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+    const padded = normalized.padEnd(
+        Math.ceil(normalized.length / 4) * 4,
+        "="
+    );
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(
+        binary,
+        (character) => character.charCodeAt(0)
+    );
+    return JSON.parse(
+        new TextDecoder().decode(bytes)
+    );
+}
+
+function createPairingCode() {
+    const values = new Uint32Array(1);
+
+    if (
+        typeof crypto !== "undefined" &&
+        typeof crypto.getRandomValues === "function"
+    ) {
+        crypto.getRandomValues(values);
+        return String(
+            100000 + (values[0] % 900000)
+        );
+    }
+
+    return String(
+        Math.floor(100000 + Math.random() * 900000)
+    );
+}
+
+function buildSyncPairingInvitation(invite) {
+    const localPackage = buildSyncPackage();
+
+    return {
+        format: SYNC_PAIRING_INVITE_FORMAT,
+        schemaVersion: SYNC_PAIRING_SCHEMA_VERSION,
+        appVersion: APP_VERSION,
+        invitationId: invite.invitationId,
+        code: invite.code,
+        secret: invite.secret,
+        createdAt: new Date(invite.createdAt).toISOString(),
+        expiresAt: new Date(invite.expiresAt).toISOString(),
+        sourceInstallation: {
+            ...syncInstallation
+        },
+        spotifyUserId: currentUserId || "",
+        fingerprint: localPackage.fingerprint,
+        dataUpdatedAt: localPackage.dataUpdatedAt,
+        summary: localPackage.summary
+    };
+}
+
+function createSyncPairingInvitation() {
+    const invite = normalizeSyncPairingInvite({
+        invitationId: createSyncIdentifier(),
+        code: createPairingCode(),
+        secret: createSyncIdentifier() + createSyncIdentifier(),
+        createdAt: Date.now(),
+        expiresAt: Date.now() + SYNC_PAIRING_TTL
+    });
+
+    syncPairingInvites = [
+        invite,
+        ...syncPairingInvites.filter(
+            (item) => !item.acceptedAt
+        )
+    ];
+    saveSyncPairingInvites();
+    refreshSyncPreparationPanel();
+    setStatus(
+        `Invitation créée : code ${invite.code}, valable 15 minutes.`
+    );
+    return invite;
+}
+
+function getActiveSyncPairingInvite() {
+    return syncPairingInvites.find(
+        (invite) =>
+            !invite.acceptedAt &&
+            invite.expiresAt > Date.now()
+    ) || null;
+}
+
+async function copySyncPairingInvitation() {
+    const invite =
+        getActiveSyncPairingInvite() ||
+        createSyncPairingInvitation();
+    const token = encodeSyncPairingToken(
+        buildSyncPairingInvitation(invite)
+    );
+
+    try {
+        await navigator.clipboard.writeText(token);
+        setStatus(
+            `Invitation copiée. Code de contrôle : ${invite.code}.`
+        );
+    } catch (error) {
+        window.prompt(
+            "Copie ce jeton d’appairage :",
+            token
+        );
+    }
+}
+
+function exportSyncPairingInvitation() {
+    const invite =
+        getActiveSyncPairingInvite() ||
+        createSyncPairingInvitation();
+    downloadJsonPayload(
+        buildSyncPairingInvitation(invite),
+        `shuffleplus-pairing-${invite.code}.json`
+    );
+    setStatus(
+        `Invitation d’appairage ${invite.code} exportée.`
+    );
+}
+
+function validateSyncPairingInvitation(payload) {
+    if (
+        !payload ||
+        payload.format !== SYNC_PAIRING_INVITE_FORMAT ||
+        Number(payload.schemaVersion) !==
+            SYNC_PAIRING_SCHEMA_VERSION
+    ) {
+        throw new Error(
+            "Invitation d’appairage Shuffle+ invalide."
+        );
+    }
+
+    const expiresAt = Date.parse(payload.expiresAt);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+        throw new Error(
+            "Cette invitation d’appairage a expiré."
+        );
+    }
+
+    const sourceInstallation =
+        normalizeSyncInstallation(
+            payload.sourceInstallation || {}
+        );
+
+    if (sourceInstallation.id === syncInstallation.id) {
+        throw new Error(
+            "Impossible d’appairer cette installation avec elle-même."
+        );
+    }
+
+    const code = String(payload.code || "")
+        .replace(/\D/g, "")
+        .slice(0, 6);
+    const secret = String(payload.secret || "");
+    const invitationId = String(
+        payload.invitationId || ""
+    );
+
+    if (
+        code.length !== 6 ||
+        !secret ||
+        !invitationId
+    ) {
+        throw new Error(
+            "Invitation d’appairage incomplète."
+        );
+    }
+
+    return {
+        ...payload,
+        code,
+        secret,
+        invitationId,
+        sourceInstallation,
+        expiresAt
+    };
+}
+
+function buildSyncPairingAcceptance(invitation) {
+    const localPackage = buildSyncPackage();
+
+    return {
+        format: SYNC_PAIRING_ACCEPT_FORMAT,
+        schemaVersion: SYNC_PAIRING_SCHEMA_VERSION,
+        appVersion: APP_VERSION,
+        invitationId: invitation.invitationId,
+        code: invitation.code,
+        trustProof: hashSyncContent(
+            invitation.secret +
+            invitation.code +
+            invitation.sourceInstallation.id
+        ),
+        acceptedAt: new Date().toISOString(),
+        invitationSourceInstallationId:
+            invitation.sourceInstallation.id,
+        acceptingInstallation: {
+            ...syncInstallation
+        },
+        spotifyUserId: currentUserId || "",
+        fingerprint: localPackage.fingerprint,
+        dataUpdatedAt: localPackage.dataUpdatedAt,
+        summary: localPackage.summary
+    };
+}
+
+function upsertSyncPairedDevice(device) {
+    const normalized = normalizeSyncPairedDevice(
+        device
+    );
+
+    if (!normalized) {
+        return null;
+    }
+
+    const existing = syncPairedDevices.find(
+        (item) => item.id === normalized.id
+    );
+
+    syncPairedDevices = [
+        {
+            ...existing,
+            ...normalized,
+            pairedAt:
+                existing?.pairedAt ||
+                normalized.pairedAt,
+            lastSeenAt: Math.max(
+                existing?.lastSeenAt || 0,
+                normalized.lastSeenAt || 0
+            )
+        },
+        ...syncPairedDevices.filter(
+            (item) => item.id !== normalized.id
+        )
+    ];
+    saveSyncPairedDevices();
+    return normalized;
+}
+
+function acceptSyncPairingInvitationPayload(payload) {
+    const invitation =
+        validateSyncPairingInvitation(payload);
+    const source = invitation.sourceInstallation;
+
+    upsertSyncPairedDevice({
+        id: source.id,
+        label: source.label,
+        spotifyUserId:
+            invitation.spotifyUserId || "",
+        pairedAt: Date.now(),
+        lastSeenAt: Date.now(),
+        lastFingerprint:
+            invitation.fingerprint || "",
+        lastDataUpdatedAt:
+            invitation.dataUpdatedAt || "",
+        lastSummary:
+            invitation.summary || {},
+        trustKey: hashSyncContent(
+            invitation.secret +
+            invitation.code +
+            source.id
+        ),
+        status: "paired"
+    });
+
+    const acceptance =
+        buildSyncPairingAcceptance(invitation);
+    downloadJsonPayload(
+        acceptance,
+        `shuffleplus-pairing-acceptance-${invitation.code}.json`
+    );
+
+    addSyncSessionHistory({
+        type: "pairing-accepted",
+        peerId: source.id,
+        peerLabel: source.label,
+        status: "success",
+        message:
+            "Invitation acceptée ; confirmation exportée."
+    });
+
+    refreshSyncPreparationPanel();
+    setStatus(
+        `Appairage avec ${source.label} accepté. Envoie le fichier de confirmation à l’appareil d’origine.`
+    );
+}
+
+function validateSyncPairingAcceptance(payload) {
+    if (
+        !payload ||
+        payload.format !== SYNC_PAIRING_ACCEPT_FORMAT ||
+        Number(payload.schemaVersion) !==
+            SYNC_PAIRING_SCHEMA_VERSION
+    ) {
+        throw new Error(
+            "Confirmation d’appairage Shuffle+ invalide."
+        );
+    }
+
+    if (
+        payload.invitationSourceInstallationId !==
+        syncInstallation.id
+    ) {
+        throw new Error(
+            "Cette confirmation ne cible pas cette installation."
+        );
+    }
+
+    const invite = syncPairingInvites.find(
+        (item) =>
+            item.invitationId === payload.invitationId &&
+            item.code === String(payload.code || "")
+    );
+
+    if (!invite) {
+        throw new Error(
+            "Invitation d’origine introuvable ou supprimée."
+        );
+    }
+
+    const expectedProof = hashSyncContent(
+        invite.secret +
+        invite.code +
+        syncInstallation.id
+    );
+
+    if (payload.trustProof !== expectedProof) {
+        throw new Error(
+            "La preuve d’appairage ne correspond pas."
+        );
+    }
+
+    const acceptingInstallation =
+        normalizeSyncInstallation(
+            payload.acceptingInstallation || {}
+        );
+
+    if (acceptingInstallation.id === syncInstallation.id) {
+        throw new Error(
+            "Confirmation d’appairage invalide."
+        );
+    }
+
+    return {
+        ...payload,
+        invite,
+        acceptingInstallation
+    };
+}
+
+function applySyncPairingAcceptancePayload(payload) {
+    const acceptance =
+        validateSyncPairingAcceptance(payload);
+    const peer = acceptance.acceptingInstallation;
+
+    upsertSyncPairedDevice({
+        id: peer.id,
+        label: peer.label,
+        spotifyUserId:
+            acceptance.spotifyUserId || "",
+        pairedAt: Date.now(),
+        lastSeenAt: Date.now(),
+        lastFingerprint:
+            acceptance.fingerprint || "",
+        lastDataUpdatedAt:
+            acceptance.dataUpdatedAt || "",
+        lastSummary:
+            acceptance.summary || {},
+        trustKey: acceptance.trustProof,
+        status: "paired"
+    });
+
+    syncPairingInvites = syncPairingInvites.map(
+        (invite) =>
+            invite.invitationId ===
+            acceptance.invite.invitationId
+                ? {
+                    ...invite,
+                    acceptedAt: Date.now(),
+                    acceptedInstallationId: peer.id
+                }
+                : invite
+    );
+    saveSyncPairingInvites();
+
+    addSyncSessionHistory({
+        type: "pairing-complete",
+        peerId: peer.id,
+        peerLabel: peer.label,
+        status: "success",
+        message: "Appairage confirmé sur les deux appareils."
+    });
+
+    refreshSyncPreparationPanel();
+    setStatus(
+        `${peer.label} est maintenant appairé à cette installation.`
+    );
+}
+
+function acceptSyncPairingToken(token = "") {
+    if (!String(token).trim()) {
+        setStatus(
+            "Colle d’abord un jeton d’appairage.",
+            "error"
+        );
+        return;
+    }
+
+    try {
+        acceptSyncPairingInvitationPayload(
+            decodeSyncPairingToken(token)
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Jeton d’appairage invalide.",
+            "error"
+        );
+    }
+}
+
+async function analyzeSyncPairingFile(file) {
+    if (!file) {
+        return;
+    }
+
+    if (
+        file.size > SYNC_MAX_FILE_SIZE ||
+        !file.name.toLowerCase().endsWith(".json")
+    ) {
+        setStatus(
+            "Sélectionne un fichier d’appairage JSON de moins de 5 Mo.",
+            "error"
+        );
+        return;
+    }
+
+    try {
+        const payload = JSON.parse(
+            await file.text()
+        );
+
+        if (
+            payload.format ===
+            SYNC_PAIRING_INVITE_FORMAT
+        ) {
+            acceptSyncPairingInvitationPayload(
+                payload
+            );
+            return;
+        }
+
+        if (
+            payload.format ===
+            SYNC_PAIRING_ACCEPT_FORMAT
+        ) {
+            applySyncPairingAcceptancePayload(
+                payload
+            );
+            return;
+        }
+
+        throw new Error(
+            "Ce fichier n’est ni une invitation ni une confirmation d’appairage Shuffle+."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Impossible d’analyser ce fichier d’appairage.",
+            "error"
+        );
+    }
+}
+
+function removeSyncPairedDevice(peerId) {
+    const peer = syncPairedDevices.find(
+        (item) => item.id === peerId
+    );
+
+    if (!peer) {
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Retirer « ${peer.label} » des appareils appairés ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    syncPairedDevices = syncPairedDevices.filter(
+        (item) => item.id !== peerId
+    );
+    saveSyncPairedDevices();
+    syncSimulationResult = null;
+    addSyncSessionHistory({
+        type: "pairing-removed",
+        peerId,
+        peerLabel: peer.label,
+        status: "warning",
+        message: "Appairage supprimé localement."
+    });
+    refreshSyncPreparationPanel();
+    setStatus(`${peer.label} a été retiré.`);
+}
+
+function getSyncPeerDate(peer) {
+    const parsed = Date.parse(
+        peer.lastDataUpdatedAt || ""
+    );
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function simulateSyncWithPeer(peerId) {
+    const peer = syncPairedDevices.find(
+        (item) => item.id === peerId
+    );
+
+    if (!peer) {
+        setStatus(
+            "Appareil appairé introuvable.",
+            "error"
+        );
+        return;
+    }
+
+    const localPackage = buildSyncPackage(peer);
+    const localDate = Date.parse(
+        localPackage.dataUpdatedAt
+    ) || 0;
+    const peerDate = getSyncPeerDate(peer);
+    const sameFingerprint = Boolean(
+        peer.lastFingerprint &&
+        peer.lastFingerprint ===
+            localPackage.fingerprint
+    );
+
+    let recommendation = "Échange requis";
+    let direction = "manual";
+    let explanation =
+        "Les deux appareils possèdent des empreintes différentes.";
+
+    if (sameFingerprint) {
+        recommendation = "Déjà synchronisés";
+        direction = "same";
+        explanation =
+            "Les empreintes locales et distantes correspondent.";
+    } else if (!peer.lastFingerprint) {
+        recommendation = "Premier échange conseillé";
+        direction = "export";
+        explanation =
+            "Aucun état distant n’est encore connu pour cet appareil.";
+    } else if (localDate > peerDate) {
+        recommendation =
+            "Envoyer les données de cet appareil";
+        direction = "export";
+        explanation =
+            "Les données locales semblent plus récentes.";
+    } else if (peerDate > localDate) {
+        recommendation =
+            "Demander un paquet à l’autre appareil";
+        direction = "import";
+        explanation =
+            "Le dernier état connu de l’autre appareil semble plus récent.";
+    }
+
+    syncSimulationResult = {
+        peerId: peer.id,
+        peerLabel: peer.label,
+        localFingerprint:
+            localPackage.fingerprint,
+        remoteFingerprint:
+            peer.lastFingerprint || "inconnue",
+        recommendation,
+        direction,
+        explanation,
+        simulatedAt: Date.now()
+    };
+
+    addSyncSessionHistory({
+        type: "simulation",
+        peerId: peer.id,
+        peerLabel: peer.label,
+        status:
+            sameFingerprint
+                ? "success"
+                : "warning",
+        message: recommendation
+    });
+    refreshSyncPreparationPanel();
+    setStatus(
+        `Simulation terminée avec ${peer.label}.`
+    );
+}
+
+function exportSyncPackageForPeer(peerId) {
+    const peer = syncPairedDevices.find(
+        (item) => item.id === peerId
+    );
+
+    if (!peer) {
+        setStatus(
+            "Appareil appairé introuvable.",
+            "error"
+        );
+        return;
+    }
+
+    const payload = buildSyncPackage(peer);
+    downloadJsonPayload(
+        payload,
+        `shuffleplus-sync-to-${peer.label
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-|-$/g, "") || "device"}-${getSyncDatePart()}.json`
+    );
+
+    syncPairedDevices = syncPairedDevices.map(
+        (item) =>
+            item.id === peerId
+                ? {
+                    ...item,
+                    lastSentAt: Date.now()
+                }
+                : item
+    );
+    saveSyncPairedDevices();
+    addSyncSessionHistory({
+        type: "package-export",
+        peerId: peer.id,
+        peerLabel: peer.label,
+        status: "success",
+        message:
+            "Paquet ciblé exporté pour cet appareil."
+    });
+    refreshSyncPreparationPanel();
+    setStatus(
+        `Paquet de synchronisation préparé pour ${peer.label}.`
+    );
+}
+
+function registerSyncPackageSource(analyzedPackage) {
+    const source =
+        analyzedPackage?.sourceInstallation;
+
+    if (
+        !source ||
+        source.id === syncInstallation.id
+    ) {
+        return;
+    }
+
+    const raw = analyzedPackage.raw || {};
+    const peer = upsertSyncPairedDevice({
+        id: source.id,
+        label: source.label,
+        spotifyUserId:
+            raw.spotifyUserId || "",
+        pairedAt: Date.now(),
+        lastSeenAt: Date.now(),
+        lastFingerprint:
+            analyzedPackage.fingerprint || "",
+        lastDataUpdatedAt:
+            analyzedPackage.dataUpdatedAt ||
+            raw.dataUpdatedAt ||
+            raw.exportedAt || "",
+        lastSummary:
+            analyzedPackage.summary || {},
+        status: "paired"
+    });
+
+    if (peer) {
+        addSyncSessionHistory({
+            type: "package-import",
+            peerId: peer.id,
+            peerLabel: peer.label,
+            status: "success",
+            message:
+                "Paquet reçu et état distant actualisé."
+        });
+    }
+}
+
+function renderSyncSimulationResult() {
+    if (!syncSimulationResult) {
+        return "";
+    }
+
+    return `
+        <div class="sync-simulation-result
+            is-${escapeHtml(syncSimulationResult.direction)}">
+            <div>
+                <span class="sync-eyebrow">Simulation locale</span>
+                <h4>${escapeHtml(syncSimulationResult.peerLabel)}</h4>
+                <p>${escapeHtml(syncSimulationResult.explanation)}</p>
+            </div>
+            <strong>${escapeHtml(syncSimulationResult.recommendation)}</strong>
+            <dl>
+                <div>
+                    <dt>Empreinte locale</dt>
+                    <dd><code>${escapeHtml(syncSimulationResult.localFingerprint)}</code></dd>
+                </div>
+                <div>
+                    <dt>Dernière empreinte distante</dt>
+                    <dd><code>${escapeHtml(syncSimulationResult.remoteFingerprint)}</code></dd>
+                </div>
+            </dl>
+        </div>
+    `;
+}
+
+function renderSyncSessionHistory() {
+    const items = syncSessionHistory
+        .slice(0, 12)
+        .map((item) => `
+            <li class="is-${escapeHtml(item.status)}">
+                <div>
+                    <strong>${escapeHtml(item.peerLabel)}</strong>
+                    <span>${escapeHtml(item.message)}</span>
+                </div>
+                <time datetime="${new Date(item.createdAt).toISOString()}">
+                    ${new Intl.DateTimeFormat(
+                        "fr-FR",
+                        {
+                            dateStyle: "short",
+                            timeStyle: "short"
+                        }
+                    ).format(new Date(item.createdAt))}
+                </time>
+            </li>
+        `)
+        .join("");
+
+    return `
+        <details class="sync-session-history">
+            <summary>
+                Historique d’appairage et de simulation ·
+                ${syncSessionHistory.length}
+            </summary>
+            <ul>
+                ${items || "<li>Aucune session enregistrée.</li>"}
+            </ul>
+        </details>
+    `;
+}
+
+function renderSyncPairingPanel() {
+    const invite = getActiveSyncPairingInvite();
+    const remainingMinutes = invite
+        ? Math.max(
+            1,
+            Math.ceil(
+                (invite.expiresAt - Date.now()) /
+                60000
+            )
+        )
+        : 0;
+    const devices = syncPairedDevices
+        .map((peer) => `
+            <article class="sync-peer-card">
+                <div class="sync-peer-heading">
+                    <div>
+                        <span class="sync-peer-icon">📱</span>
+                        <div>
+                            <h4>${escapeHtml(peer.label)}</h4>
+                            <code>${escapeHtml(peer.id)}</code>
+                        </div>
+                    </div>
+                    <span class="sync-state-badge is-same">Appairé</span>
+                </div>
+                <div class="sync-peer-meta">
+                    <span>
+                        Dernier contact :
+                        ${new Intl.DateTimeFormat(
+                            "fr-FR",
+                            {
+                                dateStyle: "short",
+                                timeStyle: "short"
+                            }
+                        ).format(new Date(peer.lastSeenAt))}
+                    </span>
+                    <span>
+                        Empreinte :
+                        <code>${escapeHtml(peer.lastFingerprint || "inconnue")}</code>
+                    </span>
+                </div>
+                <div class="sync-peer-actions">
+                    <button
+                        type="button"
+                        class="sync-primary-button"
+                        data-simulate-sync-peer="${escapeHtml(peer.id)}"
+                    >
+                        🧪 Simuler
+                    </button>
+                    <button
+                        type="button"
+                        class="sync-secondary-button"
+                        data-export-sync-peer="${escapeHtml(peer.id)}"
+                    >
+                        ⬇ Préparer le paquet
+                    </button>
+                    <button
+                        type="button"
+                        class="sync-danger-button"
+                        data-remove-sync-peer="${escapeHtml(peer.id)}"
+                    >
+                        Retirer
+                    </button>
+                </div>
+            </article>
+        `)
+        .join("");
+
+    return `
+        <section class="sync-pairing-panel" aria-label="Appairage local">
+            <div class="sync-pairing-heading">
+                <div>
+                    <span class="sync-eyebrow">v4.7 · Appairage local</span>
+                    <h4>Relier deux installations Shuffle+</h4>
+                    <p>
+                        L’échange reste manuel et chiffré uniquement par un jeton
+                        temporaire. Aucun serveur n’est contacté dans cette version.
+                    </p>
+                </div>
+                <span class="sync-local-badge">
+                    ${syncPairedDevices.length} appareil${syncPairedDevices.length > 1 ? "s" : ""}
+                </span>
+            </div>
+
+            <div class="sync-pairing-steps">
+                <div>
+                    <span>1</span>
+                    <strong>Créer une invitation</strong>
+                    <small>Sur le premier appareil.</small>
+                </div>
+                <div>
+                    <span>2</span>
+                    <strong>Accepter le jeton</strong>
+                    <small>Sur le second appareil.</small>
+                </div>
+                <div>
+                    <span>3</span>
+                    <strong>Importer la confirmation</strong>
+                    <small>De retour sur le premier appareil.</small>
+                </div>
+            </div>
+
+            <div class="sync-pairing-actions">
+                <button
+                    id="createSyncPairingInvitationButton"
+                    class="sync-primary-button"
+                    type="button"
+                >
+                    ＋ Créer une invitation
+                </button>
+                <button
+                    id="copySyncPairingInvitationButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Copier le jeton
+                </button>
+                <button
+                    id="exportSyncPairingInvitationButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Exporter l’invitation
+                </button>
+                <button
+                    id="importSyncPairingFileButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Importer invitation / confirmation
+                </button>
+            </div>
+
+            ${invite ? `
+                <div class="sync-active-invite">
+                    <div>
+                        <span>Code de contrôle</span>
+                        <strong>${escapeHtml(invite.code)}</strong>
+                    </div>
+                    <p>
+                        Invitation valable encore environ
+                        ${remainingMinutes} minute${remainingMinutes > 1 ? "s" : ""}.
+                    </p>
+                </div>
+            ` : ""}
+
+            <form id="syncPairingTokenForm" class="sync-pairing-token-form">
+                <label>
+                    <span>Jeton reçu sur l’autre appareil</span>
+                    <textarea
+                        name="pairingToken"
+                        rows="3"
+                        maxlength="12000"
+                        placeholder="Colle ici le jeton d’appairage…"
+                    ></textarea>
+                </label>
+                <button class="sync-primary-button" type="submit">
+                    Accepter et générer la confirmation
+                </button>
+            </form>
+
+            <input
+                id="syncPairingFileInput"
+                class="backup-file-input"
+                type="file"
+                accept="application/json,.json"
+                aria-label="Choisir une invitation ou une confirmation d’appairage"
+            >
+
+            <div class="sync-peer-list">
+                ${devices || `
+                    <div class="sync-empty-peers">
+                        Aucun appareil appairé pour le moment.
+                    </div>
+                `}
+            </div>
+
+            ${renderSyncSimulationResult()}
+            ${renderSyncSessionHistory()}
+        </section>
+    `;
+}
+
 function renderSyncPreparationPanel() {
     const localPackage = buildSyncPackage();
 
@@ -16865,12 +18152,11 @@ function renderSyncPreparationPanel() {
         >
             <div class="sync-panel-heading">
                 <div>
-                    <span class="sync-eyebrow">Préparation v5</span>
+                    <span class="sync-eyebrow">v4.7 · Appairage & simulation</span>
                     <h3>Synchronisation multi-appareils</h3>
                     <p>
-                        Cette version reste entièrement locale. Elle prépare
-                        l’identité de l’appareil, les paquets d’échange et la
-                        résolution manuelle des conflits avant l’arrivée du serveur.
+                        Appaire deux installations, simule le sens du prochain
+                        échange et prépare un paquet ciblé, toujours sans serveur.
                     </p>
                 </div>
                 <span class="sync-local-badge">Local uniquement</span>
@@ -16936,6 +18222,8 @@ function renderSyncPreparationPanel() {
                     </button>
                 </div>
             </div>
+
+            ${renderSyncPairingPanel()}
 
             <div class="sync-preview-block">
                 <div>
@@ -17062,6 +18350,11 @@ function resetSyncInstallationId() {
     });
     saveSyncInstallation();
     pendingSyncPackage = null;
+    syncPairedDevices = [];
+    syncPairingInvites = [];
+    syncSimulationResult = null;
+    saveSyncPairedDevices();
+    saveSyncPairingInvites();
     refreshSyncPreparationPanel();
     setStatus(
         "Nouvel identifiant d’installation créé."
@@ -17094,6 +18387,14 @@ async function applyPendingSyncPackage(action) {
     }
 
     if (action === "local") {
+        const source = pendingSyncPackage.sourceInstallation;
+        addSyncSessionHistory({
+            type: "conflict-local",
+            peerId: source?.id || "",
+            peerLabel: source?.label || "Appareil distant",
+            status: "warning",
+            message: "Conflit résolu en conservant les données locales."
+        });
         pendingSyncPackage = null;
         refreshSyncPreparationPanel();
         setStatus(
@@ -17113,7 +18414,15 @@ async function applyPendingSyncPackage(action) {
         { type: "application/json" }
     );
 
+    const source = pendingSyncPackage.sourceInstallation;
     await importBackupFile(file);
+    addSyncSessionHistory({
+        type: "conflict-remote",
+        peerId: source?.id || "",
+        peerLabel: source?.label || "Appareil distant",
+        status: "success",
+        message: "Données distantes appliquées sur cet appareil."
+    });
     pendingSyncPackage = null;
     refreshSyncPreparationPanel();
 }
@@ -21780,6 +23089,80 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#createSyncPairingInvitationButton"
+            )
+        ) {
+            createSyncPairingInvitation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copySyncPairingInvitationButton"
+            )
+        ) {
+            await copySyncPairingInvitation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportSyncPairingInvitationButton"
+            )
+        ) {
+            exportSyncPairingInvitation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#importSyncPairingFileButton"
+            )
+        ) {
+            document.getElementById(
+                "syncPairingFileInput"
+            )?.click();
+            return;
+        }
+
+        const simulateSyncPeerButton =
+            event.target.closest(
+                "[data-simulate-sync-peer]"
+            );
+        if (simulateSyncPeerButton) {
+            simulateSyncWithPeer(
+                simulateSyncPeerButton.dataset
+                    .simulateSyncPeer || ""
+            );
+            return;
+        }
+
+        const exportSyncPeerButton =
+            event.target.closest(
+                "[data-export-sync-peer]"
+            );
+        if (exportSyncPeerButton) {
+            exportSyncPackageForPeer(
+                exportSyncPeerButton.dataset
+                    .exportSyncPeer || ""
+            );
+            return;
+        }
+
+        const removeSyncPeerButton =
+            event.target.closest(
+                "[data-remove-sync-peer]"
+            );
+        if (removeSyncPeerButton) {
+            removeSyncPairedDevice(
+                removeSyncPeerButton.dataset
+                    .removeSyncPeer || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#exportSyncPackageButton"
             )
         ) {
@@ -22507,6 +23890,17 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "syncPairingTokenForm"
+        ) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            acceptSyncPairingToken(
+                String(data.get("pairingToken") || "")
+            );
+            return;
+        }
+
+        if (
             event.target.id === "syncPreparationForm"
         ) {
             event.preventDefault();
@@ -22695,6 +24089,15 @@ contentElement.addEventListener(
                 element.hidden = weekly;
             });
 
+            return;
+        }
+
+        if (
+            event.target.id === "syncPairingFileInput"
+        ) {
+            const [file] = event.target.files || [];
+            await analyzeSyncPairingFile(file);
+            event.target.value = "";
             return;
         }
 

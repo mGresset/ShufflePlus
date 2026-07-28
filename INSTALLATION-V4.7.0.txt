@@ -1,0 +1,16 @@
+Shuffle+ v4.7.0 — Installation
+
+1. Remplacer tous les fichiers du dépôt par ceux du dossier ShufflePlus.
+2. Publier sur GitHub Pages :
+
+   git add .
+   git commit -m "v4.7.0 - Appairage et simulation de synchronisation"
+   git pull --rebase origin main
+   git push origin main
+
+3. Dans la PWA, ouvrir Réglages puis Rechercher une mise à jour.
+4. Pour appairer deux appareils :
+   - créer une invitation sur le premier ;
+   - copier le jeton ou transférer le fichier JSON ;
+   - accepter sur le second ;
+   - renvoyer le fichier de confirmation au premier.
