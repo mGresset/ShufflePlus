@@ -11572,6 +11572,14 @@ async function initializeApp() {
 
         if (!accessToken) {
             setDisconnectedInterface();
+
+            if (loginButton) {
+                loginButton.disabled = false;
+                loginButton.textContent =
+                    "Se connecter à Spotify";
+            }
+
+            setStatus("");
             return;
         }
 
