@@ -2,24 +2,26 @@
 
 ## Version stable actuelle
 
-### v4.5.0 — Contextes et profils rapides
-
-- profils Trajet, Travail, Soirée et Nuit personnalisables ;
-- mix et profil de réglages associés à chaque contexte ;
-- commandes rapides et vocales liées au contexte ;
-- assistant de création de raccourcis iOS ;
-- retour visuel après une commande externe ;
-- sauvegarde locale des profils rapides.
-
-## Étape suivante
-
-### v4.6 — Préparation à la synchronisation
+### v4.6.0 — Préparation à la synchronisation
 
 - identifiant local d’installation ;
 - aperçu des données synchronisables ;
-- résolution des conflits entre appareils ;
-- export de diagnostic de synchronisation ;
-- contrat d’API documenté sans imposer encore de serveur.
+- paquets JSON versionnés ;
+- analyse des différences entre appareils ;
+- politiques de résolution des conflits ;
+- diagnostic de synchronisation ;
+- contrat d’API documenté ;
+- aucun serveur actif à ce stade.
+
+## Étape suivante
+
+### v4.7 — Appairage et simulation de synchronisation
+
+- code d’appairage temporaire entre deux appareils ;
+- simulation locale des révisions serveur ;
+- journal des changements synchronisables ;
+- prévisualisation d’une fusion avant application ;
+- préparation de l’authentification du futur compte Shuffle+.
 
 ## Évolution majeure envisagée
 
@@ -29,5 +31,6 @@
 - sauvegarde distante ;
 - synchronisation iPhone / ordinateur ;
 - restauration des réglages ;
-- plusieurs profils ;
-- architecture serveur avec authentification et chiffrement adaptés.
+- gestion des appareils ;
+- résolution des conflits avec révisions serveur ;
+- chiffrement et suppression des données distantes.

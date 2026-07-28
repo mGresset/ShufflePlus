@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.5.0";
+const APP_VERSION = "4.6.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -145,6 +145,17 @@ const QUICK_EXTERNAL_RESULT_KEY =
     "shuffleplus_quick_external_result_v1";
 const QUICK_EXTERNAL_RESULT_TTL =
     24 * 60 * 60 * 1000;
+const SYNC_INSTALLATION_KEY =
+    "shuffleplus_sync_installation_v1";
+const SYNC_SETTINGS_KEY =
+    "shuffleplus_sync_settings_v1";
+const SYNC_PACKAGE_FORMAT =
+    "shuffleplus-sync-package";
+const SYNC_PACKAGE_SCHEMA_VERSION = 1;
+const SYNC_MAX_FILE_SIZE = 5 * 1024 * 1024;
+const DEFAULT_SYNC_SETTINGS = {
+    conflictPolicy: "manual"
+};
 const DEFAULT_QUICK_CONTEXTS = [
     {
         id: "drive",
@@ -585,6 +596,9 @@ let quickContextsState = readQuickContextsState();
 let quickExternalResult = readQuickExternalResult();
 let quickShortcutWizardContextId =
     quickContextsState[0]?.id || "drive";
+let syncInstallation = readSyncInstallation();
+let syncSettings = readSyncSettings();
+let pendingSyncPackage = null;
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -15827,6 +15841,9 @@ function buildBackupPayload() {
         schemaVersion: BACKUP_SCHEMA_VERSION,
         appVersion: APP_VERSION,
         exportedAt: new Date().toISOString(),
+        dataUpdatedAt: new Date(
+            dataUpdatedAt || Date.now()
+        ).toISOString(),
         spotifyUserId: currentUserId || "",
         data: {
             favoriteSourceKeys: [...favoriteSourceKeys],
@@ -16191,6 +16208,914 @@ async function importBackupFile(file) {
             "error"
         );
     }
+}
+
+
+function createSyncIdentifier() {
+    if (
+        typeof crypto !== "undefined" &&
+        typeof crypto.randomUUID === "function"
+    ) {
+        return crypto.randomUUID();
+    }
+
+    return [
+        Date.now().toString(36),
+        Math.random().toString(36).slice(2, 12),
+        Math.random().toString(36).slice(2, 12)
+    ].join("-");
+}
+
+function getDefaultInstallationLabel() {
+    const userAgent = navigator.userAgent || "";
+
+    if (/iPhone/i.test(userAgent)) {
+        return "iPhone";
+    }
+
+    if (/iPad/i.test(userAgent)) {
+        return "iPad";
+    }
+
+    if (/Android/i.test(userAgent)) {
+        return "Android";
+    }
+
+    if (/Windows/i.test(userAgent)) {
+        return "PC Windows";
+    }
+
+    if (/Macintosh|Mac OS X/i.test(userAgent)) {
+        return "Mac";
+    }
+
+    return "Navigateur Shuffle+";
+}
+
+function normalizeSyncInstallation(value = {}) {
+    const now = Date.now();
+    const id =
+        typeof value.id === "string" && value.id.trim()
+            ? value.id.trim().slice(0, 120)
+            : createSyncIdentifier();
+    const label =
+        typeof value.label === "string" && value.label.trim()
+            ? value.label.trim().slice(0, 80)
+            : getDefaultInstallationLabel();
+
+    return {
+        id,
+        label,
+        createdAt: Number(value.createdAt || now),
+        updatedAt: Number(value.updatedAt || now)
+    };
+}
+
+function readSyncInstallation() {
+    try {
+        const raw = localStorage.getItem(
+            SYNC_INSTALLATION_KEY
+        );
+        const installation = normalizeSyncInstallation(
+            raw ? JSON.parse(raw) : {}
+        );
+        localStorage.setItem(
+            SYNC_INSTALLATION_KEY,
+            JSON.stringify(installation)
+        );
+        return installation;
+    } catch (error) {
+        const installation = normalizeSyncInstallation();
+        try {
+            localStorage.setItem(
+                SYNC_INSTALLATION_KEY,
+                JSON.stringify(installation)
+            );
+        } catch (storageError) {
+            console.warn(
+                "Identifiant d’installation non enregistré :",
+                storageError
+            );
+        }
+        return installation;
+    }
+}
+
+function saveSyncInstallation() {
+    syncInstallation = normalizeSyncInstallation({
+        ...syncInstallation,
+        updatedAt: Date.now()
+    });
+
+    try {
+        localStorage.setItem(
+            SYNC_INSTALLATION_KEY,
+            JSON.stringify(syncInstallation)
+        );
+    } catch (error) {
+        console.warn(
+            "Installation Shuffle+ non enregistrée :",
+            error
+        );
+    }
+}
+
+function normalizeSyncSettings(value = {}) {
+    const allowedPolicies = [
+        "manual",
+        "newest",
+        "prefer-local",
+        "prefer-remote"
+    ];
+
+    return {
+        conflictPolicy: allowedPolicies.includes(
+            value.conflictPolicy
+        )
+            ? value.conflictPolicy
+            : DEFAULT_SYNC_SETTINGS.conflictPolicy
+    };
+}
+
+function readSyncSettings() {
+    try {
+        const raw = localStorage.getItem(
+            SYNC_SETTINGS_KEY
+        );
+        return normalizeSyncSettings(
+            raw ? JSON.parse(raw) : DEFAULT_SYNC_SETTINGS
+        );
+    } catch (error) {
+        return normalizeSyncSettings(
+            DEFAULT_SYNC_SETTINGS
+        );
+    }
+}
+
+function saveSyncSettings() {
+    try {
+        localStorage.setItem(
+            SYNC_SETTINGS_KEY,
+            JSON.stringify(syncSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Politique de synchronisation non enregistrée :",
+            error
+        );
+    }
+}
+
+function hashSyncContent(value = "") {
+    let hash = 2166136261;
+    const text = String(value);
+
+    for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return (hash >>> 0)
+        .toString(16)
+        .padStart(8, "0");
+}
+
+function getSyncDataSummary(data = {}) {
+    const feedbackRecords =
+        data.musicFeedbackState?.records &&
+        typeof data.musicFeedbackState.records === "object"
+            ? Object.keys(
+                data.musicFeedbackState.records
+            ).length
+            : 0;
+
+    return {
+        mixes: Array.isArray(data.savedMixes)
+            ? data.savedMixes.length
+            : 0,
+        favorites: Array.isArray(data.favoriteSourceKeys)
+            ? data.favoriteSourceKeys.length
+            : 0,
+        profiles: Array.isArray(data.mixProfiles)
+            ? data.mixProfiles.length
+            : 0,
+        iosCommands: Array.isArray(data.iosCommands)
+            ? data.iosCommands.length
+            : 0,
+        quickContexts: Array.isArray(data.quickContextsState)
+            ? data.quickContextsState.length
+            : 0,
+        schedules: Array.isArray(data.mixSchedules)
+            ? data.mixSchedules.length
+            : 0,
+        learningObservations: Array.isArray(
+            data.adaptiveLearningState?.observations
+        )
+            ? data.adaptiveLearningState.observations.length
+            : 0,
+        feedbackRecords,
+        intelligenceEvents: Array.isArray(
+            data.intelligenceAnalytics?.events
+        )
+            ? data.intelligenceAnalytics.events.length
+            : 0
+    };
+}
+
+function getSyncDataUpdatedAt(data = {}) {
+    const timestamps = [
+        Number(syncInstallation.updatedAt || 0),
+        Number(data.adaptiveLearningState?.updatedAt || 0),
+        Number(data.intelligenceAnalytics?.updatedAt || 0),
+        Number(data.musicFeedbackState?.updatedAt || 0)
+    ];
+
+    for (const collection of [
+        data.savedMixes,
+        data.mixHistory,
+        data.iosCommandHistory,
+        data.adaptiveDjMenuHistory,
+        data.mixSchedules
+    ]) {
+        if (!Array.isArray(collection)) {
+            continue;
+        }
+
+        for (const item of collection) {
+            timestamps.push(
+                Number(
+                    item?.updatedAt ||
+                    item?.createdAt ||
+                    item?.lastRunAt ||
+                    0
+                )
+            );
+        }
+    }
+
+    return Math.max(
+        ...timestamps.filter(Number.isFinite),
+        0
+    );
+}
+
+function buildSyncPackage() {
+    const backup = buildBackupPayload();
+    const serializedData = JSON.stringify(backup.data);
+    const dataUpdatedAt = getSyncDataUpdatedAt(
+        backup.data
+    );
+
+    return {
+        format: SYNC_PACKAGE_FORMAT,
+        schemaVersion: SYNC_PACKAGE_SCHEMA_VERSION,
+        appVersion: APP_VERSION,
+        exportedAt: new Date().toISOString(),
+        spotifyUserId: currentUserId || "",
+        sourceInstallation: {
+            ...syncInstallation
+        },
+        conflictPolicy: syncSettings.conflictPolicy,
+        fingerprint: hashSyncContent(serializedData),
+        byteSize: new TextEncoder().encode(
+            serializedData
+        ).length,
+        summary: getSyncDataSummary(backup.data),
+        backup
+    };
+}
+
+function downloadJsonPayload(payload, filename) {
+    const blob = new Blob(
+        [JSON.stringify(payload, null, 2)],
+        { type: "application/json" }
+    );
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function getSyncDatePart() {
+    const date = new Date();
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0")
+    ].join("-");
+}
+
+function downloadSyncPackage() {
+    try {
+        const payload = buildSyncPackage();
+        downloadJsonPayload(
+            payload,
+            `shuffleplus-sync-${getSyncDatePart()}.json`
+        );
+        setStatus(
+            "Paquet de synchronisation exporté."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            "Impossible de créer le paquet de synchronisation.",
+            "error"
+        );
+    }
+}
+
+async function downloadSyncDiagnostic() {
+    try {
+        const payload = buildSyncPackage();
+        let cacheNames = [];
+
+        if ("caches" in window) {
+            try {
+                cacheNames = await caches.keys();
+            } catch (error) {
+                cacheNames = [];
+            }
+        }
+
+        const diagnostic = {
+            format: "shuffleplus-sync-diagnostic",
+            schemaVersion: 1,
+            generatedAt: new Date().toISOString(),
+            appVersion: APP_VERSION,
+            installation: {
+                ...syncInstallation
+            },
+            policy: syncSettings.conflictPolicy,
+            account: {
+                spotifyUserId: currentUserId || "",
+                product: currentUserProduct || ""
+            },
+            environment: {
+                online: navigator.onLine,
+                standalone: isStandalonePwa(),
+                serviceWorkerSupported:
+                    "serviceWorker" in navigator,
+                serviceWorkerControlled:
+                    Boolean(navigator.serviceWorker?.controller),
+                cacheNames,
+                language: navigator.language || "",
+                platform: navigator.platform || "",
+                userAgent: navigator.userAgent || ""
+            },
+            data: {
+                fingerprint: payload.fingerprint,
+                byteSize: payload.byteSize,
+                summary: payload.summary
+            },
+            note:
+                "Ce diagnostic ne contient aucun jeton Spotify."
+        };
+
+        downloadJsonPayload(
+            diagnostic,
+            `shuffleplus-sync-diagnostic-${getSyncDatePart()}.json`
+        );
+        setStatus(
+            "Diagnostic de synchronisation exporté."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            "Impossible d’exporter le diagnostic.",
+            "error"
+        );
+    }
+}
+
+function validateSyncPackage(payload) {
+    if (
+        !payload ||
+        typeof payload !== "object" ||
+        payload.format !== SYNC_PACKAGE_FORMAT ||
+        Number(payload.schemaVersion) !==
+            SYNC_PACKAGE_SCHEMA_VERSION ||
+        !payload.backup ||
+        typeof payload.backup !== "object"
+    ) {
+        throw new Error(
+            "Ce fichier n’est pas un paquet de synchronisation Shuffle+ compatible."
+        );
+    }
+
+    const importedBackup = validateBackupPayload(
+        payload.backup
+    );
+    const sourceInstallation = normalizeSyncInstallation(
+        payload.sourceInstallation || {}
+    );
+    const summary = payload.summary &&
+        typeof payload.summary === "object"
+            ? payload.summary
+            : getSyncDataSummary(
+                payload.backup.data || {}
+            );
+
+    return {
+        raw: payload,
+        importedBackup,
+        sourceInstallation,
+        summary,
+        exportedAt: Number.isNaN(
+            Date.parse(payload.exportedAt)
+        )
+            ? new Date(0).toISOString()
+            : new Date(payload.exportedAt).toISOString(),
+        dataUpdatedAt: Number.isNaN(
+            Date.parse(
+                payload.dataUpdatedAt ||
+                payload.exportedAt
+            )
+        )
+            ? new Date(0).toISOString()
+            : new Date(
+                payload.dataUpdatedAt ||
+                payload.exportedAt
+            ).toISOString(),
+        fingerprint:
+            typeof payload.fingerprint === "string"
+                ? payload.fingerprint
+                : hashSyncContent(
+                    JSON.stringify(
+                        payload.backup.data || {}
+                    )
+                )
+    };
+}
+
+async function analyzeSyncPackageFile(file) {
+    if (!file) {
+        return;
+    }
+
+    if (
+        file.size > SYNC_MAX_FILE_SIZE ||
+        !file.name.toLowerCase().endsWith(".json")
+    ) {
+        setStatus(
+            "Sélectionne un paquet JSON Shuffle+ de moins de 5 Mo.",
+            "error"
+        );
+        return;
+    }
+
+    try {
+        const text = await file.text();
+        pendingSyncPackage = validateSyncPackage(
+            JSON.parse(text)
+        );
+        refreshSyncPreparationPanel();
+        setStatus(
+            "Paquet analysé : choisis comment résoudre le conflit."
+        );
+    } catch (error) {
+        console.error(error);
+        pendingSyncPackage = null;
+        refreshSyncPreparationPanel();
+        setStatus(
+            error.message ||
+            "Impossible d’analyser ce paquet.",
+            "error"
+        );
+    }
+}
+
+function getSyncPolicyLabel(policy) {
+    return {
+        manual: "Toujours demander",
+        newest: "Conserver l’export le plus récent",
+        "prefer-local": "Préférer cet appareil",
+        "prefer-remote": "Préférer le paquet reçu"
+    }[policy] || "Toujours demander";
+}
+
+function getSyncRecommendation(remotePackage) {
+    const policy = syncSettings.conflictPolicy;
+
+    if (policy === "prefer-local") {
+        return {
+            action: "local",
+            label: "Conserver les données de cet appareil"
+        };
+    }
+
+    if (policy === "prefer-remote") {
+        return {
+            action: "remote",
+            label: "Utiliser le paquet reçu"
+        };
+    }
+
+    if (policy === "newest") {
+        const localTimestamp = Date.parse(
+            buildSyncPackage().dataUpdatedAt
+        );
+        const remoteTimestamp = Date.parse(
+            remotePackage.dataUpdatedAt
+        );
+        return remoteTimestamp > localTimestamp
+            ? {
+                action: "remote",
+                label: "Utiliser le paquet reçu, plus récent"
+            }
+            : {
+                action: "local",
+                label: "Conserver cet appareil, plus récent"
+            };
+    }
+
+    return {
+        action: "manual",
+        label: "Choix manuel requis"
+    };
+}
+
+function renderSyncSummaryGrid(summary = {}) {
+    const entries = [
+        ["Mix", summary.mixes || 0],
+        ["Favoris", summary.favorites || 0],
+        ["Profils", summary.profiles || 0],
+        ["Commandes iOS", summary.iosCommands || 0],
+        ["Contextes rapides", summary.quickContexts || 0],
+        ["Programmations", summary.schedules || 0],
+        ["Observations", summary.learningObservations || 0],
+        ["Feedbacks", summary.feedbackRecords || 0]
+    ];
+
+    return `
+        <div class="sync-summary-grid">
+            ${entries.map(([label, value]) => `
+                <div class="sync-summary-card">
+                    <strong>${Number(value) || 0}</strong>
+                    <span>${escapeHtml(label)}</span>
+                </div>
+            `).join("")}
+        </div>
+    `;
+}
+
+function renderSyncConflictAnalysis() {
+    if (!pendingSyncPackage) {
+        return "";
+    }
+
+    const localPackage = buildSyncPackage();
+    const remote = pendingSyncPackage;
+    const sameFingerprint =
+        localPackage.fingerprint === remote.fingerprint;
+    const accountMismatch =
+        Boolean(
+            remote.raw.spotifyUserId &&
+            currentUserId &&
+            remote.raw.spotifyUserId !== currentUserId
+        );
+    const recommendation = getSyncRecommendation(remote);
+
+    return `
+        <div class="sync-conflict-card">
+            <div class="sync-conflict-heading">
+                <div>
+                    <span class="sync-eyebrow">Paquet analysé</span>
+                    <h4>
+                        ${escapeHtml(remote.sourceInstallation.label)}
+                    </h4>
+                    <p>
+                        Exporté le
+                        ${new Intl.DateTimeFormat("fr-FR", {
+                            dateStyle: "medium",
+                            timeStyle: "short"
+                        }).format(new Date(remote.exportedAt))}
+                    </p>
+                </div>
+                <span class="sync-state-badge ${sameFingerprint ? "is-same" : "is-conflict"}">
+                    ${sameFingerprint
+                        ? "Données identiques"
+                        : "Différences détectées"}
+                </span>
+            </div>
+
+            ${accountMismatch ? `
+                <p class="sync-warning">
+                    ⚠ Ce paquet provient d’un autre compte Spotify.
+                </p>
+            ` : ""}
+
+            ${renderSyncSummaryGrid(remote.summary)}
+
+            <p class="sync-recommendation">
+                Politique active :
+                <strong>${escapeHtml(
+                    getSyncPolicyLabel(
+                        syncSettings.conflictPolicy
+                    )
+                )}</strong><br>
+                Recommandation :
+                <strong>${escapeHtml(recommendation.label)}</strong>
+            </p>
+
+            <div class="sync-conflict-actions">
+                <button
+                    id="keepLocalSyncButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Conserver cet appareil
+                </button>
+
+                <button
+                    id="applyRemoteSyncButton"
+                    class="sync-danger-button"
+                    type="button"
+                    ${sameFingerprint ? "disabled" : ""}
+                >
+                    Utiliser le paquet reçu
+                </button>
+
+                <button
+                    id="applySyncPolicyButton"
+                    class="sync-primary-button"
+                    type="button"
+                    ${sameFingerprint || recommendation.action === "manual"
+                        ? "disabled"
+                        : ""}
+                >
+                    Appliquer la politique
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function renderSyncPreparationPanel() {
+    const localPackage = buildSyncPackage();
+
+    return `
+        <section
+            id="syncPreparationPanel"
+            class="sync-preparation-panel"
+            aria-label="Préparation à la synchronisation"
+        >
+            <div class="sync-panel-heading">
+                <div>
+                    <span class="sync-eyebrow">Préparation v5</span>
+                    <h3>Synchronisation multi-appareils</h3>
+                    <p>
+                        Cette version reste entièrement locale. Elle prépare
+                        l’identité de l’appareil, les paquets d’échange et la
+                        résolution manuelle des conflits avant l’arrivée du serveur.
+                    </p>
+                </div>
+                <span class="sync-local-badge">Local uniquement</span>
+            </div>
+
+            <form id="syncPreparationForm" class="sync-settings-form">
+                <label>
+                    <span>Nom de cette installation</span>
+                    <input
+                        name="installationLabel"
+                        type="text"
+                        maxlength="80"
+                        value="${escapeHtml(syncInstallation.label)}"
+                        required
+                    >
+                </label>
+
+                <label>
+                    <span>Politique de conflit</span>
+                    <select name="conflictPolicy">
+                        ${[
+                            ["manual", "Toujours demander"],
+                            ["newest", "Conserver l’export le plus récent"],
+                            ["prefer-local", "Préférer cet appareil"],
+                            ["prefer-remote", "Préférer le paquet reçu"]
+                        ].map(([value, label]) => `
+                            <option
+                                value="${value}"
+                                ${syncSettings.conflictPolicy === value
+                                    ? "selected"
+                                    : ""}
+                            >
+                                ${escapeHtml(label)}
+                            </option>
+                        `).join("")}
+                    </select>
+                </label>
+
+                <button class="sync-primary-button" type="submit">
+                    Enregistrer
+                </button>
+            </form>
+
+            <div class="sync-installation-id">
+                <div>
+                    <span>Identifiant local d’installation</span>
+                    <code>${escapeHtml(syncInstallation.id)}</code>
+                </div>
+                <div class="sync-inline-actions">
+                    <button
+                        id="copySyncInstallationIdButton"
+                        class="sync-secondary-button"
+                        type="button"
+                    >
+                        Copier
+                    </button>
+                    <button
+                        id="resetSyncInstallationIdButton"
+                        class="sync-secondary-button"
+                        type="button"
+                    >
+                        Régénérer
+                    </button>
+                </div>
+            </div>
+
+            <div class="sync-preview-block">
+                <div>
+                    <h4>Aperçu synchronisable</h4>
+                    <p>
+                        Empreinte : <code>${escapeHtml(localPackage.fingerprint)}</code>
+                        · ${(localPackage.byteSize / 1024).toFixed(1)} Ko
+                    </p>
+                </div>
+                ${renderSyncSummaryGrid(localPackage.summary)}
+            </div>
+
+            <div class="sync-panel-actions">
+                <button
+                    id="exportSyncPackageButton"
+                    class="sync-primary-button"
+                    type="button"
+                >
+                    ⬇ Exporter un paquet
+                </button>
+
+                <button
+                    id="analyzeSyncPackageButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    🔎 Analyser un paquet
+                </button>
+
+                <button
+                    id="exportSyncDiagnosticButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    🩺 Exporter le diagnostic
+                </button>
+
+                <a
+                    class="sync-contract-link"
+                    href="./SYNC_API_CONTRACT.md"
+                    target="_blank"
+                    rel="noopener"
+                >
+                    Contrat API v5
+                </a>
+
+                <input
+                    id="syncPackageFileInput"
+                    class="backup-file-input"
+                    type="file"
+                    accept="application/json,.json"
+                    aria-label="Choisir un paquet de synchronisation Shuffle+"
+                >
+            </div>
+
+            ${renderSyncConflictAnalysis()}
+        </section>
+    `;
+}
+
+function refreshSyncPreparationPanel() {
+    const panel = document.getElementById(
+        "syncPreparationPanel"
+    );
+
+    if (panel) {
+        panel.outerHTML = renderSyncPreparationPanel();
+    }
+}
+
+function saveSyncPreparationFromForm(form) {
+    const data = new FormData(form);
+    syncInstallation = normalizeSyncInstallation({
+        ...syncInstallation,
+        label: String(
+            data.get("installationLabel") || ""
+        ),
+        updatedAt: Date.now()
+    });
+    syncSettings = normalizeSyncSettings({
+        conflictPolicy: String(
+            data.get("conflictPolicy") || "manual"
+        )
+    });
+    saveSyncInstallation();
+    saveSyncSettings();
+    refreshSyncPreparationPanel();
+    setStatus(
+        "Préférences de synchronisation enregistrées."
+    );
+}
+
+async function copySyncInstallationId() {
+    try {
+        await navigator.clipboard.writeText(
+            syncInstallation.id
+        );
+        setStatus(
+            "Identifiant d’installation copié."
+        );
+    } catch (error) {
+        window.prompt(
+            "Copie cet identifiant :",
+            syncInstallation.id
+        );
+    }
+}
+
+function resetSyncInstallationId() {
+    const confirmed = window.confirm(
+        "Régénérer l’identifiant de cette installation ?\n\n" +
+        "Les futurs paquets considéreront ce navigateur comme un nouvel appareil."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    syncInstallation = normalizeSyncInstallation({
+        id: createSyncIdentifier(),
+        label: syncInstallation.label,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    });
+    saveSyncInstallation();
+    pendingSyncPackage = null;
+    refreshSyncPreparationPanel();
+    setStatus(
+        "Nouvel identifiant d’installation créé."
+    );
+}
+
+async function applyPendingSyncPackage(action) {
+    if (!pendingSyncPackage) {
+        setStatus(
+            "Analyse d’abord un paquet de synchronisation.",
+            "error"
+        );
+        return;
+    }
+
+    if (action === "policy") {
+        const recommendation = getSyncRecommendation(
+            pendingSyncPackage
+        );
+
+        if (recommendation.action === "manual") {
+            setStatus(
+                "La politique active demande un choix manuel.",
+                "error"
+            );
+            return;
+        }
+
+        action = recommendation.action;
+    }
+
+    if (action === "local") {
+        pendingSyncPackage = null;
+        refreshSyncPreparationPanel();
+        setStatus(
+            "Les données de cet appareil sont conservées."
+        );
+        return;
+    }
+
+    if (action !== "remote") {
+        return;
+    }
+
+    const remoteBackup = pendingSyncPackage.raw.backup;
+    const file = new File(
+        [JSON.stringify(remoteBackup)],
+        "shuffleplus-sync-import.json",
+        { type: "application/json" }
+    );
+
+    await importBackupFile(file);
+    pendingSyncPackage = null;
+    refreshSyncPreparationPanel();
 }
 
 function renderBackupPanel() {
@@ -17221,6 +18146,7 @@ function displayPlaylists(playlists) {
             >
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
+                ${renderSyncPreparationPanel()}
                 ${renderCleanupPanel()}
                 ${renderMixProfilesSection()}
                 ${renderPriorityPanel()}
@@ -20852,6 +21778,80 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "#exportSyncPackageButton"
+            )
+        ) {
+            downloadSyncPackage();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#analyzeSyncPackageButton"
+            )
+        ) {
+            document.getElementById(
+                "syncPackageFileInput"
+            )?.click();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportSyncDiagnosticButton"
+            )
+        ) {
+            await downloadSyncDiagnostic();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copySyncInstallationIdButton"
+            )
+        ) {
+            await copySyncInstallationId();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetSyncInstallationIdButton"
+            )
+        ) {
+            resetSyncInstallationId();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#keepLocalSyncButton"
+            )
+        ) {
+            await applyPendingSyncPackage("local");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applyRemoteSyncButton"
+            )
+        ) {
+            await applyPendingSyncPackage("remote");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applySyncPolicyButton"
+            )
+        ) {
+            await applyPendingSyncPackage("policy");
+            return;
+        }
+
         const exportBackupButton =
             event.target.closest("#exportBackupButton");
 
@@ -21507,6 +22507,16 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "syncPreparationForm"
+        ) {
+            event.preventDefault();
+            saveSyncPreparationFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
             event.target.id === "quickContextsForm"
         ) {
             event.preventDefault();
@@ -21685,6 +22695,15 @@ contentElement.addEventListener(
                 element.hidden = weekly;
             });
 
+            return;
+        }
+
+        if (
+            event.target.id === "syncPackageFileInput"
+        ) {
+            const [file] = event.target.files || [];
+            await analyzeSyncPackageFile(file);
+            event.target.value = "";
             return;
         }
 

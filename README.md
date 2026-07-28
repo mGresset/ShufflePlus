@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.2.0 — Feedback musical**
+Version documentée : **4.6.0 — Préparation à la synchronisation**
 
 ## Sommaire
 
@@ -16,6 +16,7 @@ Version documentée : **4.2.0 — Feedback musical**
 - [Adaptation automatique](#adaptation-automatique)
 - [Intelligence Dashboard](#intelligence-dashboard)
 - [Feedback musical](#feedback-musical)
+- [Préparation à la synchronisation](#préparation-à-la-synchronisation)
 - [Application installable PWA](#application-installable-pwa)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
@@ -185,6 +186,7 @@ Ce menu contient :
 
 - l’installation PWA, son état et la recherche de mises à jour ;
 - l’export et l’import des données ;
+- la préparation à la synchronisation multi-appareils ;
 - le nettoyage des doublons ;
 - les profils de mix ;
 - les priorités ;
@@ -512,6 +514,26 @@ Le feedback intervient à trois niveaux :
 3. Smart Queue tient compte des retours pour choisir un remplacement compatible.
 
 Le menu **Intelligence** affiche les compteurs, les retours récents et permet de réinitialiser cet apprentissage. Les données sont stockées localement et sont incluses dans l’export JSON général.
+
+
+## Préparation à la synchronisation
+
+La version 4.6.0 prépare la future synchronisation serveur sans envoyer de données à distance.
+
+Dans **Réglages → Synchronisation multi-appareils**, Shuffle+ permet de :
+
+- attribuer un nom et un identifiant unique à l’installation actuelle ;
+- visualiser le nombre de mix, profils, commandes, contextes, observations et feedbacks pouvant être synchronisés ;
+- calculer une empreinte locale afin de repérer deux états identiques ou différents ;
+- exporter un paquet JSON destiné à un autre appareil ;
+- analyser un paquet reçu et détecter un conflit ;
+- conserver les données locales, remplacer les données locales par le paquet reçu ou appliquer une politique prédéfinie ;
+- exporter un diagnostic technique ne contenant aucun jeton Spotify ;
+- consulter le contrat d’API prévu pour le serveur v5.
+
+Les politiques disponibles sont : choix manuel, export le plus récent, préférence pour cet appareil ou préférence pour le paquet reçu.
+
+Cette fonction reste une préparation : il n’existe pas encore de compte Shuffle+, d’envoi automatique ni de serveur distant.
 
 ## Application installable PWA
 
@@ -870,6 +892,10 @@ Cache de l’interface, ouverture hors connexion, nettoyage des anciens caches e
 ### `icons/` et `favicon.ico`
 
 Icônes standard, Apple Touch Icon et icône maskable utilisées par les navigateurs et les systèmes d’exploitation.
+
+### Fichier de contrat serveur
+
+- `SYNC_API_CONTRACT.md` décrit le format des paquets et les endpoints envisagés pour la future v5.
 
 ## Données locales et confidentialité
 

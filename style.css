@@ -7519,3 +7519,253 @@ body.is-driving-mode #content {
         width: 100%;
     }
 }
+
+
+/* Shuffle+ v4.6.0 — Préparation à la synchronisation */
+.sync-preparation-panel {
+    display: grid;
+    gap: 18px;
+    margin-top: 18px;
+    padding: 22px;
+    border: 1px solid #35586d;
+    border-radius: 18px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(20 52 68 / 82%) 0%,
+            rgb(17 17 17 / 97%) 65%
+        );
+}
+
+.sync-panel-heading,
+.sync-conflict-heading,
+.sync-installation-id {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.sync-panel-heading h3,
+.sync-conflict-heading h4,
+.sync-preview-block h4 {
+    margin: 5px 0 7px;
+}
+
+.sync-panel-heading p,
+.sync-conflict-heading p,
+.sync-preview-block p,
+.sync-recommendation {
+    margin: 0;
+    color: #b7c7cf;
+    line-height: 1.55;
+}
+
+.sync-eyebrow {
+    color: #8ed7ff;
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+.sync-local-badge,
+.sync-state-badge {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.sync-local-badge {
+    background: #1b455b;
+    color: #aee5ff;
+}
+
+.sync-state-badge.is-same {
+    background: #1f5a37;
+    color: #a8f0c1;
+}
+
+.sync-state-badge.is-conflict {
+    background: #633b18;
+    color: #ffd39a;
+}
+
+.sync-settings-form {
+    display: grid;
+    grid-template-columns:
+        minmax(180px, 1fr)
+        minmax(220px, 1fr)
+        auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.sync-settings-form label {
+    display: grid;
+    gap: 7px;
+    color: #dbe8ee;
+    font-weight: 750;
+}
+
+.sync-settings-form input,
+.sync-settings-form select {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 1px solid #4f6d7c;
+    border-radius: 11px;
+    background: #0c1317;
+    color: #ffffff;
+}
+
+.sync-installation-id {
+    align-items: center;
+    padding: 14px;
+    border: 1px solid #385463;
+    border-radius: 13px;
+    background: rgb(8 18 23 / 72%);
+}
+
+.sync-installation-id > div:first-child {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+}
+
+.sync-installation-id code,
+.sync-preview-block code {
+    overflow-wrap: anywhere;
+    color: #9bdcff;
+}
+
+.sync-inline-actions,
+.sync-panel-actions,
+.sync-conflict-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.sync-preview-block,
+.sync-conflict-card {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid #3a5664;
+    border-radius: 14px;
+    background: rgb(9 19 24 / 78%);
+}
+
+.sync-conflict-card {
+    border-color: #76542b;
+    background: rgb(38 28 17 / 86%);
+}
+
+.sync-summary-grid {
+    display: grid;
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.sync-summary-card {
+    display: grid;
+    gap: 3px;
+    padding: 11px;
+    border: 1px solid #34505f;
+    border-radius: 11px;
+    background: #0b171d;
+}
+
+.sync-summary-card strong {
+    color: #ffffff;
+    font-size: 22px;
+}
+
+.sync-summary-card span {
+    color: #9fb3bd;
+    font-size: 12px;
+}
+
+.sync-primary-button,
+.sync-secondary-button,
+.sync-danger-button,
+.sync-contract-link {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    padding: 9px 14px;
+    border-radius: 999px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.sync-primary-button {
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.sync-secondary-button,
+.sync-contract-link {
+    border: 1px solid #587482;
+    background: transparent;
+    color: #e9f6fb;
+}
+
+.sync-danger-button {
+    border: 1px solid #a45b5b;
+    background: #482527;
+    color: #ffd1d1;
+}
+
+.sync-primary-button:disabled,
+.sync-danger-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.sync-warning {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #a36a29;
+    border-radius: 10px;
+    background: #432f17;
+    color: #ffd8a5;
+}
+
+@media (max-width: 850px) {
+    .sync-settings-form {
+        grid-template-columns: 1fr;
+    }
+
+    .sync-summary-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .sync-panel-heading,
+    .sync-conflict-heading,
+    .sync-installation-id {
+        flex-direction: column;
+    }
+
+    .sync-inline-actions,
+    .sync-panel-actions,
+    .sync-conflict-actions {
+        width: 100%;
+    }
+
+    .sync-primary-button,
+    .sync-secondary-button,
+    .sync-danger-button,
+    .sync-contract-link {
+        width: 100%;
+    }
+}
