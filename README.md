@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.1.0 — Smart Queue**
+Version documentée : **4.2.0 — Feedback musical**
 
 ## Sommaire
 
@@ -15,6 +15,7 @@ Version documentée : **4.1.0 — Smart Queue**
 - [Adaptive Learning](#adaptive-learning)
 - [Adaptation automatique](#adaptation-automatique)
 - [Intelligence Dashboard](#intelligence-dashboard)
+- [Feedback musical](#feedback-musical)
 - [Application installable PWA](#application-installable-pwa)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
@@ -494,6 +495,24 @@ Ce score sert à comparer les ordres générés par Shuffle+. Il ne constitue pa
 
 Le bouton « Exporter le rapport » crée un fichier JSON contenant le résumé de la période choisie, les classements, les profils Adaptive et les événements locaux correspondants. La sauvegarde générale de Shuffle+ inclut également les données Intelligence.
 
+
+## Feedback musical
+
+La version 4.2 ajoute un apprentissage local titre par titre, directement dans le menu **⚡** de chaque morceau :
+
+- **💚 J’aime** favorise durablement le titre dans les prochains mélanges ;
+- **⏳ Pas maintenant** écarte temporairement le titre pendant 7 jours ;
+- **🔁 Trop répétitif** écarte le titre pendant 30 jours ;
+- un second clic sur le même retour, ou **Retirer le feedback**, remet le titre à l’état neutre.
+
+Le feedback intervient à trois niveaux :
+
+1. les titres aimés sont ajoutés aux priorités effectives du moteur de mélange ;
+2. les titres en pause sont filtrés lors des prochaines générations ;
+3. Smart Queue tient compte des retours pour choisir un remplacement compatible.
+
+Le menu **Intelligence** affiche les compteurs, les retours récents et permet de réinitialiser cet apprentissage. Les données sont stockées localement et sont incluses dans l’export JSON général.
+
 ## Application installable PWA
 
 Depuis la version 4.0.0, Shuffle+ est une Progressive Web App (PWA).
@@ -762,7 +781,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=4.1.0"></script>
+<script type="module" src="./app.js?v=4.2.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -891,7 +910,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=4.1.0"></script>
+<script type="module" src="./app.js?v=4.2.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -938,7 +957,7 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 - les réglages ne sont pas synchronisés entre appareils ;
 - les programmations sont locales et nécessitent que l’application soit ouverte ;
 - Shuffle+ ne réalise pas de transition audio réelle entre les morceaux ;
-- Adaptive Learning 3.5.0 apprend les choix de mix, mais pas encore les skips ou préférences titre par titre ;
+- le feedback 4.2 est explicite : Shuffle+ ne peut pas détecter automatiquement tous les skips effectués directement dans Spotify ;
 - l’adaptation automatique s’exécute au lancement d’Adaptive DJ et non lorsque l’application est fermée ;
 - le cache PWA conserve l’interface, mais ne rend pas les appels Spotify utilisables hors connexion ;
 - les tendances semaine / week-end sont visibles, mais les associations automatiques restent communes au créneau ;
@@ -946,9 +965,9 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 
 ## Évolution prévue
 
-### Version 4.2 — Feedback musical
+### Version 4.3 — Mode conduite
 
-Pistes prévues : retours « J’aime », « Pas maintenant » et « Trop répétitif », apprentissage titre par titre et amélioration des suggestions Adaptive DJ.
+Pistes prévues : interface simplifiée, grandes commandes, lancement Adaptive DJ en une action et réduction des manipulations pendant les trajets.
 
 ### Version 5.0 — Synchronisation serveur
 

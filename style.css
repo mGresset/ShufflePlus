@@ -6474,3 +6474,164 @@ y
         width: 100%;
     }
 }
+
+
+/* Shuffle+ v4.2.0 — Feedback musical */
+
+.track-feedback-badge {
+    display: inline-flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: center;
+    gap: 4px;
+    overflow: hidden;
+    padding: 3px 7px;
+    border: 1px solid #4d4d4d;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.track-feedback-badge.feedback-like {
+    border-color: #347e4e;
+    background: #142c1d;
+    color: #85e6a4;
+}
+
+.track-feedback-badge.feedback-not-now {
+    border-color: #8b6a2f;
+    background: #302611;
+    color: #f1cb78;
+}
+
+.track-feedback-badge.feedback-repetitive {
+    border-color: #8a464f;
+    background: #32181d;
+    color: #f2a8b0;
+}
+
+.track-row.feedback-like {
+    box-shadow: inset 3px 0 0 #38a860;
+}
+
+.track-row.feedback-not-now,
+.track-row.feedback-repetitive {
+    box-shadow: inset 3px 0 0 #b3656f;
+}
+
+.track-smart-menu-label {
+    display: block;
+    padding: 5px 10px 3px;
+    color: #9f94ad;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .45px;
+    text-transform: uppercase;
+}
+
+.track-feedback-button.is-active {
+    border-color: #1ed760 !important;
+    background: #173822 !important;
+    color: #9cf0b8 !important;
+}
+
+.track-feedback-button.is-neutral {
+    color: #c6c0cb;
+}
+
+.music-feedback-dashboard {
+    display: grid;
+    gap: 15px;
+    padding: 18px;
+    border: 1px solid #3d5c49;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #121b15, #121212 75%);
+}
+
+.music-feedback-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.music-feedback-metrics article {
+    display: grid;
+    gap: 5px;
+    padding: 13px;
+    border: 1px solid #304637;
+    border-radius: 12px;
+    background: #101512;
+}
+
+.music-feedback-metrics span,
+.music-feedback-metrics small {
+    color: #9fb1a4;
+}
+
+.music-feedback-metrics strong {
+    font-size: 25px;
+}
+
+.music-feedback-history {
+    padding: 13px;
+    border: 1px solid #304637;
+    border-radius: 12px;
+    background: #101512;
+}
+
+.music-feedback-history summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.music-feedback-history ul {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.music-feedback-history li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #161d18;
+}
+
+.music-feedback-history li > div {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.music-feedback-history small,
+.music-feedback-history time {
+    color: #9ca9a0;
+    font-size: 12px;
+}
+
+@media (max-width: 900px) {
+    .music-feedback-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 620px) {
+    .music-feedback-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .music-feedback-history li {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .music-feedback-history time {
+        grid-column: 2;
+    }
+}

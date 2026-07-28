@@ -50,7 +50,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.1.0";
+const APP_VERSION = "4.2.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -74,6 +74,19 @@ const SMART_QUEUE_SESSION_KEY =
     "shuffleplus_smart_queue_session_v1";
 const SMART_QUEUE_PREVIEW_COUNT = 6;
 const MAX_SMART_QUEUE_AVOIDS = 40;
+const MUSIC_FEEDBACK_KEY =
+    "shuffleplus_music_feedback_v1";
+const MAX_MUSIC_FEEDBACK_TRACKS = 500;
+const MAX_MUSIC_FEEDBACK_EVENTS = 400;
+const MUSIC_FEEDBACK_NOT_NOW_TTL =
+    7 * 24 * 60 * 60 * 1000;
+const MUSIC_FEEDBACK_REPETITIVE_TTL =
+    30 * 24 * 60 * 60 * 1000;
+const DEFAULT_MUSIC_FEEDBACK_STATE = {
+    records: {},
+    events: [],
+    updatedAt: 0
+};
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
 const EXCLUSION_RULES_KEY = "shuffleplus_exclusion_rules_v1";
@@ -457,6 +470,7 @@ let playbackQueueCursor = 0;
 let playbackQueueResumeKey = "";
 let pendingSavedMixResumeKey = "";
 let smartQueueSession = readSmartQueueSession();
+let musicFeedbackState = readMusicFeedbackState();
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -1083,6 +1097,653 @@ function normalizeIntelligenceRanking(
         .slice(0, limit);
 }
 
+
+function normalizeMusicFeedbackAction(value = "") {
+    return [
+        "like",
+        "not-now",
+        "repetitive",
+        "neutral"
+    ].includes(value)
+        ? value
+        : "neutral";
+}
+
+function normalizeMusicFeedbackRecord(
+    record = {},
+    fallbackKey = ""
+) {
+    const key =
+        typeof record.key === "string" &&
+        record.key.trim()
+            ? record.key.trim().slice(0, 180)
+            : String(fallbackKey || "")
+                .trim()
+                .slice(0, 180);
+
+    if (!key) {
+        return null;
+    }
+
+    return {
+        key,
+        uri:
+            typeof record.uri === "string"
+                ? record.uri.slice(0, 180)
+                : key.startsWith("spotify:track:")
+                    ? key
+                    : "",
+        trackName:
+            typeof record.trackName === "string"
+                ? record.trackName.slice(0, 160)
+                : "Morceau",
+        artists:
+            typeof record.artists === "string"
+                ? record.artists.slice(0, 220)
+                : "",
+        albumName:
+            typeof record.albumName === "string"
+                ? record.albumName.slice(0, 180)
+                : "",
+        action: normalizeMusicFeedbackAction(
+            record.action
+        ),
+        activeUntil: Math.max(
+            0,
+            Number(record.activeUntil || 0)
+        ),
+        likeCount: Math.max(
+            0,
+            Number(record.likeCount || 0)
+        ),
+        notNowCount: Math.max(
+            0,
+            Number(record.notNowCount || 0)
+        ),
+        repetitiveCount: Math.max(
+            0,
+            Number(record.repetitiveCount || 0)
+        ),
+        updatedAt: Math.max(
+            0,
+            Number(record.updatedAt || Date.now())
+        )
+    };
+}
+
+function normalizeMusicFeedbackEvent(item = {}) {
+    const action = normalizeMusicFeedbackAction(
+        item.action
+    );
+
+    return {
+        id:
+            typeof item.id === "string"
+                ? item.id.slice(0, 120)
+                : createIosCommandId(),
+        trackKey:
+            typeof item.trackKey === "string"
+                ? item.trackKey.slice(0, 180)
+                : "",
+        trackName:
+            typeof item.trackName === "string"
+                ? item.trackName.slice(0, 160)
+                : "Morceau",
+        artists:
+            typeof item.artists === "string"
+                ? item.artists.slice(0, 220)
+                : "",
+        action,
+        source:
+            typeof item.source === "string"
+                ? item.source.slice(0, 60)
+                : "track-menu",
+        createdAt: Math.max(
+            0,
+            Number(item.createdAt || Date.now())
+        )
+    };
+}
+
+function normalizeMusicFeedbackState(state = {}) {
+    const records = {};
+    const inputRecords =
+        state.records &&
+        typeof state.records === "object"
+            ? Object.entries(state.records)
+            : [];
+
+    inputRecords
+        .sort(
+            (first, second) =>
+                Number(second[1]?.updatedAt || 0) -
+                Number(first[1]?.updatedAt || 0)
+        )
+        .slice(0, MAX_MUSIC_FEEDBACK_TRACKS)
+        .forEach(([key, value]) => {
+            const record =
+                normalizeMusicFeedbackRecord(
+                    value,
+                    key
+                );
+
+            if (record) {
+                records[record.key] = record;
+            }
+        });
+
+    const events = Array.isArray(state.events)
+        ? state.events
+            .map((item) =>
+                normalizeMusicFeedbackEvent(item)
+            )
+            .filter((item) => item.trackKey)
+            .sort(
+                (first, second) =>
+                    second.createdAt -
+                    first.createdAt
+            )
+            .slice(0, MAX_MUSIC_FEEDBACK_EVENTS)
+        : [];
+
+    return {
+        records,
+        events,
+        updatedAt: Math.max(
+            0,
+            Number(state.updatedAt || Date.now())
+        )
+    };
+}
+
+function readMusicFeedbackState() {
+    try {
+        const raw = localStorage.getItem(
+            MUSIC_FEEDBACK_KEY
+        );
+
+        return normalizeMusicFeedbackState(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_MUSIC_FEEDBACK_STATE
+        );
+    } catch (error) {
+        console.warn(
+            "Feedback musical illisible :",
+            error
+        );
+        return normalizeMusicFeedbackState(
+            DEFAULT_MUSIC_FEEDBACK_STATE
+        );
+    }
+}
+
+function saveMusicFeedbackState() {
+    musicFeedbackState =
+        normalizeMusicFeedbackState({
+            ...musicFeedbackState,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            MUSIC_FEEDBACK_KEY,
+            JSON.stringify(musicFeedbackState)
+        );
+    } catch (error) {
+        console.warn(
+            "Feedback musical non enregistré :",
+            error
+        );
+    }
+}
+
+function getMusicFeedbackTrackKey(track) {
+    const uri =
+        typeof track?.uri === "string"
+            ? track.uri.trim()
+            : "";
+
+    if (uri) {
+        return uri;
+    }
+
+    const id =
+        typeof track?.id === "string"
+            ? track.id.trim()
+            : "";
+
+    return id
+        ? `spotify:track:${id}`
+        : "";
+}
+
+function getMusicFeedbackRecord(track) {
+    const key = getMusicFeedbackTrackKey(track);
+
+    if (!key) {
+        return null;
+    }
+
+    return musicFeedbackState.records[key] || null;
+}
+
+function getActiveMusicFeedbackAction(
+    record = null,
+    now = Date.now()
+) {
+    if (!record) {
+        return "neutral";
+    }
+
+    if (record.action === "like") {
+        return "like";
+    }
+
+    if (
+        ["not-now", "repetitive"].includes(
+            record.action
+        ) &&
+        record.activeUntil > now
+    ) {
+        return record.action;
+    }
+
+    return "neutral";
+}
+
+function getMusicFeedbackLabel(action = "neutral") {
+    if (action === "like") {
+        return "J’aime";
+    }
+    if (action === "not-now") {
+        return "Pas maintenant";
+    }
+    if (action === "repetitive") {
+        return "Trop répétitif";
+    }
+    return "Neutre";
+}
+
+function getMusicFeedbackIcon(action = "neutral") {
+    if (action === "like") {
+        return "💚";
+    }
+    if (action === "not-now") {
+        return "⏳";
+    }
+    if (action === "repetitive") {
+        return "🔁";
+    }
+    return "○";
+}
+
+function getMusicFeedbackExpiryLabel(record = null) {
+    const action = getActiveMusicFeedbackAction(record);
+
+    if (
+        !record ||
+        !["not-now", "repetitive"].includes(action)
+    ) {
+        return "";
+    }
+
+    return new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            dateStyle: "medium"
+        }
+    ).format(
+        new Date(record.activeUntil)
+    );
+}
+
+function getLikedMusicFeedbackTrackUris() {
+    return Object.values(
+        musicFeedbackState.records
+    )
+        .filter(
+            (record) =>
+                getActiveMusicFeedbackAction(
+                    record
+                ) === "like" &&
+                record.uri
+        )
+        .map((record) => record.uri)
+        .slice(0, MAX_PRIORITY_TEXT_ITEMS);
+}
+
+function getMusicFeedbackScore(track) {
+    const record = getMusicFeedbackRecord(track);
+    const action = getActiveMusicFeedbackAction(
+        record
+    );
+
+    if (action === "like") {
+        return Math.min(
+            240,
+            130 +
+            Math.max(0, record.likeCount - 1) * 20
+        );
+    }
+
+    return 0;
+}
+
+function getMusicFeedbackExclusionReason(track) {
+    const action = getActiveMusicFeedbackAction(
+        getMusicFeedbackRecord(track)
+    );
+
+    if (action === "not-now") {
+        return "pas maintenant";
+    }
+
+    if (action === "repetitive") {
+        return "trop répétitif";
+    }
+
+    return "";
+}
+
+function buildMusicFeedbackRecord(
+    track,
+    action,
+    previous = null
+) {
+    const key = getMusicFeedbackTrackKey(track);
+    const now = Date.now();
+    const normalizedAction =
+        normalizeMusicFeedbackAction(action);
+    const artists = (track?.artists || [])
+        .map((artist) => artist?.name)
+        .filter(Boolean)
+        .join(", ");
+    const sameActiveAction =
+        getActiveMusicFeedbackAction(previous) ===
+        normalizedAction;
+    const finalAction =
+        sameActiveAction &&
+        normalizedAction !== "neutral"
+            ? "neutral"
+            : normalizedAction;
+    let activeUntil = 0;
+
+    if (finalAction === "not-now") {
+        activeUntil =
+            now + MUSIC_FEEDBACK_NOT_NOW_TTL;
+    } else if (finalAction === "repetitive") {
+        activeUntil =
+            now + MUSIC_FEEDBACK_REPETITIVE_TTL;
+    }
+
+    return {
+        record: normalizeMusicFeedbackRecord({
+            ...(previous || {}),
+            key,
+            uri: track?.uri || previous?.uri || "",
+            trackName:
+                track?.name ||
+                previous?.trackName ||
+                "Morceau",
+            artists:
+                artists || previous?.artists || "",
+            albumName:
+                track?.album?.name ||
+                previous?.albumName ||
+                "",
+            action: finalAction,
+            activeUntil,
+            likeCount:
+                Number(previous?.likeCount || 0) +
+                (finalAction === "like" ? 1 : 0),
+            notNowCount:
+                Number(previous?.notNowCount || 0) +
+                (finalAction === "not-now" ? 1 : 0),
+            repetitiveCount:
+                Number(previous?.repetitiveCount || 0) +
+                (finalAction === "repetitive" ? 1 : 0),
+            updatedAt: now
+        }, key),
+        finalAction
+    };
+}
+
+function applyMusicFeedbackAt(
+    index,
+    action,
+    source = "track-menu"
+) {
+    const track = selectedTracks[index];
+    const key = getMusicFeedbackTrackKey(track);
+
+    if (!track || !key) {
+        setStatus(
+            "Ce morceau ne peut pas recevoir de feedback.",
+            "error"
+        );
+        return;
+    }
+
+    const previous =
+        musicFeedbackState.records[key] || null;
+    const { record, finalAction } =
+        buildMusicFeedbackRecord(
+            track,
+            action,
+            previous
+        );
+
+    if (!record) {
+        return;
+    }
+
+    const event = normalizeMusicFeedbackEvent({
+        id: createIosCommandId(),
+        trackKey: key,
+        trackName: record.trackName,
+        artists: record.artists,
+        action: finalAction,
+        source,
+        createdAt: Date.now()
+    });
+
+    musicFeedbackState =
+        normalizeMusicFeedbackState({
+            ...musicFeedbackState,
+            records: {
+                ...musicFeedbackState.records,
+                [key]: record
+            },
+            events: [
+                event,
+                ...musicFeedbackState.events
+            ],
+            updatedAt: Date.now()
+        });
+    saveMusicFeedbackState();
+
+    recordIntelligenceEvent({
+        type: "feedback",
+        mixId: key,
+        mixName: record.trackName,
+        source: "music-feedback",
+        tracks: [track],
+        evidence: "user-feedback",
+        reason:
+            finalAction === "neutral"
+                ? "Feedback retiré"
+                : getMusicFeedbackLabel(finalAction)
+    });
+
+    renderTrackList();
+
+    const expiry =
+        getMusicFeedbackExpiryLabel(record);
+    const message =
+        finalAction === "neutral"
+            ? `Feedback retiré pour « ${record.trackName} ».`
+            : finalAction === "like"
+                ? `« ${record.trackName} » sera davantage favorisé dans les prochains mix.`
+                : `« ${record.trackName} » sera écarté jusqu’au ${expiry}.`;
+
+    setStatus(message);
+}
+
+function getMusicFeedbackSummary() {
+    const records = Object.values(
+        musicFeedbackState.records
+    );
+    const liked = records.filter(
+        (record) =>
+            getActiveMusicFeedbackAction(record) ===
+            "like"
+    );
+    const notNow = records.filter(
+        (record) =>
+            getActiveMusicFeedbackAction(record) ===
+            "not-now"
+    );
+    const repetitive = records.filter(
+        (record) =>
+            getActiveMusicFeedbackAction(record) ===
+            "repetitive"
+    );
+
+    return {
+        liked,
+        notNow,
+        repetitive,
+        recentEvents:
+            musicFeedbackState.events.slice(0, 12)
+    };
+}
+
+function clearMusicFeedback() {
+    const count = Object.keys(
+        musicFeedbackState.records
+    ).length;
+
+    if (!count) {
+        setStatus(
+            "Aucun feedback musical à effacer."
+        );
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Effacer tous les retours musicaux et recommencer l’apprentissage titre par titre ?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    musicFeedbackState =
+        normalizeMusicFeedbackState(
+            DEFAULT_MUSIC_FEEDBACK_STATE
+        );
+    saveMusicFeedbackState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Feedback musical réinitialisé."
+    );
+}
+
+function renderMusicFeedbackIntelligenceSection() {
+    const summary = getMusicFeedbackSummary();
+    const rows = summary.recentEvents
+        .map((item) => {
+            const record =
+                musicFeedbackState.records[
+                    item.trackKey
+                ] || null;
+            const activeAction =
+                getActiveMusicFeedbackAction(record);
+            const expiry =
+                getMusicFeedbackExpiryLabel(record);
+
+            return `
+                <li>
+                    <span>
+                        ${getMusicFeedbackIcon(item.action)}
+                    </span>
+                    <div>
+                        <strong>
+                            ${escapeHtml(item.trackName)}
+                        </strong>
+                        <small>
+                            ${escapeHtml(item.artists || "Artiste inconnu")}
+                            · ${getMusicFeedbackLabel(item.action)}
+                            ${activeAction === item.action && expiry
+                                ? ` · jusqu’au ${escapeHtml(expiry)}`
+                                : ""}
+                        </small>
+                    </div>
+                    <time>
+                        ${formatHistoryDate(item.createdAt)}
+                    </time>
+                </li>
+            `;
+        })
+        .join("");
+
+    return `
+        <section class="music-feedback-dashboard">
+            <div class="intelligence-section-heading">
+                <div>
+                    <h4>Feedback musical 4.2</h4>
+                    <p>
+                        Tes retours influencent les prochains mix et les remplacements Smart Queue.
+                    </p>
+                </div>
+                <button
+                    id="clearMusicFeedbackButton"
+                    class="is-danger"
+                    type="button"
+                    ${Object.keys(musicFeedbackState.records).length
+                        ? ""
+                        : "disabled"}
+                >
+                    Réinitialiser
+                </button>
+            </div>
+
+            <div class="music-feedback-metrics">
+                <article>
+                    <span>💚 J’aime</span>
+                    <strong>${summary.liked.length}</strong>
+                    <small>favorisés durablement</small>
+                </article>
+                <article>
+                    <span>⏳ Pas maintenant</span>
+                    <strong>${summary.notNow.length}</strong>
+                    <small>écartés pendant 7 jours</small>
+                </article>
+                <article>
+                    <span>🔁 Trop répétitif</span>
+                    <strong>${summary.repetitive.length}</strong>
+                    <small>écartés pendant 30 jours</small>
+                </article>
+                <article>
+                    <span>Historique</span>
+                    <strong>${musicFeedbackState.events.length}</strong>
+                    <small>retours conservés localement</small>
+                </article>
+            </div>
+
+            <details class="music-feedback-history" ${rows ? "open" : ""}>
+                <summary>
+                    Derniers retours titre par titre
+                </summary>
+                <ul>
+                    ${rows || "<li>Aucun feedback musical enregistré.</li>"}
+                </ul>
+            </details>
+        </section>
+    `;
+}
+
 function normalizeIntelligenceQuality(
     quality = null
 ) {
@@ -1122,12 +1783,14 @@ function normalizeIntelligenceEvent(item = {}) {
         "schedule",
         "ios",
         "correction",
-        "listening-confirmed"
+        "listening-confirmed",
+        "feedback"
     ]);
     const allowedEvidence = new Set([
         "generated",
         "sent",
-        "user-confirmed"
+        "user-confirmed",
+        "user-feedback"
     ]);
     const createdAt = Number(
         item.createdAt || Date.now()
@@ -1146,9 +1809,11 @@ function normalizeIntelligenceEvent(item = {}) {
             ? "generated"
             : type === "listening-confirmed"
                 ? "user-confirmed"
-                : type === "correction"
-                    ? "generated"
-                    : "sent";
+                : type === "feedback"
+                    ? "user-feedback"
+                    : type === "correction"
+                        ? "generated"
+                        : "sent";
 
     return {
         id:
@@ -1263,7 +1928,8 @@ function normalizeIntelligenceAnalytics(
         "mix-generated",
         "sent",
         "correction",
-        "listening-confirmed"
+        "listening-confirmed",
+        "feedback"
     ]);
     const allowedDayFilters = new Set([
         "all",
@@ -1703,6 +2369,18 @@ function getIntelligenceEventLabel(item) {
     if (item.type === "listening-confirmed") {
         return "✅ Écoute confirmée";
     }
+    if (item.type === "feedback") {
+        if (item.reason === "J’aime") {
+            return "💚 J’aime";
+        }
+        if (item.reason === "Pas maintenant") {
+            return "⏳ Pas maintenant";
+        }
+        if (item.reason === "Trop répétitif") {
+            return "🔁 Trop répétitif";
+        }
+        return "○ Feedback retiré";
+    }
     return "▶ Lecture envoyée";
 }
 
@@ -1712,6 +2390,9 @@ function getIntelligenceEvidenceLabel(item) {
     }
     if (item.evidence === "sent") {
         return "envoyé à Spotify";
+    }
+    if (item.evidence === "user-feedback") {
+        return "retour donné par toi";
     }
     return "généré localement";
 }
@@ -2209,7 +2890,8 @@ function renderIntelligenceDashboard() {
         ["mix-generated", "Mix générés"],
         ["sent", "Lectures envoyées"],
         ["correction", "Corrections"],
-        ["listening-confirmed", "Écoutes confirmées"]
+        ["listening-confirmed", "Écoutes confirmées"],
+        ["feedback", "Feedback musical"]
     ];
     const dayOptions = [
         ["all", "Tous les jours"],
@@ -2495,6 +3177,8 @@ function renderIntelligenceDashboard() {
                     ${patterns}
                 </div>
             </section>
+
+            ${renderMusicFeedbackIntelligenceSection()}
 
             <section class="intelligence-quality-section">
                 <div class="intelligence-section-heading">
@@ -10783,6 +11467,13 @@ function includesExcludedText(value, exclusions) {
 }
 
 function getTrackExclusionReason(track, rules) {
+    const feedbackReason =
+        getMusicFeedbackExclusionReason(track);
+
+    if (feedbackReason) {
+        return feedbackReason;
+    }
+
     const trackName = track?.name || "";
     const albumName = track?.album?.name || "";
     const artistNames = (track?.artists || [])
@@ -11210,6 +11901,18 @@ function normalizeShuffleSettings(settings = {}) {
 
 function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
     const normalized = normalizeShuffleSettings(settings);
+    const feedbackFavoredTrackUris =
+        getLikedMusicFeedbackTrackUris();
+    const effectivePriorityRules =
+        normalizePriorityRules({
+            ...currentPriorityRules,
+            favoredTrackUris: [
+                ...new Set([
+                    ...currentPriorityRules.favoredTrackUris,
+                    ...feedbackFavoredTrackUris
+                ])
+            ].slice(0, MAX_PRIORITY_TEXT_ITEMS)
+        });
 
     const recentProfiles = {
         0: {
@@ -11243,9 +11946,7 @@ function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
         albumPenalty:
             normalized.preset === "strict" ? 110 :
             normalized.preset === "soft" ? 45 : 70,
-        priorityRules: normalizePriorityRules(
-            currentPriorityRules
-        ),
+        priorityRules: effectivePriorityRules,
         coherenceSettings:
             normalizeCoherenceSettings(
                 currentCoherenceSettings
@@ -12985,6 +13686,7 @@ function buildBackupPayload() {
             adaptiveDjMenuHistory,
             adaptiveLearningState,
             intelligenceAnalytics,
+            musicFeedbackState,
             mixSchedules
         }
     };
@@ -13134,6 +13836,11 @@ function validateBackupPayload(payload) {
                 payload.data.intelligenceAnalytics ||
                 DEFAULT_INTELLIGENCE_ANALYTICS
             ),
+        musicFeedbackState:
+            normalizeMusicFeedbackState(
+                payload.data.musicFeedbackState ||
+                DEFAULT_MUSIC_FEEDBACK_STATE
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -13275,6 +13982,9 @@ async function importBackupFile(file) {
         intelligenceAnalytics =
             imported.intelligenceAnalytics;
         saveIntelligenceAnalytics();
+        musicFeedbackState =
+            imported.musicFeedbackState;
+        saveMusicFeedbackState();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -14626,6 +15336,7 @@ function scoreSmartQueueCandidate(
             currentPriorityRules
         ).length * 9
     );
+    score += getMusicFeedbackScore(candidate);
 
     return score + Math.random() * 3;
 }
@@ -14933,7 +15644,7 @@ function renderSmartQueuePanel() {
         <div class="smart-queue-heading">
             <div>
                 <span class="smart-queue-kicker">
-                    ⚡ Smart Queue 4.1
+                    ⚡ Smart Queue 4.2
                 </span>
                 <h3>Gérer uniquement la suite</h3>
                 <p>
@@ -15044,6 +15755,16 @@ function renderSmartQueuePanel() {
 
 function createTrackRow(track, index) {
     const queueLocked = index < playbackQueueCursor;
+    const feedbackRecord =
+        getMusicFeedbackRecord(track);
+    const feedbackAction =
+        getActiveMusicFeedbackAction(
+            feedbackRecord
+        );
+    const feedbackExpiry =
+        getMusicFeedbackExpiryLabel(
+            feedbackRecord
+        );
     const trackName = escapeHtml(
         track.name || "Morceau indisponible"
     );
@@ -15100,7 +15821,7 @@ function createTrackRow(track, index) {
 
     return `
         <li
-            class="track-row ${queueLocked ? "is-queue-sent" : ""}"
+            class="track-row ${queueLocked ? "is-queue-sent" : ""} ${feedbackAction !== "neutral" ? `has-music-feedback feedback-${feedbackAction}` : ""}"
             draggable="${queueLocked ? "false" : "true"}"
             data-track-index="${index}"
             data-track-key="${trackKey}"
@@ -15126,6 +15847,18 @@ function createTrackRow(track, index) {
                 <span class="track-artists">
                     ${artists}
                 </span>
+
+                ${feedbackAction !== "neutral"
+                    ? `
+                        <span class="track-feedback-badge feedback-${feedbackAction}">
+                            ${getMusicFeedbackIcon(feedbackAction)}
+                            ${getMusicFeedbackLabel(feedbackAction)}
+                            ${feedbackExpiry
+                                ? ` · jusqu’au ${escapeHtml(feedbackExpiry)}`
+                                : ""}
+                        </span>
+                    `
+                    : ""}
             </div>
 
             <span class="track-album">
@@ -15180,6 +15913,48 @@ function createTrackRow(track, index) {
                         ⚡
                     </summary>
                     <div>
+                        <span class="track-smart-menu-label">
+                            Ton feedback
+                        </span>
+                        <button
+                            type="button"
+                            class="track-feedback-button ${feedbackAction === "like" ? "is-active" : ""}"
+                            data-music-feedback-action="like"
+                            data-track-index="${index}"
+                        >
+                            💚 J’aime
+                        </button>
+                        <button
+                            type="button"
+                            class="track-feedback-button ${feedbackAction === "not-now" ? "is-active" : ""}"
+                            data-music-feedback-action="not-now"
+                            data-track-index="${index}"
+                        >
+                            ⏳ Pas maintenant
+                        </button>
+                        <button
+                            type="button"
+                            class="track-feedback-button ${feedbackAction === "repetitive" ? "is-active" : ""}"
+                            data-music-feedback-action="repetitive"
+                            data-track-index="${index}"
+                        >
+                            🔁 Trop répétitif
+                        </button>
+                        ${feedbackAction !== "neutral"
+                            ? `
+                                <button
+                                    type="button"
+                                    class="track-feedback-button is-neutral"
+                                    data-music-feedback-action="neutral"
+                                    data-track-index="${index}"
+                                >
+                                    ○ Retirer le feedback
+                                </button>
+                            `
+                            : ""}
+                        <span class="track-smart-menu-label">
+                            Smart Queue
+                        </span>
                         <button
                             type="button"
                             data-track-action="replace"
@@ -17691,6 +18466,33 @@ contentElement.addEventListener(
 
         if (importBackupButton) {
             document.getElementById("backupFileInput")?.click();
+            return;
+        }
+
+        const musicFeedbackButton =
+            event.target.closest(
+                "[data-music-feedback-action]"
+            );
+
+        if (musicFeedbackButton) {
+            applyMusicFeedbackAt(
+                Number(
+                    musicFeedbackButton.dataset
+                        .trackIndex
+                ),
+                musicFeedbackButton.dataset
+                    .musicFeedbackAction ||
+                    "neutral"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearMusicFeedbackButton"
+            )
+        ) {
+            clearMusicFeedback();
             return;
         }
 

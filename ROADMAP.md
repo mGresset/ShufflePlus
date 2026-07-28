@@ -2,27 +2,26 @@
 
 ## Version stable actuelle
 
-### v4.1.0 — Smart Queue
+### v4.2.0 — Feedback musical
 
-- aperçu des prochains morceaux ;
-- remplacement intelligent depuis les sources chargées ;
-- remélange de la partie restante ;
-- verrouillage de la partie déjà envoyée à Spotify ;
-- évitement temporaire d’un artiste ou d’un album ;
-- remplissage automatique des places libérées ;
-- annulation de la dernière action ;
-- conservation de la progression de lecture ;
-- PWA installable et mises à jour conservées.
+- retours « J’aime », « Pas maintenant » et « Trop répétitif » ;
+- apprentissage local titre par titre ;
+- priorité renforcée pour les titres aimés ;
+- pauses temporaires de 7 ou 30 jours ;
+- prise en compte dans les futurs mix et Smart Queue ;
+- historique visible dans Intelligence ;
+- sauvegarde et restauration des retours ;
+- PWA et mise à jour du cache conservées.
 
 ## Étape suivante
 
-### v4.2 — Feedback musical
+### v4.3 — Mode conduite
 
-- J’aime ;
-- Pas maintenant ;
-- Trop répétitif ;
-- apprentissage par morceau ;
-- prise en compte des retours dans Adaptive DJ et Smart Queue.
+- interface très simplifiée ;
+- grandes commandes ;
+- lancement Adaptive DJ en une action ;
+- lecture et remplacement du prochain titre ;
+- limitation des manipulations pendant un trajet.
 
 ## Évolution majeure envisagée
 
