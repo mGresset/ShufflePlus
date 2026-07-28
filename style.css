@@ -4809,3 +4809,11 @@ y
             repeat(5, minmax(0, 1fr));
     }
 }
+
+
+/* Shuffle+ v3.2.0 — Mix intelligents depuis iOS */
+[data-ios-fixed-field][hidden],
+[data-ios-smartmix-field][hidden] { display:none !important; }
+.ios-command-form select[name="commandType"] { border-color:#7188c5; background:linear-gradient(135deg,#15213d 0%,#0e1522 100%); font-weight:800; }
+.ios-command-form [data-ios-smartmix-field] { border-color:#5b4c85; background:linear-gradient(135deg,rgb(62 48 103 / 42%) 0%,#121a29 100%); }
+.ios-command-form label[data-ios-smartmix-field] > span:first-child { color:#d9ccff; }

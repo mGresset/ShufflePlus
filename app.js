@@ -33,7 +33,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.1.2";
+const APP_VERSION = "3.2.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -621,6 +621,10 @@ function createIosCommandId() {
 function normalizeIosCommand(command = {}) {
     const base =
         normalizeIosQuickPlaySettings(command);
+    const commandType =
+        command.commandType === "smartmix"
+            ? "smartmix"
+            : "fixed";
 
     return {
         id:
@@ -638,6 +642,19 @@ function normalizeIosCommand(command = {}) {
             command.icon.trim()
                 ? command.icon.trim().slice(0, 8)
                 : "▶️",
+        commandType,
+        mixId:
+            typeof command.mixId === "string"
+                ? command.mixId.slice(0, 120)
+                : "",
+        profileId:
+            typeof command.profileId === "string"
+                ? command.profileId.slice(0, 120)
+                : "",
+        regenerateOnLaunch:
+            command.regenerateOnLaunch !== false,
+        autoplay:
+            command.autoplay !== false,
         ...base,
         fallbackDeviceMode:
             ["active", "first", "iphone"].includes(
@@ -858,7 +875,9 @@ function buildIosCommandUrl(command) {
 
     url.searchParams.set(
         "action",
-        "quickplay"
+        normalized.commandType === "smartmix"
+            ? "smartmix"
+            : "quickplay"
     );
     url.searchParams.set(
         "command",
@@ -900,6 +919,37 @@ function saveIosCommandFromForm(form) {
     const playlist = playlistsCache.find(
         (item) => item.id === playlistId
     );
+    const commandType =
+        formData.get("commandType") === "smartmix"
+            ? "smartmix"
+            : "fixed";
+    const mixId =
+        String(formData.get("mixId") || "");
+
+    if (
+        commandType === "fixed" &&
+        !playlistId
+    ) {
+        setStatus(
+            "Choisis une playlist pour ce raccourci.",
+            "error"
+        );
+        return;
+    }
+
+    if (
+        commandType === "smartmix" &&
+        !savedMixes.some(
+            (mix) => mix.id === mixId
+        )
+    ) {
+        setStatus(
+            "Choisis un mix enregistré valide.",
+            "error"
+        );
+        return;
+    }
+
     const existing = getIosCommandById(
         editingIosCommandId
     );
@@ -920,6 +970,14 @@ function saveIosCommandFromForm(form) {
         icon:
             formData.get("icon") ||
             "▶️",
+        commandType,
+        mixId,
+        profileId:
+            String(formData.get("profileId") || ""),
+        regenerateOnLaunch:
+            formData.get("regenerateOnLaunch") === "on",
+        autoplay:
+            formData.get("autoplay") === "on",
         playlistId,
         playlistName:
             playlist?.name || "",
@@ -1134,12 +1192,40 @@ function renderIosCommandsPanel() {
             id: "",
             name: "",
             icon: "▶️",
+            commandType: "fixed",
             playlistId: "",
+            mixId: "",
+            profileId: "",
+            regenerateOnLaunch: true,
+            autoplay: true,
             deviceMode: "iphone",
             fallbackDeviceMode: "active",
             shuffle: false,
             startFromBeginning: true
         });
+
+    const mixOptions = savedMixes
+        .map((mix) => `
+            <option
+                value="${escapeHtml(mix.id)}"
+                ${mix.id === formCommand.mixId ? "selected" : ""}
+            >
+                ${escapeHtml(mix.name)}
+            </option>
+        `)
+        .join("");
+
+    const profileOptions = mixProfiles
+        .map((profile) => `
+            <option
+                value="${escapeHtml(profile.id)}"
+                ${profile.id === formCommand.profileId ? "selected" : ""}
+            >
+                ${escapeHtml(profile.icon)}
+                ${escapeHtml(profile.name)}
+            </option>
+        `)
+        .join("");
 
     const playlistOptions = playlistsCache
         .filter(
@@ -1179,13 +1265,22 @@ function renderIosCommandsPanel() {
                                 ${escapeHtml(command.name)}
                             </h4>
                             <p>
-                                ${escapeHtml(
-                                    command.playlistName ||
-                                    "Playlist indisponible"
-                                )}
+                                ${command.commandType === "smartmix"
+                                    ? escapeHtml(
+                                        savedMixes.find(
+                                            (mix) => mix.id === command.mixId
+                                        )?.name || "Mix indisponible"
+                                    )
+                                    : escapeHtml(
+                                        command.playlistName ||
+                                        "Playlist indisponible"
+                                    )}
                             </p>
                             <small>
-                                ${command.deviceMode === "iphone"
+                                ${command.commandType === "smartmix"
+                                    ? "Mix intelligent"
+                                    : "Playlist fixe"}
+                                · ${command.deviceMode === "iphone"
                                     ? "iPhone prioritaire"
                                     : command.deviceMode === "named"
                                         ? `Appareil : ${escapeHtml(command.deviceName || "nom à définir")}`
@@ -1258,7 +1353,7 @@ function renderIosCommandsPanel() {
                         raccourci(s) configuré(s)
                     </p>
                 </div>
-                <span>v3.1</span>
+                <span>v3.2</span>
             </div>
 
             <form
@@ -1288,16 +1383,88 @@ function renderIosCommandsPanel() {
                 </label>
 
                 <label class="ios-command-field">
+                    <span>Type de raccourci</span>
+                    <select
+                        name="commandType"
+                        data-ios-command-type
+                    >
+                        <option value="fixed" ${formCommand.commandType === "fixed" ? "selected" : ""}>
+                            Playlist fixe
+                        </option>
+                        <option value="smartmix" ${formCommand.commandType === "smartmix" ? "selected" : ""}>
+                            Mix intelligent
+                        </option>
+                    </select>
+                </label>
+
+                <label
+                    class="ios-command-field"
+                    data-ios-fixed-field
+                    ${formCommand.commandType === "smartmix" ? "hidden" : ""}
+                >
                     <span>Playlist</span>
                     <select
                         name="playlistId"
-                        required
+                        ${formCommand.commandType === "smartmix" ? "" : "required"}
                     >
                         <option value="">
                             Choisir une playlist
                         </option>
                         ${playlistOptions}
                     </select>
+                </label>
+
+                <label
+                    class="ios-command-field"
+                    data-ios-smartmix-field
+                    ${formCommand.commandType === "smartmix" ? "" : "hidden"}
+                >
+                    <span>Mix enregistré</span>
+                    <select
+                        name="mixId"
+                        ${formCommand.commandType === "smartmix" ? "required" : ""}
+                    >
+                        <option value="">Choisir un mix</option>
+                        ${mixOptions}
+                    </select>
+                </label>
+
+                <label
+                    class="ios-command-field"
+                    data-ios-smartmix-field
+                    ${formCommand.commandType === "smartmix" ? "" : "hidden"}
+                >
+                    <span>Profil appliqué</span>
+                    <select name="profileId">
+                        <option value="">Réglages du mix</option>
+                        ${profileOptions}
+                    </select>
+                </label>
+
+                <label
+                    class="ios-command-check"
+                    data-ios-smartmix-field
+                    ${formCommand.commandType === "smartmix" ? "" : "hidden"}
+                >
+                    <input
+                        name="regenerateOnLaunch"
+                        type="checkbox"
+                        ${formCommand.regenerateOnLaunch ? "checked" : ""}
+                    >
+                    <span>Générer un nouvel ordre à chaque lancement</span>
+                </label>
+
+                <label
+                    class="ios-command-check"
+                    data-ios-smartmix-field
+                    ${formCommand.commandType === "smartmix" ? "" : "hidden"}
+                >
+                    <input
+                        name="autoplay"
+                        type="checkbox"
+                        ${formCommand.autoplay ? "checked" : ""}
+                    >
+                    <span>Lancer automatiquement après génération</span>
                 </label>
 
                 <label class="ios-command-field">
@@ -1990,6 +2157,128 @@ async function executeAutomationCommand(
             normalized.playlistId,
             normalized.commandId
         );
+        return;
+    }
+
+    if (
+        normalized.action === "smartmix"
+    ) {
+        const command =
+            getEffectiveIosCommand(
+                normalized.commandId
+            );
+
+        if (
+            command.commandType !== "smartmix" ||
+            !command.mixId
+        ) {
+            throw new Error(
+                "La commande de mix intelligent est incomplète."
+            );
+        }
+
+        const profile =
+            command.profileId
+                ? getProfileById(
+                    command.profileId
+                )
+                : null;
+
+        if (profile) {
+            applyMixProfile(
+                profile.id,
+                {
+                    persist: false,
+                    rerender: false
+                }
+            );
+        }
+
+        await launchSavedMix(
+            command.mixId
+        );
+
+        if (
+            command.autoplay &&
+            selectedTracks.length
+        ) {
+            const device =
+                await getAutomationDeviceWithRetry(
+                    command
+                );
+
+            if (!device) {
+                throw new Error(
+                    "Aucun appareil Spotify disponible pour lancer le mix."
+                );
+            }
+
+            const playbackUris =
+                selectedTracks
+                    .slice(
+                        0,
+                        MAX_DIRECT_PLAYBACK_TRACKS
+                    )
+                    .map(
+                        (track) => track?.uri
+                    )
+                    .filter(Boolean);
+
+            if (!playbackUris.length) {
+                throw new Error(
+                    "Le mix généré ne contient aucun morceau lisible."
+                );
+            }
+
+            await startPlayback(
+                playbackUris,
+                device.id
+            );
+
+            try {
+                await setPlaybackShuffle(
+                    false,
+                    device.id
+                );
+            } catch (shuffleError) {
+                console.warn(
+                    "Impossible de désactiver le shuffle Spotify :",
+                    shuffleError
+                );
+            }
+
+            rememberPlaybackOrder(
+                selectedTracks.slice(
+                    0,
+                    playbackUris.length
+                )
+            );
+
+            addIosCommandHistory({
+                commandId: command.id,
+                commandName: command.name,
+                playlistName:
+                    savedMixes.find(
+                        (mix) =>
+                            mix.id === command.mixId
+                    )?.name || "Mix intelligent",
+                deviceName: device.name,
+                status: "success",
+                message:
+                    `${playbackUris.length} titres générés et lancés`
+            });
+
+            setStatus(
+                `Mix « ${command.name} » lancé sur ${device.name}.`
+            );
+        } else {
+            setStatus(
+                `Mix « ${command.name} » généré.`
+            );
+        }
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
         return;
     }
 
@@ -11979,6 +12268,57 @@ contentElement.addEventListener(
                         "🧠 Mélanger à nouveau";
                 }
             }, 1200);
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "change",
+    (event) => {
+        if (
+            !event.target.matches(
+                "[data-ios-command-type]"
+            )
+        ) {
+            return;
+        }
+
+        const form =
+            event.target.closest(
+                "#iosCommandForm"
+            );
+        const isSmartMix =
+            event.target.value === "smartmix";
+
+        form
+            ?.querySelectorAll(
+                "[data-ios-fixed-field]"
+            )
+            .forEach((element) => {
+                element.hidden = isSmartMix;
+            });
+
+        form
+            ?.querySelectorAll(
+                "[data-ios-smartmix-field]"
+            )
+            .forEach((element) => {
+                element.hidden = !isSmartMix;
+            });
+
+        const playlistSelect =
+            form?.elements?.playlistId;
+        const mixSelect =
+            form?.elements?.mixId;
+
+        if (playlistSelect) {
+            playlistSelect.required =
+                !isSmartMix;
+        }
+
+        if (mixSelect) {
+            mixSelect.required =
+                isSmartMix;
         }
     }
 );
