@@ -26,6 +26,10 @@ import {
     getRecentlyPlayedPlaylistActivity
 } from "./spotify-api.js";
 
+import {
+    getAdaptiveContext
+} from "./adaptive-dj.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -33,7 +37,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.2.0";
+const APP_VERSION = "3.3.3";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -622,9 +626,11 @@ function normalizeIosCommand(command = {}) {
     const base =
         normalizeIosQuickPlaySettings(command);
     const commandType =
-        command.commandType === "smartmix"
-            ? "smartmix"
-            : "fixed";
+        command.commandType === "adaptive"
+            ? "adaptive"
+            : command.commandType === "smartmix"
+                ? "smartmix"
+                : "fixed";
 
     return {
         id:
@@ -875,9 +881,11 @@ function buildIosCommandUrl(command) {
 
     url.searchParams.set(
         "action",
-        normalized.commandType === "smartmix"
-            ? "smartmix"
-            : "quickplay"
+        normalized.commandType === "adaptive"
+            ? "adaptive"
+            : normalized.commandType === "smartmix"
+                ? "smartmix"
+                : "quickplay"
     );
     url.searchParams.set(
         "command",
@@ -895,6 +903,14 @@ function buildIosCommandUrl(command) {
         "autoplay",
         "1"
     );
+
+    if (normalized.commandType === "adaptive") {
+        const context = getAdaptiveContext();
+        url.searchParams.set(
+            "context",
+            context.id
+        );
+    }
 
     return url.toString();
 }
@@ -2157,6 +2173,36 @@ async function executeAutomationCommand(
             normalized.playlistId,
             normalized.commandId
         );
+        return;
+    }
+
+    if (
+        normalized.action === "adaptive"
+    ) {
+        const command =
+            getEffectiveIosCommand(
+                normalized.commandId
+            );
+
+        const context =
+            getAdaptiveContext();
+
+        setStatus(
+            `Adaptive DJ : ${context.name}`
+        );
+
+        if (!command.mixId) {
+            throw new Error(
+                "Aucun mix associé au contexte Adaptive DJ."
+            );
+        }
+
+        await launchSavedMix(
+            command.mixId
+        );
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
         return;
     }
 
