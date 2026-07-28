@@ -2,22 +2,18 @@
 
 ## Version stable actuelle
 
-### v3.4.0 — Adaptive Learning
+### v3.5.0 — Adaptation automatique optionnelle
 
-- observation locale des choix de mix ;
-- confiance par créneau ;
-- suggestions manuelles ;
-- appliquer, ignorer ou réinitialiser ;
-- aucune modification automatique.
+- désactivée par défaut ;
+- seuil de confiance configurable ;
+- minimum de choix concordants configurable ;
+- application au lancement réel d’Adaptive DJ ;
+- journal des changements ;
+- retour arrière manuel ;
+- retour arrière automatique en cas d’échec ;
+- absence de boucle d’auto-renforcement.
 
 ## Prochaines étapes
-
-### v3.5 — Adaptation automatique optionnelle
-
-- seuil de confiance configurable ;
-- application automatique uniquement après autorisation ;
-- journal des changements ;
-- retour arrière.
 
 ### v3.6 — Statistiques d’écoute
 

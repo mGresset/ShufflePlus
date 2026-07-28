@@ -38,7 +38,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.4.0";
+const APP_VERSION = "3.5.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -152,15 +152,24 @@ const ADAPTIVE_LEARNING_KEY =
     "shuffleplus_adaptive_learning_v1";
 const MAX_ADAPTIVE_LEARNING_OBSERVATIONS = 300;
 const MAX_ADAPTIVE_LEARNING_DECISIONS = 80;
+const MAX_ADAPTIVE_AUTO_CHANGES = 80;
+const DEFAULT_ADAPTIVE_AUTO_CONFIDENCE = 75;
+const DEFAULT_ADAPTIVE_AUTO_OBSERVATIONS = 5;
 const ADAPTIVE_LEARNING_OBSERVATION_TTL =
     180 * 24 * 60 * 60 * 1000;
 const ADAPTIVE_LEARNING_MIN_OBSERVATIONS = 3;
 const ADAPTIVE_LEARNING_MIN_CONFIDENCE = 45;
 const DEFAULT_ADAPTIVE_LEARNING_STATE = {
     enabled: true,
+    autoApplyEnabled: false,
+    autoApplyMinConfidence:
+        DEFAULT_ADAPTIVE_AUTO_CONFIDENCE,
+    autoApplyMinObservations:
+        DEFAULT_ADAPTIVE_AUTO_OBSERVATIONS,
     observations: [],
     dismissedSuggestions: [],
     acceptedSuggestions: [],
+    autoApplyHistory: [],
     updatedAt: 0
 };
 const MIX_SCHEDULES_KEY =
@@ -875,6 +884,67 @@ function normalizeAdaptiveLearningDecision(
     };
 }
 
+function normalizeAdaptiveLearningAutoChange(
+    item = {}
+) {
+    const statuses = [
+        "applied",
+        "reverted",
+        "rollback"
+    ];
+
+    return {
+        id:
+            typeof item.id === "string"
+                ? item.id.slice(0, 120)
+                : createIosCommandId(),
+        slotId:
+            typeof item.slotId === "string"
+                ? item.slotId.slice(0, 40)
+                : "",
+        previousMixId:
+            typeof item.previousMixId === "string"
+                ? item.previousMixId.slice(0, 120)
+                : "",
+        previousMixName:
+            typeof item.previousMixName === "string"
+                ? item.previousMixName.slice(0, 120)
+                : "Aucun mix",
+        nextMixId:
+            typeof item.nextMixId === "string"
+                ? item.nextMixId.slice(0, 120)
+                : "",
+        nextMixName:
+            typeof item.nextMixName === "string"
+                ? item.nextMixName.slice(0, 120)
+                : "",
+        confidence: Math.min(
+            100,
+            Math.max(0, Number(item.confidence || 0))
+        ),
+        evidenceCount: Math.max(
+            0,
+            Number(item.evidenceCount || 0)
+        ),
+        status: statuses.includes(item.status)
+            ? item.status
+            : "applied",
+        launchSucceeded:
+            item.launchSucceeded === true,
+        createdAt: Number(
+            item.createdAt || Date.now()
+        ),
+        revertedAt: Math.max(
+            0,
+            Number(item.revertedAt || 0)
+        ),
+        revertReason:
+            typeof item.revertReason === "string"
+                ? item.revertReason.slice(0, 120)
+                : ""
+    };
+}
+
 function normalizeAdaptiveLearningState(
     state = {}
 ) {
@@ -932,8 +1002,48 @@ function normalizeAdaptiveLearningState(
                 )
             : [];
 
+    const autoApplyHistory = Array.isArray(
+        state.autoApplyHistory
+    )
+        ? state.autoApplyHistory
+            .map((item) =>
+                normalizeAdaptiveLearningAutoChange(item)
+            )
+            .filter(
+                (item) =>
+                    item.slotId && item.nextMixId
+            )
+            .sort(
+                (first, second) =>
+                    second.createdAt - first.createdAt
+            )
+            .slice(0, MAX_ADAPTIVE_AUTO_CHANGES)
+        : [];
+
     return {
         enabled: state.enabled !== false,
+        autoApplyEnabled:
+            state.autoApplyEnabled === true,
+        autoApplyMinConfidence: Math.min(
+            95,
+            Math.max(
+                60,
+                Number(
+                    state.autoApplyMinConfidence ||
+                    DEFAULT_ADAPTIVE_AUTO_CONFIDENCE
+                )
+            )
+        ),
+        autoApplyMinObservations: Math.min(
+            20,
+            Math.max(
+                3,
+                Number(
+                    state.autoApplyMinObservations ||
+                    DEFAULT_ADAPTIVE_AUTO_OBSERVATIONS
+                )
+            )
+        ),
         observations,
         dismissedSuggestions:
             normalizeDecisions(
@@ -943,6 +1053,7 @@ function normalizeAdaptiveLearningState(
             normalizeDecisions(
                 state.acceptedSuggestions
             ),
+        autoApplyHistory,
         updatedAt: Number(
             state.updatedAt ||
             Date.now()
@@ -1351,6 +1462,453 @@ function getAdaptiveLearningDayLabel(
     return "sur plusieurs jours";
 }
 
+function getAdaptiveLearningAutoCandidate(
+    slotId = ""
+) {
+    if (
+        !adaptiveLearningState.enabled ||
+        !adaptiveLearningState.autoApplyEnabled
+    ) {
+        return null;
+    }
+
+    const slot = getAdaptiveSlotById(slotId);
+    const pattern = getAdaptiveLearningPatterns()
+        .find(
+            (item) =>
+                item.slot.id === slot.id
+        );
+
+    if (
+        !pattern?.candidateMix ||
+        pattern.confidence <
+            adaptiveLearningState
+                .autoApplyMinConfidence ||
+        pattern.preferenceCount <
+            adaptiveLearningState
+                .autoApplyMinObservations
+    ) {
+        return null;
+    }
+
+    const currentMixId =
+        adaptiveDjMenuSettings.slots[slot.id] || "";
+
+    if (currentMixId === pattern.candidateMixId) {
+        return null;
+    }
+
+    const signature =
+        getAdaptiveLearningSuggestionSignature(
+            slot.id,
+            pattern.candidateMixId
+        );
+    const dismissed =
+        adaptiveLearningState.dismissedSuggestions
+            .find(
+                (item) =>
+                    item.signature === signature
+            );
+
+    if (
+        dismissed &&
+        pattern.preferenceCount <
+            dismissed.evidenceCount + 2 &&
+        pattern.confidence <
+            dismissed.confidence + 10
+    ) {
+        return null;
+    }
+
+    return pattern;
+}
+
+function applyAdaptiveLearningAutoCandidate(
+    slotId = ""
+) {
+    const pattern =
+        getAdaptiveLearningAutoCandidate(slotId);
+
+    if (!pattern) {
+        return null;
+    }
+
+    const previousMixId =
+        adaptiveDjMenuSettings
+            .slots[pattern.slot.id] || "";
+    const previousMix = savedMixes.find(
+        (item) => item.id === previousMixId
+    );
+    const change =
+        normalizeAdaptiveLearningAutoChange({
+            id: createIosCommandId(),
+            slotId: pattern.slot.id,
+            previousMixId,
+            previousMixName:
+                previousMix?.name || "Aucun mix",
+            nextMixId: pattern.candidateMixId,
+            nextMixName:
+                pattern.candidateMix.name,
+            confidence: pattern.confidence,
+            evidenceCount:
+                pattern.preferenceCount,
+            status: "applied",
+            launchSucceeded: false,
+            createdAt: Date.now()
+        });
+
+    adaptiveDjMenuSettings =
+        normalizeAdaptiveDjMenuSettings({
+            ...adaptiveDjMenuSettings,
+            slots: {
+                ...adaptiveDjMenuSettings.slots,
+                [pattern.slot.id]:
+                    pattern.candidateMixId
+            }
+        });
+    saveAdaptiveDjMenuSettings();
+
+    const signature =
+        getAdaptiveLearningSuggestionSignature(
+            pattern.slot.id,
+            pattern.candidateMixId
+        );
+
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            acceptedSuggestions: [
+                {
+                    signature,
+                    slotId: pattern.slot.id,
+                    mixId: pattern.candidateMixId,
+                    evidenceCount:
+                        pattern.preferenceCount,
+                    confidence: pattern.confidence,
+                    decidedAt: Date.now()
+                },
+                ...adaptiveLearningState
+                    .acceptedSuggestions
+                    .filter(
+                        (item) =>
+                            item.signature !== signature
+                    )
+            ],
+            dismissedSuggestions:
+                adaptiveLearningState
+                    .dismissedSuggestions
+                    .filter(
+                        (item) =>
+                            item.signature !== signature
+                    ),
+            autoApplyHistory: [
+                change,
+                ...adaptiveLearningState
+                    .autoApplyHistory
+            ]
+        });
+    saveAdaptiveLearningState();
+
+    return change;
+}
+
+function finalizeAdaptiveLearningAutoChange(
+    changeId = ""
+) {
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            autoApplyHistory:
+                adaptiveLearningState
+                    .autoApplyHistory
+                    .map((item) =>
+                        item.id === changeId
+                            ? {
+                                ...item,
+                                launchSucceeded: true
+                            }
+                            : item
+                    )
+        });
+    saveAdaptiveLearningState();
+}
+
+function rollbackAdaptiveLearningAutoChange(
+    changeId = "",
+    {
+        reason = "manual",
+        silent = false
+    } = {}
+) {
+    const change =
+        adaptiveLearningState.autoApplyHistory
+            .find((item) => item.id === changeId);
+
+    if (!change || change.status !== "applied") {
+        if (!silent) {
+            setStatus(
+                "Ce changement automatique n’est plus réversible.",
+                "error"
+            );
+        }
+        return false;
+    }
+
+    const currentMixId =
+        adaptiveDjMenuSettings
+            .slots[change.slotId] || "";
+
+    if (currentMixId !== change.nextMixId) {
+        if (!silent) {
+            setStatus(
+                "Le créneau a été modifié depuis. Retour arrière annulé.",
+                "error"
+            );
+        }
+        return false;
+    }
+
+    const restoredMixId =
+        change.previousMixId &&
+        savedMixes.some(
+            (item) =>
+                item.id === change.previousMixId
+        )
+            ? change.previousMixId
+            : "";
+
+    adaptiveDjMenuSettings =
+        normalizeAdaptiveDjMenuSettings({
+            ...adaptiveDjMenuSettings,
+            slots: {
+                ...adaptiveDjMenuSettings.slots,
+                [change.slotId]: restoredMixId
+            }
+        });
+    saveAdaptiveDjMenuSettings();
+
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            autoApplyHistory:
+                adaptiveLearningState
+                    .autoApplyHistory
+                    .map((item) =>
+                        item.id === changeId
+                            ? {
+                                ...item,
+                                status:
+                                    reason === "launch-error"
+                                        ? "rollback"
+                                        : "reverted",
+                                revertedAt: Date.now(),
+                                revertReason: reason
+                            }
+                            : item
+                    )
+        });
+    saveAdaptiveLearningState();
+
+    if (!silent) {
+        displayPlaylists(playlistsCache);
+        setStatus(
+            `Retour arrière effectué : ${change.previousMixName || "aucun mix"} restauré.`
+        );
+    }
+
+    return true;
+}
+
+function renderAdaptiveAutomaticPanel() {
+    const currentSlot = getAdaptiveSlot();
+    const candidate =
+        getAdaptiveLearningAutoCandidate(
+            currentSlot.id
+        );
+    const history =
+        adaptiveLearningState.autoApplyHistory
+            .slice(0, 10)
+            .map((change) => {
+                const slot =
+                    getAdaptiveSlotById(change.slotId);
+                const canUndo =
+                    change.status === "applied" &&
+                    (adaptiveDjMenuSettings
+                        .slots[change.slotId] || "") ===
+                        change.nextMixId;
+                const status =
+                    change.status === "reverted"
+                        ? "annulé"
+                        : change.status === "rollback"
+                            ? "retour arrière après échec"
+                            : change.launchSucceeded
+                                ? "appliqué"
+                                : "en attente";
+
+                return `
+                    <li class="adaptive-auto-history-item">
+                        <div>
+                            <strong>${escapeHtml(slot.label)}</strong>
+                            <span>
+                                ${escapeHtml(change.previousMixName)}
+                                →
+                                ${escapeHtml(change.nextMixName)}
+                            </span>
+                            <small>
+                                ${change.confidence}% ·
+                                ${change.evidenceCount} choix ·
+                                ${new Intl.DateTimeFormat(
+                                    "fr-FR",
+                                    {
+                                        dateStyle: "short",
+                                        timeStyle: "short"
+                                    }
+                                ).format(new Date(change.createdAt))}
+                                · ${status}
+                            </small>
+                        </div>
+                        ${canUndo
+                            ? `
+                                <button
+                                    type="button"
+                                    class="adaptive-auto-undo"
+                                    data-adaptive-auto-undo-id="${escapeHtml(change.id)}"
+                                >
+                                    ↶ Annuler
+                                </button>
+                            `
+                            : ""}
+                    </li>
+                `;
+            })
+            .join("");
+
+    return `
+        <section class="adaptive-auto-panel">
+            <div class="adaptive-auto-heading">
+                <div>
+                    <strong>⚡ Adaptation automatique</strong>
+                    <small>
+                        Désactivée par défaut. Elle ne s’applique
+                        qu’au lancement réel d’Adaptive DJ.
+                    </small>
+                </div>
+                <span>
+                    ${!adaptiveLearningState.enabled
+                        ? "Apprentissage désactivé"
+                        : !adaptiveLearningState.autoApplyEnabled
+                            ? "Automatique désactivé"
+                            : candidate
+                                ? `Prêt : ${escapeHtml(candidate.candidateMix.name)}`
+                                : "Actif, aucun changement prêt"}
+                </span>
+            </div>
+
+            <label class="adaptive-learning-toggle">
+                <input
+                    id="adaptiveLearningAutoApplyInput"
+                    type="checkbox"
+                    ${adaptiveLearningState.autoApplyEnabled
+                        ? "checked"
+                        : ""}
+                    ${adaptiveLearningState.enabled
+                        ? ""
+                        : "disabled"}
+                >
+                <span>
+                    Autoriser les changements automatiques
+                </span>
+            </label>
+
+            <div class="adaptive-auto-controls">
+                <label>
+                    <span>Confiance minimale</span>
+                    <select
+                        id="adaptiveLearningAutoConfidenceInput"
+                        ${adaptiveLearningState.enabled
+                            ? ""
+                            : "disabled"}
+                    >
+                        ${[60, 65, 70, 75, 80, 85, 90, 95]
+                            .map((value) => `
+                                <option
+                                    value="${value}"
+                                    ${value === Number(
+                                        adaptiveLearningState
+                                            .autoApplyMinConfidence
+                                    )
+                                        ? "selected"
+                                        : ""}
+                                >
+                                    ${value}%
+                                </option>
+                            `).join("")}
+                    </select>
+                </label>
+
+                <label>
+                    <span>Choix concordants minimum</span>
+                    <select
+                        id="adaptiveLearningAutoObservationsInput"
+                        ${adaptiveLearningState.enabled
+                            ? ""
+                            : "disabled"}
+                    >
+                        ${[3, 4, 5, 6, 7, 8, 10, 12]
+                            .map((value) => `
+                                <option
+                                    value="${value}"
+                                    ${value === Number(
+                                        adaptiveLearningState
+                                            .autoApplyMinObservations
+                                    )
+                                        ? "selected"
+                                        : ""}
+                                >
+                                    ${value}
+                                </option>
+                            `).join("")}
+                    </select>
+                </label>
+            </div>
+
+            <div class="adaptive-auto-preview ${candidate ? "is-ready" : ""}">
+                ${candidate
+                    ? `
+                        <strong>Prochain changement possible</strong>
+                        <span>
+                            ${escapeHtml(candidate.slot.label)}
+                            →
+                            ${escapeHtml(candidate.candidateMix.name)}
+                        </span>
+                        <small>
+                            ${candidate.confidence}% ·
+                            ${candidate.preferenceCount} choix concordants
+                        </small>
+                    `
+                    : `
+                        <strong>Aucun changement automatique prêt</strong>
+                        <span>
+                            Le mix actuel reste utilisé tant que
+                            les seuils ne sont pas atteints.
+                        </span>
+                    `}
+            </div>
+
+            <details class="adaptive-auto-history">
+                <summary>
+                    Journal automatique ·
+                    ${adaptiveLearningState.autoApplyHistory.length}
+                </summary>
+                <ul>
+                    ${history ||
+                    "<li>Aucun changement automatique.</li>"}
+                </ul>
+            </details>
+        </section>
+    `;
+}
+
 function renderAdaptiveLearningPanel() {
     const summary =
         getAdaptiveLearningSummary();
@@ -1478,8 +2036,8 @@ function renderAdaptiveLearningPanel() {
                     <p>
                         Les choix de mix sont analysés
                         uniquement dans ce navigateur.
-                        Aucun réglage n’est modifié
-                        automatiquement.
+                        L’adaptation automatique reste
+                        désactivée sans ton autorisation.
                     </p>
                 </div>
 
@@ -1525,6 +2083,8 @@ function renderAdaptiveLearningPanel() {
                     Activer l’apprentissage local
                 </span>
             </label>
+
+            ${renderAdaptiveAutomaticPanel()}
 
             <div class="adaptive-learning-suggestions">
                 ${suggestionsHtml || `
@@ -1735,7 +2295,13 @@ function resetAdaptiveLearning() {
         normalizeAdaptiveLearningState({
             ...DEFAULT_ADAPTIVE_LEARNING_STATE,
             enabled:
-                adaptiveLearningState.enabled
+                adaptiveLearningState.enabled,
+            autoApplyEnabled:
+                adaptiveLearningState.autoApplyEnabled,
+            autoApplyMinConfidence:
+                adaptiveLearningState.autoApplyMinConfidence,
+            autoApplyMinObservations:
+                adaptiveLearningState.autoApplyMinObservations
         });
     saveAdaptiveLearningState();
     displayPlaylists(playlistsCache);
@@ -2106,12 +2672,19 @@ async function runAdaptiveDj({
         );
     }
 
+    const requestedSlot =
+        getAdaptiveSlotById(forcedSlotId);
+    const automaticChange = autoplay
+        ? applyAdaptiveLearningAutoCandidate(
+            requestedSlot.id
+        )
+        : null;
     const {
         slot,
         mixId,
         mix
     } = getAdaptiveDjMix(
-        forcedSlotId
+        requestedSlot.id
     );
 
     if (!mixId || !mix) {
@@ -2213,10 +2786,18 @@ async function runAdaptiveDj({
             deviceName,
             status: "success",
             message:
-                autoplay
-                    ? "Mix lancé"
-                    : "Mix préparé"
+                automaticChange
+                    ? "Adaptation automatique appliquée puis mix lancé"
+                    : autoplay
+                        ? "Mix lancé"
+                        : "Mix préparé"
         });
+
+        if (automaticChange) {
+            finalizeAdaptiveLearningAutoChange(
+                automaticChange.id
+            );
+        }
 
         if (autoplay) {
             recordAdaptiveLearningObservation({
@@ -2239,6 +2820,16 @@ async function runAdaptiveDj({
             deviceName
         };
     } catch (error) {
+        if (automaticChange) {
+            rollbackAdaptiveLearningAutoChange(
+                automaticChange.id,
+                {
+                    reason: "launch-error",
+                    silent: true
+                }
+            );
+        }
+
         addAdaptiveDjMenuHistory({
             slotId: slot.id,
             slotLabel: slot.label,
@@ -13621,6 +14212,19 @@ contentElement.addEventListener(
             return;
         }
 
+        const adaptiveAutoUndoButton =
+            event.target.closest(
+                "[data-adaptive-auto-undo-id]"
+            );
+
+        if (adaptiveAutoUndoButton) {
+            rollbackAdaptiveLearningAutoChange(
+                adaptiveAutoUndoButton.dataset
+                    .adaptiveAutoUndoId || ""
+            );
+            return;
+        }
+
         const iosCommandActionButton =
             event.target.closest(
                 "[data-ios-command-action]"
@@ -14291,6 +14895,62 @@ contentElement.addEventListener(
                 event.target.checked
                     ? "Adaptive Learning activé."
                     : "Adaptive Learning désactivé."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningAutoApplyInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    autoApplyEnabled:
+                        event.target.checked
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                event.target.checked
+                    ? "Adaptation automatique autorisée."
+                    : "Adaptation automatique désactivée."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningAutoConfidenceInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    autoApplyMinConfidence:
+                        Number(event.target.value)
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                `Seuil automatique réglé à ${adaptiveLearningState.autoApplyMinConfidence}%.`
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningAutoObservationsInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    autoApplyMinObservations:
+                        Number(event.target.value)
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                `Minimum automatique : ${adaptiveLearningState.autoApplyMinObservations} choix concordants.`
             );
             return;
         }

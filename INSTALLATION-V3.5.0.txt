@@ -1,0 +1,25 @@
+Shuffle+ v3.5.0 — Installation
+
+1. Faire un export JSON depuis la version actuelle.
+2. Sauvegarder le dossier publié.
+3. Remplacer les fichiers par ceux du ZIP.
+4. Vérifier dans index.html :
+
+   <script type="module" src="./app.js?v=3.5.0"></script>
+
+5. Publier :
+
+   git add .
+   git commit -m "v3.5.0 - Automatic Adaptation"
+   git pull --rebase origin main
+   git push origin main
+
+Après publication :
+- PC : Ctrl + F5
+- iPhone : fermer complètement Safari puis rouvrir.
+
+Pour activer la nouveauté :
+- ouvrir Adaptive DJ ;
+- descendre jusqu’à Adaptive Learning ;
+- cocher « Autoriser les changements automatiques » ;
+- garder 75 % et 5 choix pour un mode prudent.

@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **3.4.0 — Adaptive Learning**
+Version documentée : **3.5.0 — Adaptation automatique optionnelle**
 
 ## Sommaire
 
@@ -13,6 +13,7 @@ Version documentée : **3.4.0 — Adaptive Learning**
 - [Mix intelligent](#mix-intelligent)
 - [Adaptive DJ](#adaptive-dj)
 - [Adaptive Learning](#adaptive-learning)
+- [Adaptation automatique](#adaptation-automatique)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
 - [Sauvegarde des données](#sauvegarde-des-données)
@@ -38,7 +39,7 @@ Shuffle+ améliore le mélange classique d’une playlist Spotify en tenant comp
 - progression d’intensité du mix ;
 - durée cible selon le contexte ;
 - association automatique d’un mix à un créneau horaire ;
-- apprentissage local des choix de mix et suggestions manuelles.
+- apprentissage local des choix de mix, suggestions manuelles et adaptation automatique facultative.
 
 L’application est une application web statique : elle fonctionne directement dans le navigateur et ne nécessite pas de serveur applicatif personnel.
 
@@ -151,7 +152,8 @@ Ce menu permet :
 - de simuler un autre créneau sans lancer la lecture ;
 - de copier l’URL destinée au raccourci iOS ;
 - de consulter l’historique Adaptive DJ ;
-- d’activer Adaptive Learning, consulter sa confiance et appliquer ou ignorer ses suggestions.
+- d’activer Adaptive Learning, consulter sa confiance et appliquer ou ignorer ses suggestions ;
+- d’autoriser l’adaptation automatique, régler ses seuils et annuler un changement.
 
 ### ⚙️ Réglages
 
@@ -376,7 +378,7 @@ L’indication « principalement en semaine » ou « principalement le week-end 
 - **Réinitialiser l’apprentissage** : les observations et décisions d’apprentissage sont supprimées ;
 - **Désactiver** : les nouveaux choix ne sont plus enregistrés, sans effacer les données existantes.
 
-Aucune suggestion n’est appliquée automatiquement dans la version 3.4.0.
+Dans la version 3.5.0, aucune suggestion n’est appliquée automatiquement par défaut. Le mode automatique exige une autorisation explicite.
 
 ### Stockage et durée
 
@@ -390,6 +392,49 @@ Les données Adaptive Learning sont enregistrées dans `localStorage` sous la cl
 ### Limite importante
 
 La version 3.4.0 apprend les **choix de mix**, pas les réactions titre par titre. Elle ne détecte pas encore de manière fiable les morceaux passés, les titres terminés ou les préférences audio détaillées. Ces informations demanderaient une collecte de lecture plus continue et des règles supplémentaires.
+
+
+## Adaptation automatique
+
+La version 3.5.0 ajoute une adaptation automatique **facultative** à Adaptive Learning. Cette option est désactivée par défaut.
+
+### Fonctionnement
+
+Une adaptation est évaluée uniquement lors d’un véritable lancement **Adaptive DJ** avec lecture demandée :
+
+1. Shuffle+ détermine le créneau courant ;
+2. il recherche l’habitude la plus forte pour ce créneau ;
+3. il vérifie la confiance minimale et le nombre de choix concordants ;
+4. il met à jour l’association si le candidat est différent du mix actuel ;
+5. il prépare puis lance le nouveau mix.
+
+Une simulation de créneau ne déclenche aucun changement.
+
+### Réglages
+
+Dans **Adaptive DJ → Adaptive Learning**, il est possible de :
+
+- autoriser ou interdire les changements automatiques ;
+- choisir une confiance minimale de 60 % à 95 % ;
+- choisir le nombre minimal de préférences concordantes ;
+- voir le prochain changement possible.
+
+Réglages prudents par défaut :
+
+```text
+Confiance minimale : 75 %
+Choix concordants : 5
+```
+
+### Journal et retour arrière
+
+Chaque modification automatique conserve l’ancien mix, le nouveau mix, le créneau, la confiance, le nombre d’indices et la date. Le bouton **Annuler** restaure l’ancien mix tant que le créneau n’a pas été modifié depuis.
+
+Si la préparation ou la lecture du nouveau mix échoue, Shuffle+ restaure automatiquement l’association précédente et inscrit le retour arrière dans le journal.
+
+### Garde-fou contre l’auto-renforcement
+
+Les lancements Adaptive DJ restent enregistrés dans l’historique, mais leur poids est nul dans le calcul des préférences. Shuffle+ ne peut donc pas augmenter sa confiance simplement en répétant sa propre décision.
 
 ## Commandes iOS et Raccourcis
 
@@ -491,7 +536,7 @@ Shuffle+ possède un export JSON permettant de sauvegarder les données locales 
 - historique des commandes ;
 - réglages Adaptive DJ ;
 - historique Adaptive DJ ;
-- observations, confiance, suggestions acceptées et suggestions ignorées d’Adaptive Learning ;
+- observations, confiance, suggestions, réglages automatiques et journal de retour arrière d’Adaptive Learning ;
 - programmations.
 
 ### Export
@@ -549,7 +594,7 @@ La configuration se trouve dans `config.js` :
 ```javascript
 export const CONFIG = {
     appName: "Shuffle+",
-    version: "3.3.4",
+    version: "3.5.0",
     clientId: "VOTRE_CLIENT_ID",
     redirectUri: "https://votre-site.example/",
     scopes: [
@@ -599,7 +644,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=3.3.4"></script>
+<script type="module" src="./app.js?v=3.5.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -627,7 +672,7 @@ Structure minimale de la page, boutons de connexion et conteneur principal de l�
 
 ### `style.css`
 
-Design responsive, composants, menus, cartes, formulaires, états de lecture, interface Adaptive DJ et panneau Adaptive Learning.
+Design responsive, composants, menus, cartes, formulaires, états de lecture, interface Adaptive DJ, panneau Adaptive Learning et adaptation automatique.
 
 ### `app.js`
 
@@ -643,6 +688,7 @@ Fichier central de l’application :
 - commandes iOS ;
 - programmations ;
 - Adaptive DJ ;
+- Adaptive Learning et adaptation automatique ;
 - sauvegarde et restauration.
 
 La version 3.3.4 privilégie cette intégration afin d’éviter la multiplication de petits modules d’interface.
@@ -710,7 +756,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=3.3.4"></script>
+<script type="module" src="./app.js?v=3.5.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -749,15 +795,12 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 - les réglages ne sont pas synchronisés entre appareils ;
 - les programmations sont locales et nécessitent que la page puisse s’exécuter ;
 - Shuffle+ ne réalise pas de transition audio réelle entre les morceaux ;
-- Adaptive Learning 3.4.0 apprend les choix de mix, mais pas encore les skips ou préférences titre par titre ;
+- Adaptive Learning 3.5.0 apprend les choix de mix, mais pas encore les skips ou préférences titre par titre ;
+- l’adaptation automatique s’exécute au lancement d’Adaptive DJ et non lorsque la page est fermée ;
 - les suggestions restent communes au créneau et ne distinguent pas encore automatiquement semaine et week-end ;
 - les données musicales accessibles ne contiennent pas toujours assez d’informations pour mesurer précisément l’énergie ou le tempo.
 
 ## Évolution prévue
-
-### Version 3.5 — Adaptation automatique optionnelle
-
-Objectif : permettre à l’utilisateur d’autoriser certaines suggestions très fiables à s’appliquer automatiquement, avec journal des changements et retour arrière.
 
 ### Version 3.6 — Statistiques d’écoute
 
