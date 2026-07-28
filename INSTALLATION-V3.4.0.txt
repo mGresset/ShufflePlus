@@ -1,0 +1,24 @@
+Shuffle+ v3.4.0 — Installation
+
+1. Conserver une copie de la version v3.3.4 fonctionnelle.
+2. Remplacer le contenu du dépôt par les fichiers du ZIP v3.4.0.
+3. Vérifier dans index.html :
+   <script type="module" src="./app.js?v=3.4.0"></script>
+4. Publier :
+
+   git add .
+   git commit -m "v3.4.0 - Adaptive Learning"
+   git pull --rebase origin main
+   git push origin main
+
+Après publication :
+- PC : Ctrl + F5 ;
+- iPhone : fermer Safari complètement puis rouvrir.
+
+Première utilisation :
+- ouvrir Adaptive DJ ;
+- laisser Adaptive Learning activé ;
+- lancer plusieurs fois les mix réellement souhaités ;
+- consulter les suggestions après au moins trois choix observés.
+
+La v3.4.0 ne modifie jamais un créneau sans appui sur « Appliquer ».

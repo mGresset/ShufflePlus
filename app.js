@@ -38,7 +38,7 @@ const logoutButton = document.getElementById("logoutButton");
 const contentElement = document.getElementById("content");
 const statusElement = document.getElementById("status");
 
-const APP_VERSION = "3.3.4";
+const APP_VERSION = "3.4.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -147,6 +147,21 @@ const DEFAULT_ADAPTIVE_DJ_MENU_SETTINGS = {
         evening: "",
         night: ""
     }
+};
+const ADAPTIVE_LEARNING_KEY =
+    "shuffleplus_adaptive_learning_v1";
+const MAX_ADAPTIVE_LEARNING_OBSERVATIONS = 300;
+const MAX_ADAPTIVE_LEARNING_DECISIONS = 80;
+const ADAPTIVE_LEARNING_OBSERVATION_TTL =
+    180 * 24 * 60 * 60 * 1000;
+const ADAPTIVE_LEARNING_MIN_OBSERVATIONS = 3;
+const ADAPTIVE_LEARNING_MIN_CONFIDENCE = 45;
+const DEFAULT_ADAPTIVE_LEARNING_STATE = {
+    enabled: true,
+    observations: [],
+    dismissedSuggestions: [],
+    acceptedSuggestions: [],
+    updatedAt: 0
 };
 const MIX_SCHEDULES_KEY =
     "shuffleplus_mix_schedules_v1";
@@ -427,6 +442,8 @@ let adaptiveDjMenuSettings =
     readAdaptiveDjMenuSettings();
 let adaptiveDjMenuHistory =
     readAdaptiveDjMenuHistory();
+let adaptiveLearningState =
+    readAdaptiveLearningState();
 let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
@@ -743,6 +760,990 @@ function addAdaptiveDjMenuHistory(entry) {
     saveAdaptiveDjMenuHistory();
 }
 
+function normalizeAdaptiveLearningSource(
+    value = ""
+) {
+    return [
+        "manual",
+        "ios",
+        "configuration",
+        "adaptive"
+    ].includes(value)
+        ? value
+        : "manual";
+}
+
+function normalizeAdaptiveLearningObservation(
+    item = {}
+) {
+    const createdAt = Number(
+        item.createdAt ||
+        Date.now()
+    );
+    const date = new Date(createdAt);
+    const slot = getAdaptiveSlotById(
+        typeof item.slotId === "string"
+            ? item.slotId
+            : ""
+    );
+
+    return {
+        id:
+            typeof item.id === "string"
+                ? item.id.slice(0, 120)
+                : createIosCommandId(),
+        slotId: slot.id,
+        mixId:
+            typeof item.mixId === "string"
+                ? item.mixId.slice(0, 120)
+                : "",
+        mixName:
+            typeof item.mixName === "string"
+                ? item.mixName.slice(0, 120)
+                : "",
+        source: normalizeAdaptiveLearningSource(
+            item.source
+        ),
+        dayType:
+            item.dayType === "weekend"
+                ? "weekend"
+                : [0, 6].includes(
+                    date.getDay()
+                )
+                    ? "weekend"
+                    : "weekday",
+        weekday: Number.isInteger(
+            Number(item.weekday)
+        )
+            ? Math.min(
+                6,
+                Math.max(
+                    0,
+                    Number(item.weekday)
+                )
+            )
+            : date.getDay(),
+        hour: Number.isFinite(
+            Number(item.hour)
+        )
+            ? Math.min(
+                23,
+                Math.max(
+                    0,
+                    Number(item.hour)
+                )
+            )
+            : date.getHours(),
+        createdAt:
+            Number.isFinite(createdAt)
+                ? createdAt
+                : Date.now()
+    };
+}
+
+function normalizeAdaptiveLearningDecision(
+    item = {}
+) {
+    return {
+        signature:
+            typeof item.signature === "string"
+                ? item.signature.slice(0, 260)
+                : "",
+        slotId:
+            typeof item.slotId === "string"
+                ? item.slotId.slice(0, 40)
+                : "",
+        mixId:
+            typeof item.mixId === "string"
+                ? item.mixId.slice(0, 120)
+                : "",
+        evidenceCount: Math.max(
+            0,
+            Number(item.evidenceCount || 0)
+        ),
+        confidence: Math.min(
+            100,
+            Math.max(
+                0,
+                Number(item.confidence || 0)
+            )
+        ),
+        decidedAt: Number(
+            item.decidedAt ||
+            Date.now()
+        )
+    };
+}
+
+function normalizeAdaptiveLearningState(
+    state = {}
+) {
+    const cutoff =
+        Date.now() -
+        ADAPTIVE_LEARNING_OBSERVATION_TTL;
+
+    const observations = Array.isArray(
+        state.observations
+    )
+        ? state.observations
+            .map((item) =>
+                normalizeAdaptiveLearningObservation(
+                    item
+                )
+            )
+            .filter(
+                (item) =>
+                    item.mixId &&
+                    item.createdAt >= cutoff
+            )
+            .sort(
+                (first, second) =>
+                    second.createdAt -
+                    first.createdAt
+            )
+            .slice(
+                0,
+                MAX_ADAPTIVE_LEARNING_OBSERVATIONS
+            )
+        : [];
+
+    const normalizeDecisions = (values) =>
+        Array.isArray(values)
+            ? values
+                .map((item) =>
+                    normalizeAdaptiveLearningDecision(
+                        item
+                    )
+                )
+                .filter(
+                    (item) =>
+                        item.signature &&
+                        item.slotId &&
+                        item.mixId
+                )
+                .sort(
+                    (first, second) =>
+                        second.decidedAt -
+                        first.decidedAt
+                )
+                .slice(
+                    0,
+                    MAX_ADAPTIVE_LEARNING_DECISIONS
+                )
+            : [];
+
+    return {
+        enabled: state.enabled !== false,
+        observations,
+        dismissedSuggestions:
+            normalizeDecisions(
+                state.dismissedSuggestions
+            ),
+        acceptedSuggestions:
+            normalizeDecisions(
+                state.acceptedSuggestions
+            ),
+        updatedAt: Number(
+            state.updatedAt ||
+            Date.now()
+        )
+    };
+}
+
+function readAdaptiveLearningState() {
+    try {
+        const raw = localStorage.getItem(
+            ADAPTIVE_LEARNING_KEY
+        );
+
+        return normalizeAdaptiveLearningState(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_ADAPTIVE_LEARNING_STATE
+        );
+    } catch (error) {
+        console.warn(
+            "Apprentissage Adaptive illisible :",
+            error
+        );
+        return normalizeAdaptiveLearningState(
+            DEFAULT_ADAPTIVE_LEARNING_STATE
+        );
+    }
+}
+
+function saveAdaptiveLearningState() {
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            ADAPTIVE_LEARNING_KEY,
+            JSON.stringify(
+                adaptiveLearningState
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Apprentissage Adaptive non enregistré :",
+            error
+        );
+    }
+}
+
+function recordAdaptiveLearningObservation({
+    mixId = "",
+    source = "manual",
+    slotId = "",
+    date = new Date()
+} = {}) {
+    if (
+        !adaptiveLearningState.enabled ||
+        !mixId
+    ) {
+        return;
+    }
+
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        return;
+    }
+
+    const resolvedDate =
+        date instanceof Date &&
+        !Number.isNaN(date.getTime())
+            ? date
+            : new Date();
+    const slot = getAdaptiveSlotById(
+        slotId ||
+        getAdaptiveSlot(resolvedDate).id
+    );
+
+    const observation =
+        normalizeAdaptiveLearningObservation({
+            id: createIosCommandId(),
+            slotId: slot.id,
+            mixId: mix.id,
+            mixName: mix.name,
+            source,
+            dayType:
+                [0, 6].includes(
+                    resolvedDate.getDay()
+                )
+                    ? "weekend"
+                    : "weekday",
+            weekday:
+                resolvedDate.getDay(),
+            hour:
+                resolvedDate.getHours(),
+            createdAt:
+                resolvedDate.getTime()
+        });
+
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            observations: [
+                observation,
+                ...adaptiveLearningState
+                    .observations
+            ]
+        });
+
+    saveAdaptiveLearningState();
+}
+
+function getAdaptiveLearningSourceWeight(
+    source = "manual"
+) {
+    if (source === "configuration") {
+        return 3;
+    }
+
+    if (source === "manual") {
+        return 2;
+    }
+
+    if (source === "ios") {
+        return 2;
+    }
+
+    return 0;
+}
+
+function getAdaptiveLearningSuggestionSignature(
+    slotId = "",
+    mixId = ""
+) {
+    return `${slotId}:${mixId}`;
+}
+
+function getAdaptiveLearningRecencyWeight(
+    createdAt = Date.now()
+) {
+    const age = Math.max(
+        0,
+        Date.now() - Number(createdAt || 0)
+    );
+    const day = 24 * 60 * 60 * 1000;
+
+    if (age <= 30 * day) {
+        return 1;
+    }
+
+    if (age <= 90 * day) {
+        return 0.85;
+    }
+
+    return 0.7;
+}
+
+function getAdaptiveLearningPatterns() {
+    const validMixIds = new Set(
+        savedMixes.map((mix) => mix.id)
+    );
+    const preferenceObservations =
+        adaptiveLearningState.observations
+            .filter(
+                (item) =>
+                    validMixIds.has(
+                        item.mixId
+                    ) &&
+                    getAdaptiveLearningSourceWeight(
+                        item.source
+                    ) > 0
+            );
+
+    return ADAPTIVE_SLOTS.map((slot) => {
+        const observations =
+            preferenceObservations.filter(
+                (item) =>
+                    item.slotId === slot.id
+            );
+        const candidates = new Map();
+        let totalWeight = 0;
+
+        for (const observation of observations) {
+            const weight =
+                getAdaptiveLearningSourceWeight(
+                    observation.source
+                ) *
+                getAdaptiveLearningRecencyWeight(
+                    observation.createdAt
+                );
+            totalWeight += weight;
+
+            const candidate =
+                candidates.get(
+                    observation.mixId
+                ) || {
+                    mixId: observation.mixId,
+                    weight: 0,
+                    count: 0,
+                    weekdayCount: 0,
+                    weekendCount: 0,
+                    latestAt: 0
+                };
+
+            candidate.weight += weight;
+            candidate.count += 1;
+            candidate.latestAt = Math.max(
+                candidate.latestAt,
+                observation.createdAt
+            );
+
+            if (
+                observation.dayType ===
+                "weekend"
+            ) {
+                candidate.weekendCount += 1;
+            } else {
+                candidate.weekdayCount += 1;
+            }
+
+            candidates.set(
+                observation.mixId,
+                candidate
+            );
+        }
+
+        const ranked = [...candidates.values()]
+            .sort(
+                (first, second) =>
+                    second.weight - first.weight ||
+                    second.count - first.count ||
+                    second.latestAt - first.latestAt
+            );
+        const winner = ranked[0] || null;
+
+        if (!winner) {
+            return {
+                slot,
+                observationCount: 0,
+                preferenceCount: 0,
+                confidence: 0,
+                candidateMixId: "",
+                candidateMix: null,
+                dominantDayType: "mixed"
+            };
+        }
+
+        const share = totalWeight > 0
+            ? winner.weight / totalWeight
+            : 0;
+        const maturity = Math.min(
+            1,
+            observations.length / 8
+        );
+        const confidence = Math.round(
+            Math.min(
+                0.95,
+                share *
+                (0.35 + 0.65 * maturity)
+            ) * 100
+        );
+        const dayTotal =
+            winner.weekdayCount +
+            winner.weekendCount;
+        const dominantDayType =
+            dayTotal &&
+            Math.max(
+                winner.weekdayCount,
+                winner.weekendCount
+            ) / dayTotal >= 0.7
+                ? winner.weekendCount >
+                    winner.weekdayCount
+                    ? "weekend"
+                    : "weekday"
+                : "mixed";
+
+        return {
+            slot,
+            observationCount:
+                observations.length,
+            preferenceCount:
+                winner.count,
+            confidence,
+            candidateMixId:
+                winner.mixId,
+            candidateMix:
+                savedMixes.find(
+                    (mix) =>
+                        mix.id === winner.mixId
+                ) || null,
+            dominantDayType
+        };
+    });
+}
+
+function getAdaptiveLearningSummary() {
+    const patterns =
+        getAdaptiveLearningPatterns();
+    const eligiblePatterns = patterns.filter(
+        (pattern) =>
+            pattern.candidateMix &&
+            pattern.observationCount >=
+                ADAPTIVE_LEARNING_MIN_OBSERVATIONS &&
+            pattern.preferenceCount >= 2
+    );
+    const suggestions = eligiblePatterns
+        .filter((pattern) => {
+            if (
+                pattern.confidence <
+                ADAPTIVE_LEARNING_MIN_CONFIDENCE
+            ) {
+                return false;
+            }
+
+            const currentMixId =
+                adaptiveDjMenuSettings
+                    .slots[pattern.slot.id] ||
+                "";
+
+            if (
+                currentMixId ===
+                pattern.candidateMixId
+            ) {
+                return false;
+            }
+
+            const signature =
+                getAdaptiveLearningSuggestionSignature(
+                    pattern.slot.id,
+                    pattern.candidateMixId
+                );
+            const dismissed =
+                adaptiveLearningState
+                    .dismissedSuggestions
+                    .find(
+                        (item) =>
+                            item.signature ===
+                            signature
+                    );
+
+            return !dismissed ||
+                pattern.preferenceCount >=
+                    dismissed.evidenceCount + 2 ||
+                pattern.confidence >=
+                    dismissed.confidence + 10;
+        })
+        .sort(
+            (first, second) =>
+                second.confidence -
+                first.confidence ||
+                second.preferenceCount -
+                first.preferenceCount
+        )
+        .slice(0, 3);
+    const confidenceValues =
+        eligiblePatterns.map(
+            (pattern) =>
+                pattern.confidence
+        );
+    const overallConfidence =
+        confidenceValues.length
+            ? Math.round(
+                confidenceValues.reduce(
+                    (sum, value) =>
+                        sum + value,
+                    0
+                ) /
+                confidenceValues.length
+            )
+            : 0;
+    const preferenceObservationCount =
+        adaptiveLearningState.observations
+            .filter(
+                (item) =>
+                    getAdaptiveLearningSourceWeight(
+                        item.source
+                    ) > 0
+            ).length;
+
+    return {
+        patterns,
+        suggestions,
+        overallConfidence,
+        totalObservationCount:
+            adaptiveLearningState
+                .observations.length,
+        preferenceObservationCount
+    };
+}
+
+function getAdaptiveLearningDayLabel(
+    value = "mixed"
+) {
+    if (value === "weekday") {
+        return "principalement en semaine";
+    }
+
+    if (value === "weekend") {
+        return "principalement le week-end";
+    }
+
+    return "sur plusieurs jours";
+}
+
+function renderAdaptiveLearningPanel() {
+    const summary =
+        getAdaptiveLearningSummary();
+    const suggestionsHtml =
+        summary.suggestions.map(
+            (suggestion) => `
+                <article class="adaptive-learning-suggestion">
+                    <div>
+                        <span class="adaptive-learning-suggestion-label">
+                            Suggestion ·
+                            ${suggestion.confidence}%
+                        </span>
+                        <h5>
+                            ${escapeHtml(
+                                suggestion.slot.label
+                            )}
+                            →
+                            ${escapeHtml(
+                                suggestion.candidateMix.name
+                            )}
+                        </h5>
+                        <p>
+                            Choisi
+                            ${suggestion.preferenceCount}
+                            fois sur
+                            ${suggestion.observationCount}
+                            observation${
+                                suggestion.observationCount > 1
+                                    ? "s"
+                                    : ""
+                            },
+                            ${getAdaptiveLearningDayLabel(
+                                suggestion.dominantDayType
+                            )}.
+                        </p>
+                    </div>
+
+                    <div class="adaptive-learning-suggestion-actions">
+                        <button
+                            type="button"
+                            class="adaptive-learning-apply"
+                            data-adaptive-learning-action="apply"
+                            data-adaptive-learning-slot-id="${escapeHtml(
+                                suggestion.slot.id
+                            )}"
+                            data-adaptive-learning-mix-id="${escapeHtml(
+                                suggestion.candidateMixId
+                            )}"
+                        >
+                            ✓ Appliquer
+                        </button>
+
+                        <button
+                            type="button"
+                            class="adaptive-learning-ignore"
+                            data-adaptive-learning-action="ignore"
+                            data-adaptive-learning-slot-id="${escapeHtml(
+                                suggestion.slot.id
+                            )}"
+                            data-adaptive-learning-mix-id="${escapeHtml(
+                                suggestion.candidateMixId
+                            )}"
+                        >
+                            Ignorer
+                        </button>
+                    </div>
+                </article>
+            `
+        ).join("");
+    const insightPatterns =
+        summary.patterns
+            .filter(
+                (pattern) =>
+                    pattern.candidateMix &&
+                    pattern.observationCount > 0
+            )
+            .sort(
+                (first, second) =>
+                    second.confidence -
+                    first.confidence
+            )
+            .slice(0, 5);
+    const insightsHtml =
+        insightPatterns.map(
+            (pattern) => `
+                <li>
+                    <span>
+                        ${escapeHtml(
+                            pattern.slot.label
+                        )}
+                    </span>
+                    <strong>
+                        ${escapeHtml(
+                            pattern.candidateMix.name
+                        )}
+                    </strong>
+                    <small>
+                        ${pattern.confidence}% ·
+                        ${pattern.preferenceCount}
+                        choix
+                    </small>
+                </li>
+            `
+        ).join("");
+    const stateLabel =
+        !adaptiveLearningState.enabled
+            ? "Désactivé"
+            : summary.preferenceObservationCount <
+                ADAPTIVE_LEARNING_MIN_OBSERVATIONS
+                ? "En observation"
+                : summary.suggestions.length
+                    ? "Suggestion disponible"
+                    : "À jour";
+
+    return `
+        <section class="adaptive-learning-panel">
+            <div class="adaptive-learning-heading">
+                <div>
+                    <span class="adaptive-menu-kicker">
+                        🧠 Adaptive Learning
+                    </span>
+                    <h4>
+                        Shuffle+ observe et propose
+                    </h4>
+                    <p>
+                        Les choix de mix sont analysés
+                        uniquement dans ce navigateur.
+                        Aucun réglage n’est modifié
+                        automatiquement.
+                    </p>
+                </div>
+
+                <span class="adaptive-learning-state">
+                    ${stateLabel}
+                </span>
+            </div>
+
+            <div class="adaptive-learning-metrics">
+                <div>
+                    <strong>
+                        ${summary.preferenceObservationCount}
+                    </strong>
+                    <span>choix observés</span>
+                </div>
+                <div>
+                    <strong>
+                        ${summary.overallConfidence}%
+                    </strong>
+                    <span>confiance</span>
+                </div>
+                <div>
+                    <strong>
+                        ${summary.suggestions.length}
+                    </strong>
+                    <span>suggestion${
+                        summary.suggestions.length > 1
+                            ? "s"
+                            : ""
+                    }</span>
+                </div>
+            </div>
+
+            <label class="adaptive-learning-toggle">
+                <input
+                    id="adaptiveLearningEnabledInput"
+                    type="checkbox"
+                    ${adaptiveLearningState.enabled
+                        ? "checked"
+                        : ""}
+                >
+                <span>
+                    Activer l’apprentissage local
+                </span>
+            </label>
+
+            <div class="adaptive-learning-suggestions">
+                ${suggestionsHtml || `
+                    <div class="adaptive-learning-empty">
+                        ${adaptiveLearningState.enabled
+                            ? summary.preferenceObservationCount <
+                                ADAPTIVE_LEARNING_MIN_OBSERVATIONS
+                                ? `Encore ${Math.max(
+                                    0,
+                                    ADAPTIVE_LEARNING_MIN_OBSERVATIONS -
+                                    summary.preferenceObservationCount
+                                )} choix à observer avant la première suggestion.`
+                                : "Aucune nouvelle modification n’est suggérée pour le moment."
+                            : "Active l’apprentissage pour enregistrer les prochains choix."}
+                    </div>
+                `}
+            </div>
+
+            <details class="adaptive-learning-insights">
+                <summary>
+                    Habitudes détectées ·
+                    ${insightPatterns.length}
+                </summary>
+                <ul>
+                    ${insightsHtml ||
+                    "<li>Aucune habitude détectée.</li>"}
+                </ul>
+            </details>
+
+            <div class="adaptive-learning-footer">
+                <small>
+                    Les lancements manuels, les commandes
+                    iOS et les associations enregistrées
+                    servent de préférences. Les lancements
+                    automatiques sont conservés dans
+                    l’historique mais ne peuvent pas, à eux
+                    seuls, créer une suggestion.
+                </small>
+                <button
+                    id="resetAdaptiveLearningButton"
+                    type="button"
+                    class="adaptive-learning-reset"
+                    ${summary.totalObservationCount ||
+                    adaptiveLearningState
+                        .dismissedSuggestions.length ||
+                    adaptiveLearningState
+                        .acceptedSuggestions.length
+                        ? ""
+                        : "disabled"}
+                >
+                    Réinitialiser l’apprentissage
+                </button>
+            </div>
+        </section>
+    `;
+}
+
+function findAdaptiveLearningSuggestion(
+    slotId = "",
+    mixId = ""
+) {
+    return getAdaptiveLearningSummary()
+        .suggestions.find(
+            (item) =>
+                item.slot.id === slotId &&
+                item.candidateMixId === mixId
+        ) || null;
+}
+
+function applyAdaptiveLearningSuggestion(
+    slotId = "",
+    mixId = ""
+) {
+    const suggestion =
+        findAdaptiveLearningSuggestion(
+            slotId,
+            mixId
+        );
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+    const slot = ADAPTIVE_SLOTS.find(
+        (item) => item.id === slotId
+    );
+
+    if (!suggestion || !mix || !slot) {
+        setStatus(
+            "Cette suggestion n’est plus disponible.",
+            "error"
+        );
+        displayPlaylists(playlistsCache);
+        return;
+    }
+
+    adaptiveDjMenuSettings =
+        normalizeAdaptiveDjMenuSettings({
+            ...adaptiveDjMenuSettings,
+            slots: {
+                ...adaptiveDjMenuSettings.slots,
+                [slotId]: mixId
+            }
+        });
+    saveAdaptiveDjMenuSettings();
+
+    const signature =
+        getAdaptiveLearningSuggestionSignature(
+            slotId,
+            mixId
+        );
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            acceptedSuggestions: [
+                {
+                    signature,
+                    slotId,
+                    mixId,
+                    evidenceCount:
+                        suggestion.preferenceCount,
+                    confidence:
+                        suggestion.confidence,
+                    decidedAt: Date.now()
+                },
+                ...adaptiveLearningState
+                    .acceptedSuggestions
+            ],
+            dismissedSuggestions:
+                adaptiveLearningState
+                    .dismissedSuggestions
+                    .filter(
+                        (item) =>
+                            item.signature !==
+                            signature
+                    )
+        });
+    saveAdaptiveLearningState();
+    recordAdaptiveLearningObservation({
+        mixId,
+        source: "configuration",
+        slotId
+    });
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Suggestion appliquée : ${slot.label} utilisera « ${mix.name} ».`
+    );
+}
+
+function ignoreAdaptiveLearningSuggestion(
+    slotId = "",
+    mixId = ""
+) {
+    const suggestion =
+        findAdaptiveLearningSuggestion(
+            slotId,
+            mixId
+        );
+
+    if (!suggestion) {
+        displayPlaylists(playlistsCache);
+        return;
+    }
+
+    const signature =
+        getAdaptiveLearningSuggestionSignature(
+            slotId,
+            mixId
+        );
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...adaptiveLearningState,
+            dismissedSuggestions: [
+                {
+                    signature,
+                    slotId,
+                    mixId,
+                    evidenceCount:
+                        suggestion.preferenceCount,
+                    confidence:
+                        suggestion.confidence,
+                    decidedAt: Date.now()
+                },
+                ...adaptiveLearningState
+                    .dismissedSuggestions
+                    .filter(
+                        (item) =>
+                            item.signature !==
+                            signature
+                    )
+            ]
+        });
+    saveAdaptiveLearningState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Suggestion ignorée. Elle ne reviendra qu’avec de nouveaux indices."
+    );
+}
+
+function resetAdaptiveLearning() {
+    const confirmed = window.confirm(
+        "Réinitialiser toutes les observations et suggestions Adaptive Learning ?"
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    adaptiveLearningState =
+        normalizeAdaptiveLearningState({
+            ...DEFAULT_ADAPTIVE_LEARNING_STATE,
+            enabled:
+                adaptiveLearningState.enabled
+        });
+    saveAdaptiveLearningState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Apprentissage Adaptive réinitialisé."
+    );
+}
+
 function getAdaptiveSlotById(slotId = "") {
     return (
         ADAPTIVE_SLOTS.find(
@@ -1015,6 +2016,8 @@ function renderAdaptiveDjMenu() {
                 </div>
             </form>
 
+            ${renderAdaptiveLearningPanel()}
+
             <details class="adaptive-menu-history">
                 <summary>
                     Historique Adaptive DJ ·
@@ -1032,6 +2035,9 @@ function renderAdaptiveDjMenu() {
 function saveAdaptiveDjMenuFromForm(form) {
     const data = new FormData(form);
     const slots = {};
+    const previousSlots = {
+        ...adaptiveDjMenuSettings.slots
+    };
 
     for (const slot of ADAPTIVE_SLOTS) {
         slots[slot.id] = String(
@@ -1048,6 +2054,22 @@ function saveAdaptiveDjMenuFromForm(form) {
         });
 
     saveAdaptiveDjMenuSettings();
+
+    for (const slot of ADAPTIVE_SLOTS) {
+        const mixId = slots[slot.id];
+
+        if (
+            mixId &&
+            mixId !== previousSlots[slot.id]
+        ) {
+            recordAdaptiveLearningObservation({
+                mixId,
+                source: "configuration",
+                slotId: slot.id
+            });
+        }
+    }
+
     displayPlaylists(playlistsCache);
 
     setStatus(
@@ -1103,7 +2125,14 @@ async function runAdaptiveDj({
     );
 
     try {
-        await launchSavedMix(mixId);
+        const prepared =
+            await launchSavedMix(mixId);
+
+        if (!prepared) {
+            throw new Error(
+                "Le mix Adaptive n’a pas pu être préparé."
+            );
+        }
 
         let deviceName = "";
 
@@ -1188,6 +2217,14 @@ async function runAdaptiveDj({
                     ? "Mix lancé"
                     : "Mix préparé"
         });
+
+        if (autoplay) {
+            recordAdaptiveLearningObservation({
+                mixId,
+                source: "adaptive",
+                slotId: slot.id
+            });
+        }
 
         setStatus(
             `${slot.label} · « ${mix.name} »` +
@@ -2933,9 +3970,21 @@ async function executeAutomationCommand(
             );
         }
 
-        await launchSavedMix(
-            command.mixId
-        );
+        const prepared =
+            await launchSavedMix(
+                command.mixId
+            );
+
+        if (!prepared) {
+            throw new Error(
+                "Le mix intelligent n’a pas pu être préparé."
+            );
+        }
+
+        recordAdaptiveLearningObservation({
+            mixId: command.mixId,
+            source: "ios"
+        });
 
         if (
             command.autoplay &&
@@ -3025,9 +4074,21 @@ async function executeAutomationCommand(
         normalized.action === "launch" &&
         normalized.mixId
     ) {
-        await launchSavedMix(
-            normalized.mixId
-        );
+        const prepared =
+            await launchSavedMix(
+                normalized.mixId
+            );
+
+        if (!prepared) {
+            throw new Error(
+                "Le mix demandé n’a pas pu être préparé."
+            );
+        }
+
+        recordAdaptiveLearningObservation({
+            mixId: normalized.mixId,
+            source: "ios"
+        });
 
         if (normalized.autoplay) {
             const device =
@@ -7705,7 +8766,7 @@ async function launchSavedMix(mixId) {
     );
 
     if (!mix) {
-        return;
+        return false;
     }
 
     const validSourceKeys =
@@ -7716,7 +8777,7 @@ async function launchSavedMix(mixId) {
             "Les sources de ce mix ne sont plus accessibles.",
             "error"
         );
-        return;
+        return false;
     }
 
     editingSavedMixId = "";
@@ -7794,6 +8855,7 @@ async function launchSavedMix(mixId) {
     }
 
     await createSelectedMix();
+    return true;
 }
 
 
@@ -9141,6 +10203,7 @@ function buildBackupPayload() {
             iosCommandHistory,
             adaptiveDjMenuSettings,
             adaptiveDjMenuHistory,
+            adaptiveLearningState,
             mixSchedules
         }
     };
@@ -9280,6 +10343,11 @@ function validateBackupPayload(payload) {
             normalizeAdaptiveDjMenuHistory(
                 payload.data.adaptiveDjMenuHistory
             ),
+        adaptiveLearningState:
+            normalizeAdaptiveLearningState(
+                payload.data.adaptiveLearningState ||
+                DEFAULT_ADAPTIVE_LEARNING_STATE
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -9415,6 +10483,9 @@ async function importBackupFile(file) {
         adaptiveDjMenuHistory =
             imported.adaptiveDjMenuHistory;
         saveAdaptiveDjMenuHistory();
+        adaptiveLearningState =
+            imported.adaptiveLearningState;
+        saveAdaptiveLearningState();
         mixSchedules =
             imported.mixSchedules;
         saveMixSchedules();
@@ -12510,6 +13581,46 @@ contentElement.addEventListener(
             return;
         }
 
+        const adaptiveLearningActionButton =
+            event.target.closest(
+                "[data-adaptive-learning-action]"
+            );
+
+        if (adaptiveLearningActionButton) {
+            const action =
+                adaptiveLearningActionButton.dataset
+                    .adaptiveLearningAction || "";
+            const slotId =
+                adaptiveLearningActionButton.dataset
+                    .adaptiveLearningSlotId || "";
+            const mixId =
+                adaptiveLearningActionButton.dataset
+                    .adaptiveLearningMixId || "";
+
+            if (action === "apply") {
+                applyAdaptiveLearningSuggestion(
+                    slotId,
+                    mixId
+                );
+            } else if (action === "ignore") {
+                ignoreAdaptiveLearningSuggestion(
+                    slotId,
+                    mixId
+                );
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetAdaptiveLearningButton"
+            )
+        ) {
+            resetAdaptiveLearning();
+            return;
+        }
+
         const iosCommandActionButton =
             event.target.closest(
                 "[data-ios-command-action]"
@@ -12841,7 +13952,15 @@ contentElement.addEventListener(
                 savedMixActionButton.dataset.savedMixAction || "";
 
             if (action === "launch") {
-                await launchSavedMix(mixId);
+                const prepared =
+                    await launchSavedMix(mixId);
+
+                if (prepared) {
+                    recordAdaptiveLearningObservation({
+                        mixId,
+                        source: "manual"
+                    });
+                }
             } else if (action === "settings") {
                 startConfiguringSavedMix(mixId);
             } else if (action === "edit") {
@@ -13156,6 +14275,26 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (
+            event.target.id ===
+            "adaptiveLearningEnabledInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    enabled:
+                        event.target.checked
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                event.target.checked
+                    ? "Adaptive Learning activé."
+                    : "Adaptive Learning désactivé."
+            );
+            return;
+        }
+
         if (
             !event.target.matches(
                 "[data-ios-command-type]"

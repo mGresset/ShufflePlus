@@ -1,5 +1,5 @@
 /**
- * Shuffle+ v3.3.1 Adaptive DJ
+ * Shuffle+ v3.4.0 Adaptive DJ
  * Sélecteur de contexte musical.
  */
 

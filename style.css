@@ -5101,3 +5101,237 @@ y
         text-align: left;
     }
 }
+
+
+/* Shuffle+ v3.4.0 — Adaptive Learning */
+
+.adaptive-learning-panel {
+    display: grid;
+    gap: 16px;
+    padding: 19px;
+    border: 1px solid #315648;
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(21 53 42 / 80%),
+            rgb(17 17 17 / 96%) 58%
+        );
+}
+
+.adaptive-learning-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.adaptive-learning-heading h4 {
+    margin: 6px 0;
+    font-size: 22px;
+}
+
+.adaptive-learning-heading p {
+    max-width: 720px;
+    margin: 0;
+    color: #b8c8c0;
+    line-height: 1.55;
+}
+
+.adaptive-learning-state {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border: 1px solid #477462;
+    border-radius: 999px;
+    background: #17382b;
+    color: #9ce8bd;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.adaptive-learning-metrics {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.adaptive-learning-metrics > div {
+    display: grid;
+    gap: 3px;
+    padding: 13px;
+    border: 1px solid #304f43;
+    border-radius: 12px;
+    background: rgb(10 24 19 / 72%);
+}
+
+.adaptive-learning-metrics strong {
+    font-size: 24px;
+    color: #8fe2b0;
+}
+
+.adaptive-learning-metrics span {
+    color: #aabbb3;
+    font-size: 13px;
+}
+
+.adaptive-learning-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: fit-content;
+    font-weight: 800;
+}
+
+.adaptive-learning-toggle input {
+    width: 19px;
+    height: 19px;
+    accent-color: #1ed760;
+}
+
+.adaptive-learning-suggestions {
+    display: grid;
+    gap: 10px;
+}
+
+.adaptive-learning-suggestion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 15px;
+    border: 1px solid #436b5b;
+    border-radius: 13px;
+    background: #10251d;
+}
+
+.adaptive-learning-suggestion-label {
+    color: #91dcae;
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.adaptive-learning-suggestion h5 {
+    margin: 5px 0;
+    font-size: 18px;
+}
+
+.adaptive-learning-suggestion p {
+    margin: 0;
+    color: #b8c8c0;
+    line-height: 1.45;
+}
+
+.adaptive-learning-suggestion-actions {
+    display: flex;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.adaptive-learning-apply,
+.adaptive-learning-ignore,
+.adaptive-learning-reset {
+    min-height: 40px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    font-weight: 800;
+}
+
+.adaptive-learning-apply {
+    border: 0;
+    background: #1ed760;
+    color: #07190d;
+}
+
+.adaptive-learning-ignore,
+.adaptive-learning-reset {
+    border: 1px solid #5b7168;
+    background: transparent;
+    color: #e7f0eb;
+}
+
+.adaptive-learning-empty {
+    padding: 14px;
+    border: 1px dashed #476157;
+    border-radius: 12px;
+    color: #b6c5be;
+    text-align: center;
+}
+
+.adaptive-learning-insights {
+    padding: 13px;
+    border: 1px solid #304b40;
+    border-radius: 12px;
+    background: rgb(8 18 14 / 62%);
+}
+
+.adaptive-learning-insights summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.adaptive-learning-insights ul {
+    display: grid;
+    gap: 7px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.adaptive-learning-insights li {
+    display: grid;
+    grid-template-columns:
+        auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    background: #11241c;
+}
+
+.adaptive-learning-insights small {
+    color: #9aafa5;
+}
+
+.adaptive-learning-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.adaptive-learning-footer small {
+    max-width: 720px;
+    color: #97aaa1;
+    line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+    .adaptive-learning-heading,
+    .adaptive-learning-suggestion,
+    .adaptive-learning-footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .adaptive-learning-metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .adaptive-learning-suggestion-actions {
+        width: 100%;
+    }
+
+    .adaptive-learning-apply,
+    .adaptive-learning-ignore,
+    .adaptive-learning-reset {
+        width: 100%;
+    }
+
+    .adaptive-learning-insights li {
+        grid-template-columns: 1fr;
+    }
+}
