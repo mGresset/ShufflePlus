@@ -100,3 +100,11 @@ La v4.7 valide deux nouveaux objets avant leur transport futur par le serveur :
 
 Le futur serveur ne devra jamais journaliser le contenu des sauvegardes en clair. Il devra uniquement transporter des enveloppes chiffrées, vérifier leur expiration et empêcher la réutilisation d’une invitation consommée.
 
+
+
+## Fusion sélective locale v4.8
+
+La v4.8 ajoute un plan de résolution par catégorie avant tout transport serveur.
+Le futur serveur pourra transporter le paquet complet, mais la décision finale reste côté client.
+Les catégories actuelles sont : `library`, `profiles`, `automation`, `feedback`, `learning` et `history`.
+Chaque catégorie accepte `local`, `merge` ou `remote`. Aucun jeton Spotify n’est inclus.

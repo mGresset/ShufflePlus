@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.7.1 — Appairage local (correctif de stabilité)**
+Version documentée : **4.8.0 — Fusion sélective de synchronisation**
 
 ## Sommaire
 
@@ -17,6 +17,7 @@ Version documentée : **4.7.1 — Appairage local (correctif de stabilité)**
 - [Intelligence Dashboard](#intelligence-dashboard)
 - [Feedback musical](#feedback-musical)
 - [Préparation à la synchronisation](#préparation-à-la-synchronisation)
+- [Fusion sélective v4.8](#fusion-sélective-v48)
 - [Application installable PWA](#application-installable-pwa)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
@@ -534,6 +535,26 @@ Dans **Réglages → Synchronisation multi-appareils**, Shuffle+ permet de :
 Les politiques disponibles sont : choix manuel, export le plus récent, préférence pour cet appareil ou préférence pour le paquet reçu.
 
 Cette fonction reste une préparation : il n’existe pas encore de compte Shuffle+, d’envoi automatique ni de serveur distant.
+
+
+## Fusion sélective v4.8
+
+Après l’analyse d’un paquet de synchronisation, Shuffle+ compare désormais les données locales et distantes dans six catégories :
+
+- mix et bibliothèque ;
+- profils et règles ;
+- automatisation ;
+- feedback musical ;
+- apprentissage Adaptive ;
+- historiques.
+
+Pour chaque catégorie, trois décisions sont proposées :
+
+- **Conserver local** : aucune modification ;
+- **Fusionner** : ajout des éléments distants sans doublon, avec priorité à l’élément le plus récent lorsqu’une date est disponible ;
+- **Utiliser distant** : remplacement de la catégorie par le contenu du paquet reçu.
+
+Une sauvegarde locale est automatiquement téléchargée avant l’application. La fusion reste entièrement locale : aucun serveur n’est contacté en v4.8.
 
 ## Application installable PWA
 

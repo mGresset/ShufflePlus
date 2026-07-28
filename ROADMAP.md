@@ -1,18 +1,19 @@
 # Feuille de route Shuffle+
 
-## Version actuelle — v4.7.1
+## Version actuelle — v4.8.0
 
-- appairage local entre deux installations ;
-- invitations temporaires et confirmations ;
-- appareils de confiance ;
-- simulation de synchronisation ;
-- paquets ciblés et journal des sessions.
+- comparaison détaillée des données locales et distantes ;
+- choix local, fusion ou distant pour six catégories ;
+- fusion sans doublons par identifiant ;
+- sauvegarde automatique avant application ;
+- journalisation de la fusion sélective.
 
-## Prochaine étape — v4.8
+## Prochaine étape — v4.9
 
-- fusion sélective des catégories de données ;
-- aperçu détaillé des différences avant import ;
-- choix par catégorie : mix, profils, feedbacks, apprentissage et historiques.
+- aperçu élément par élément avant fusion ;
+- recherche dans les différences ;
+- annulation complète d’une fusion depuis la sauvegarde automatique ;
+- préparation du chiffrement côté client.
 
 ## v5.0
 

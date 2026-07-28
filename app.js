@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.7.1";
+const APP_VERSION = "4.8.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -171,6 +171,14 @@ const SYNC_PAIRING_TTL = 15 * 60 * 1000;
 const MAX_SYNC_PAIRED_DEVICES = 12;
 const MAX_SYNC_PAIRING_INVITES = 8;
 const MAX_SYNC_SESSION_HISTORY = 40;
+const SYNC_SELECTIVE_CATEGORY_IDS = [
+    "library",
+    "profiles",
+    "automation",
+    "feedback",
+    "learning",
+    "history"
+];
 const DEFAULT_QUICK_CONTEXTS = [
     {
         id: "drive",
@@ -16799,6 +16807,813 @@ function renderSyncSummaryGrid(summary = {}) {
     `;
 }
 
+
+function getSyncMergeItemTimestamp(item = {}) {
+    return Math.max(
+        0,
+        Number(
+            item?.updatedAt ||
+            item?.createdAt ||
+            item?.decidedAt ||
+            item?.lastRunAt ||
+            item?.revertedAt ||
+            0
+        )
+    );
+}
+
+function mergeSyncArrays(
+    localValues = [],
+    remoteValues = [],
+    getKey = (item) => item?.id || "",
+    maxItems = 500
+) {
+    const merged = new Map();
+
+    for (const item of [
+        ...(Array.isArray(localValues) ? localValues : []),
+        ...(Array.isArray(remoteValues) ? remoteValues : [])
+    ]) {
+        if (!item || typeof item !== "object") {
+            continue;
+        }
+
+        const key = String(getKey(item) || "").trim();
+
+        if (!key) {
+            continue;
+        }
+
+        const previous = merged.get(key);
+
+        if (
+            !previous ||
+            getSyncMergeItemTimestamp(item) >=
+                getSyncMergeItemTimestamp(previous)
+        ) {
+            merged.set(key, item);
+        }
+    }
+
+    return [...merged.values()]
+        .sort(
+            (first, second) =>
+                getSyncMergeItemTimestamp(second) -
+                getSyncMergeItemTimestamp(first)
+        )
+        .slice(0, maxItems);
+}
+
+function mergeSyncUniqueStrings(
+    localValues = [],
+    remoteValues = [],
+    maxItems = 500
+) {
+    return [...new Set([
+        ...(Array.isArray(localValues) ? localValues : []),
+        ...(Array.isArray(remoteValues) ? remoteValues : [])
+    ].filter((value) => typeof value === "string" && value))]
+        .slice(0, maxItems);
+}
+
+function mergeSyncRecordMaps(
+    localRecords = {},
+    remoteRecords = {}
+) {
+    const output = {
+        ...(localRecords && typeof localRecords === "object"
+            ? localRecords
+            : {})
+    };
+
+    for (const [key, remoteRecord] of Object.entries(
+        remoteRecords && typeof remoteRecords === "object"
+            ? remoteRecords
+            : {}
+    )) {
+        const localRecord = output[key];
+
+        if (
+            !localRecord ||
+            getSyncMergeItemTimestamp(remoteRecord) >=
+                getSyncMergeItemTimestamp(localRecord)
+        ) {
+            output[key] = remoteRecord;
+        }
+    }
+
+    return output;
+}
+
+function mergeQuickContextsForSync(
+    localValues = [],
+    remoteValues = []
+) {
+    const remoteById = new Map(
+        (Array.isArray(remoteValues) ? remoteValues : [])
+            .map((item) => [item?.id, item])
+    );
+
+    return normalizeQuickContextsState(
+        (Array.isArray(localValues) ? localValues : [])
+            .map((localItem) => {
+                const remoteItem = remoteById.get(
+                    localItem?.id
+                );
+
+                if (!remoteItem) {
+                    return localItem;
+                }
+
+                return {
+                    ...remoteItem,
+                    ...localItem,
+                    mixId:
+                        localItem.mixId ||
+                        remoteItem.mixId ||
+                        "",
+                    profileId:
+                        localItem.profileId ||
+                        remoteItem.profileId ||
+                        ""
+                };
+            })
+    );
+}
+
+function getSelectiveSyncMetrics(imported = {}) {
+    const feedbackCount = Object.keys(
+        imported.musicFeedbackState?.records || {}
+    ).length;
+    const learningDecisionCount = [
+        ...(imported.adaptiveLearningState?.dismissedSuggestions || []),
+        ...(imported.adaptiveLearningState?.acceptedSuggestions || []),
+        ...(imported.adaptiveLearningState?.autoApplyHistory || [])
+    ].length;
+    const historyCount = [
+        ...(imported.mixHistory || []),
+        ...(imported.iosCommandHistory || []),
+        ...(imported.adaptiveDjMenuHistory || []),
+        ...(imported.intelligenceAnalytics?.events || []),
+        ...(imported.recentTrackUris || [])
+    ].length;
+
+    return {
+        library: {
+            total:
+                (imported.savedMixes?.length || 0) +
+                (imported.favoriteSourceKeys?.length || 0),
+            detail:
+                `${imported.savedMixes?.length || 0} mix · ` +
+                `${imported.favoriteSourceKeys?.length || 0} favoris`
+        },
+        profiles: {
+            total: imported.mixProfiles?.length || 0,
+            detail:
+                `${imported.mixProfiles?.length || 0} profils · règles et réglages`
+        },
+        automation: {
+            total:
+                (imported.iosCommands?.length || 0) +
+                (imported.mixSchedules?.length || 0) +
+                (imported.quickContextsState?.length || 0),
+            detail:
+                `${imported.iosCommands?.length || 0} commandes · ` +
+                `${imported.mixSchedules?.length || 0} programmations · ` +
+                `${imported.quickContextsState?.length || 0} contextes`
+        },
+        feedback: {
+            total: feedbackCount,
+            detail: `${feedbackCount} morceaux évalués`
+        },
+        learning: {
+            total:
+                (imported.adaptiveLearningState?.observations?.length || 0) +
+                learningDecisionCount,
+            detail:
+                `${imported.adaptiveLearningState?.observations?.length || 0} observations · ` +
+                `${learningDecisionCount} décisions`
+        },
+        history: {
+            total: historyCount,
+            detail: `${historyCount} éléments historiques`
+        }
+    };
+}
+
+function getSelectiveSyncCategoryDefinitions() {
+    return [
+        {
+            id: "library",
+            icon: "🎵",
+            label: "Mix & bibliothèque",
+            description:
+                "Mix enregistrés, favoris et état des files de lecture."
+        },
+        {
+            id: "profiles",
+            icon: "🎛️",
+            label: "Profils & règles",
+            description:
+                "Profils de mix, exclusions, priorités et réglages du moteur."
+        },
+        {
+            id: "automation",
+            icon: "⚡",
+            label: "Automatisation",
+            description:
+                "Commandes iOS, contextes rapides, Adaptive DJ et programmations."
+        },
+        {
+            id: "feedback",
+            icon: "💚",
+            label: "Feedback musical",
+            description:
+                "J’aime, Pas maintenant et Trop répétitif."
+        },
+        {
+            id: "learning",
+            icon: "🧠",
+            label: "Apprentissage",
+            description:
+                "Observations, suggestions et adaptations automatiques."
+        },
+        {
+            id: "history",
+            icon: "🕘",
+            label: "Historiques",
+            description:
+                "Mix récents, commandes, événements Intelligence et titres récents."
+        }
+    ];
+}
+
+function renderSelectiveSyncMerge() {
+    if (!pendingSyncPackage) {
+        return "";
+    }
+
+    const localImported = validateBackupPayload(
+        buildBackupPayload()
+    );
+    const remoteImported =
+        pendingSyncPackage.importedBackup;
+    const localMetrics =
+        getSelectiveSyncMetrics(localImported);
+    const remoteMetrics =
+        getSelectiveSyncMetrics(remoteImported);
+
+    return `
+        <form
+            id="selectiveSyncMergeForm"
+            class="sync-selective-merge"
+        >
+            <div class="sync-selective-heading">
+                <div>
+                    <span class="sync-eyebrow">v4.8 · Fusion sélective</span>
+                    <h4>Choisir catégorie par catégorie</h4>
+                    <p>
+                        Rien n’est appliqué avant validation. « Fusionner »
+                        conserve les réglages locaux et ajoute les éléments
+                        distants sans doublons lorsqu’un identifiant existe.
+                    </p>
+                </div>
+                <div class="sync-merge-presets">
+                    <button
+                        type="button"
+                        data-sync-merge-preset="local"
+                    >
+                        Tout local
+                    </button>
+                    <button
+                        type="button"
+                        data-sync-merge-preset="merge"
+                    >
+                        Fusionner tout
+                    </button>
+                    <button
+                        type="button"
+                        data-sync-merge-preset="remote"
+                    >
+                        Tout distant
+                    </button>
+                </div>
+            </div>
+
+            <div class="sync-category-comparison">
+                ${getSelectiveSyncCategoryDefinitions()
+                    .map((category) => `
+                        <article class="sync-category-row">
+                            <div class="sync-category-title">
+                                <span>${category.icon}</span>
+                                <div>
+                                    <strong>${escapeHtml(category.label)}</strong>
+                                    <small>${escapeHtml(category.description)}</small>
+                                </div>
+                            </div>
+
+                            <div class="sync-category-side">
+                                <span>Sur cet appareil</span>
+                                <strong>${localMetrics[category.id].total}</strong>
+                                <small>${escapeHtml(localMetrics[category.id].detail)}</small>
+                            </div>
+
+                            <label class="sync-category-choice">
+                                <span>Décision</span>
+                                <select name="category-${category.id}">
+                                    <option value="local">
+                                        Conserver local
+                                    </option>
+                                    <option value="merge" selected>
+                                        Fusionner
+                                    </option>
+                                    <option value="remote">
+                                        Utiliser distant
+                                    </option>
+                                </select>
+                            </label>
+
+                            <div class="sync-category-side is-remote">
+                                <span>Paquet reçu</span>
+                                <strong>${remoteMetrics[category.id].total}</strong>
+                                <small>${escapeHtml(remoteMetrics[category.id].detail)}</small>
+                            </div>
+                        </article>
+                    `)
+                    .join("")}
+            </div>
+
+            <div class="sync-selective-footer">
+                <p>
+                    Une sauvegarde locale automatique est téléchargée avant
+                    l’application de la fusion.
+                </p>
+                <button
+                    class="sync-primary-button"
+                    type="submit"
+                >
+                    Appliquer la fusion sélectionnée
+                </button>
+            </div>
+        </form>
+    `;
+}
+
+function setSelectiveSyncMergePreset(mode = "merge") {
+    if (!["local", "merge", "remote"].includes(mode)) {
+        return;
+    }
+
+    document
+        .querySelectorAll(
+            "#selectiveSyncMergeForm select[name^='category-']"
+        )
+        .forEach((select) => {
+            select.value = mode;
+        });
+}
+
+function applySelectiveLibraryCategory(
+    localImported,
+    remoteImported,
+    mode
+) {
+    if (mode === "local") {
+        return false;
+    }
+
+    const imported = mode === "remote"
+        ? remoteImported
+        : {
+            ...localImported,
+            favoriteSourceKeys:
+                mergeSyncUniqueStrings(
+                    localImported.favoriteSourceKeys,
+                    remoteImported.favoriteSourceKeys,
+                    MAX_IMPORTED_FAVORITES
+                ),
+            savedMixes:
+                mergeSyncArrays(
+                    localImported.savedMixes,
+                    remoteImported.savedMixes,
+                    (item) => item.id,
+                    MAX_SAVED_MIXES
+                ),
+            playbackQueueStates: {
+                ...(localImported.playbackQueueStates || {}),
+                ...(remoteImported.playbackQueueStates || {})
+            }
+        };
+
+    favoriteSourceKeys.clear();
+    imported.favoriteSourceKeys.forEach(
+        (key) => favoriteSourceKeys.add(key)
+    );
+    savedMixes = imported.savedMixes;
+    writePlaybackQueueStates(
+        imported.playbackQueueStates
+    );
+
+    if (mode === "remote") {
+        librarySearchTerm =
+            imported.preferences.searchTerm;
+        libraryFilter = imported.preferences.filter;
+        librarySort = imported.preferences.sort;
+    }
+
+    editingSavedMixId = "";
+    configuringSavedMixId = "";
+    selectedSourceKeys.clear();
+    saveFavoriteSources();
+    saveSavedMixes();
+    return true;
+}
+
+function applySelectiveProfilesCategory(
+    localImported,
+    remoteImported,
+    mode
+) {
+    if (mode === "local") {
+        return false;
+    }
+
+    if (mode === "remote") {
+        mixProfiles = remoteImported.mixProfiles;
+        activeProfileId = remoteImported.activeProfileId;
+        currentExclusionRules = remoteImported.exclusionRules;
+        currentPriorityRules = remoteImported.priorityRules;
+        currentCoherenceSettings = remoteImported.coherenceSettings;
+        currentIntensitySettings = remoteImported.intensitySettings;
+        currentAdaptiveSettings = remoteImported.adaptiveSettings;
+        currentCleanupSettings = remoteImported.cleanupSettings;
+    } else {
+        mixProfiles = mergeSyncArrays(
+            localImported.mixProfiles,
+            remoteImported.mixProfiles,
+            (item) => item.id,
+            MAX_MIX_PROFILES
+        ).map((profile) => normalizeMixProfile(profile));
+
+        if (!mixProfiles.some(
+            (profile) => profile.id === activeProfileId
+        )) {
+            activeProfileId = remoteImported.activeProfileId;
+        }
+    }
+
+    if (!mixProfiles.some(
+        (profile) => profile.id === activeProfileId
+    )) {
+        activeProfileId = "";
+    }
+
+    saveMixProfiles();
+    saveActiveProfileId();
+    saveExclusionRules();
+    savePriorityRules();
+    saveCoherenceSettings();
+    saveIntensitySettings();
+    saveAdaptiveSettings();
+    saveCleanupSettings();
+    return true;
+}
+
+function applySelectiveAutomationCategory(
+    localImported,
+    remoteImported,
+    mode
+) {
+    if (mode === "local") {
+        return false;
+    }
+
+    if (mode === "remote") {
+        iosQuickPlaySettings = remoteImported.iosQuickPlaySettings;
+        iosCommands = remoteImported.iosCommands;
+        adaptiveDjMenuSettings = remoteImported.adaptiveDjMenuSettings;
+        drivingModeSettings = remoteImported.drivingModeSettings;
+        quickContextsState = remoteImported.quickContextsState;
+        mixSchedules = remoteImported.mixSchedules;
+    } else {
+        iosCommands = mergeSyncArrays(
+            localImported.iosCommands,
+            remoteImported.iosCommands,
+            (item) => item.id,
+            MAX_IOS_COMMANDS
+        ).map((command) => normalizeIosCommand(command));
+        mixSchedules = mergeSyncArrays(
+            localImported.mixSchedules,
+            remoteImported.mixSchedules,
+            (item) => item.id,
+            MAX_MIX_SCHEDULES
+        ).map((schedule) => normalizeMixSchedule(schedule));
+        quickContextsState = mergeQuickContextsForSync(
+            localImported.quickContextsState,
+            remoteImported.quickContextsState
+        );
+    }
+
+    if (!iosCommands.length) {
+        iosCommands = migrateLegacyIosCommand();
+    }
+
+    saveIosQuickPlaySettings();
+    saveIosCommands();
+    saveAdaptiveDjMenuSettings();
+    saveDrivingModeSettings();
+    saveQuickContextsState();
+    saveMixSchedules();
+    return true;
+}
+
+function applySelectiveFeedbackCategory(
+    localImported,
+    remoteImported,
+    mode
+) {
+    if (mode === "local") {
+        return false;
+    }
+
+    musicFeedbackState = mode === "remote"
+        ? remoteImported.musicFeedbackState
+        : normalizeMusicFeedbackState({
+            records: mergeSyncRecordMaps(
+                localImported.musicFeedbackState?.records,
+                remoteImported.musicFeedbackState?.records
+            ),
+            events: mergeSyncArrays(
+                localImported.musicFeedbackState?.events,
+                remoteImported.musicFeedbackState?.events,
+                (item) => item.id,
+                MAX_MUSIC_FEEDBACK_EVENTS
+            ),
+            updatedAt: Date.now()
+        });
+
+    saveMusicFeedbackState();
+    return true;
+}
+
+function applySelectiveLearningCategory(
+    localImported,
+    remoteImported,
+    mode
+) {
+    if (mode === "local") {
+        return false;
+    }
+
+    adaptiveLearningState = mode === "remote"
+        ? remoteImported.adaptiveLearningState
+        : normalizeAdaptiveLearningState({
+            ...localImported.adaptiveLearningState,
+            observations: mergeSyncArrays(
+                localImported.adaptiveLearningState?.observations,
+                remoteImported.adaptiveLearningState?.observations,
+                (item) => item.id,
+                MAX_ADAPTIVE_LEARNING_OBSERVATIONS
+            ),
+            dismissedSuggestions: mergeSyncArrays(
+                localImported.adaptiveLearningState?.dismissedSuggestions,
+                remoteImported.adaptiveLearningState?.dismissedSuggestions,
+                (item) => item.signature,
+                MAX_ADAPTIVE_LEARNING_DECISIONS
+            ),
+            acceptedSuggestions: mergeSyncArrays(
+                localImported.adaptiveLearningState?.acceptedSuggestions,
+                remoteImported.adaptiveLearningState?.acceptedSuggestions,
+                (item) => item.signature,
+                MAX_ADAPTIVE_LEARNING_DECISIONS
+            ),
+            autoApplyHistory: mergeSyncArrays(
+                localImported.adaptiveLearningState?.autoApplyHistory,
+                remoteImported.adaptiveLearningState?.autoApplyHistory,
+                (item) => item.id,
+                MAX_ADAPTIVE_AUTO_CHANGES
+            ),
+            updatedAt: Date.now()
+        });
+
+    saveAdaptiveLearningState();
+    return true;
+}
+
+function applySelectiveHistoryCategory(
+    localImported,
+    remoteImported,
+    mode
+) {
+    if (mode === "local") {
+        return false;
+    }
+
+    if (mode === "remote") {
+        localStorage.setItem(
+            TRACK_HISTORY_KEY,
+            JSON.stringify(remoteImported.recentTrackUris)
+        );
+        mixHistory = remoteImported.mixHistory;
+        iosCommandHistory = remoteImported.iosCommandHistory;
+        adaptiveDjMenuHistory = remoteImported.adaptiveDjMenuHistory;
+        intelligenceAnalytics = remoteImported.intelligenceAnalytics;
+    } else {
+        localStorage.setItem(
+            TRACK_HISTORY_KEY,
+            JSON.stringify(
+                mergeSyncUniqueStrings(
+                    localImported.recentTrackUris,
+                    remoteImported.recentTrackUris,
+                    MAX_IMPORTED_HISTORY
+                )
+            )
+        );
+        mixHistory = mergeSyncArrays(
+            localImported.mixHistory,
+            remoteImported.mixHistory,
+            (item) => item.id,
+            MAX_MIX_HISTORY_ITEMS
+        );
+        iosCommandHistory = mergeSyncArrays(
+            localImported.iosCommandHistory,
+            remoteImported.iosCommandHistory,
+            (item) => item.id,
+            MAX_IOS_COMMAND_HISTORY
+        );
+        adaptiveDjMenuHistory = mergeSyncArrays(
+            localImported.adaptiveDjMenuHistory,
+            remoteImported.adaptiveDjMenuHistory,
+            (item) => item.id,
+            MAX_ADAPTIVE_DJ_HISTORY
+        );
+        intelligenceAnalytics = normalizeIntelligenceAnalytics({
+            ...localImported.intelligenceAnalytics,
+            events: mergeSyncArrays(
+                localImported.intelligenceAnalytics?.events,
+                remoteImported.intelligenceAnalytics?.events,
+                (item) => item.id,
+                MAX_INTELLIGENCE_EVENTS
+            ),
+            updatedAt: Date.now()
+        });
+    }
+
+    saveMixHistory();
+    saveIosCommandHistory();
+    saveAdaptiveDjMenuHistory();
+    saveIntelligenceAnalytics();
+    return true;
+}
+
+async function applySelectiveSyncPackage(form) {
+    if (!pendingSyncPackage) {
+        setStatus(
+            "Analyse d’abord un paquet de synchronisation.",
+            "error"
+        );
+        return;
+    }
+
+    const data = new FormData(form);
+    const choices = {};
+
+    for (const categoryId of SYNC_SELECTIVE_CATEGORY_IDS) {
+        const value = String(
+            data.get(`category-${categoryId}`) ||
+            "local"
+        );
+        choices[categoryId] = [
+            "local",
+            "merge",
+            "remote"
+        ].includes(value)
+            ? value
+            : "local";
+    }
+
+    const changed = Object.values(choices)
+        .some((value) => value !== "local");
+
+    if (!changed) {
+        setStatus(
+            "Toutes les catégories sont réglées sur local : aucune modification."
+        );
+        return;
+    }
+
+    const source =
+        pendingSyncPackage.sourceInstallation;
+    const accountMismatch = Boolean(
+        pendingSyncPackage.raw.spotifyUserId &&
+        currentUserId &&
+        pendingSyncPackage.raw.spotifyUserId !== currentUserId
+    );
+    const confirmed = window.confirm(
+        "Appliquer la fusion sélective ?\n\n" +
+        "Une sauvegarde de cet appareil sera téléchargée avant modification." +
+        (accountMismatch
+            ? "\n\nAttention : le paquet provient d’un autre compte Spotify."
+            : "")
+    );
+
+    if (!confirmed) {
+        setStatus("Fusion sélective annulée.");
+        return;
+    }
+
+    downloadBackupFile();
+
+    const localImported = validateBackupPayload(
+        buildBackupPayload()
+    );
+    const remoteImported =
+        pendingSyncPackage.importedBackup;
+    const appliedCategories = [];
+
+    if (applySelectiveLibraryCategory(
+        localImported,
+        remoteImported,
+        choices.library
+    )) {
+        appliedCategories.push("bibliothèque");
+    }
+
+    if (applySelectiveProfilesCategory(
+        localImported,
+        remoteImported,
+        choices.profiles
+    )) {
+        appliedCategories.push("profils");
+    }
+
+    if (applySelectiveAutomationCategory(
+        localImported,
+        remoteImported,
+        choices.automation
+    )) {
+        appliedCategories.push("automatisation");
+    }
+
+    if (applySelectiveFeedbackCategory(
+        localImported,
+        remoteImported,
+        choices.feedback
+    )) {
+        appliedCategories.push("feedback");
+    }
+
+    if (applySelectiveLearningCategory(
+        localImported,
+        remoteImported,
+        choices.learning
+    )) {
+        appliedCategories.push("apprentissage");
+    }
+
+    if (applySelectiveHistoryCategory(
+        localImported,
+        remoteImported,
+        choices.history
+    )) {
+        appliedCategories.push("historiques");
+    }
+
+    syncPairedDevices = syncPairedDevices.map(
+        (peer) =>
+            peer.id === source?.id
+                ? {
+                    ...peer,
+                    lastSyncAt: Date.now(),
+                    lastSeenAt: Date.now(),
+                    lastFingerprint:
+                        pendingSyncPackage.fingerprint,
+                    lastDataUpdatedAt:
+                        pendingSyncPackage.dataUpdatedAt,
+                    lastSummary:
+                        pendingSyncPackage.summary
+                }
+                : peer
+    );
+    saveSyncPairedDevices();
+
+    addSyncSessionHistory({
+        type: "selective-merge",
+        peerId: source?.id || "",
+        peerLabel:
+            source?.label || "Appareil distant",
+        status: "success",
+        message:
+            `Fusion sélective appliquée : ${appliedCategories.join(", ")}.`
+    });
+
+    pendingSyncPackage = null;
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Fusion terminée : ${appliedCategories.join(", ")}.`
+    );
+}
+
 function renderSyncConflictAnalysis() {
     if (!pendingSyncPackage) {
         return "";
@@ -16846,6 +17661,8 @@ function renderSyncConflictAnalysis() {
             ` : ""}
 
             ${renderSyncSummaryGrid(remote.summary)}
+
+            ${renderSelectiveSyncMerge()}
 
             <p class="sync-recommendation">
                 Politique active :
@@ -18157,11 +18974,11 @@ function renderSyncPreparationPanel() {
         >
             <div class="sync-panel-heading">
                 <div>
-                    <span class="sync-eyebrow">v4.7 · Appairage & simulation</span>
+                    <span class="sync-eyebrow">v4.8 · Fusion sélective</span>
                     <h3>Synchronisation multi-appareils</h3>
                     <p>
-                        Appaire deux installations, simule le sens du prochain
-                        échange et prépare un paquet ciblé, toujours sans serveur.
+                        Appaire deux installations, compare les catégories et choisis
+                        précisément ce qui doit rester local, être fusionné ou remplacé.
                     </p>
                 </div>
                 <span class="sync-local-badge">Local uniquement</span>
@@ -23166,6 +23983,19 @@ contentElement.addEventListener(
             return;
         }
 
+        const syncMergePresetButton =
+            event.target.closest(
+                "[data-sync-merge-preset]"
+            );
+
+        if (syncMergePresetButton) {
+            setSelectiveSyncMergePreset(
+                syncMergePresetButton.dataset
+                    .syncMergePreset || "merge"
+            );
+            return;
+        }
+
         if (
             event.target.closest(
                 "#exportSyncPackageButton"
@@ -23901,6 +24731,16 @@ contentElement.addEventListener(
             const data = new FormData(event.target);
             acceptSyncPairingToken(
                 String(data.get("pairingToken") || "")
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "selectiveSyncMergeForm"
+        ) {
+            event.preventDefault();
+            await applySelectiveSyncPackage(
+                event.target
             );
             return;
         }
