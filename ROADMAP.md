@@ -2,26 +2,34 @@
 
 ## Version stable actuelle
 
-### v4.0.0 — PWA installable
+### v4.1.0 — Smart Queue
 
-- manifeste web complet ;
-- icônes 192, 512, Apple Touch Icon et maskable ;
-- installation sur ordinateur, Android, iPhone et iPad ;
-- mode autonome ;
-- cache de l’interface et ouverture hors connexion ;
-- bandeau d’état réseau ;
-- détection d’une nouvelle version ;
-- activation contrôlée des mises à jour ;
-- panneau PWA dans les réglages ;
-- raccourci Adaptive DJ déclaré dans le manifeste ;
-- conservation des commandes iOS existantes.
+- aperçu des prochains morceaux ;
+- remplacement intelligent depuis les sources chargées ;
+- remélange de la partie restante ;
+- verrouillage de la partie déjà envoyée à Spotify ;
+- évitement temporaire d’un artiste ou d’un album ;
+- remplissage automatique des places libérées ;
+- annulation de la dernière action ;
+- conservation de la progression de lecture ;
+- PWA installable et mises à jour conservées.
 
 ## Étape suivante
 
-### v4.1 — Confort PWA et partage
+### v4.2 — Feedback musical
 
-- écran de lancement et expérience installée améliorés ;
-- diagnostic du cache ;
-- partage ou import simplifié d’une configuration ;
-- informations de stockage local ;
-- options d’affichage adaptées au mode autonome.
+- J’aime ;
+- Pas maintenant ;
+- Trop répétitif ;
+- apprentissage par morceau ;
+- prise en compte des retours dans Adaptive DJ et Smart Queue.
+
+## Évolution majeure envisagée
+
+### v5.0 — Synchronisation serveur
+
+- compte Shuffle+ ;
+- sauvegarde distante ;
+- synchronisation iPhone / ordinateur ;
+- restauration des réglages ;
+- plusieurs profils.

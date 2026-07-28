@@ -50,7 +50,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.0.0";
+const APP_VERSION = "4.1.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -70,6 +70,10 @@ const MAX_IMPORTED_FAVORITES = 500;
 const MAX_IMPORTED_HISTORY = 50;
 const PLAYBACK_QUEUE_STATE_KEY = "shuffleplus_playback_queue_state_v1";
 const PLAYBACK_QUEUE_STATE_TTL = 30 * 24 * 60 * 60 * 1000;
+const SMART_QUEUE_SESSION_KEY =
+    "shuffleplus_smart_queue_session_v1";
+const SMART_QUEUE_PREVIEW_COUNT = 6;
+const MAX_SMART_QUEUE_AVOIDS = 40;
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
 const EXCLUSION_RULES_KEY = "shuffleplus_exclusion_rules_v1";
@@ -452,6 +456,8 @@ let draggedTrackIndex = -1;
 let playbackQueueCursor = 0;
 let playbackQueueResumeKey = "";
 let pendingSavedMixResumeKey = "";
+let smartQueueSession = readSmartQueueSession();
+let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
 let currentExclusionRules = readExclusionRules();
@@ -552,6 +558,7 @@ function setDisconnectedInterface() {
     playbackQueueCursor = 0;
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
+    smartQueueUndoSnapshot = null;
     automationRunInProgress = false;
     editingIosCommandId = "";
     activeHistoryId = "";
@@ -14320,7 +14327,723 @@ function getTrackStableKey(track, fallbackIndex = 0) {
     );
 }
 
+
+function normalizeSmartQueueAvoidEntry(entry = {}) {
+    const key = typeof entry.key === "string"
+        ? entry.key.trim().slice(0, 180)
+        : "";
+    const label = typeof entry.label === "string"
+        ? entry.label.trim().slice(0, 120)
+        : "";
+
+    return key && label
+        ? { key, label }
+        : null;
+}
+
+function normalizeSmartQueueAvoidList(values = []) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    const unique = new Map();
+
+    for (const value of values) {
+        const normalized = normalizeSmartQueueAvoidEntry(value);
+        if (normalized && !unique.has(normalized.key)) {
+            unique.set(normalized.key, normalized);
+        }
+    }
+
+    return [...unique.values()].slice(0, MAX_SMART_QUEUE_AVOIDS);
+}
+
+function normalizeSmartQueueSession(session = {}) {
+    return {
+        avoidedArtists: normalizeSmartQueueAvoidList(
+            session.avoidedArtists
+        ),
+        avoidedAlbums: normalizeSmartQueueAvoidList(
+            session.avoidedAlbums
+        )
+    };
+}
+
+function readSmartQueueSession() {
+    try {
+        const raw = sessionStorage.getItem(
+            SMART_QUEUE_SESSION_KEY
+        );
+
+        return normalizeSmartQueueSession(
+            raw ? JSON.parse(raw) : {}
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages temporaires Smart Queue illisibles :",
+            error
+        );
+        return normalizeSmartQueueSession();
+    }
+}
+
+function saveSmartQueueSession() {
+    try {
+        sessionStorage.setItem(
+            SMART_QUEUE_SESSION_KEY,
+            JSON.stringify(smartQueueSession)
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages temporaires Smart Queue non enregistrés :",
+            error
+        );
+    }
+}
+
+function cloneSmartQueueSession(
+    session = smartQueueSession
+) {
+    return normalizeSmartQueueSession({
+        avoidedArtists: session.avoidedArtists,
+        avoidedAlbums: session.avoidedAlbums
+    });
+}
+
+function getTrackArtistEntries(track) {
+    return (track?.artists || [])
+        .map((artist) => {
+            const label = artist?.name?.trim() || "";
+            const key = normalizeSearchText(label);
+            return key && label ? { key, label } : null;
+        })
+        .filter(Boolean);
+}
+
+function getTrackAlbumEntry(track) {
+    const label = track?.album?.name?.trim() || "";
+    const id = track?.album?.id?.trim() || "";
+    const normalizedName = normalizeSearchText(label);
+    const key = id
+        ? `id:${id}`
+        : normalizedName
+            ? `name:${normalizedName}`
+            : "";
+
+    return key && label ? { key, label } : null;
+}
+
+function getSmartQueueAvoidedArtistKeys() {
+    return new Set(
+        smartQueueSession.avoidedArtists.map(
+            (entry) => entry.key
+        )
+    );
+}
+
+function getSmartQueueAvoidedAlbumKeys() {
+    return new Set(
+        smartQueueSession.avoidedAlbums.map(
+            (entry) => entry.key
+        )
+    );
+}
+
+function isTrackTemporarilyAvoided(track) {
+    const artistKeys = getSmartQueueAvoidedArtistKeys();
+    const albumKeys = getSmartQueueAvoidedAlbumKeys();
+
+    if (
+        getTrackArtistEntries(track).some(
+            (entry) => artistKeys.has(entry.key)
+        )
+    ) {
+        return true;
+    }
+
+    const album = getTrackAlbumEntry(track);
+    return Boolean(album && albumKeys.has(album.key));
+}
+
+function tracksShareArtist(first, second) {
+    const firstKeys = new Set(
+        getTrackArtistEntries(first).map(
+            (entry) => entry.key
+        )
+    );
+
+    return getTrackArtistEntries(second).some(
+        (entry) => firstKeys.has(entry.key)
+    );
+}
+
+function tracksShareAlbum(first, second) {
+    const firstAlbum = getTrackAlbumEntry(first);
+    const secondAlbum = getTrackAlbumEntry(second);
+
+    return Boolean(
+        firstAlbum &&
+        secondAlbum &&
+        firstAlbum.key === secondAlbum.key
+    );
+}
+
+function captureSmartQueueSnapshot(label = "Modification") {
+    smartQueueUndoSnapshot = {
+        label,
+        tracks: [...selectedTracks],
+        cursor: playbackQueueCursor,
+        session: cloneSmartQueueSession()
+    };
+}
+
+function refreshSmartQueueView(message = "") {
+    saveCurrentPlaybackQueueState();
+    renderTrackList();
+    renderShuffleStats(
+        analyzeShuffleOrder(
+            selectedTracks,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
+    );
+    updatePlaybackQueueUI();
+
+    if (message) {
+        setStatus(message);
+    }
+}
+
+function undoLastSmartQueueAction() {
+    if (!smartQueueUndoSnapshot) {
+        setStatus(
+            "Aucune modification Smart Queue à annuler.",
+            "error"
+        );
+        return;
+    }
+
+    const snapshot = smartQueueUndoSnapshot;
+    selectedTracks = [...snapshot.tracks];
+    playbackQueueCursor = Math.min(
+        Math.max(0, snapshot.cursor),
+        selectedTracks.length
+    );
+    smartQueueSession = cloneSmartQueueSession(
+        snapshot.session
+    );
+    smartQueueUndoSnapshot = null;
+    saveSmartQueueSession();
+    refreshSmartQueueView(
+        `${snapshot.label} annulée.`
+    );
+}
+
+function getSmartQueueCandidatePool() {
+    const selectedUris = new Set(
+        selectedTracks
+            .map((track) => track?.uri)
+            .filter(Boolean)
+    );
+    const seen = new Set();
+    const pool = [];
+
+    for (const track of [
+        ...sourceTracks,
+        ...originalGeneratedOrder
+    ]) {
+        const uri = track?.uri || "";
+
+        if (
+            !uri ||
+            seen.has(uri) ||
+            selectedUris.has(uri) ||
+            isTrackTemporarilyAvoided(track) ||
+            getTrackExclusionReason(
+                track,
+                currentExclusionRules
+            )
+        ) {
+            continue;
+        }
+
+        seen.add(uri);
+        pool.push(track);
+    }
+
+    return pool;
+}
+
+function scoreSmartQueueCandidate(
+    candidate,
+    targetTrack,
+    index
+) {
+    const previous = selectedTracks[index - 1] || null;
+    const next = selectedTracks[index + 1] || null;
+    let score = 100;
+
+    if (tracksShareArtist(candidate, targetTrack)) {
+        score -= 70;
+    }
+    if (tracksShareAlbum(candidate, targetTrack)) {
+        score -= 50;
+    }
+    if (previous && tracksShareArtist(candidate, previous)) {
+        score -= 85;
+    }
+    if (next && tracksShareArtist(candidate, next)) {
+        score -= 70;
+    }
+    if (previous && tracksShareAlbum(candidate, previous)) {
+        score -= 55;
+    }
+    if (next && tracksShareAlbum(candidate, next)) {
+        score -= 45;
+    }
+
+    const targetDuration = Number(
+        targetTrack?.duration_ms || 0
+    );
+    const candidateDuration = Number(
+        candidate?.duration_ms || 0
+    );
+
+    if (targetDuration && candidateDuration) {
+        score -= Math.min(
+            25,
+            Math.abs(
+                targetDuration - candidateDuration
+            ) / 30000
+        );
+    }
+
+    score += Math.min(
+        25,
+        getTrackPriorityMatches(
+            candidate,
+            currentPriorityRules
+        ).length * 9
+    );
+
+    return score + Math.random() * 3;
+}
+
+function findSmartQueueReplacement(index) {
+    const targetTrack = selectedTracks[index];
+
+    if (!targetTrack) {
+        return null;
+    }
+
+    return getSmartQueueCandidatePool()
+        .map((candidate) => ({
+            candidate,
+            score: scoreSmartQueueCandidate(
+                candidate,
+                targetTrack,
+                index
+            )
+        }))
+        .sort(
+            (first, second) =>
+                second.score - first.score
+        )[0]?.candidate || null;
+}
+
+function replaceSmartQueueTrackAt(index) {
+    if (
+        index < playbackQueueCursor ||
+        index >= selectedTracks.length
+    ) {
+        setStatus(
+            "Les morceaux déjà envoyés à Spotify sont verrouillés.",
+            "error"
+        );
+        return;
+    }
+
+    const currentTrack = selectedTracks[index];
+    const replacement = findSmartQueueReplacement(index);
+
+    if (!replacement) {
+        setStatus(
+            "Aucun remplacement compatible n’est disponible dans les sources chargées.",
+            "error"
+        );
+        return;
+    }
+
+    captureSmartQueueSnapshot("Remplacement intelligent");
+    selectedTracks[index] = replacement;
+    markQueueChanged({ preserveCursor: true });
+    refreshSmartQueueView(
+        `« ${currentTrack?.name || "Morceau"} » remplacé par « ${replacement.name || "Morceau"} ».`
+    );
+}
+
+function addSmartQueueAvoidEntry(type, entry) {
+    const normalized = normalizeSmartQueueAvoidEntry(entry);
+
+    if (!normalized) {
+        return false;
+    }
+
+    const property = type === "album"
+        ? "avoidedAlbums"
+        : "avoidedArtists";
+    const values = smartQueueSession[property];
+
+    if (values.some((item) => item.key === normalized.key)) {
+        return false;
+    }
+
+    smartQueueSession = normalizeSmartQueueSession({
+        ...smartQueueSession,
+        [property]: [normalized, ...values]
+    });
+    saveSmartQueueSession();
+    return true;
+}
+
+function rebuildSmartQueueRemaining(
+    targetRemainingCount
+) {
+    const prefix = selectedTracks.slice(
+        0,
+        playbackQueueCursor
+    );
+    const keptRemaining = selectedTracks
+        .slice(playbackQueueCursor)
+        .filter(
+            (track) =>
+                !isTrackTemporarilyAvoided(track)
+        );
+    const missing = Math.max(
+        0,
+        targetRemainingCount - keptRemaining.length
+    );
+    const replacements = smartShuffleTracks(
+        getSmartQueueCandidatePool(),
+        getShuffleEngineOptions(
+            currentShuffleSettings
+        )
+    ).slice(0, missing);
+    const rebuilt = smartShuffleTracks(
+        [...keptRemaining, ...replacements],
+        getShuffleEngineOptions(
+            currentShuffleSettings
+        )
+    ).slice(0, targetRemainingCount);
+
+    selectedTracks = [
+        ...prefix,
+        ...rebuilt
+    ];
+
+    return {
+        removedCount:
+            targetRemainingCount - keptRemaining.length,
+        replacementCount: replacements.length
+    };
+}
+
+function avoidSmartQueueArtistAt(index) {
+    const track = selectedTracks[index];
+    const artist = getTrackArtistEntries(track)[0];
+
+    if (!artist) {
+        setStatus(
+            "Artiste indisponible pour ce morceau.",
+            "error"
+        );
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Éviter temporairement ${artist.label} dans le reste de cette file ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    captureSmartQueueSnapshot("Évitement temporaire");
+    const added = addSmartQueueAvoidEntry(
+        "artist",
+        artist
+    );
+
+    if (!added) {
+        smartQueueUndoSnapshot = null;
+        setStatus(
+            `${artist.label} est déjà évité dans cette session.`
+        );
+        return;
+    }
+
+    const targetCount = Math.max(
+        0,
+        selectedTracks.length - playbackQueueCursor
+    );
+    const result = rebuildSmartQueueRemaining(
+        targetCount
+    );
+    markQueueChanged({ preserveCursor: true });
+    refreshSmartQueueView(
+        `${artist.label} évité temporairement · ${result.removedCount} morceau${result.removedCount > 1 ? "x" : ""} retiré${result.removedCount > 1 ? "s" : ""}, ${result.replacementCount} remplacé${result.replacementCount > 1 ? "s" : ""}.`
+    );
+}
+
+function avoidSmartQueueAlbumAt(index) {
+    const track = selectedTracks[index];
+    const album = getTrackAlbumEntry(track);
+
+    if (!album) {
+        setStatus(
+            "Album indisponible pour ce morceau.",
+            "error"
+        );
+        return;
+    }
+
+    const confirmed = window.confirm(
+        `Éviter temporairement l’album « ${album.label} » dans le reste de cette file ?`
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    captureSmartQueueSnapshot("Évitement temporaire");
+    const added = addSmartQueueAvoidEntry(
+        "album",
+        album
+    );
+
+    if (!added) {
+        smartQueueUndoSnapshot = null;
+        setStatus(
+            `L’album « ${album.label} » est déjà évité dans cette session.`
+        );
+        return;
+    }
+
+    const targetCount = Math.max(
+        0,
+        selectedTracks.length - playbackQueueCursor
+    );
+    const result = rebuildSmartQueueRemaining(
+        targetCount
+    );
+    markQueueChanged({ preserveCursor: true });
+    refreshSmartQueueView(
+        `Album « ${album.label} » évité temporairement · ${result.removedCount} morceau${result.removedCount > 1 ? "x" : ""} retiré${result.removedCount > 1 ? "s" : ""}.`
+    );
+}
+
+function reshuffleSmartQueueRemaining() {
+    const remaining = selectedTracks.slice(
+        playbackQueueCursor
+    );
+
+    if (remaining.length < 2) {
+        setStatus(
+            "Il n’y a pas assez de morceaux restants à remélanger.",
+            "error"
+        );
+        return;
+    }
+
+    captureSmartQueueSnapshot("Remélange de la suite");
+    const prefix = selectedTracks.slice(
+        0,
+        playbackQueueCursor
+    );
+    const eligibleRemaining = remaining.filter(
+        (track) => !isTrackTemporarilyAvoided(track)
+    );
+
+    selectedTracks = [
+        ...prefix,
+        ...smartShuffleTracks(
+            eligibleRemaining,
+            getShuffleEngineOptions(
+                currentShuffleSettings
+            )
+        )
+    ];
+    markQueueChanged({ preserveCursor: true });
+    refreshSmartQueueView(
+        `${eligibleRemaining.length} morceau${eligibleRemaining.length > 1 ? "x" : ""} restant${eligibleRemaining.length > 1 ? "s" : ""} remélangé${eligibleRemaining.length > 1 ? "s" : ""}, sans toucher à la partie déjà envoyée.`
+    );
+}
+
+function clearSmartQueueAvoids() {
+    const count =
+        smartQueueSession.avoidedArtists.length +
+        smartQueueSession.avoidedAlbums.length;
+
+    if (!count) {
+        setStatus(
+            "Aucun artiste ou album n’est évité temporairement."
+        );
+        return;
+    }
+
+    captureSmartQueueSnapshot("Réinitialisation des évitements");
+    smartQueueSession = normalizeSmartQueueSession();
+    saveSmartQueueSession();
+    renderSmartQueuePanel();
+    setStatus(
+        "Les évitements temporaires ont été effacés. L’ordre actuel est conservé."
+    );
+}
+
+function renderSmartQueuePanel() {
+    const panel = document.getElementById(
+        "smartQueuePanel"
+    );
+
+    if (!panel) {
+        return;
+    }
+
+    const total = selectedTracks.length;
+    const cursor = Math.min(
+        playbackQueueCursor,
+        total
+    );
+    const remaining = selectedTracks.slice(cursor);
+    const preview = remaining.slice(
+        0,
+        SMART_QUEUE_PREVIEW_COUNT
+    );
+    const avoids = [
+        ...smartQueueSession.avoidedArtists.map(
+            (entry) => ({ ...entry, icon: "👤" })
+        ),
+        ...smartQueueSession.avoidedAlbums.map(
+            (entry) => ({ ...entry, icon: "💿" })
+        )
+    ];
+
+    panel.innerHTML = `
+        <div class="smart-queue-heading">
+            <div>
+                <span class="smart-queue-kicker">
+                    ⚡ Smart Queue 4.1
+                </span>
+                <h3>Gérer uniquement la suite</h3>
+                <p>
+                    ${cursor} morceau${cursor > 1 ? "x" : ""}
+                    déjà envoyé${cursor > 1 ? "s" : ""} ·
+                    ${remaining.length} restant${remaining.length > 1 ? "s" : ""}
+                </p>
+            </div>
+
+            <span class="smart-queue-lock-badge">
+                🔒 partie envoyée verrouillée
+            </span>
+        </div>
+
+        <div class="smart-queue-actions">
+            <button
+                id="replaceNextSmartQueueButton"
+                type="button"
+                ${remaining.length ? "" : "disabled"}
+            >
+                ↻ Remplacer le prochain
+            </button>
+
+            <button
+                id="reshuffleSmartQueueButton"
+                type="button"
+                ${remaining.length > 1 ? "" : "disabled"}
+            >
+                🔀 Remélanger la suite
+            </button>
+
+            <button
+                id="undoSmartQueueButton"
+                type="button"
+                ${smartQueueUndoSnapshot ? "" : "disabled"}
+            >
+                ↶ Annuler la dernière action
+            </button>
+        </div>
+
+        <div class="smart-queue-preview">
+            <strong>Prochains morceaux</strong>
+            <ol>
+                ${preview.length
+                    ? preview.map((track, offset) => `
+                        <li>
+                            <span>${cursor + offset + 1}</span>
+                            <div>
+                                <strong>
+                                    ${escapeHtml(track?.name || "Morceau")}
+                                </strong>
+                                <small>
+                                    ${escapeHtml(
+                                        (track?.artists || [])
+                                            .map((artist) => artist?.name)
+                                            .filter(Boolean)
+                                            .join(", ") || "Artiste inconnu"
+                                    )}
+                                </small>
+                            </div>
+                            <button
+                                type="button"
+                                data-smart-queue-replace-index="${cursor + offset}"
+                                title="Remplacer ce morceau"
+                                aria-label="Remplacer ${escapeHtml(track?.name || "ce morceau")}" 
+                            >
+                                ↻
+                            </button>
+                        </li>
+                    `).join("")
+                    : `
+                        <li class="smart-queue-empty">
+                            Aucun morceau restant dans la file.
+                        </li>
+                    `}
+            </ol>
+        </div>
+
+        <div class="smart-queue-avoids">
+            <div>
+                <strong>Évitements temporaires</strong>
+                <small>
+                    Valables jusqu’à la fermeture de cette session.
+                </small>
+            </div>
+
+            <div class="smart-queue-chips">
+                ${avoids.length
+                    ? avoids.map((entry) => `
+                        <span>
+                            ${entry.icon}
+                            ${escapeHtml(entry.label)}
+                        </span>
+                    `).join("")
+                    : "<em>Aucun</em>"}
+            </div>
+
+            <button
+                id="clearSmartQueueAvoidsButton"
+                type="button"
+                ${avoids.length ? "" : "disabled"}
+            >
+                Effacer
+            </button>
+        </div>
+    `;
+}
+
 function createTrackRow(track, index) {
+    const queueLocked = index < playbackQueueCursor;
     const trackName = escapeHtml(
         track.name || "Morceau indisponible"
     );
@@ -14377,17 +15100,18 @@ function createTrackRow(track, index) {
 
     return `
         <li
-            class="track-row"
-            draggable="true"
+            class="track-row ${queueLocked ? "is-queue-sent" : ""}"
+            draggable="${queueLocked ? "false" : "true"}"
             data-track-index="${index}"
             data-track-key="${trackKey}"
+            data-queue-locked="${queueLocked ? "true" : "false"}"
         >
             <span
                 class="track-drag-handle"
-                title="Faire glisser pour déplacer"
+                title="${queueLocked ? "Déjà envoyé à Spotify" : "Faire glisser pour déplacer"}"
                 aria-hidden="true"
             >
-                ⋮⋮
+                ${queueLocked ? "🔒" : "⋮⋮"}
             </span>
 
             <span class="track-number">
@@ -14420,7 +15144,7 @@ function createTrackRow(track, index) {
                     data-track-index="${index}"
                     title="Monter"
                     aria-label="Monter ${trackName}"
-                    ${index === 0 ? "disabled" : ""}
+                    ${index <= playbackQueueCursor ? "disabled" : ""}
                 >
                     ↑
                 </button>
@@ -14432,7 +15156,7 @@ function createTrackRow(track, index) {
                     data-track-index="${index}"
                     title="Descendre"
                     aria-label="Descendre ${trackName}"
-                    ${index === selectedTracks.length - 1 ? "disabled" : ""}
+                    ${queueLocked || index === selectedTracks.length - 1 ? "disabled" : ""}
                 >
                     ↓
                 </button>
@@ -14448,6 +15172,39 @@ function createTrackRow(track, index) {
                     ${currentPriorityRules.favoredTrackUris.includes(track.uri) ? "★" : "☆"}
                 </button>
 
+                <details class="track-smart-menu">
+                    <summary
+                        title="Actions Smart Queue"
+                        aria-label="Actions Smart Queue pour ${trackName}"
+                    >
+                        ⚡
+                    </summary>
+                    <div>
+                        <button
+                            type="button"
+                            data-track-action="replace"
+                            data-track-index="${index}"
+                            ${queueLocked ? "disabled" : ""}
+                        >
+                            ↻ Remplacer
+                        </button>
+                        <button
+                            type="button"
+                            data-track-action="avoid-artist"
+                            data-track-index="${index}"
+                        >
+                            👤 Éviter l’artiste
+                        </button>
+                        <button
+                            type="button"
+                            data-track-action="avoid-album"
+                            data-track-index="${index}"
+                        >
+                            💿 Éviter l’album
+                        </button>
+                    </div>
+                </details>
+
                 <button
                     class="track-exclude-button"
                     type="button"
@@ -14455,6 +15212,7 @@ function createTrackRow(track, index) {
                     data-track-index="${index}"
                     title="Exclure définitivement ce morceau"
                     aria-label="Exclure ${trackName}"
+                    ${queueLocked ? "disabled" : ""}
                 >
                     🚫
                 </button>
@@ -14466,6 +15224,7 @@ function createTrackRow(track, index) {
                     data-track-index="${index}"
                     title="Retirer de cet ordre"
                     aria-label="Retirer ${trackName}"
+                    ${queueLocked ? "disabled" : ""}
                 >
                     ✕
                 </button>
@@ -14537,6 +15296,8 @@ function renderTrackList() {
         resetButton.disabled =
             !originalGeneratedOrder.length;
     }
+
+    renderSmartQueuePanel();
 }
 
 function moveTrack(fromIndex, toIndex) {
@@ -14550,21 +15311,27 @@ function moveTrack(fromIndex, toIndex) {
         return;
     }
 
+    if (
+        fromIndex < playbackQueueCursor ||
+        toIndex < playbackQueueCursor
+    ) {
+        setStatus(
+            "La partie déjà envoyée à Spotify est verrouillée.",
+            "error"
+        );
+        return;
+    }
+
+    captureSmartQueueSnapshot("Déplacement");
     const [movedTrack] = selectedTracks.splice(
         fromIndex,
         1
     );
 
     selectedTracks.splice(toIndex, 0, movedTrack);
-    markQueueChanged();
-    renderTrackList();
-    renderShuffleStats(
-        analyzeShuffleOrder(
-            selectedTracks,
-            getShuffleEngineOptions(
-                currentShuffleSettings
-            )
-        )
+    markQueueChanged({ preserveCursor: true });
+    refreshSmartQueueView(
+        `« ${movedTrack?.name || "Morceau"} » déplacé dans la suite de la file.`
     );
 }
 
@@ -14593,13 +15360,18 @@ function excludeTrackAt(index) {
     });
 
     saveExclusionRules();
-    removeTrackAt(index);
+    removeTrackAt(index, { captureUndo: false });
+    smartQueueUndoSnapshot = null;
+    renderSmartQueuePanel();
     setStatus(
         `« ${track.name || "Morceau"} » ajouté aux exclusions.`
     );
 }
 
-function removeTrackAt(index) {
+function removeTrackAt(
+    index,
+    { captureUndo = true } = {}
+) {
     if (
         index < 0 ||
         index >= selectedTracks.length
@@ -14607,8 +15379,19 @@ function removeTrackAt(index) {
         return;
     }
 
+    if (index < playbackQueueCursor) {
+        setStatus(
+            "Ce morceau a déjà été envoyé à Spotify et ne peut plus être retiré de cette file.",
+            "error"
+        );
+        return;
+    }
+
+    if (captureUndo) {
+        captureSmartQueueSnapshot("Suppression");
+    }
     const [removedTrack] = selectedTracks.splice(index, 1);
-    markQueueChanged();
+    markQueueChanged({ preserveCursor: true });
 
     renderTrackList();
     renderShuffleStats(
@@ -14648,6 +15431,7 @@ function resetGeneratedOrder() {
         return;
     }
 
+    captureSmartQueueSnapshot("Restauration de l’ordre");
     selectedTracks = [...originalGeneratedOrder];
     trackSearchTerm = "";
     markQueueChanged();
@@ -15248,6 +16032,12 @@ function displayPlaylistDetails(playlist, tracks) {
                     <p id="playbackQueueProgress" class="playback-queue-progress" aria-live="polite"></p>
                 </div>
 
+                <section
+                    id="smartQueuePanel"
+                    class="smart-queue-panel"
+                    aria-label="Smart Queue"
+                ></section>
+
                 <p id="playbackMessage" class="playback-message">
                     ${isKnownNonPremiumAccount()
             ? "La commande de lecture nécessite un compte Spotify Premium."
@@ -15465,6 +16255,7 @@ function displayPlaylistDetails(playlist, tracks) {
     `;
 
     renderTrackList();
+    updatePlaybackQueueUI();
 }
 
 
@@ -15600,11 +16391,26 @@ function updatePlaybackQueueUI() {
         playButton.textContent = sent === 0 ? "▶ Lire le premier bloc" : sent < total ? "⏭ Continuer la lecture" : "✓ File entièrement envoyée";
     }
     if (resetButton) resetButton.disabled = sent === 0;
+
+    if (document.getElementById("trackList")) {
+        renderTrackList();
+    } else {
+        renderSmartQueuePanel();
+    }
 }
 
-function markQueueChanged() {
-    playbackQueueCursor = 0;
-    clearCurrentPlaybackQueueState();
+function markQueueChanged({ preserveCursor = false } = {}) {
+    if (preserveCursor) {
+        playbackQueueCursor = Math.min(
+            playbackQueueCursor,
+            selectedTracks.length
+        );
+        saveCurrentPlaybackQueueState();
+    } else {
+        playbackQueueCursor = 0;
+        clearCurrentPlaybackQueueState();
+    }
+
     updatePlaybackQueueUI();
 }
 
@@ -16407,6 +17213,59 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "#replaceNextSmartQueueButton"
+            )
+        ) {
+            replaceSmartQueueTrackAt(
+                playbackQueueCursor
+            );
+            return;
+        }
+
+        const smartQueuePreviewReplace =
+            event.target.closest(
+                "[data-smart-queue-replace-index]"
+            );
+
+        if (smartQueuePreviewReplace) {
+            replaceSmartQueueTrackAt(
+                Number(
+                    smartQueuePreviewReplace.dataset
+                        .smartQueueReplaceIndex
+                )
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#reshuffleSmartQueueButton"
+            )
+        ) {
+            reshuffleSmartQueueRemaining();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#undoSmartQueueButton"
+            )
+        ) {
+            undoLastSmartQueueAction();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearSmartQueueAvoidsButton"
+            )
+        ) {
+            clearSmartQueueAvoids();
+            return;
+        }
+
         const appMenuButton =
             event.target.closest(
                 "[data-app-menu]"
@@ -16855,6 +17714,12 @@ contentElement.addEventListener(
                 excludeTrackAt(index);
             } else if (action === "favorite") {
                 toggleFavoredTrackAt(index);
+            } else if (action === "replace") {
+                replaceSmartQueueTrackAt(index);
+            } else if (action === "avoid-artist") {
+                avoidSmartQueueArtistAt(index);
+            } else if (action === "avoid-album") {
+                avoidSmartQueueAlbumAt(index);
             }
 
             return;
@@ -17827,7 +18692,10 @@ contentElement.addEventListener(
             ".track-row[data-track-index]"
         );
 
-        if (!row) {
+        if (
+            !row ||
+            row.dataset.queueLocked === "true"
+        ) {
             return;
         }
 
@@ -17854,7 +18722,12 @@ contentElement.addEventListener(
             ".track-row[data-track-index]"
         );
 
-        if (!row || draggedTrackIndex < 0) {
+        if (
+            !row ||
+            draggedTrackIndex < 0 ||
+            Number(row.dataset.trackIndex) <
+                playbackQueueCursor
+        ) {
             return;
         }
 
@@ -17881,7 +18754,12 @@ contentElement.addEventListener(
             ".track-row[data-track-index]"
         );
 
-        if (!row || draggedTrackIndex < 0) {
+        if (
+            !row ||
+            draggedTrackIndex < 0 ||
+            Number(row.dataset.trackIndex) <
+                playbackQueueCursor
+        ) {
             return;
         }
 

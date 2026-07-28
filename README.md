@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.0.0 — PWA installable**
+Version documentée : **4.1.0 — Smart Queue**
 
 ## Sommaire
 
@@ -595,6 +595,25 @@ adaptive
 
 `autoplay=0` prépare l’action sans demander systématiquement une lecture automatique lorsque le flux concerné le permet.
 
+## Smart Queue 4.1
+
+Après la génération d’un mix, le panneau **Smart Queue** permet d’agir uniquement sur les morceaux qui n’ont pas encore été envoyés à Spotify.
+
+Fonctions disponibles :
+
+- aperçu des six prochains morceaux ;
+- remplacement intelligent du prochain titre ou d’un titre précis ;
+- remélange de la suite en conservant la partie déjà envoyée ;
+- déplacement et suppression dans la partie restante ;
+- évitement temporaire du premier artiste d’un morceau ;
+- évitement temporaire de son album ;
+- remplissage avec des titres inutilisés provenant des sources chargées ;
+- annulation de la dernière action.
+
+La partie déjà envoyée apparaît atténuée et verrouillée. Les évitements temporaires utilisent `sessionStorage` : ils ne deviennent pas des exclusions permanentes et disparaissent à la fin de la session.
+
+Le remplacement privilégie un titre qui limite les répétitions avec les morceaux voisins, évite autant que possible le même artiste ou album que le morceau remplacé, conserve une durée proche et tient compte des priorités définies dans Shuffle+.
+
 ## Lecture Spotify
 
 ### Appareil disponible
@@ -743,7 +762,7 @@ Après la publication :
 Exemple :
 
 ```html
-<script type="module" src="./app.js?v=4.0.0"></script>
+<script type="module" src="./app.js?v=4.1.0"></script>
 ```
 
 Le paramètre `?v=` sert à limiter les problèmes de cache après une mise à jour.
@@ -872,7 +891,7 @@ Dans ce cas, vérifier que le nom importé dans `app.js` existe réellement dans
 Vérifier :
 
 ```html
-<script type="module" src="./app.js?v=4.0.0"></script>
+<script type="module" src="./app.js?v=4.1.0"></script>
 ```
 
 Puis forcer le rechargement du navigateur.
@@ -927,10 +946,13 @@ Le stockage local du navigateur a probablement été vidé ou le site est ouvert
 
 ## Évolution prévue
 
-### Version 4.1 — Confort PWA et partage
+### Version 4.2 — Feedback musical
 
-Pistes prévues : amélioration de l’écran de lancement, partage de configurations, diagnostic du cache et options d’interface propres au mode installé.
+Pistes prévues : retours « J’aime », « Pas maintenant » et « Trop répétitif », apprentissage titre par titre et amélioration des suggestions Adaptive DJ.
 
+### Version 5.0 — Synchronisation serveur
+
+Pistes prévues : sauvegarde distante chiffrée, synchronisation entre iPhone et ordinateur et restauration après changement de navigateur.
 ## Licence et usage
 
 Projet personnel. Ajouter ici la licence choisie avant une diffusion publique ou une contribution externe.
