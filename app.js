@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.0.0";
+const APP_VERSION = "5.1.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -579,6 +579,68 @@ const SHUFFLE_PRESETS = {
     }
 };
 
+
+const MIX_STUDIO_MOODS = [
+    {
+        id: "balanced",
+        icon: "🎧",
+        label: "Équilibré",
+        description: "Un mix polyvalent et varié.",
+        profileId: "",
+        preset: "balanced"
+    },
+    {
+        id: "drive",
+        icon: "🚗",
+        label: "Drive",
+        description: "Variété forte et énergie progressive.",
+        profileId: "profile-decouverte",
+        preset: "strict"
+    },
+    {
+        id: "focus",
+        icon: "🎯",
+        label: "Focus",
+        description: "Transitions régulières et énergie stable.",
+        profileId: "profile-concentration",
+        preset: "soft"
+    },
+    {
+        id: "sport",
+        icon: "🔥",
+        label: "Sport",
+        description: "Montée en énergie et rythme soutenu.",
+        profileId: "profile-sport",
+        preset: "strict"
+    },
+    {
+        id: "party",
+        icon: "🎉",
+        label: "Party",
+        description: "Énergie élevée et vagues de titres forts.",
+        profileId: "profile-soiree",
+        preset: "balanced"
+    },
+    {
+        id: "chill",
+        icon: "🌙",
+        label: "Chill",
+        description: "Écoute douce avec transitions fluides.",
+        profileId: "profile-concentration",
+        preset: "soft"
+    }
+];
+
+const DEFAULT_MIX_STUDIO_SETTINGS = {
+    enabled: false,
+    mood: "balanced",
+    durationMinutes: 60,
+    artistDiversity: 6,
+    albumDiversity: 6,
+    adaptiveSlot: "",
+    preview: false
+};
+
 let currentUserId = "";
 let currentUserProduct = "";
 let playlistsCache = [];
@@ -612,6 +674,8 @@ let draggedTrackIndex = -1;
 let playbackQueueCursor = 0;
 let playbackQueueResumeKey = "";
 let pendingSavedMixResumeKey = "";
+let pendingMixStudioRuntime = null;
+let pendingMixStudioDisplayName = "";
 let smartQueueSession = readSmartQueueSession();
 let musicFeedbackState = readMusicFeedbackState();
 let drivingModeSettings = readDrivingModeSettings();
@@ -753,6 +817,8 @@ function setDisconnectedInterface() {
     playbackQueueCursor = 0;
     playbackQueueResumeKey = "";
     pendingSavedMixResumeKey = "";
+    pendingMixStudioRuntime = null;
+    pendingMixStudioDisplayName = "";
     smartQueueUndoSnapshot = null;
     automationRunInProgress = false;
     editingIosCommandId = "";
@@ -5515,7 +5581,15 @@ function applyDrivingViewFromUrl() {
         url.searchParams.get("view") || ""
     ).toLowerCase();
 
-    if (["driving", "quick"].includes(requestedView)) {
+    if ([
+        "music",
+        "mixes",
+        "adaptive",
+        "intelligence",
+        "quick",
+        "driving",
+        "settings"
+    ].includes(requestedView)) {
         activeAppMenu = requestedView;
         saveActiveAppMenu();
         url.searchParams.delete("view");
@@ -14224,6 +14298,544 @@ function getRecentAvoidanceLabel(level = 2) {
     }
 }
 
+function getMixStudioMood(moodId = "balanced") {
+    return (
+        MIX_STUDIO_MOODS.find(
+            (mood) => mood.id === moodId
+        ) || MIX_STUDIO_MOODS[0]
+    );
+}
+
+function normalizeMixStudioSettings(settings = {}) {
+    const mood = getMixStudioMood(
+        typeof settings.mood === "string"
+            ? settings.mood
+            : "balanced"
+    );
+
+    const allowedDurations = new Set([
+        0,
+        30,
+        45,
+        60,
+        90,
+        120,
+        180
+    ]);
+    const requestedDuration = Number(
+        settings.durationMinutes
+    );
+
+    return {
+        enabled: settings.enabled === true,
+        mood: mood.id,
+        durationMinutes:
+            allowedDurations.has(requestedDuration)
+                ? requestedDuration
+                : 60,
+        artistDiversity: clampInteger(
+            settings.artistDiversity,
+            1,
+            10,
+            6
+        ),
+        albumDiversity: clampInteger(
+            settings.albumDiversity,
+            1,
+            10,
+            6
+        ),
+        adaptiveSlot:
+            ADAPTIVE_SLOTS.some(
+                (slot) => slot.id === settings.adaptiveSlot
+            )
+                ? settings.adaptiveSlot
+                : "",
+        preview: settings.preview === true
+    };
+}
+
+function formatMixStudioDuration(minutes = 0) {
+    const normalized = Number(minutes || 0);
+
+    if (!normalized) {
+        return "Durée complète";
+    }
+
+    const hours = Math.floor(normalized / 60);
+    const rest = normalized % 60;
+
+    if (!hours) {
+        return `${rest} min`;
+    }
+
+    return rest
+        ? `${hours} h ${rest}`
+        : `${hours} h`;
+}
+
+function limitTracksToMixStudioDuration(
+    tracks = [],
+    targetMinutes = 0
+) {
+    const targetMs = Math.max(
+        0,
+        Number(targetMinutes || 0)
+    ) * 60 * 1000;
+
+    if (!targetMs || !tracks.length) {
+        return [...tracks];
+    }
+
+    const result = [];
+    let duration = 0;
+
+    for (const track of tracks) {
+        const trackDuration = Math.max(
+            0,
+            Number(track?.duration_ms || 0)
+        );
+
+        if (
+            result.length &&
+            duration >= targetMs
+        ) {
+            break;
+        }
+
+        result.push(track);
+        duration += trackDuration;
+    }
+
+    return result.length
+        ? result
+        : tracks.slice(0, 1);
+}
+
+function getMixStudioSourceOptions() {
+    const options = [
+        {
+            key: "liked",
+            name: "Morceaux aimés",
+            detail: "Bibliothèque Spotify",
+            available: true
+        }
+    ];
+
+    playlistsCache.forEach((playlist) => {
+        if (!canReadPlaylist(playlist)) {
+            return;
+        }
+
+        options.push({
+            key: getPlaylistSourceKey(playlist.id),
+            name: playlist.name || "Playlist sans nom",
+            detail: `${getPlaylistTotal(playlist)} morceau${getPlaylistTotal(playlist) > 1 ? "x" : ""}`,
+            available: true
+        });
+    });
+
+    return options;
+}
+
+function renderMixStudioSection() {
+    const sources = getMixStudioSourceOptions();
+    const checkedKeys = selectedSourceKeys.size
+        ? selectedSourceKeys
+        : new Set();
+
+    const sourceRows = sources.map((source) => `
+        <label class="mix-studio-source-row">
+            <input
+                class="mix-studio-source-checkbox"
+                type="checkbox"
+                name="sourceKeys"
+                value="${escapeHtml(source.key)}"
+                ${checkedKeys.has(source.key) ? "checked" : ""}
+            >
+            <span class="mix-studio-source-copy">
+                <strong>${escapeHtml(source.name)}</strong>
+                <small>${escapeHtml(source.detail)}</small>
+            </span>
+        </label>
+    `).join("");
+
+    return `
+        <section class="mix-studio-panel" id="mixStudioPanel">
+            <div class="mix-studio-heading">
+                <div>
+                    <span class="mix-studio-kicker">🎛️ Mix Studio</span>
+                    <h3>Créer un mix</h3>
+                    <p>
+                        Choisis tes sources, une ambiance et une durée.
+                        Shuffle+ génère ensuite l’ordre complet des morceaux.
+                    </p>
+                </div>
+                <span class="mix-studio-version">v5.1</span>
+            </div>
+
+            <form id="mixStudioForm" class="mix-studio-form">
+                <div class="mix-studio-grid">
+                    <label class="mix-studio-field mix-studio-name-field">
+                        <span>Nom du mix</span>
+                        <input
+                            name="name"
+                            type="text"
+                            maxlength="60"
+                            value="Mix Studio ${savedMixes.length + 1}"
+                            required
+                        >
+                    </label>
+
+                    <label class="mix-studio-field">
+                        <span>Ambiance</span>
+                        <select name="mood">
+                            ${MIX_STUDIO_MOODS.map((mood) => `
+                                <option value="${escapeHtml(mood.id)}">
+                                    ${escapeHtml(mood.icon)} ${escapeHtml(mood.label)}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+
+                    <label class="mix-studio-field">
+                        <span>Durée cible</span>
+                        <select name="durationMinutes">
+                            <option value="30">30 min</option>
+                            <option value="45">45 min</option>
+                            <option value="60" selected>1 h</option>
+                            <option value="90">1 h 30</option>
+                            <option value="120">2 h</option>
+                            <option value="180">3 h</option>
+                            <option value="0">Toute la sélection</option>
+                        </select>
+                    </label>
+
+                    <label class="mix-studio-field">
+                        <span>Associer à Adaptive DJ</span>
+                        <select name="adaptiveSlot">
+                            <option value="">Ne pas associer</option>
+                            ${ADAPTIVE_SLOTS.map((slot) => `
+                                <option value="${escapeHtml(slot.id)}">
+                                    ${escapeHtml(slot.label)}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                </div>
+
+                <div class="mix-studio-diversity-grid">
+                    <label class="mix-studio-range-field">
+                        <span>
+                            Diversité artistes
+                            <output data-mix-studio-output="artist">6/10</output>
+                        </span>
+                        <input
+                            name="artistDiversity"
+                            type="range"
+                            min="1"
+                            max="10"
+                            value="6"
+                            data-mix-studio-range="artist"
+                        >
+                    </label>
+
+                    <label class="mix-studio-range-field">
+                        <span>
+                            Diversité albums
+                            <output data-mix-studio-output="album">6/10</output>
+                        </span>
+                        <input
+                            name="albumDiversity"
+                            type="range"
+                            min="1"
+                            max="10"
+                            value="6"
+                            data-mix-studio-range="album"
+                        >
+                    </label>
+                </div>
+
+                <div class="mix-studio-sources-heading">
+                    <div>
+                        <strong>Sources Spotify</strong>
+                        <small>
+                            <span id="mixStudioSourceCount">0</span>
+                            sélectionnée(s) · maximum ${MAX_MIX_SOURCES}
+                        </small>
+                    </div>
+                    <button
+                        id="mixStudioClearSources"
+                        class="mix-studio-link-button"
+                        type="button"
+                    >
+                        Effacer
+                    </button>
+                </div>
+
+                <div class="mix-studio-source-list">
+                    ${sourceRows || `
+                        <p class="mix-studio-empty">
+                            Aucune source lisible disponible.
+                        </p>
+                    `}
+                </div>
+
+                <div class="mix-studio-summary" id="mixStudioSummary">
+                    <span>🎧 Sélectionne au moins une source.</span>
+                </div>
+
+                <div class="mix-studio-actions">
+                    <button
+                        class="mix-studio-preview-button"
+                        type="submit"
+                        name="mixStudioAction"
+                        value="preview"
+                    >
+                        👀 Générer un aperçu
+                    </button>
+                    <button
+                        class="mix-studio-save-button"
+                        type="submit"
+                        name="mixStudioAction"
+                        value="save"
+                        ${savedMixes.length >= MAX_SAVED_MIXES ? "disabled" : ""}
+                    >
+                        💾 Enregistrer et générer
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function readMixStudioDraftFromForm(form) {
+    const data = new FormData(form);
+    const sourceKeys = [...new Set(
+        data.getAll("sourceKeys")
+            .map((value) => String(value || ""))
+            .filter((value) =>
+                value === "liked" ||
+                /^playlist:[A-Za-z0-9]+$/.test(value)
+            )
+    )].slice(0, MAX_MIX_SOURCES);
+
+    const name = String(
+        data.get("name") || ""
+    ).trim().slice(0, 60);
+    const mood = getMixStudioMood(
+        String(data.get("mood") || "balanced")
+    );
+    const studioSettings = normalizeMixStudioSettings({
+        enabled: true,
+        mood: mood.id,
+        durationMinutes:
+            data.get("durationMinutes"),
+        artistDiversity:
+            data.get("artistDiversity"),
+        albumDiversity:
+            data.get("albumDiversity"),
+        adaptiveSlot:
+            data.get("adaptiveSlot")
+    });
+    const profile = getProfileById(
+        mood.profileId
+    );
+    const baseShuffle = normalizeShuffleSettings(
+        profile?.shuffleSettings ||
+        SHUFFLE_PRESETS[mood.preset]
+    );
+
+    const shuffleSettings = normalizeShuffleSettings({
+        ...baseShuffle,
+        preset: mood.preset,
+        artistGap: Math.max(
+            baseShuffle.artistGap,
+            Math.round(
+                studioSettings.artistDiversity * 0.8
+            )
+        ),
+        albumGap: Math.max(
+            baseShuffle.albumGap,
+            Math.round(
+                studioSettings.albumDiversity * 0.5
+            )
+        )
+    });
+
+    return {
+        id: createSavedMixId(),
+        name: name || `Mix Studio ${savedMixes.length + 1}`,
+        sourceKeys,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        shuffleSettings,
+        exclusionRules: normalizeExclusionRules(
+            profile?.exclusionRules ||
+            currentExclusionRules
+        ),
+        profileId: profile?.id || "",
+        priorityRules: normalizePriorityRules(
+            profile?.priorityRules ||
+            currentPriorityRules
+        ),
+        coherenceSettings:
+            normalizeCoherenceSettings(
+                profile?.coherenceSettings ||
+                currentCoherenceSettings
+            ),
+        intensitySettings:
+            normalizeIntensitySettings(
+                profile?.intensitySettings ||
+                currentIntensitySettings
+            ),
+        cleanupSettings:
+            normalizeCleanupSettings(
+                currentCleanupSettings
+            ),
+        studioSettings
+    };
+}
+
+async function submitMixStudioForm(
+    form,
+    action = "preview"
+) {
+    const mix = readMixStudioDraftFromForm(
+        form
+    );
+
+    if (!mix.sourceKeys.length) {
+        setStatus(
+            "Sélectionne au moins une source dans Mix Studio.",
+            "error"
+        );
+        return;
+    }
+
+    selectedSourceKeys.clear();
+    mix.sourceKeys.forEach((sourceKey) => {
+        selectedSourceKeys.add(sourceKey);
+    });
+
+    if (action === "save") {
+        if (savedMixes.length >= MAX_SAVED_MIXES) {
+            setStatus(
+                `Tu peux enregistrer jusqu’à ${MAX_SAVED_MIXES} mix.`,
+                "error"
+            );
+            return;
+        }
+
+        savedMixes = [
+            mix,
+            ...savedMixes
+        ];
+        saveSavedMixes();
+
+        if (mix.studioSettings.adaptiveSlot) {
+            adaptiveDjMenuSettings =
+                normalizeAdaptiveDjMenuSettings({
+                    ...adaptiveDjMenuSettings,
+                    slots: {
+                        ...adaptiveDjMenuSettings.slots,
+                        [mix.studioSettings.adaptiveSlot]:
+                            mix.id
+                    }
+                });
+            saveAdaptiveDjMenuSettings();
+        }
+
+        setStatus(
+            `Mix « ${mix.name} » enregistré. Génération en cours…`
+        );
+        await launchSavedMix(mix.id);
+        return;
+    }
+
+    const previewMix = {
+        ...mix,
+        studioSettings: {
+            ...mix.studioSettings,
+            preview: true
+        }
+    };
+
+    savedMixes = [
+        previewMix,
+        ...savedMixes
+    ];
+
+    try {
+        setStatus(
+            `Aperçu de « ${previewMix.name} » en cours…`
+        );
+        await launchSavedMix(
+            previewMix.id
+        );
+    } finally {
+        savedMixes = savedMixes.filter(
+            (item) => item.id !== previewMix.id
+        );
+    }
+}
+
+function updateMixStudioFormPreview(form) {
+    if (!form) {
+        return;
+    }
+
+    const selectedCount = form.querySelectorAll(
+        '.mix-studio-source-checkbox:checked'
+    ).length;
+    const countElement = form.querySelector(
+        '#mixStudioSourceCount'
+    );
+    const summaryElement = form.querySelector(
+        '#mixStudioSummary'
+    );
+    const mood = getMixStudioMood(
+        form.elements.mood?.value
+    );
+    const duration = formatMixStudioDuration(
+        form.elements.durationMinutes?.value
+    );
+
+    if (countElement) {
+        countElement.textContent = String(
+            selectedCount
+        );
+    }
+
+    if (summaryElement) {
+        summaryElement.innerHTML = selectedCount
+            ? `
+                <span>
+                    ${escapeHtml(mood.icon)}
+                    <strong>${escapeHtml(mood.label)}</strong>
+                    · ${escapeHtml(duration)}
+                    · ${selectedCount} source${selectedCount > 1 ? "s" : ""}
+                </span>
+            `
+            : '<span>🎧 Sélectionne au moins une source.</span>';
+    }
+
+    form.querySelectorAll(
+        '[data-mix-studio-range]'
+    ).forEach((input) => {
+        const key = input.dataset.mixStudioRange;
+        const output = form.querySelector(
+            `[data-mix-studio-output="${key}"]`
+        );
+
+        if (output) {
+            output.textContent =
+                `${input.value}/10`;
+        }
+    });
+}
+
+
 function readSavedMixes() {
     try {
         const raw = localStorage.getItem(SAVED_MIXES_KEY);
@@ -14272,6 +14884,10 @@ function readSavedMixes() {
                 cleanupSettings:
                     normalizeCleanupSettings(
                         mix.cleanupSettings
+                    ),
+                studioSettings:
+                    normalizeMixStudioSettings(
+                        mix.studioSettings
                     )
             }))
             .slice(0, MAX_SAVED_MIXES);
@@ -14411,7 +15027,9 @@ function saveCurrentSourceSelection() {
             cleanupSettings:
                 normalizeCleanupSettings(
                     currentCleanupSettings
-                )
+                ),
+            studioSettings:
+                normalizeMixStudioSettings()
         },
         ...savedMixes
     ];
@@ -14443,6 +15061,12 @@ async function launchSavedMix(mixId) {
 
     editingSavedMixId = "";
     configuringSavedMixId = "";
+    pendingMixStudioRuntime =
+        normalizeMixStudioSettings(
+            mix.studioSettings
+        );
+    pendingMixStudioDisplayName =
+        mix.name || "Mix Shuffle+";
     const assignedProfile = getProfileById(
         mix.profileId
     );
@@ -15065,6 +15689,18 @@ function renderSavedMixesSection() {
         const assignedProfile = getProfileById(
             mix.profileId
         );
+        const studioSettings =
+            normalizeMixStudioSettings(
+                mix.studioSettings
+            );
+        const studioMood = getMixStudioMood(
+            studioSettings.mood
+        );
+        const studioSummary =
+            studioSettings.enabled
+                ? ` · ${studioMood.icon} ${studioMood.label}` +
+                  ` · ${formatMixStudioDuration(studioSettings.durationMinutes)}`
+                : "";
 
         return `
             <article class="saved-mix-card">
@@ -15083,6 +15719,7 @@ function renderSavedMixesSection() {
                             ${assignedProfile
                                 ? ` · Profil ${escapeHtml(assignedProfile.name)}`
                                 : ""}
+                            ${escapeHtml(studioSummary)}
                             · ${getShufflePresetLabel(shuffleSettings)}
                             · ${escapeHtml(
                                 getExclusionRulesSummary(
@@ -15847,6 +16484,14 @@ function normalizeImportedMixes(values) {
                 intensitySettings:
                     normalizeIntensitySettings(
                         mix.intensitySettings
+                    ),
+                cleanupSettings:
+                    normalizeCleanupSettings(
+                        mix.cleanupSettings
+                    ),
+                studioSettings:
+                    normalizeMixStudioSettings(
+                        mix.studioSettings
                     )
             };
         })
@@ -22579,8 +23224,9 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="mixes"
             >
-                ${renderIosCommandsPanel()}
+                ${renderMixStudioSection()}
                 ${renderSavedMixesSection()}
+                ${renderIosCommandsPanel()}
                 ${renderMixSchedulesSection()}
                 ${renderMixHistorySection()}
             </div>
@@ -22637,6 +23283,11 @@ function displayPlaylists(playlists) {
     `;
 
     updateMixSelectionControls();
+    updateMixStudioFormPreview(
+        document.getElementById(
+            "mixStudioForm"
+        )
+    );
 }
 
 
@@ -25126,7 +25777,9 @@ async function createSelectedMix() {
 
         selectedPlaylist = {
             id: "shuffleplus-multi-source-mix",
-            name: "Mix Shuffle+",
+            name:
+                pendingMixStudioDisplayName ||
+                "Mix Shuffle+",
             sourceType: "mix",
             sourceCount: loadedSourceNames.length,
             sourceNames: loadedSourceNames,
@@ -25145,10 +25798,19 @@ async function createSelectedMix() {
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
         );
-        selectedTracks = limitTracksToAdaptiveTarget(
-            selectedTracks,
-            currentAdaptiveSettings
-        );
+
+        if (pendingMixStudioRuntime?.enabled) {
+            selectedTracks =
+                limitTracksToMixStudioDuration(
+                    selectedTracks,
+                    pendingMixStudioRuntime.durationMinutes
+                );
+        } else {
+            selectedTracks = limitTracksToAdaptiveTarget(
+                selectedTracks,
+                currentAdaptiveSettings
+            );
+        }
         buildPrioritySummary(
             selectedTracks,
             currentPriorityRules
@@ -25175,19 +25837,23 @@ async function createSelectedMix() {
                     item.id === generatedSavedMixId
             );
 
-        registerMixHistoryLaunch({
-            name:
-                generatedSavedMix?.name ||
-                selectedPlaylist.name,
-            sourceKeys: selectedKeys,
-            shuffleSettings: currentShuffleSettings,
-            tracks: selectedTracks,
-            mixId: generatedSavedMixId,
-            source:
-                generatedSavedMixId
-                    ? "saved-mix"
-                    : "manual"
-        });
+        if (
+            !generatedSavedMix?.studioSettings?.preview
+        ) {
+            registerMixHistoryLaunch({
+                name:
+                    generatedSavedMix?.name ||
+                    selectedPlaylist.name,
+                sourceKeys: selectedKeys,
+                shuffleSettings: currentShuffleSettings,
+                tracks: selectedTracks,
+                mixId: generatedSavedMixId,
+                source:
+                    generatedSavedMixId
+                        ? "saved-mix"
+                        : "manual"
+            });
+        }
 
         pendingSavedMixResumeKey = "";
 
@@ -25254,8 +25920,13 @@ async function createSelectedMix() {
             behavior: "smooth",
             block: "start"
         });
+
+        pendingMixStudioRuntime = null;
+        pendingMixStudioDisplayName = "";
     } catch (error) {
         console.error(error);
+        pendingMixStudioRuntime = null;
+        pendingMixStudioDisplayName = "";
         displayPlaylists(playlistsCache);
         setStatus(
             error.message || "Impossible de créer le mix.",
@@ -26607,6 +27278,25 @@ contentElement.addEventListener(
             return;
         }
 
+        const mixStudioClearButton =
+            event.target.closest(
+                "#mixStudioClearSources"
+            );
+
+        if (mixStudioClearButton) {
+            const form = mixStudioClearButton.closest(
+                "#mixStudioForm"
+            );
+            form?.querySelectorAll(
+                ".mix-studio-source-checkbox"
+            ).forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+            selectedSourceKeys.clear();
+            updateMixStudioFormPreview(form);
+            return;
+        }
+
         const favoriteButton = event.target.closest(
             ".source-favorite-button"
         );
@@ -26961,6 +27651,40 @@ contentElement.addEventListener(
     "change",
     (event) => {
         if (
+            event.target.closest(
+                "#mixStudioForm"
+            )
+        ) {
+            if (
+                event.target.matches(
+                    ".mix-studio-source-checkbox"
+                )
+            ) {
+                const checked = [
+                    ...event.target
+                        .closest("#mixStudioForm")
+                        .querySelectorAll(
+                            ".mix-studio-source-checkbox:checked"
+                        )
+                ];
+
+                if (checked.length > MAX_MIX_SOURCES) {
+                    event.target.checked = false;
+                    setStatus(
+                        `Mix Studio accepte jusqu’à ${MAX_MIX_SOURCES} sources.`,
+                        "error"
+                    );
+                }
+            }
+
+            updateMixStudioFormPreview(
+                event.target.closest(
+                    "#mixStudioForm"
+                )
+            );
+        }
+
+        if (
             event.target.id ===
             "drivingWakeLockInput"
         ) {
@@ -27179,6 +27903,21 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (
+            event.target.id === "mixStudioForm"
+        ) {
+            event.preventDefault();
+            const action =
+                event.submitter?.value === "save"
+                    ? "save"
+                    : "preview";
+            await submitMixStudioForm(
+                event.target,
+                action
+            );
+            return;
+        }
+
         if (
             event.target.id === "serverSyncCreateForm"
         ) {
@@ -27591,6 +28330,18 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (
+            event.target.closest(
+                "#mixStudioForm"
+            )
+        ) {
+            updateMixStudioFormPreview(
+                event.target.closest(
+                    "#mixStudioForm"
+                )
+            );
+        }
+
         if (
             event.target.id ===
                 "syncDiffSearchInput"

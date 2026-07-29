@@ -1,0 +1,24 @@
+{
+  "version": "5.1.0",
+  "name": "Mix Studio",
+  "source": "ShufflePlus(5).zip",
+  "javascriptFilesChecked": 12,
+  "features": [
+    "Mix Studio visible in Mix & iOS",
+    "multi-source selection",
+    "mood presets",
+    "target duration",
+    "artist and album diversity",
+    "preview without persistence",
+    "save and generate",
+    "Adaptive DJ association",
+    "server sync compatible"
+  ],
+  "serverChangesRequired": false,
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "manifestJson": "ok",
+    "serviceWorkerVersion": "ok"
+  }
+}

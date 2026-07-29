@@ -1,8 +1,14 @@
-# Shuffle+ — Feuille de route
+# Feuille de route Shuffle+
 
-- ✅ v4.9 : comparaison détaillée, annulation et transfert chiffré
-- ✅ v5.0 : serveur réel, espaces privés, chiffrement de bout en bout et synchronisation automatique
-- 🔜 v5.1 : notifications de conflit et état de synchronisation global
-- 🔜 v5.2 : historique des révisions et restauration distante
-- 🔜 v5.3 : partage facultatif de profils sans partager l’historique personnel
-- 🔭 v6.0 : application native ou compagnon serveur administrable
+- **v5.1.0 — Mix Studio : terminée**
+  - générateur de mix multi-sources ;
+  - ambiances rapides ;
+  - durée cible et diversité ;
+  - aperçu, sauvegarde et association Adaptive DJ ;
+  - synchronisation serveur des mix.
+- **v5.2 — Mix Studio avancé : prévue**
+  - modèles réutilisables ;
+  - pondération des sources ;
+  - comparaison de plusieurs variantes.
+- **v5.3 — Collaboration privée : étude**
+  - partage chiffré d’un mix entre espaces autorisés.

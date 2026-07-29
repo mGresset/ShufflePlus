@@ -1,3 +1,22 @@
+# Shuffle+ v5.1.0 — Mix Studio
+
+Shuffle+ v5.1 ajoute un véritable générateur dans **Mix & iOS**. Il permet de sélectionner plusieurs playlists ou les morceaux aimés, choisir une ambiance, une durée cible et un niveau de diversité, puis générer un aperçu ou enregistrer le mix.
+
+## Fonctionnement de Mix Studio
+
+1. Ouvrir **Mix & iOS → Mix Studio**.
+2. Nommer le mix.
+3. Choisir une ambiance : Équilibré, Drive, Focus, Sport, Party ou Chill.
+4. Définir une durée cible de 30 minutes à 3 heures, ou conserver toute la sélection.
+5. Régler la diversité des artistes et des albums.
+6. Sélectionner jusqu’à 12 sources Spotify.
+7. Utiliser **Générer un aperçu** ou **Enregistrer et générer**.
+8. Associer facultativement le mix à un créneau Adaptive DJ.
+
+Les mix créés dans Mix Studio sont inclus dans les sauvegardes et dans la synchronisation serveur v5. Le serveur reste opaque : il synchronise le paquet chiffré sans lire son contenu.
+
+---
+
 # Shuffle+
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.

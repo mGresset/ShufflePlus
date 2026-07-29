@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Mix intelligent Spotify, Adaptive DJ et synchronisation automatique chiffrée de bout en bout via le serveur Shuffle+.",
+  "description": "Mix Studio Spotify, Adaptive DJ et synchronisation automatique chiffrée de bout en bout via le serveur Shuffle+.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",
@@ -36,6 +36,19 @@
     }
   ],
   "shortcuts": [
+    {
+      "name": "Ouvrir Mix Studio",
+      "short_name": "Mix Studio",
+      "description": "Créer un mix à partir de plusieurs sources Spotify.",
+      "url": "./?view=mixes",
+      "icons": [
+        {
+          "src": "./icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
     {
       "name": "Commandes rapides",
       "short_name": "Rapide",
