@@ -37,6 +37,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Programme Sport du lundi au vendredi à 18h30",
     "Mets l’énergie de Conduite à 78 et la découverte à 20",
     "Recommande-moi quelque chose maintenant",
+    "Montre mes statistiques d’écoute",
     "Quel est le programme musical actuel ?"
 ];
 
@@ -275,10 +276,32 @@ export function parseMusicalAssistantRequest(
         "quoi ecouter", "quoi écouter", "surprends moi",
         "choisis pour moi", "un truc pour moi"
     ]);
+    const isStatistics = includesAny(text, [
+        "statistiques", "statistique", "bilan d ecoute",
+        "bilan écoute", "temps d ecoute", "temps écoute",
+        "mes habitudes d ecoute", "mes habitudes écoute"
+    ]);
     let points = 1;
     if (scene || mix) points += 2;
     if (isSchedule || isTransition || isConfigure || isStatus) points += 2;
     if (time || durationMinutes !== null || energyTarget !== null) points += 1;
+
+    if (isStatistics) {
+        return {
+            type: "statistics",
+            request: originalRequest,
+            ready: true,
+            confidence: getConfidence(points + 2),
+            title: "Statistiques d’écoute",
+            summary: "Ouvrir le tableau de bord des habitudes et durées locales.",
+            details: [
+                "Sessions envoyées",
+                "Écoutes confirmées",
+                "Moments et jours préférés"
+            ],
+            actionLabel: "Ouvrir les statistiques"
+        };
+    }
 
     if (isRecommendation) {
         return {

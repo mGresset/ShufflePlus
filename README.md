@@ -1,3 +1,10 @@
+
+## v6.3.0 — Statistiques d’écoute avancées
+
+Le nouvel onglet **Statistiques** sépare les lancements envoyés à Spotify des écoutes confirmées manuellement. Il présente les durées, les jours et moments préférés, les classements locaux et permet d’exporter un rapport CSV ou JSON.
+
+La commande assistant **« Montre mes statistiques d’écoute »** ouvre directement le tableau de bord.
+
 ## v6.2.0 — Recommandations personnalisées
 
 Le nouvel onglet **Pour toi** classe localement les mix et scènes selon le moment, les habitudes et le niveau de découverte. Les évaluations 👍/👎 améliorent le classement. L’assistant reconnaît aussi « Recommande-moi quelque chose ».

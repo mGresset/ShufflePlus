@@ -56,6 +56,13 @@ import {
     getPersonalizedRecommendationContext
 } from "./personalized-recommendations.js";
 
+import {
+    DEFAULT_LISTENING_STATISTICS_SETTINGS,
+    normalizeListeningStatisticsSettings,
+    buildListeningStatistics,
+    buildListeningStatisticsCsv
+} from "./listening-statistics.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -75,7 +82,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.2.0";
+const APP_VERSION = "6.3.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -129,6 +136,8 @@ const VOICE_ASSISTANT_SETTINGS_KEY =
     "shuffleplus_voice_assistant_settings_v1";
 const PERSONALIZED_RECOMMENDATIONS_KEY =
     "shuffleplus_personalized_recommendations_v1";
+const LISTENING_STATISTICS_SETTINGS_KEY =
+    "shuffleplus_listening_statistics_settings_v1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -950,6 +959,8 @@ let voiceAssistantSettings =
     readVoiceAssistantSettings();
 let personalizedRecommendationsState =
     readPersonalizedRecommendationsState();
+let listeningStatisticsSettings =
+    readListeningStatisticsSettings();
 let voiceAssistantRecognition = null;
 let voiceAssistantListening = false;
 let voiceAssistantSource = "assistant";
@@ -1326,6 +1337,338 @@ function renderPersonalizedRecommendationsPage() {
                 <button class="personal-recommendations-settings__save" type="submit">Enregistrer les préférences</button>
             </form>
         </section>`;
+}
+
+
+function readListeningStatisticsSettings() {
+    try {
+        const raw = localStorage.getItem(
+            LISTENING_STATISTICS_SETTINGS_KEY
+        );
+        return normalizeListeningStatisticsSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_LISTENING_STATISTICS_SETTINGS
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages Statistiques illisibles :",
+            error
+        );
+        return normalizeListeningStatisticsSettings(
+            DEFAULT_LISTENING_STATISTICS_SETTINGS
+        );
+    }
+}
+
+function saveListeningStatisticsSettings() {
+    listeningStatisticsSettings =
+        normalizeListeningStatisticsSettings({
+            ...listeningStatisticsSettings,
+            updatedAt: Date.now()
+        });
+    try {
+        localStorage.setItem(
+            LISTENING_STATISTICS_SETTINGS_KEY,
+            JSON.stringify(
+                listeningStatisticsSettings
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages Statistiques non enregistrés :",
+            error
+        );
+    }
+}
+
+function getAdvancedListeningStatistics() {
+    return buildListeningStatistics({
+        events:
+            intelligenceAnalytics.events,
+        settings:
+            listeningStatisticsSettings,
+        now: Date.now()
+    });
+}
+
+function formatListeningStatisticsDuration(
+    durationMs = 0
+) {
+    const totalMinutes = Math.round(
+        Math.max(0, Number(durationMs) || 0) /
+        60000
+    );
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (!hours) return `${minutes} min`;
+    if (!minutes) return `${hours} h`;
+    return `${hours} h ${String(minutes).padStart(2,"0")}`;
+}
+
+function getListeningStatisticsRangeLabel(
+    rangeDays
+) {
+    return {
+        7: "7 derniers jours",
+        30: "30 derniers jours",
+        90: "90 derniers jours",
+        365: "12 derniers mois",
+        0: "Toutes les données"
+    }[Number(rangeDays)] || "30 derniers jours";
+}
+
+function renderListeningStatisticsRanking(
+    title,
+    values = [],
+    valueLabel = "occurrence"
+) {
+    const maximum = Math.max(
+        1,
+        ...values.map(
+            (item) => Number(
+                item.count ||
+                item.sessions ||
+                0
+            )
+        )
+    );
+    return `
+        <section class="listening-statistics-ranking">
+            <h4>${escapeHtml(title)}</h4>
+            <ol>
+                ${values.length
+                    ? values.map((item) => {
+                        const value = Number(
+                            item.count ||
+                            item.sessions ||
+                            0
+                        );
+                        return `
+                            <li>
+                                <div>
+                                    <strong>${escapeHtml(item.name || item.label || "Élément")}</strong>
+                                    <small>${value} ${escapeHtml(valueLabel)}${value > 1 ? "s" : ""}</small>
+                                </div>
+                                <span class="listening-statistics-ranking__bar"><i style="width:${Math.max(5,Math.round(value/maximum*100))}%"></i></span>
+                            </li>
+                        `;
+                    }).join("")
+                    : "<li class=\"is-empty\">Pas encore assez de données.</li>"}
+            </ol>
+        </section>
+    `;
+}
+
+function renderAdvancedListeningStatisticsPage() {
+    const summary =
+        getAdvancedListeningStatistics();
+    const settings =
+        summary.settings;
+    const timelineMaximum = Math.max(
+        1,
+        ...summary.timeline.map(
+            (item) => item.sessions
+        )
+    );
+    const daypartMaximum = Math.max(
+        1,
+        ...summary.dayparts.map(
+            (item) => item.sessions
+        )
+    );
+    const weekdayMaximum = Math.max(
+        1,
+        ...summary.weekdays.map(
+            (item) => item.sessions
+        )
+    );
+
+    return `
+        <section class="listening-statistics-page">
+            <div class="listening-statistics-hero">
+                <div>
+                    <span class="adaptive-menu-kicker">📊 Shuffle+ v6.3</span>
+                    <h3>Statistiques d’écoute</h3>
+                    <p>
+                        Analyse les lancements envoyés à Spotify
+                        et les écoutes que tu as confirmées.
+                    </p>
+                </div>
+                <div class="listening-statistics-period">
+                    <span>Période</span>
+                    <strong>${escapeHtml(getListeningStatisticsRangeLabel(settings.rangeDays))}</strong>
+                    <small>${settings.primaryMode === "confirmed" ? "écoutes confirmées" : "lancements envoyés"}</small>
+                </div>
+            </div>
+
+            <div class="listening-statistics-metrics">
+                <article><span>Sessions analysées</span><strong>${summary.sessionCount}</strong><small>${settings.primaryMode === "confirmed" ? "confirmées" : "envoyées à Spotify"}</small></article>
+                <article><span>Durée principale</span><strong>${formatListeningStatisticsDuration(summary.totalDurationMs)}</strong><small>${settings.primaryMode === "confirmed" ? "confirmée" : "potentielle"}</small></article>
+                <article><span>Titres</span><strong>${summary.totalTracks}</strong><small>${summary.averageTracks} par session</small></article>
+                <article><span>Jours actifs</span><strong>${summary.activeDayCount}</strong><small>série observée : ${summary.currentStreak} jour${summary.currentStreak > 1 ? "s" : ""}</small></article>
+                <article><span>Durée confirmée</span><strong>${formatListeningStatisticsDuration(summary.confirmedDurationMs)}</strong><small>déclarée manuellement</small></article>
+                <article><span>Durée potentielle</span><strong>${formatListeningStatisticsDuration(summary.sentDurationMs)}</strong><small>commandes envoyées</small></article>
+                <article><span>Taux de confirmation</span><strong>${summary.confirmationRate} %</strong><small>lancements reliés à une confirmation</small></article>
+                <article><span>Session moyenne</span><strong>${formatListeningStatisticsDuration(summary.averageDurationMs)}</strong><small>sur la vue principale</small></article>
+            </div>
+
+            <p class="listening-statistics-disclaimer">
+                Shuffle+ ne prétend pas connaître précisément ton temps d’écoute Spotify.
+                Une durée « potentielle » correspond aux morceaux envoyés à Spotify ;
+                une durée « confirmée » vient de ta validation manuelle.
+            </p>
+
+            <section class="listening-statistics-panel">
+                <div class="listening-statistics-heading">
+                    <div><h4>Activité récente</h4><p>Nombre de sessions par jour.</p></div>
+                </div>
+                <div class="listening-statistics-timeline" role="img" aria-label="Activité quotidienne">
+                    ${summary.timeline.map((item) => `
+                        <div title="${escapeHtml(item.label)} · ${item.sessions} session(s)">
+                            <span><i style="height:${Math.max(4,Math.round(item.sessions/timelineMaximum*100))}%"></i></span>
+                            <small>${escapeHtml(item.label)}</small>
+                        </div>
+                    `).join("")}
+                </div>
+            </section>
+
+            <div class="listening-statistics-two-columns">
+                <section class="listening-statistics-panel">
+                    <div class="listening-statistics-heading"><div><h4>Moments préférés</h4><p>Répartition des sessions.</p></div></div>
+                    <div class="listening-statistics-horizontal-bars">
+                        ${summary.dayparts.map((item) => `
+                            <div><span>${escapeHtml(item.icon)} ${escapeHtml(item.label)}</span><b><i style="width:${Math.max(item.sessions ? 6 : 0,Math.round(item.sessions/daypartMaximum*100))}%"></i></b><strong>${item.sessions}</strong></div>
+                        `).join("")}
+                    </div>
+                </section>
+
+                <section class="listening-statistics-panel">
+                    <div class="listening-statistics-heading"><div><h4>Jours de la semaine</h4><p>Habitudes selon le calendrier.</p></div></div>
+                    <div class="listening-statistics-horizontal-bars">
+                        ${summary.weekdays.map((item) => `
+                            <div><span>${escapeHtml(item.label)}</span><b><i style="width:${Math.max(item.sessions ? 6 : 0,Math.round(item.sessions/weekdayMaximum*100))}%"></i></b><strong>${item.sessions}</strong></div>
+                        `).join("")}
+                    </div>
+                </section>
+            </div>
+
+            <section class="listening-statistics-insights">
+                <div class="listening-statistics-heading"><div><h4>Ce que Shuffle+ observe</h4><p>Constats calculés uniquement à partir des données locales.</p></div></div>
+                <div>
+                    ${summary.insights.length
+                        ? summary.insights.map((item) => `<p>${escapeHtml(item)}</p>`).join("")
+                        : "<p>Utilise et confirme quelques mix pour faire apparaître les tendances.</p>"}
+                </div>
+            </section>
+
+            <div class="listening-statistics-rankings">
+                ${renderListeningStatisticsRanking("Mix les plus présents", summary.topMixes, "session")}
+                ${renderListeningStatisticsRanking("Artistes dominants", summary.topArtists)}
+                ${renderListeningStatisticsRanking("Albums dominants", summary.topAlbums)}
+            </div>
+
+            <section class="listening-statistics-panel">
+                <div class="listening-statistics-heading"><div><h4>Origine des lancements</h4><p>Commandes manuelles, Adaptive DJ, planificateur et iOS.</p></div></div>
+                <div class="listening-statistics-source-grid">
+                    ${summary.sourceDistribution.length
+                        ? summary.sourceDistribution.map((item) => `<article><strong>${item.count}</strong><span>${escapeHtml(item.label)}</span></article>`).join("")
+                        : "<p>Aucun lancement envoyé sur cette période.</p>"}
+                </div>
+            </section>
+
+            <form id="listeningStatisticsSettingsForm" class="listening-statistics-settings">
+                <div><h4>Réglages et export</h4><p>Les préférences sont enregistrées dans la sauvegarde Shuffle+.</p></div>
+                <label><span>Période</span><select name="rangeDays">
+                    ${[[7,"7 jours"],[30,"30 jours"],[90,"90 jours"],[365,"12 mois"],[0,"Toutes les données"]].map(([value,label]) => `<option value="${value}" ${Number(settings.rangeDays) === value ? "selected" : ""}>${label}</option>`).join("")}
+                </select></label>
+                <label><span>Vue principale</span><select name="primaryMode">
+                    <option value="sent" ${settings.primaryMode === "sent" ? "selected" : ""}>Lancements envoyés</option>
+                    <option value="confirmed" ${settings.primaryMode === "confirmed" ? "selected" : ""}>Écoutes confirmées</option>
+                </select></label>
+                <label class="listening-statistics-settings__check"><input name="showGenerated" type="checkbox" ${settings.showGenerated ? "checked" : ""}><span>Inclure les mix générés dans l’export JSON</span></label>
+                <div class="listening-statistics-settings__actions">
+                    <button type="submit">Appliquer</button>
+                    <button id="exportListeningStatisticsCsvButton" type="button">CSV</button>
+                    <button id="exportListeningStatisticsJsonButton" type="button">JSON</button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
+function saveListeningStatisticsSettingsFromForm(
+    form
+) {
+    const data = new FormData(form);
+    listeningStatisticsSettings =
+        normalizeListeningStatisticsSettings({
+            rangeDays: Number(data.get("rangeDays") || 30),
+            primaryMode: String(data.get("primaryMode") || "sent"),
+            showGenerated: data.get("showGenerated") === "on",
+            updatedAt: Date.now()
+        });
+    saveListeningStatisticsSettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Réglages des statistiques appliqués.");
+}
+
+function downloadListeningStatisticsFile(
+    content,
+    filename,
+    type
+) {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+}
+
+function exportListeningStatistics(format = "json") {
+    const summary = getAdvancedListeningStatistics();
+    const datePart = new Date().toISOString().slice(0,10);
+    if (format === "csv") {
+        downloadListeningStatisticsFile(
+            buildListeningStatisticsCsv(summary),
+            `shuffleplus-statistiques-${datePart}.csv`,
+            "text/csv;charset=utf-8"
+        );
+    } else {
+        const exportedEvents = listeningStatisticsSettings.showGenerated
+            ? summary.filteredEvents
+            : summary.filteredEvents.filter((item) => item.type !== "mix-generated");
+        downloadListeningStatisticsFile(
+            JSON.stringify({
+                format: "shuffleplus-listening-statistics",
+                appVersion: APP_VERSION,
+                exportedAt: new Date().toISOString(),
+                settings: summary.settings,
+                metrics: {
+                    sessions: summary.sessionCount,
+                    tracks: summary.totalTracks,
+                    durationMs: summary.totalDurationMs,
+                    sentDurationMs: summary.sentDurationMs,
+                    confirmedDurationMs: summary.confirmedDurationMs,
+                    confirmationRate: summary.confirmationRate,
+                    activeDays: summary.activeDayCount
+                },
+                dayparts: summary.dayparts,
+                weekdays: summary.weekdays,
+                topMixes: summary.topMixes,
+                topArtists: summary.topArtists,
+                topAlbums: summary.topAlbums,
+                events: exportedEvents
+            }, null, 2),
+            `shuffleplus-statistiques-${datePart}.json`,
+            "application/json"
+        );
+    }
+    setStatus(`Rapport de statistiques ${format.toUpperCase()} exporté.`);
 }
 
 function normalizeUiThemeSettings(value = {}) {
@@ -10435,6 +10778,27 @@ async function executeMusicalAssistantPlan() {
     }
 
     try {
+        if (plan.type === "statistics") {
+            activeAppMenu = "statistics";
+            saveActiveAppMenu();
+            addMusicalAssistantHistory({
+                request: plan.request,
+                plan,
+                status: "success",
+                message: "Tableau de bord Statistiques ouvert."
+            });
+            setVoiceAssistantMessage(
+                "Statistiques ouvertes.",
+                "success"
+            );
+            speakVoiceAssistantText(
+                "J’ouvre tes statistiques d’écoute."
+            );
+            vibrateVoiceAssistant([30, 40, 30]);
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
         if (plan.type === "recommendation") {
             const recommendation = getPersonalizedRecommendations().items.find(
                 item => item.ready && ["scene", "mix"].includes(item.type)
@@ -10895,6 +11259,7 @@ function renderAppMenu() {
         ["adaptive", "🤖", "Adaptive DJ"],
         ["assistant", "✨", "Assistant"],
         ["recommendations", "💜", "Pour toi"],
+        ["statistics", "📊", "Statistiques"],
         ["intelligence", "🧠", "Intelligence"],
         ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
@@ -21384,6 +21749,7 @@ function buildBackupPayload() {
         musicalAssistantHistory,
         voiceAssistantSettings,
         personalizedRecommendationsState,
+        listeningStatisticsSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -21591,6 +21957,11 @@ function validateBackupPayload(payload) {
                 payload.data.personalizedRecommendationsState ||
                 DEFAULT_PERSONALIZED_RECOMMENDATION_STATE
             ),
+        listeningStatisticsSettings:
+            normalizeListeningStatisticsSettings(
+                payload.data.listeningStatisticsSettings ||
+                DEFAULT_LISTENING_STATISTICS_SETTINGS
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -21722,6 +22093,9 @@ function applyValidatedBackupState(imported) {
     personalizedRecommendationsState =
         imported.personalizedRecommendationsState;
     savePersonalizedRecommendationsState();
+    listeningStatisticsSettings =
+        imported.listeningStatisticsSettings;
+    saveListeningStatisticsSettings();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -22964,6 +23338,15 @@ function getSyncCategoryItems(
             imported.recentTrackUris,
             (item, index) => item?.uri || item || index,
             (item) => item?.name || item?.uri || item || "Titre récent"
+        );
+        items.push(
+            buildSyncDiffItem(
+                "Statistiques",
+                "listening-statistics-settings",
+                "Préférences Statistiques",
+                imported.listeningStatisticsSettings,
+                "Période et preuve principale"
+            )
         );
     }
 
@@ -28223,6 +28606,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "statistics"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="statistics"
+            >
+                ${renderAdvancedListeningStatisticsPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "intelligence"
                     ? "is-active"
                     : ""}"
@@ -31335,6 +31728,25 @@ contentElement.addEventListener(
             return;
         }
 
+
+        if (
+            event.target.closest(
+                "#exportListeningStatisticsCsvButton"
+            )
+        ) {
+            exportListeningStatistics("csv");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportListeningStatisticsJsonButton"
+            )
+        ) {
+            exportListeningStatistics("json");
+            return;
+        }
+
         if (
             event.target.closest(
                 "#clearMusicalAssistantHistoryButton"
@@ -33414,6 +33826,18 @@ contentElement.addEventListener(
         ) {
             event.preventDefault();
             savePersonalizedRecommendationSettings(event.target);
+            return;
+        }
+
+
+        if (
+            event.target.id ===
+            "listeningStatisticsSettingsForm"
+        ) {
+            event.preventDefault();
+            saveListeningStatisticsSettingsFromForm(
+                event.target
+            );
             return;
         }
 

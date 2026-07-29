@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v6.3.0 — Statistiques d’écoute avancées : terminée**
+  - tableau de bord local ;
+  - durées potentielles et confirmées ;
+  - graphiques par jour et moment ;
+  - export CSV/JSON ;
+  - commande assistant dédiée.
+
 - **v6.2.0 — Recommandations personnalisées : terminée**
   - onglet Pour toi ;
   - classement local ;
