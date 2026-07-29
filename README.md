@@ -1,3 +1,7 @@
+## v6.2.0 — Recommandations personnalisées
+
+Le nouvel onglet **Pour toi** classe localement les mix et scènes selon le moment, les habitudes et le niveau de découverte. Les évaluations 👍/👎 améliorent le classement. L’assistant reconnaît aussi « Recommande-moi quelque chose ».
+
 ## v6.1.0 — Assistant vocal
 
 Shuffle+ peut désormais écouter une demande en français depuis l’onglet Assistant, les commandes rapides et le mode Conduite. Les actions sensibles restent confirmées à l’écran par défaut. Les réponses vocales, la vibration, la langue et le mode d’écoute se règlent directement dans l’interface.

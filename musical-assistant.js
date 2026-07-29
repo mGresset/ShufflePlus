@@ -36,6 +36,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Programme Focus tous les jours à 9h",
     "Programme Sport du lundi au vendredi à 18h30",
     "Mets l’énergie de Conduite à 78 et la découverte à 20",
+    "Recommande-moi quelque chose maintenant",
     "Quel est le programme musical actuel ?"
 ];
 
@@ -269,10 +270,28 @@ export function parseMusicalAssistantRequest(
     const isStatus = includesAny(text, [
         "quel est", "quelle est", "statut", "programme actuel", "scene active", "scène active", "quoi de prevu", "quoi de prévu"
     ]);
+    const isRecommendation = includesAny(text, [
+        "recommande", "recommandation", "propose moi",
+        "quoi ecouter", "quoi écouter", "surprends moi",
+        "choisis pour moi", "un truc pour moi"
+    ]);
     let points = 1;
     if (scene || mix) points += 2;
     if (isSchedule || isTransition || isConfigure || isStatus) points += 2;
     if (time || durationMinutes !== null || energyTarget !== null) points += 1;
+
+    if (isRecommendation) {
+        return {
+            type: "recommendation",
+            request: originalRequest,
+            ready: true,
+            confidence: getConfidence(points + 2),
+            title: "Choix personnalisé",
+            summary: "Sélectionner la meilleure recommandation locale du moment.",
+            details: ["Heure actuelle", "Historique des mix", "Scènes disponibles", "Retours musicaux"],
+            actionLabel: "Lancer la recommandation"
+        };
+    }
 
     if (isStatus) {
         return {

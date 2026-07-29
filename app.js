@@ -49,6 +49,13 @@ import {
     buildVoiceExecutionAnnouncement
 } from "./voice-assistant.js";
 
+import {
+    DEFAULT_PERSONALIZED_RECOMMENDATION_STATE,
+    normalizePersonalizedRecommendationState,
+    buildPersonalizedRecommendations,
+    getPersonalizedRecommendationContext
+} from "./personalized-recommendations.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -68,7 +75,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.1.0";
+const APP_VERSION = "6.2.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -120,6 +127,8 @@ const MUSICAL_ASSISTANT_HISTORY_KEY =
 const MAX_MUSICAL_ASSISTANT_HISTORY = 40;
 const VOICE_ASSISTANT_SETTINGS_KEY =
     "shuffleplus_voice_assistant_settings_v1";
+const PERSONALIZED_RECOMMENDATIONS_KEY =
+    "shuffleplus_personalized_recommendations_v1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -939,6 +948,8 @@ let musicalAssistantPlan = null;
 let musicalAssistantDraft = "";
 let voiceAssistantSettings =
     readVoiceAssistantSettings();
+let personalizedRecommendationsState =
+    readPersonalizedRecommendationsState();
 let voiceAssistantRecognition = null;
 let voiceAssistantListening = false;
 let voiceAssistantSource = "assistant";
@@ -1121,6 +1132,201 @@ async function copyTextToClipboard(
     }
 }
 
+
+
+function readPersonalizedRecommendationsState() {
+    try {
+        const raw = localStorage.getItem(PERSONALIZED_RECOMMENDATIONS_KEY);
+        return normalizePersonalizedRecommendationState(
+            raw ? JSON.parse(raw) : DEFAULT_PERSONALIZED_RECOMMENDATION_STATE
+        );
+    } catch (error) {
+        console.warn("Recommandations personnalisées illisibles :", error);
+        return normalizePersonalizedRecommendationState(DEFAULT_PERSONALIZED_RECOMMENDATION_STATE);
+    }
+}
+
+function savePersonalizedRecommendationsState() {
+    personalizedRecommendationsState = normalizePersonalizedRecommendationState({
+        ...personalizedRecommendationsState,
+        updatedAt: Date.now()
+    });
+    try {
+        localStorage.setItem(PERSONALIZED_RECOMMENDATIONS_KEY, JSON.stringify(personalizedRecommendationsState));
+    } catch (error) {
+        console.warn("Recommandations personnalisées non enregistrées :", error);
+    }
+}
+
+function getPersonalizedRecommendations() {
+    const feedback = getMusicFeedbackSummary();
+    const scenes = normalizeAdaptiveDjScenesState(adaptiveDjScenesState).scenes.map(scene => ({
+        ...scene,
+        mixName: scene.mixId ? getSavedMixName(scene.mixId) : "",
+        feedbackAffinity: feedback.liked.length > feedback.notNow.length ? 4 : 0
+    }));
+    return buildPersonalizedRecommendations({
+        savedMixes: savedMixes.map(mix => ({
+            ...mix,
+            sourceCount: mix.sourceKeys?.length || 0,
+            icon: getProfileById(mix.profileId)?.icon || "🎧"
+        })),
+        mixHistory,
+        scenes,
+        activeSceneId: adaptiveDjScenesState.activeSceneId || "",
+        feedbackSummary: {
+            liked: feedback.liked.length,
+            notNow: feedback.notNow.length,
+            repetitive: feedback.repetitive.length
+        },
+        state: personalizedRecommendationsState,
+        now: Date.now()
+    });
+}
+
+function updatePersonalizedRecommendationRating(key, value) {
+    if (!key) return;
+    personalizedRecommendationsState = normalizePersonalizedRecommendationState({
+        ...personalizedRecommendationsState,
+        ratings: {
+            ...personalizedRecommendationsState.ratings,
+            [key]: {value: Math.max(-1, Math.min(1, Number(value) || 0)), updatedAt: Date.now()}
+        }
+    });
+    savePersonalizedRecommendationsState();
+}
+
+function dismissPersonalizedRecommendation(key) {
+    if (!key) return;
+    personalizedRecommendationsState = normalizePersonalizedRecommendationState({
+        ...personalizedRecommendationsState,
+        dismissed: {...personalizedRecommendationsState.dismissed, [key]: Date.now()}
+    });
+    savePersonalizedRecommendationsState();
+    displayPlaylists(playlistsCache);
+    showToast("Suggestion masquée pendant 30 jours.", "success");
+}
+
+function refreshPersonalizedRecommendations() {
+    personalizedRecommendationsState = normalizePersonalizedRecommendationState({
+        ...personalizedRecommendationsState,
+        refreshSeed: personalizedRecommendationsState.refreshSeed + 1
+    });
+    savePersonalizedRecommendationsState();
+    displayPlaylists(playlistsCache);
+    setStatus("Nouvelles recommandations calculées localement.");
+}
+
+function resetPersonalizedRecommendations() {
+    personalizedRecommendationsState = normalizePersonalizedRecommendationState(DEFAULT_PERSONALIZED_RECOMMENDATION_STATE);
+    savePersonalizedRecommendationsState();
+    displayPlaylists(playlistsCache);
+    setStatus("Préférences de recommandations réinitialisées.");
+}
+
+function savePersonalizedRecommendationSettings(form) {
+    const data = new FormData(form);
+    personalizedRecommendationsState = normalizePersonalizedRecommendationState({
+        ...personalizedRecommendationsState,
+        enabled: data.get("enabled") === "on",
+        discoveryLevel: Number(data.get("discoveryLevel") || 35),
+        maxItems: Number(data.get("maxItems") || 5),
+        includeScenes: data.get("includeScenes") === "on",
+        includeMixes: data.get("includeMixes") === "on",
+        autoplay: data.get("autoplay") === "on"
+    });
+    savePersonalizedRecommendationsState();
+    displayPlaylists(playlistsCache);
+    setStatus("Préférences de recommandations enregistrées.");
+}
+
+async function runPersonalizedRecommendation(key) {
+    const recommendation = getPersonalizedRecommendations().items.find(item => item.key === key);
+    if (!recommendation) throw new Error("Cette recommandation n’est plus disponible.");
+    if (recommendation.type === "navigate") {
+        activeAppMenu = recommendation.targetId;
+        saveActiveAppMenu();
+        displayPlaylists(playlistsCache);
+        return recommendation;
+    }
+    if (recommendation.type === "scene") {
+        await runAdaptiveDjScene(recommendation.targetId, {autoplay: personalizedRecommendationsState.autoplay});
+    } else if (recommendation.type === "mix") {
+        await executeAutomationCommand({action:"launch", mixId:recommendation.targetId, autoplay:personalizedRecommendationsState.autoplay});
+    } else {
+        throw new Error("Cette recommandation ne peut pas être lancée.");
+    }
+    updatePersonalizedRecommendationRating(recommendation.key, 1);
+    showToast(`💜 ${recommendation.title} sélectionné.`, "success");
+    return recommendation;
+}
+
+function renderPersonalizedRecommendationsPage() {
+    const result = getPersonalizedRecommendations();
+    const context = result.context || getPersonalizedRecommendationContext();
+    const state = normalizePersonalizedRecommendationState(personalizedRecommendationsState);
+    const feedback = getMusicFeedbackSummary();
+    const cards = result.items.map((item,index) => `
+        <article class="personal-recommendation-card ${index === 0 ? "is-featured" : ""}">
+            <div class="personal-recommendation-card__top">
+                <span class="personal-recommendation-card__icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
+                <div>
+                    <span class="personal-recommendation-card__eyebrow">${index === 0 ? "Choix du moment" : item.type === "scene" ? "Scène conseillée" : item.type === "mix" ? "Mix conseillé" : "À configurer"}</span>
+                    <h4>${escapeHtml(item.title)}</h4>
+                    <p class="personal-recommendation-card__subtitle">${escapeHtml(item.subtitle)}</p>
+                </div>
+                <span class="personal-recommendation-card__confidence" title="Indice calculé localement">${Number(item.confidence || 0)} %</span>
+            </div>
+            <p class="personal-recommendation-card__reason">${escapeHtml(item.reason)}</p>
+            <div class="personal-recommendation-card__actions">
+                <button type="button" class="personal-recommendation-card__launch" data-run-personal-recommendation="${escapeHtml(item.key)}">${escapeHtml(item.actionLabel)}</button>
+                ${item.type === "navigate" ? "" : `
+                    <button type="button" class="personal-recommendation-card__feedback" data-rate-personal-recommendation="${escapeHtml(item.key)}" data-personal-recommendation-rating="1" aria-label="Plus de suggestions comme celle-ci" title="Plus comme ça">👍</button>
+                    <button type="button" class="personal-recommendation-card__feedback" data-rate-personal-recommendation="${escapeHtml(item.key)}" data-personal-recommendation-rating="-1" aria-label="Moins de suggestions comme celle-ci" title="Moins comme ça">👎</button>
+                    <button type="button" class="personal-recommendation-card__dismiss" data-dismiss-personal-recommendation="${escapeHtml(item.key)}">Masquer</button>
+                `}
+            </div>
+        </article>`).join("");
+    const readyScenes = normalizeAdaptiveDjScenesState(adaptiveDjScenesState).scenes.filter(scene => scene.mixId).length;
+    return `
+        <section class="personal-recommendations-page">
+            <div class="personal-recommendations-hero">
+                <div>
+                    <span class="adaptive-menu-kicker">💜 Shuffle+ v6.2</span>
+                    <h3>Pour toi</h3>
+                    <p>Des recommandations locales basées sur tes mix, tes scènes, l’heure et tes retours musicaux.</p>
+                </div>
+                <div class="personal-recommendations-context">
+                    <span>${escapeHtml(context.icon)} Maintenant</span>
+                    <strong>${escapeHtml(context.label)}</strong>
+                    <small>${result.totalCandidateCount} candidat${result.totalCandidateCount > 1 ? "s" : ""} analysé${result.totalCandidateCount > 1 ? "s" : ""}</small>
+                </div>
+            </div>
+            <div class="personal-recommendations-metrics">
+                <article><strong>${savedMixes.length}</strong><span>mix disponibles</span></article>
+                <article><strong>${readyScenes}</strong><span>scènes prêtes</span></article>
+                <article><strong>${feedback.liked.length}</strong><span>titres aimés</span></article>
+                <article><strong>${result.hiddenCount}</strong><span>suggestions masquées</span></article>
+            </div>
+            <div class="personal-recommendations-toolbar">
+                <button id="refreshPersonalizedRecommendationsButton" type="button">↻ Actualiser</button>
+                <button id="resetPersonalizedRecommendationsButton" type="button">Réinitialiser</button>
+            </div>
+            ${state.enabled ? `<div class="personal-recommendations-grid">${cards}</div>` : `<div class="personal-recommendations-disabled"><span aria-hidden="true">💤</span><h4>Recommandations désactivées</h4><p>Réactive-les dans les préférences ci-dessous.</p></div>`}
+            <form id="personalizedRecommendationsSettingsForm" class="personal-recommendations-settings">
+                <div><h4>Préférences</h4><p>Le calcul reste dans ton navigateur. Aucun historique n’est envoyé à un service externe.</p></div>
+                <label class="personal-recommendations-settings__toggle"><input name="enabled" type="checkbox" ${state.enabled ? "checked" : ""}><span>Activer les recommandations</span></label>
+                <label><span>Niveau de découverte : <strong id="personalizedDiscoveryValue">${state.discoveryLevel} %</strong></span><input name="discoveryLevel" type="range" min="0" max="100" step="5" value="${state.discoveryLevel}" data-personalized-discovery></label>
+                <label><span>Nombre de suggestions</span><select name="maxItems">${[3,4,5,6,7,8].map(value => `<option value="${value}" ${state.maxItems === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+                <div class="personal-recommendations-settings__checks">
+                    <label><input name="includeScenes" type="checkbox" ${state.includeScenes ? "checked" : ""}><span>Inclure les scènes</span></label>
+                    <label><input name="includeMixes" type="checkbox" ${state.includeMixes ? "checked" : ""}><span>Inclure les mix</span></label>
+                    <label><input name="autoplay" type="checkbox" ${state.autoplay ? "checked" : ""}><span>Lancer automatiquement Spotify</span></label>
+                </div>
+                <button class="personal-recommendations-settings__save" type="submit">Enregistrer les préférences</button>
+            </form>
+        </section>`;
+}
 
 function normalizeUiThemeSettings(value = {}) {
     const accent =
@@ -10229,6 +10435,32 @@ async function executeMusicalAssistantPlan() {
     }
 
     try {
+        if (plan.type === "recommendation") {
+            const recommendation = getPersonalizedRecommendations().items.find(
+                item => item.ready && ["scene", "mix"].includes(item.type)
+            );
+            if (!recommendation) {
+                throw new Error("Aucune recommandation prête n’est disponible. Configure d’abord un mix ou une scène.");
+            }
+            await runPersonalizedRecommendation(recommendation.key);
+            musicalAssistantPlan = {
+                ...plan,
+                title: `${recommendation.icon} ${recommendation.title}`,
+                summary: recommendation.reason,
+                details: [recommendation.subtitle, `Confiance : ${recommendation.confidence} %`]
+            };
+            addMusicalAssistantHistory({
+                request: plan.request,
+                plan: musicalAssistantPlan,
+                status: "success",
+                message: recommendation.reason
+            });
+            setVoiceAssistantMessage("Recommandation lancée.", "success");
+            speakVoiceAssistantText(buildVoiceExecutionAnnouncement(musicalAssistantPlan, {success:true, message:"Recommandation lancée."}));
+            vibrateVoiceAssistant([30,45,30]);
+            return;
+        }
+
         if (plan.type === "status") {
             const status = getMusicalAssistantStatusDetails();
             const sceneLabel = status.activeScene
@@ -10662,6 +10894,7 @@ function renderAppMenu() {
         ["mixes", "🔀", "Mix & iOS"],
         ["adaptive", "🤖", "Adaptive DJ"],
         ["assistant", "✨", "Assistant"],
+        ["recommendations", "💜", "Pour toi"],
         ["intelligence", "🧠", "Intelligence"],
         ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
@@ -21150,6 +21383,7 @@ function buildBackupPayload() {
         adaptiveTransitionSettings,
         musicalAssistantHistory,
         voiceAssistantSettings,
+        personalizedRecommendationsState,
         uiThemeSettings,
         mixSchedules
     };
@@ -21352,6 +21586,11 @@ function validateBackupPayload(payload) {
                 payload.data.voiceAssistantSettings ||
                 DEFAULT_VOICE_ASSISTANT_SETTINGS
             ),
+        personalizedRecommendationsState:
+            normalizePersonalizedRecommendationState(
+                payload.data.personalizedRecommendationsState ||
+                DEFAULT_PERSONALIZED_RECOMMENDATION_STATE
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -21480,6 +21719,9 @@ function applyValidatedBackupState(imported) {
     voiceAssistantSettings =
         imported.voiceAssistantSettings;
     saveVoiceAssistantSettings();
+    personalizedRecommendationsState =
+        imported.personalizedRecommendationsState;
+    savePersonalizedRecommendationsState();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -22680,6 +22922,15 @@ function getSyncCategoryItems(
             (item, index) => item?.id || index,
             (item) => item?.mixName || item?.label || "Adaptation automatique"
         );
+        items.push(
+            buildSyncDiffItem(
+                "Recommandations",
+                "personalized-recommendations",
+                "Préférences Pour toi",
+                imported.personalizedRecommendationsState,
+                "Découverte, évaluations et suggestions masquées"
+            )
+        );
     }
 
     if (categoryId === "history") {
@@ -23643,7 +23894,29 @@ function applySelectiveLearningCategory(
             updatedAt: Date.now()
         });
 
+    const localRecommendations = normalizePersonalizedRecommendationState(
+        localImported.personalizedRecommendationsState || DEFAULT_PERSONALIZED_RECOMMENDATION_STATE
+    );
+    const remoteRecommendations = normalizePersonalizedRecommendationState(
+        remoteImported.personalizedRecommendationsState || DEFAULT_PERSONALIZED_RECOMMENDATION_STATE
+    );
+    if (mode === "remote") {
+        personalizedRecommendationsState = remoteRecommendations;
+    } else {
+        const newest = remoteRecommendations.updatedAt >= localRecommendations.updatedAt
+            ? remoteRecommendations
+            : localRecommendations;
+        personalizedRecommendationsState = normalizePersonalizedRecommendationState({
+            ...newest,
+            ratings: {...localRecommendations.ratings, ...remoteRecommendations.ratings},
+            dismissed: {...localRecommendations.dismissed, ...remoteRecommendations.dismissed},
+            refreshSeed: Math.max(localRecommendations.refreshSeed, remoteRecommendations.refreshSeed),
+            updatedAt: Date.now()
+        });
+    }
+
     saveAdaptiveLearningState();
+    savePersonalizedRecommendationsState();
     return true;
 }
 
@@ -27940,6 +28213,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "recommendations"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="recommendations"
+            >
+                ${renderPersonalizedRecommendationsPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "intelligence"
                     ? "is-active"
                     : ""}"
@@ -31014,6 +31297,44 @@ contentElement.addEventListener(
             return;
         }
 
+
+        const runRecommendationButton = event.target.closest("[data-run-personal-recommendation]");
+        if (runRecommendationButton) {
+            try {
+                await runPersonalizedRecommendation(runRecommendationButton.dataset.runPersonalRecommendation || "");
+            } catch (error) {
+                console.error(error);
+                setStatus(error.message || "La recommandation n’a pas pu être lancée.", "error");
+            }
+            return;
+        }
+
+        const rateRecommendationButton = event.target.closest("[data-rate-personal-recommendation]");
+        if (rateRecommendationButton) {
+            updatePersonalizedRecommendationRating(
+                rateRecommendationButton.dataset.ratePersonalRecommendation || "",
+                Number(rateRecommendationButton.dataset.personalRecommendationRating || 0)
+            );
+            displayPlaylists(playlistsCache);
+            showToast("Préférence enregistrée.", "success");
+            return;
+        }
+
+        const dismissRecommendationButton = event.target.closest("[data-dismiss-personal-recommendation]");
+        if (dismissRecommendationButton) {
+            dismissPersonalizedRecommendation(dismissRecommendationButton.dataset.dismissPersonalRecommendation || "");
+            return;
+        }
+
+        if (event.target.closest("#refreshPersonalizedRecommendationsButton")) {
+            refreshPersonalizedRecommendations();
+            return;
+        }
+        if (event.target.closest("#resetPersonalizedRecommendationsButton")) {
+            resetPersonalizedRecommendations();
+            return;
+        }
+
         if (
             event.target.closest(
                 "#clearMusicalAssistantHistoryButton"
@@ -33089,6 +33410,14 @@ contentElement.addEventListener(
         }
 
         if (
+            event.target.id === "personalizedRecommendationsSettingsForm"
+        ) {
+            event.preventDefault();
+            savePersonalizedRecommendationSettings(event.target);
+            return;
+        }
+
+        if (
             event.target.id === "adaptiveDjSceneStudioForm"
         ) {
             event.preventDefault();
@@ -33482,6 +33811,12 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (event.target.matches("[data-personalized-discovery]")) {
+            const output = document.getElementById("personalizedDiscoveryValue");
+            if (output) output.textContent = `${event.target.value} %`;
+            return;
+        }
+
         if (
             event.target.matches(
                 "[data-transition-count-input]"

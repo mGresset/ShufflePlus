@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v6.2.0 — Recommandations personnalisées : terminée**
+  - onglet Pour toi ;
+  - classement local ;
+  - évaluations et masquage ;
+  - commande assistant ;
+  - sauvegarde et synchronisation.
+
 - **v6.1.0 — Assistant vocal : terminée**
   - reconnaissance vocale française ;
   - confirmation des actions sensibles ;
