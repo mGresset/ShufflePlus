@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v5.3.1 — Visual Polish & Accessibility : terminée**
+  - stabilisation responsive ;
+  - contraste renforcé optionnel ;
+  - navigation mobile améliorée ;
+  - accessibilité des statuts et commandes.
+
 - **v5.3.0 — Interface Dynamique & Musicale : terminée**
   - violet par défaut et couleurs personnalisables ;
   - design sombre et immersif ;
@@ -26,3 +32,11 @@
   - édition directe des modèles existants.
 - **v5.3 — Collaboration privée : étude**
   - partage chiffré d’un mix entre espaces autorisés.
+
+
+## v5.4.0 — Adaptive DJ 2.0
+
+- scènes musicales configurables ;
+- URL iOS par scène ;
+- scène active ;
+- intégration backup/import-export.

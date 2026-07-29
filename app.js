@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.3.0";
+const APP_VERSION = "5.4.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -98,6 +98,7 @@ const UI_ACCENT_PRESETS = {
 const DEFAULT_UI_THEME_SETTINGS = {
     accent: "violet",
     motionEnabled: true,
+    highContrast: false,
     updatedAt: 0
 };
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
@@ -351,6 +352,93 @@ const IOS_COMMAND_HISTORY_KEY =
     "shuffleplus_ios_command_history_v1";
 const MAX_IOS_COMMANDS = 20;
 const MAX_IOS_COMMAND_HISTORY = 40;
+const ADAPTIVE_DJ_SCENES_KEY =
+    "shuffleplus_adaptive_dj_scenes_v1";
+const DEFAULT_ADAPTIVE_DJ_SCENES = [
+    {
+        id: "morning",
+        icon: "☀️",
+        label: "Matin",
+        description: "Réveil progressif et positif.",
+        mixId: "",
+        profileId: "profile-concentration",
+        energyTarget: 48,
+        varietyTarget: 52,
+        discoveryTarget: 18,
+        durationMinutes: 35,
+        autoplay: true
+    },
+    {
+        id: "focus",
+        icon: "🎯",
+        label: "Focus",
+        description: "Concentration stable et transitions fluides.",
+        mixId: "",
+        profileId: "profile-concentration",
+        energyTarget: 42,
+        varietyTarget: 38,
+        discoveryTarget: 15,
+        durationMinutes: 90,
+        autoplay: true
+    },
+    {
+        id: "chill",
+        icon: "🌙",
+        label: "Chill",
+        description: "Ambiance douce pour se poser.",
+        mixId: "",
+        profileId: "profile-concentration",
+        energyTarget: 32,
+        varietyTarget: 40,
+        discoveryTarget: 12,
+        durationMinutes: 75,
+        autoplay: true
+    },
+    {
+        id: "drive",
+        icon: "🚗",
+        label: "Conduite",
+        description: "Rythme dynamique pour la route.",
+        mixId: "",
+        profileId: "profile-decouverte",
+        energyTarget: 72,
+        varietyTarget: 85,
+        discoveryTarget: 25,
+        durationMinutes: 90,
+        autoplay: true
+    },
+    {
+        id: "sport",
+        icon: "🔥",
+        label: "Sport",
+        description: "Énergie élevée et impulsion régulière.",
+        mixId: "",
+        profileId: "profile-sport",
+        energyTarget: 88,
+        varietyTarget: 68,
+        discoveryTarget: 22,
+        durationMinutes: 60,
+        autoplay: true
+    },
+    {
+        id: "party",
+        icon: "🎉",
+        label: "Party",
+        description: "Mix festif pour lancer la soirée.",
+        mixId: "",
+        profileId: "profile-soiree",
+        energyTarget: 82,
+        varietyTarget: 78,
+        discoveryTarget: 28,
+        durationMinutes: 120,
+        autoplay: true
+    }
+];
+const DEFAULT_ADAPTIVE_DJ_SCENES_STATE = {
+    activeSceneId: "drive",
+    scenes: DEFAULT_ADAPTIVE_DJ_SCENES,
+    updatedAt: 0
+};
 const APP_MENU_KEY =
     "shuffleplus_active_menu_v1";
 const ADAPTIVE_DJ_MENU_KEY =
@@ -796,6 +884,8 @@ let adaptiveDjMenuSettings =
     readAdaptiveDjMenuSettings();
 let adaptiveDjMenuHistory =
     readAdaptiveDjMenuHistory();
+let adaptiveDjScenesState =
+    readAdaptiveDjScenesState();
 let adaptiveLearningState =
     readAdaptiveLearningState();
 let intelligenceAnalytics =
@@ -841,6 +931,18 @@ function wait(milliseconds) {
 }
 
 function setStatus(message = "", type = "") {
+    statusElement.setAttribute(
+        "role",
+        type === "error"
+            ? "alert"
+            : "status"
+    );
+    statusElement.setAttribute(
+        "aria-live",
+        type === "error"
+            ? "assertive"
+            : "polite"
+    );
     statusElement.textContent = message;
     statusElement.className = "status";
 
@@ -963,6 +1065,8 @@ function normalizeUiThemeSettings(value = {}) {
         accent,
         motionEnabled:
             value.motionEnabled !== false,
+        highContrast:
+            value.highContrast === true,
         updatedAt: Number(
             value.updatedAt || 0
         )
@@ -1024,6 +1128,10 @@ function applyUiThemeSettings() {
     document.documentElement.classList.toggle(
         "reduce-motion",
         !uiThemeSettings.motionEnabled
+    );
+    document.documentElement.classList.toggle(
+        "high-contrast",
+        uiThemeSettings.highContrast
     );
 
     document.documentElement.style.setProperty(
@@ -1090,6 +1198,16 @@ function updateUiThemeAccent(accent = "") {
 
     const preset =
         UI_ACCENT_PRESETS[accent];
+
+    const activeBadge =
+        document.querySelector(
+            ".ui-theme-active-badge"
+        );
+
+    if (activeBadge) {
+        activeBadge.textContent =
+            preset.label;
+    }
 
     showToast(
         `🎨 Couleur ${preset.label} appliquée.`,
@@ -1208,24 +1326,45 @@ function renderUiThemeSettingsPanel() {
                 </div>
             </fieldset>
 
-            <label class="ui-theme-motion-toggle">
-                <input
-                    id="uiThemeMotionInput"
-                    type="checkbox"
-                    ${uiThemeSettings.motionEnabled
-                        ? "checked"
-                        : ""}
-                >
-                <span>
-                    <strong>
-                        Animations fluides
-                    </strong>
-                    <small>
-                        Désactive-les pour une interface
-                        plus calme ou pour économiser la batterie.
-                    </small>
-                </span>
-            </label>
+            <div class="ui-theme-accessibility-options">
+                <label class="ui-theme-motion-toggle">
+                    <input
+                        id="uiThemeMotionInput"
+                        type="checkbox"
+                        ${uiThemeSettings.motionEnabled
+                            ? "checked"
+                            : ""}
+                    >
+                    <span>
+                        <strong>
+                            Animations fluides
+                        </strong>
+                        <small>
+                            Désactive-les pour une interface
+                            plus calme ou pour économiser la batterie.
+                        </small>
+                    </span>
+                </label>
+
+                <label class="ui-theme-motion-toggle">
+                    <input
+                        id="uiThemeContrastInput"
+                        type="checkbox"
+                        ${uiThemeSettings.highContrast
+                            ? "checked"
+                            : ""}
+                    >
+                    <span>
+                        <strong>
+                            Contraste renforcé
+                        </strong>
+                        <small>
+                            Accentue les textes, bordures et états actifs
+                            pour une lecture plus confortable.
+                        </small>
+                    </span>
+                </label>
+            </div>
         </section>
     `;
 }
@@ -4681,6 +4820,569 @@ function saveQuickContextsState() {
     }
 }
 
+
+function normalizeAdaptiveDjScene(
+    value = {},
+    fallback = DEFAULT_ADAPTIVE_DJ_SCENES[0]
+) {
+    const profileId =
+        typeof value.profileId === "string"
+            ? value.profileId.slice(0, 120)
+            : fallback.profileId || "";
+
+    return {
+        id:
+            typeof value.id === "string"
+                ? value.id.slice(0, 40)
+                : fallback.id,
+        icon:
+            typeof value.icon === "string" && value.icon.trim()
+                ? value.icon.trim().slice(0, 8)
+                : fallback.icon,
+        label:
+            typeof value.label === "string" && value.label.trim()
+                ? value.label.trim().slice(0, 40)
+                : fallback.label,
+        description:
+            typeof value.description === "string" && value.description.trim()
+                ? value.description.trim().slice(0, 180)
+                : fallback.description,
+        mixId:
+            typeof value.mixId === "string"
+                ? value.mixId.slice(0, 120)
+                : fallback.mixId || "",
+        profileId,
+        energyTarget: Math.max(0, Math.min(100, Number(value.energyTarget ?? fallback.energyTarget) || fallback.energyTarget || 50)),
+        varietyTarget: Math.max(0, Math.min(100, Number(value.varietyTarget ?? fallback.varietyTarget) || fallback.varietyTarget || 50)),
+        discoveryTarget: Math.max(0, Math.min(100, Number(value.discoveryTarget ?? fallback.discoveryTarget) || fallback.discoveryTarget || 20)),
+        durationMinutes: Math.max(15, Math.min(360, Number(value.durationMinutes ?? fallback.durationMinutes) || fallback.durationMinutes || 60)),
+        autoplay: value.autoplay !== false
+    };
+}
+
+function normalizeAdaptiveDjScenesState(
+    value = DEFAULT_ADAPTIVE_DJ_SCENES_STATE
+) {
+    const source =
+        value && typeof value === "object"
+            ? value
+            : DEFAULT_ADAPTIVE_DJ_SCENES_STATE;
+    const inputScenes = Array.isArray(source.scenes)
+        ? source.scenes
+        : [];
+    const byId = new Map(
+        inputScenes
+            .filter((item) => item && typeof item === "object")
+            .map((item) => [item.id, item])
+    );
+    const scenes = DEFAULT_ADAPTIVE_DJ_SCENES.map((fallback) =>
+        normalizeAdaptiveDjScene(
+            byId.get(fallback.id) || fallback,
+            fallback
+        )
+    );
+    const activeSceneId = scenes.some(
+        (scene) => scene.id === source.activeSceneId
+    )
+        ? source.activeSceneId
+        : scenes[0]?.id || "";
+
+    return {
+        activeSceneId,
+        scenes,
+        updatedAt: Number(source.updatedAt || 0)
+    };
+}
+
+function readAdaptiveDjScenesState() {
+    try {
+        const raw = localStorage.getItem(
+            ADAPTIVE_DJ_SCENES_KEY
+        );
+        return normalizeAdaptiveDjScenesState(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_ADAPTIVE_DJ_SCENES_STATE
+        );
+    } catch (error) {
+        console.warn(
+            "Scènes Adaptive DJ illisibles :",
+            error
+        );
+        return normalizeAdaptiveDjScenesState(
+            DEFAULT_ADAPTIVE_DJ_SCENES_STATE
+        );
+    }
+}
+
+function saveAdaptiveDjScenesState() {
+    adaptiveDjScenesState =
+        normalizeAdaptiveDjScenesState({
+            ...adaptiveDjScenesState,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            ADAPTIVE_DJ_SCENES_KEY,
+            JSON.stringify(adaptiveDjScenesState)
+        );
+    } catch (error) {
+        console.warn(
+            "Scènes Adaptive DJ non enregistrées :",
+            error
+        );
+    }
+}
+
+function getAdaptiveDjSceneById(sceneId = "") {
+    const normalized =
+        normalizeAdaptiveDjScenesState(
+            adaptiveDjScenesState
+        );
+    const wantedId = sceneId || normalized.activeSceneId;
+    return normalized.scenes.find(
+        (scene) => scene.id === wantedId
+    ) || normalized.scenes[0] || null;
+}
+
+function setActiveAdaptiveDjScene(sceneId = "") {
+    const scene = getAdaptiveDjSceneById(sceneId);
+
+    if (!scene) {
+        return;
+    }
+
+    adaptiveDjScenesState =
+        normalizeAdaptiveDjScenesState({
+            ...adaptiveDjScenesState,
+            activeSceneId: scene.id,
+            updatedAt: Date.now()
+        });
+    saveAdaptiveDjScenesState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Scène active : ${scene.icon} ${scene.label}.`
+    );
+}
+
+function formatAdaptiveDjSceneDuration(
+    minutes = 0
+) {
+    const safeMinutes = Math.max(0, Number(minutes) || 0);
+    const hours = Math.floor(safeMinutes / 60);
+    const remainingMinutes = safeMinutes % 60;
+
+    if (!hours) {
+        return `${remainingMinutes} min`;
+    }
+
+    if (!remainingMinutes) {
+        return `${hours} h`;
+    }
+
+    return `${hours} h ${String(remainingMinutes).padStart(2, "0")}`;
+}
+
+function getAdaptiveDjSceneMixName(
+    scene = {}
+) {
+    if (!scene.mixId) {
+        return "Aucun mix associé";
+    }
+
+    return getSavedMixName(scene.mixId) ||
+        "Mix introuvable";
+}
+
+function getAdaptiveDjSceneProfileName(
+    scene = {}
+) {
+    if (!scene.profileId) {
+        return "Aucun profil";
+    }
+
+    return getProfileById(scene.profileId)?.name ||
+        "Profil introuvable";
+}
+
+function buildAdaptiveDjSceneUrl(sceneOrId) {
+    const scene = typeof sceneOrId === "string"
+        ? getAdaptiveDjSceneById(sceneOrId)
+        : sceneOrId;
+
+    if (!scene) {
+        return window.location.href;
+    }
+
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+    url.searchParams.set("action", "scene");
+    url.searchParams.set("context", scene.id);
+    url.searchParams.set(
+        "autoplay",
+        scene.autoplay === false ? "0" : "1"
+    );
+    return url.toString();
+}
+
+async function copyAdaptiveDjSceneUrl(sceneId) {
+    const scene = getAdaptiveDjSceneById(sceneId);
+
+    if (!scene) {
+        setStatus(
+            "Scène Adaptive DJ introuvable.",
+            "error"
+        );
+        return;
+    }
+
+    const url = buildAdaptiveDjSceneUrl(scene);
+
+    try {
+        await navigator.clipboard.writeText(url);
+        showToast(
+            `Lien « ${scene.label} » copié dans le presse-papiers.`,
+            "success"
+        );
+    } catch (error) {
+        window.prompt(
+            `Copie le lien « ${scene.label} » :`,
+            url
+        );
+    }
+
+    if (activeAppMenu === "adaptive-dj") {
+        displayPlaylists(playlistsCache);
+    }
+}
+
+async function runAdaptiveDjScene(
+    sceneId,
+    { autoplay } = {}
+) {
+    const scene = getAdaptiveDjSceneById(sceneId);
+
+    if (!scene) {
+        throw new Error(
+            "Scène Adaptive DJ introuvable."
+        );
+    }
+
+    if (!scene.mixId) {
+        throw new Error(
+            `Aucun mix n’est associé à la scène ${scene.label}.`
+        );
+    }
+
+    const profile = scene.profileId
+        ? getProfileById(scene.profileId)
+        : null;
+
+    if (profile) {
+        applyMixProfile(
+            profile.id,
+            {
+                persist: false,
+                rerender: false
+            }
+        );
+    }
+
+    const prepared = await launchSavedMix(scene.mixId);
+
+    if (!prepared) {
+        throw new Error(
+            "Le mix de la scène n’a pas pu être préparé."
+        );
+    }
+
+    const shouldAutoplay =
+        autoplay ?? scene.autoplay;
+    let deviceName = "";
+
+    if (shouldAutoplay && selectedTracks.length) {
+        const command =
+            getPrincipalIosCommand() ||
+            normalizeIosCommand({
+                id: `scene-${scene.id}`,
+                name: scene.label,
+                icon: scene.icon,
+                deviceMode: "iphone",
+                fallbackDeviceMode: "active",
+                autoplay: true
+            });
+        const device =
+            await getAutomationDeviceWithRetry(command);
+
+        if (!device) {
+            throw new Error(
+                "Aucun appareil Spotify disponible pour lancer cette scène."
+            );
+        }
+
+        const playbackUris = selectedTracks
+            .slice(0, MAX_DIRECT_PLAYBACK_TRACKS)
+            .map((track) => track?.uri)
+            .filter(Boolean);
+
+        if (!playbackUris.length) {
+            throw new Error(
+                "La scène ne contient aucun morceau lisible."
+            );
+        }
+
+        await startPlayback(
+            playbackUris,
+            device.id
+        );
+
+        try {
+            await setPlaybackShuffle(
+                false,
+                device.id
+            );
+        } catch (error) {
+            console.warn(
+                "Shuffle Spotify non modifié :",
+                error
+            );
+        }
+
+        rememberPlaybackOrder(
+            selectedTracks.slice(0, playbackUris.length)
+        );
+        addTracksSentToHistory(
+            playbackUris.length,
+            selectedTracks.slice(0, playbackUris.length),
+            "scene",
+            device.name
+        );
+        deviceName = device.name;
+    }
+
+    setActiveAdaptiveDjScene(scene.id);
+    recordAdaptiveLearningObservation({
+        mixId: scene.mixId,
+        source: "scene"
+    });
+    setStatus(
+        `${scene.icon} ${scene.label} · « ${getAdaptiveDjSceneMixName(scene)} »` +
+        (deviceName
+            ? ` lancé sur ${deviceName}.`
+            : " préparé.")
+    );
+
+    return {
+        scene,
+        deviceName
+    };
+}
+
+function saveAdaptiveDjScenesFromForm(form) {
+    const data = new FormData(form);
+    const nextScenes = DEFAULT_ADAPTIVE_DJ_SCENES.map((fallback) =>
+        normalizeAdaptiveDjScene(
+            {
+                id: fallback.id,
+                icon: fallback.icon,
+                label: fallback.label,
+                description: fallback.description,
+                mixId: String(
+                    data.get(`scene-${fallback.id}-mixId`) || ""
+                ),
+                profileId: String(
+                    data.get(`scene-${fallback.id}-profileId`) || ""
+                ),
+                energyTarget: Number(
+                    data.get(`scene-${fallback.id}-energy`) || fallback.energyTarget
+                ),
+                varietyTarget: Number(
+                    data.get(`scene-${fallback.id}-variety`) || fallback.varietyTarget
+                ),
+                discoveryTarget: Number(
+                    data.get(`scene-${fallback.id}-discovery`) || fallback.discoveryTarget
+                ),
+                durationMinutes: Number(
+                    data.get(`scene-${fallback.id}-duration`) || fallback.durationMinutes
+                ),
+                autoplay:
+                    data.get(`scene-${fallback.id}-autoplay`) === "on"
+            },
+            fallback
+        )
+    );
+
+    adaptiveDjScenesState =
+        normalizeAdaptiveDjScenesState({
+            ...adaptiveDjScenesState,
+            activeSceneId: String(
+                data.get("activeSceneId") ||
+                adaptiveDjScenesState.activeSceneId ||
+                nextScenes[0]?.id || ""
+            ),
+            scenes: nextScenes,
+            updatedAt: Date.now()
+        });
+    saveAdaptiveDjScenesState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Scènes Adaptive DJ enregistrées."
+    );
+}
+
+function renderAdaptiveDjSceneStudioPanel() {
+    const state = normalizeAdaptiveDjScenesState(
+        adaptiveDjScenesState
+    );
+    const mixOptions = (selectedId = "") =>
+        savedMixes
+            .map((mix) => `
+                <option
+                    value="${escapeHtml(mix.id)}"
+                    ${mix.id === selectedId ? "selected" : ""}
+                >
+                    ${escapeHtml(mix.name)}
+                </option>
+            `)
+            .join("");
+    const profileOptions = (selectedId = "") =>
+        [`
+            <option value="" ${!selectedId ? "selected" : ""}>
+                Aucun profil
+            </option>
+        `]
+            .concat(
+                mixProfiles.map((profile) => `
+                    <option
+                        value="${escapeHtml(profile.id)}"
+                        ${profile.id === selectedId ? "selected" : ""}
+                    >
+                        ${escapeHtml(profile.name)}
+                    </option>
+                `)
+            )
+            .join("");
+
+    return `
+        <section class="adaptive-scene-studio">
+            <div class="adaptive-scene-studio__header">
+                <div>
+                    <span class="adaptive-menu-kicker">🎛️ Adaptive DJ 2.0</span>
+                    <h4>Scènes musicales</h4>
+                    <p>Crée tes scènes personnalisées avec mix, profil, énergie et lien iOS en un clic.</p>
+                </div>
+                <div class="adaptive-scene-studio__active">
+                    <span>Scène active</span>
+                    <strong>${escapeHtml(getAdaptiveDjSceneById()?.icon || "🎵")} ${escapeHtml(getAdaptiveDjSceneById()?.label || "Aucune")}</strong>
+                </div>
+            </div>
+
+            <form id="adaptiveDjSceneStudioForm" class="adaptive-scene-studio__form">
+                <input type="hidden" name="activeSceneId" value="${escapeHtml(state.activeSceneId)}">
+                <div class="adaptive-scene-grid">
+                    ${state.scenes.map((scene) => `
+                        <article class="adaptive-scene-card ${scene.id === state.activeSceneId ? "is-active" : ""}">
+                            <div class="adaptive-scene-card__top">
+                                <div>
+                                    <strong>${escapeHtml(scene.icon)} ${escapeHtml(scene.label)}</strong>
+                                    <p>${escapeHtml(scene.description)}</p>
+                                </div>
+                                <span class="adaptive-scene-card__badge">${scene.id === state.activeSceneId ? "Active" : "Prêt"}</span>
+                            </div>
+
+                            <div class="adaptive-scene-card__stats">
+                                <span><strong>Énergie</strong> ${scene.energyTarget}%</span>
+                                <span><strong>Variété</strong> ${scene.varietyTarget}%</span>
+                                <span><strong>Découverte</strong> ${scene.discoveryTarget}%</span>
+                                <span><strong>Durée</strong> ${escapeHtml(formatAdaptiveDjSceneDuration(scene.durationMinutes))}</span>
+                            </div>
+
+                            <div class="adaptive-scene-card__preview">
+                                <p><strong>Mix</strong> · ${escapeHtml(getAdaptiveDjSceneMixName(scene))}</p>
+                                <p><strong>Profil</strong> · ${escapeHtml(getAdaptiveDjSceneProfileName(scene))}</p>
+                            </div>
+
+                            <div class="adaptive-scene-card__actions">
+                                <button
+                                    type="button"
+                                    class="adaptive-menu-primary adaptive-scene-card__action"
+                                    data-run-adaptive-scene="${escapeHtml(scene.id)}"
+                                    ${scene.mixId ? "" : "disabled"}
+                                >
+                                    ▶ Lancer
+                                </button>
+                                <button
+                                    type="button"
+                                    class="adaptive-menu-secondary adaptive-scene-card__action"
+                                    data-copy-adaptive-scene-url="${escapeHtml(scene.id)}"
+                                >
+                                    🔗 URL iOS
+                                </button>
+                                <button
+                                    type="button"
+                                    class="adaptive-menu-secondary adaptive-scene-card__action"
+                                    data-activate-adaptive-scene="${escapeHtml(scene.id)}"
+                                >
+                                    ⭐ Définir active
+                                </button>
+                            </div>
+
+                            <div class="adaptive-scene-fields">
+                                <label>
+                                    <span>Mix favori</span>
+                                    <select name="scene-${escapeHtml(scene.id)}-mixId">
+                                        <option value="">Aucun mix</option>
+                                        ${mixOptions(scene.mixId)}
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span>Profil</span>
+                                    <select name="scene-${escapeHtml(scene.id)}-profileId">
+                                        ${profileOptions(scene.profileId)}
+                                    </select>
+                                </label>
+
+                                <div class="adaptive-scene-fields__grid">
+                                    <label>
+                                        <span>Énergie</span>
+                                        <input name="scene-${escapeHtml(scene.id)}-energy" type="number" min="0" max="100" value="${scene.energyTarget}">
+                                    </label>
+                                    <label>
+                                        <span>Variété</span>
+                                        <input name="scene-${escapeHtml(scene.id)}-variety" type="number" min="0" max="100" value="${scene.varietyTarget}">
+                                    </label>
+                                    <label>
+                                        <span>Découverte</span>
+                                        <input name="scene-${escapeHtml(scene.id)}-discovery" type="number" min="0" max="100" value="${scene.discoveryTarget}">
+                                    </label>
+                                    <label>
+                                        <span>Durée (min)</span>
+                                        <input name="scene-${escapeHtml(scene.id)}-duration" type="number" min="15" max="360" value="${scene.durationMinutes}">
+                                    </label>
+                                </div>
+
+                                <label class="adaptive-scene-autoplay">
+                                    <input name="scene-${escapeHtml(scene.id)}-autoplay" type="checkbox" ${scene.autoplay ? "checked" : ""}>
+                                    <span>Lecture automatique via iPhone / appareil principal</span>
+                                </label>
+                            </div>
+                        </article>
+                    `).join("")}
+                </div>
+
+                <div class="adaptive-scene-studio__footer">
+                    <p>Astuce iOS : utilise le bouton « URL iOS » pour lancer directement une scène depuis l’app Raccourcis.</p>
+                    <button class="adaptive-menu-save" type="submit">Enregistrer les scènes</button>
+                </div>
+            </form>
+        </section>
+    `;
+}
+
 function getQuickContextById(contextId = "") {
     return quickContextsState.find(
         (context) => context.id === contextId
@@ -7829,6 +8531,29 @@ function buildAdaptiveDjShortcutUrl() {
     return url.toString();
 }
 
+
+function revealActiveAppMenuButton(
+    behavior = "auto"
+) {
+    const activeButton =
+        document.querySelector(
+            ".app-menu-button.is-active"
+        );
+
+    if (!activeButton) {
+        return;
+    }
+
+    activeButton.scrollIntoView({
+        behavior:
+            uiThemeSettings.motionEnabled
+                ? behavior
+                : "auto",
+        block: "nearest",
+        inline: "center"
+    });
+}
+
 function renderAppMenu() {
     const items = [
         ["music", "🎵", "Ma musique"],
@@ -7854,6 +8579,8 @@ function renderAppMenu() {
                             ? "is-active"
                             : ""}"
                         data-app-menu="${id}"
+                        aria-label="${escapeHtml(label)}"
+                        title="${escapeHtml(label)}"
                         aria-current="${activeAppMenu === id
                             ? "page"
                             : "false"}"
@@ -8059,6 +8786,8 @@ function renderAdaptiveDjMenu() {
                     </button>
                 </div>
             </form>
+
+            ${renderAdaptiveDjSceneStudioPanel()}
 
             ${renderAdaptiveLearningPanel()}
 
@@ -10070,6 +10799,22 @@ async function executeAutomationCommand(
             autoplay:
                 normalized.autoplay
         });
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+        return;
+    }
+
+
+    if (
+        normalized.action === "scene"
+    ) {
+        await runAdaptiveDjScene(
+            normalized.contextId,
+            {
+                autoplay: normalized.autoplay
+            }
+        );
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
@@ -17922,6 +18667,7 @@ function buildBackupPayload() {
         musicFeedbackState,
         drivingModeSettings,
         quickContextsState,
+        adaptiveDjScenesState,
         uiThemeSettings,
         mixSchedules
     };
@@ -18105,6 +18851,11 @@ function validateBackupPayload(payload) {
                 payload.data.quickContextsState ||
                 DEFAULT_QUICK_CONTEXTS
             ),
+        adaptiveDjScenesState:
+            normalizeAdaptiveDjScenesState(
+                payload.data.adaptiveDjScenesState ||
+                DEFAULT_ADAPTIVE_DJ_SCENES_STATE
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -18221,6 +18972,9 @@ function applyValidatedBackupState(imported) {
     quickContextsState =
         imported.quickContextsState;
     saveQuickContextsState();
+    adaptiveDjScenesState =
+        imported.adaptiveDjScenesState;
+    saveAdaptiveDjScenesState();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -27966,6 +28720,14 @@ contentElement.addEventListener(
                 playlistsCache
             );
 
+            window.requestAnimationFrame(
+                () => {
+                    revealActiveAppMenuButton(
+                        "smooth"
+                    );
+                }
+            );
+
             if (requestedMenu === "quick") {
                 await refreshQuickControlPlayback({
                     silent: true
@@ -28058,6 +28820,63 @@ contentElement.addEventListener(
             )
         ) {
             await copyAdaptiveDjShortcutUrl();
+            return;
+        }
+
+
+        const runAdaptiveSceneButton =
+            event.target.closest(
+                "[data-run-adaptive-scene]"
+            );
+
+        if (runAdaptiveSceneButton) {
+            try {
+                await runAdaptiveDjScene(
+                    runAdaptiveSceneButton.dataset
+                        .runAdaptiveScene || ""
+                );
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "La scène Adaptive DJ n’a pas pu démarrer.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        const copyAdaptiveSceneUrlButton =
+            event.target.closest(
+                "[data-copy-adaptive-scene-url]"
+            );
+
+        if (copyAdaptiveSceneUrlButton) {
+            await copyAdaptiveDjSceneUrl(
+                copyAdaptiveSceneUrlButton.dataset
+                    .copyAdaptiveSceneUrl || ""
+            );
+            return;
+        }
+
+        const activateAdaptiveSceneButton =
+            event.target.closest(
+                "[data-activate-adaptive-scene]"
+            );
+
+        if (activateAdaptiveSceneButton) {
+            const form = event.target.closest(
+                "#adaptiveDjSceneStudioForm"
+            );
+            const activeInput = form?.elements?.activeSceneId;
+            const sceneId = activateAdaptiveSceneButton.dataset
+                .activateAdaptiveScene || "";
+
+            if (activeInput) {
+                activeInput.value = sceneId;
+            }
+
+            setActiveAdaptiveDjScene(sceneId);
             return;
         }
 
@@ -29146,6 +29965,29 @@ contentElement.addEventListener(
     (event) => {
         if (
             event.target.id ===
+            "uiThemeContrastInput"
+        ) {
+            uiThemeSettings =
+                normalizeUiThemeSettings({
+                    ...uiThemeSettings,
+                    highContrast:
+                        event.target.checked
+                });
+
+            saveUiThemeSettings();
+            applyUiThemeSettings();
+
+            showToast(
+                event.target.checked
+                    ? "◐ Contraste renforcé activé."
+                    : "◑ Contraste standard restauré.",
+                "success"
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
             "uiThemeMotionInput"
         ) {
             uiThemeSettings =
@@ -29525,6 +30367,16 @@ contentElement.addEventListener(
         ) {
             event.preventDefault();
             saveAdaptiveDjMenuFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "adaptiveDjSceneStudioForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveDjScenesFromForm(
                 event.target
             );
             return;

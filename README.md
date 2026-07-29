@@ -1,3 +1,29 @@
+# Shuffle+
+
+## Nouveautés v5.4.0 — Adaptive DJ 2.0
+
+- ajout des **scènes musicales** personnalisables : Matin, Focus, Chill, Conduite, Sport et Party ;
+- chaque scène peut maintenant mémoriser :
+  - un **mix favori**,
+  - un **profil Shuffle+**,
+  - une cible d’**énergie**, de **variété** et de **découverte**,
+  - une **durée d’écoute**,
+  - l’option **lecture automatique** ;
+- une scène peut être définie comme **scène active** ;
+- un bouton **URL iOS** copie un lien prêt pour l’app **Raccourcis** ;
+- ouverture via URL supportée : `?action=scene&context=drive&autoplay=1` ;
+- les scènes Adaptive DJ sont intégrées aux exports/imports de sauvegarde.
+
+---
+
+
+## v5.3.1 — Stabilisation visuelle et accessibilité
+
+La v5.3.1 améliore la lisibilité et la stabilité du thème Dynamique &
+Musicale sur iPhone et ordinateur. Elle ajoute un contraste renforcé
+optionnel, sécurise les largeurs des cartes et formulaires et améliore
+la navigation mobile.
+
 
 ## v5.3 — Interface Dynamique & Musicale
 
