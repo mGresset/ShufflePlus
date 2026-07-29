@@ -9570,7 +9570,7 @@ body.is-connected #content {
 .app-menu {
     top: 12px;
     grid-template-columns:
-        repeat(7, minmax(0, 1fr));
+        repeat(8, minmax(0, 1fr));
     border-color: var(--border-soft);
     background: rgb(8 8 19 / 90%);
     box-shadow: var(--shadow-soft);
@@ -10910,5 +10910,378 @@ html.high-contrast textarea {
 
     .schedule-timeline ol {
         grid-template-columns: 1fr;
+    }
+}
+
+
+/* ================================================================
+   Shuffle+ v6.0.0 — Assistant musical local
+   ================================================================ */
+
+.musical-assistant-page {
+    display: grid;
+    gap: 18px;
+}
+
+.musical-assistant-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 24px;
+    overflow: hidden;
+    border: 1px solid var(--border-active);
+    border-radius: 24px;
+    background:
+        radial-gradient(
+            circle at 82% 18%,
+            rgb(var(--accent-rgb) / 28%),
+            transparent 42%
+        ),
+        linear-gradient(
+            135deg,
+            rgb(var(--accent-rgb) / 22%),
+            rgb(8 8 20 / 96%) 68%
+        );
+    box-shadow: var(--shadow-accent);
+}
+
+.musical-assistant-hero h3 {
+    margin: 7px 0 9px;
+    font-size: clamp(28px, 4vw, 42px);
+    letter-spacing: -0.045em;
+}
+
+.musical-assistant-hero p {
+    max-width: 720px;
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.55;
+}
+
+.musical-assistant-local-badge {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    border: 1px solid var(--border-active);
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb) / 14%);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 850;
+}
+
+.musical-assistant-form {
+    display: grid;
+    gap: 10px;
+    padding: 20px;
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 7%),
+            rgb(11 11 24 / 96%)
+        );
+    box-shadow: var(--shadow-soft);
+}
+
+.musical-assistant-form > label {
+    color: #fff;
+    font-weight: 800;
+}
+
+.musical-assistant-form textarea {
+    width: 100%;
+    min-height: 116px;
+    resize: vertical;
+    padding: 15px 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    background: rgb(5 5 13 / 78%);
+    color: #fff;
+    font-size: 17px;
+    line-height: 1.5;
+}
+
+.musical-assistant-form textarea:focus {
+    border-color: var(--border-active);
+    box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 12%);
+}
+
+.musical-assistant-form__actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.musical-assistant-form__actions .primary-button {
+    min-width: min(100%, 300px);
+    min-height: 48px;
+    padding: 10px 20px;
+    font-size: 15px;
+}
+
+.musical-assistant-examples {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    scrollbar-width: thin;
+}
+
+.musical-assistant-examples button {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 9px 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 3%);
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.musical-assistant-examples button:hover {
+    border-color: var(--border-active);
+    background: rgb(var(--accent-rgb) / 12%);
+    color: #fff;
+}
+
+.musical-assistant-empty,
+.musical-assistant-plan,
+.musical-assistant-capabilities,
+.musical-assistant-history {
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(255 255 255 / 3%),
+            rgb(10 10 23 / 96%)
+        );
+    box-shadow: var(--shadow-soft);
+}
+
+.musical-assistant-empty {
+    padding: 28px 20px;
+    text-align: center;
+}
+
+.musical-assistant-empty > span {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 38px;
+}
+
+.musical-assistant-empty h4 {
+    margin: 0 0 7px;
+    font-size: 22px;
+}
+
+.musical-assistant-empty p {
+    max-width: 620px;
+    margin: 0 auto;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.musical-assistant-plan {
+    display: grid;
+    gap: 15px;
+    padding: 20px;
+}
+
+.musical-assistant-plan.is-ready {
+    border-color: var(--border-active);
+    box-shadow: var(--shadow-accent);
+}
+
+.musical-assistant-plan.is-warning {
+    border-color: rgb(245 158 11 / 45%);
+}
+
+.musical-assistant-plan__heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.musical-assistant-plan__heading h4 {
+    margin: 6px 0 6px;
+    font-size: 24px;
+}
+
+.musical-assistant-plan__heading p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.musical-assistant-confidence,
+.musical-assistant-plan__type {
+    display: inline-flex;
+    padding: 6px 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb) / 9%);
+    color: color-mix(in srgb, var(--accent) 65%, white);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.musical-assistant-plan__type {
+    flex: 0 0 auto;
+    color: var(--text-muted);
+}
+
+.musical-assistant-plan ul {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-muted);
+}
+
+.musical-assistant-warning {
+    margin: 0;
+    color: #fbbf24;
+}
+
+.musical-assistant-plan__actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.musical-assistant-execute {
+    min-width: min(100%, 300px);
+    min-height: 48px;
+    padding: 10px 20px;
+    font-size: 15px;
+}
+
+.musical-assistant-capabilities {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px;
+}
+
+.musical-assistant-capabilities article {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 15px;
+    background: rgb(255 255 255 / 2%);
+}
+
+.musical-assistant-capabilities article > span {
+    font-size: 22px;
+}
+
+.musical-assistant-capabilities small {
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.musical-assistant-history {
+    padding: 15px;
+}
+
+.musical-assistant-history summary {
+    cursor: pointer;
+    color: #fff;
+    font-weight: 800;
+}
+
+.musical-assistant-history__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 12px 0;
+}
+
+.musical-assistant-history__actions button {
+    min-height: 40px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted);
+}
+
+.musical-assistant-history ul {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.musical-assistant-history__item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 13px;
+    background: rgb(255 255 255 / 2%);
+}
+
+.musical-assistant-history__item > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.musical-assistant-history__item span,
+.musical-assistant-history__item small {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.musical-assistant-history__item.is-success {
+    border-color: rgb(16 185 129 / 30%);
+}
+
+.musical-assistant-history__item.is-error {
+    border-color: rgb(239 68 68 / 34%);
+}
+
+@media (max-width: 920px) {
+    .musical-assistant-capabilities {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .musical-assistant-hero,
+    .musical-assistant-plan__heading,
+    .musical-assistant-history__item {
+        flex-direction: column;
+    }
+
+    .musical-assistant-local-badge,
+    .musical-assistant-plan__type {
+        align-self: flex-start;
+    }
+
+    .musical-assistant-form,
+    .musical-assistant-plan {
+        padding: 15px;
+    }
+
+    .musical-assistant-capabilities {
+        grid-template-columns: 1fr;
+    }
+
+    .musical-assistant-form__actions,
+    .musical-assistant-plan__actions {
+        justify-content: stretch;
+    }
+
+    .musical-assistant-form__actions .primary-button,
+    .musical-assistant-execute {
+        width: 100%;
+        min-width: 0;
     }
 }

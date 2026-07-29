@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v6.0.0 — Assistant musical local : terminée**
+  - commandes en français analysées localement ;
+  - lancement, préparation, transition et programmation ;
+  - réglages de scènes par langage naturel ;
+  - historique sauvegardé et synchronisé.
+
 - **v5.6.0 — Planificateur intelligent : terminée**
   - routines mix ou scènes ;
   - priorités et rattrapage ;

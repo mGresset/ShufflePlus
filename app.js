@@ -35,6 +35,11 @@ import {
     getAdaptiveSlot
 } from "./adaptive-dj.js";
 
+import {
+    MUSICAL_ASSISTANT_EXAMPLES,
+    parseMusicalAssistantRequest
+} from "./musical-assistant.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -54,7 +59,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.6.0";
+const APP_VERSION = "6.0.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -101,6 +106,9 @@ const DEFAULT_UI_THEME_SETTINGS = {
     highContrast: false,
     updatedAt: 0
 };
+const MUSICAL_ASSISTANT_HISTORY_KEY =
+    "shuffleplus_musical_assistant_history_v1";
+const MAX_MUSICAL_ASSISTANT_HISTORY = 40;
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -914,6 +922,10 @@ let iosCommands = readIosCommands();
 let iosCommandHistory =
     readIosCommandHistory();
 let activeAppMenu = readActiveAppMenu();
+let musicalAssistantHistory =
+    readMusicalAssistantHistory();
+let musicalAssistantPlan = null;
+let musicalAssistantDraft = "";
 let uiThemeSettings = readUiThemeSettings();
 let adaptiveDjMenuSettings =
     readAdaptiveDjMenuSettings();
@@ -7723,6 +7735,7 @@ function normalizeActiveAppMenu(value = "") {
         "music",
         "mixes",
         "adaptive",
+        "assistant",
         "intelligence",
         "quick",
         "driving",
@@ -9527,11 +9540,570 @@ function revealActiveAppMenuButton(
     });
 }
 
+
+function normalizeMusicalAssistantHistory(
+    values = []
+) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return values
+        .filter((item) =>
+            item &&
+            typeof item === "object" &&
+            typeof item.request === "string"
+        )
+        .map((item) => ({
+            id:
+                typeof item.id === "string"
+                    ? item.id.slice(0, 120)
+                    : createSavedMixId(),
+            request: item.request.slice(0, 500),
+            title:
+                typeof item.title === "string"
+                    ? item.title.slice(0, 160)
+                    : "Commande musicale",
+            type:
+                typeof item.type === "string"
+                    ? item.type.slice(0, 60)
+                    : "unknown",
+            status:
+                ["success", "error", "preview"].includes(item.status)
+                    ? item.status
+                    : "preview",
+            message:
+                typeof item.message === "string"
+                    ? item.message.slice(0, 260)
+                    : "",
+            createdAt: Number(item.createdAt || Date.now()),
+            updatedAt: Number(item.updatedAt || item.createdAt || Date.now())
+        }))
+        .sort((left, right) => right.createdAt - left.createdAt)
+        .slice(0, MAX_MUSICAL_ASSISTANT_HISTORY);
+}
+
+function readMusicalAssistantHistory() {
+    try {
+        const raw = localStorage.getItem(
+            MUSICAL_ASSISTANT_HISTORY_KEY
+        );
+        return normalizeMusicalAssistantHistory(
+            raw ? JSON.parse(raw) : []
+        );
+    } catch (error) {
+        console.warn(
+            "Historique de l’assistant illisible :",
+            error
+        );
+        return [];
+    }
+}
+
+function saveMusicalAssistantHistory() {
+    musicalAssistantHistory =
+        normalizeMusicalAssistantHistory(
+            musicalAssistantHistory
+        );
+    try {
+        localStorage.setItem(
+            MUSICAL_ASSISTANT_HISTORY_KEY,
+            JSON.stringify(musicalAssistantHistory)
+        );
+    } catch (error) {
+        console.warn(
+            "Historique de l’assistant non enregistré :",
+            error
+        );
+    }
+}
+
+function addMusicalAssistantHistory({
+    request = "",
+    plan = null,
+    status = "preview",
+    message = ""
+} = {}) {
+    musicalAssistantHistory = [
+        {
+            id: createSavedMixId(),
+            request: String(request || "").slice(0, 500),
+            title: String(
+                plan?.title || "Commande musicale"
+            ).slice(0, 160),
+            type: String(plan?.type || "unknown").slice(0, 60),
+            status,
+            message: String(message || plan?.summary || "").slice(0, 260),
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        },
+        ...musicalAssistantHistory
+    ];
+    saveMusicalAssistantHistory();
+}
+
+function getMusicalAssistantContext() {
+    const sceneState =
+        normalizeAdaptiveDjScenesState(
+            adaptiveDjScenesState
+        );
+    return {
+        scenes: sceneState.scenes,
+        mixes: savedMixes.map((mix) => ({
+            id: mix.id,
+            name: mix.name
+        })),
+        profiles: mixProfiles.map((profile) => ({
+            id: profile.id,
+            name: profile.name
+        })),
+        activeSceneId: sceneState.activeSceneId
+    };
+}
+
+function analyzeMusicalAssistantRequest(
+    request = ""
+) {
+    musicalAssistantDraft = String(request || "").trim();
+    musicalAssistantPlan =
+        parseMusicalAssistantRequest(
+            musicalAssistantDraft,
+            getMusicalAssistantContext()
+        );
+    addMusicalAssistantHistory({
+        request: musicalAssistantDraft,
+        plan: musicalAssistantPlan,
+        status: "preview",
+        message: musicalAssistantPlan.summary
+    });
+    displayPlaylists(playlistsCache);
+}
+
+function getMusicalAssistantStatusDetails() {
+    const activeScene = getAdaptiveDjSceneById();
+    const nextSchedule = mixSchedules
+        .filter((schedule) => schedule.enabled)
+        .map((schedule) => ({
+            schedule,
+            date: getNextScheduleDate(schedule)
+        }))
+        .filter((item) => item.date)
+        .sort((left, right) =>
+            left.date.getTime() - right.date.getTime()
+        )[0];
+    const playingTrack =
+        quickPlaybackState?.item ||
+        drivingPlaybackState?.item ||
+        null;
+
+    return {
+        activeScene,
+        nextSchedule,
+        playingTrack
+    };
+}
+
+function buildAssistantScheduleDate(plan) {
+    const [hour, minute] = String(
+        plan.time || "18:00"
+    ).split(":").map(Number);
+    const date = new Date();
+    const hasExplicitOffset =
+        plan.dateOffsetDays !== null &&
+        plan.dateOffsetDays !== undefined;
+    const offset = Number(plan.dateOffsetDays);
+    date.setSeconds(0, 0);
+    date.setHours(
+        Number.isFinite(hour) ? hour : 18,
+        Number.isFinite(minute) ? minute : 0,
+        0,
+        0
+    );
+
+    if (hasExplicitOffset && Number.isFinite(offset)) {
+        date.setDate(date.getDate() + offset);
+    } else if (date.getTime() <= Date.now()) {
+        date.setDate(date.getDate() + 1);
+    }
+
+    const timezoneOffset =
+        date.getTimezoneOffset() * 60 * 1000;
+    return new Date(
+        date.getTime() - timezoneOffset
+    ).toISOString().slice(0, 16);
+}
+
+async function executeMusicalAssistantPlan() {
+    const plan = musicalAssistantPlan;
+    if (!plan?.ready) {
+        setStatus(
+            plan?.warning ||
+            "La demande doit être précisée avant exécution.",
+            "error"
+        );
+        return;
+    }
+
+    try {
+        if (plan.type === "status") {
+            const status = getMusicalAssistantStatusDetails();
+            const sceneLabel = status.activeScene
+                ? `${status.activeScene.icon} ${status.activeScene.label}`
+                : "Aucune scène";
+            const scheduleLabel = status.nextSchedule
+                ? `${status.nextSchedule.schedule.name} · ${formatScheduleDateTime(status.nextSchedule.date)}`
+                : "Aucune routine à venir";
+            const trackArtists = status.playingTrack
+                ? getTrackArtistEntries(status.playingTrack)
+                    .map((entry) => entry.label)
+                    .join(", ") || "Artiste inconnu"
+                : "";
+            const trackLabel = status.playingTrack
+                ? `${status.playingTrack.name} · ${trackArtists}`
+                : "Aucun titre détecté";
+            musicalAssistantPlan = {
+                ...plan,
+                summary: `Scène : ${sceneLabel}`,
+                details: [
+                    `Prochaine routine : ${scheduleLabel}`,
+                    `Lecture : ${trackLabel}`
+                ]
+            };
+            addMusicalAssistantHistory({
+                request: plan.request,
+                plan: musicalAssistantPlan,
+                status: "success",
+                message: musicalAssistantPlan.details.join(" · ")
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (
+            plan.type === "launch-scene" ||
+            plan.type === "prepare-scene"
+        ) {
+            await runAdaptiveDjScene(
+                plan.sceneId,
+                {
+                    autoplay:
+                        plan.type === "launch-scene"
+                }
+            );
+        } else if (
+            plan.type === "launch-mix" ||
+            plan.type === "prepare-mix"
+        ) {
+            await executeAutomationCommand({
+                action: "launch",
+                mixId: plan.mixId,
+                autoplay:
+                    plan.type === "launch-mix"
+            });
+        } else if (plan.type === "transition") {
+            adaptiveTransitionSettings =
+                normalizeAdaptiveTransitionSettings({
+                    ...adaptiveTransitionSettings,
+                    targetSceneId: plan.sceneId,
+                    bridgeTrackCount:
+                        plan.bridgeTrackCount,
+                    energyCurve:
+                        plan.energyCurve,
+                    preserveSentTracks: true,
+                    updatedAt: Date.now()
+                });
+            saveAdaptiveTransitionSettings();
+            await executeAutomationCommand({
+                action: "transition",
+                contextId: plan.sceneId,
+                autoplay: plan.autoplay
+            });
+        } else if (
+            plan.type === "schedule-scene" ||
+            plan.type === "schedule-mix"
+        ) {
+            if (mixSchedules.length >= MAX_MIX_SCHEDULES) {
+                throw new Error(
+                    `La limite de ${MAX_MIX_SCHEDULES} routines est atteinte.`
+                );
+            }
+            const scene = plan.sceneId
+                ? getAdaptiveDjSceneById(plan.sceneId)
+                : null;
+            const mix = plan.mixId
+                ? savedMixes.find((item) => item.id === plan.mixId)
+                : null;
+            if (plan.type === "schedule-scene" && !scene?.mixId) {
+                throw new Error(
+                    "Cette scène doit d’abord être associée à un mix."
+                );
+            }
+            if (plan.type === "schedule-mix" && !mix) {
+                throw new Error(
+                    "Le mix demandé n’est plus disponible."
+                );
+            }
+            const targetLabel = scene
+                ? `${scene.icon} ${scene.label}`
+                : mix.name;
+            const schedule = normalizeMixSchedule({
+                id: createSavedMixId(),
+                name: `Assistant · ${targetLabel}`,
+                targetType:
+                    plan.type === "schedule-scene"
+                        ? "scene"
+                        : "mix",
+                sceneId: scene?.id || "",
+                mixId: mix?.id || "",
+                recurrence: plan.recurrence,
+                weekdays: plan.weekdays,
+                dateTime:
+                    plan.recurrence === "once"
+                        ? buildAssistantScheduleDate(plan)
+                        : "",
+                time: plan.time || "18:00",
+                autoPlay: plan.autoplay !== false,
+                catchUpMinutes: 30,
+                priority: 3,
+                enabled: true,
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+            });
+            mixSchedules = [
+                schedule,
+                ...mixSchedules
+            ].slice(0, MAX_MIX_SCHEDULES);
+            saveMixSchedules();
+            setStatus(
+                `Routine « ${schedule.name} » ajoutée.`
+            );
+            showToast(
+                "Routine créée par l’assistant musical.",
+                "success"
+            );
+            displayPlaylists(playlistsCache);
+        } else if (plan.type === "configure-scene") {
+            const state =
+                normalizeAdaptiveDjScenesState(
+                    adaptiveDjScenesState
+                );
+            const nextScenes = state.scenes.map((scene) =>
+                scene.id === plan.sceneId
+                    ? normalizeAdaptiveDjScene(
+                        {
+                            ...scene,
+                            energyTarget:
+                                plan.energyTarget ?? scene.energyTarget,
+                            varietyTarget:
+                                plan.varietyTarget ?? scene.varietyTarget,
+                            discoveryTarget:
+                                plan.discoveryTarget ?? scene.discoveryTarget,
+                            durationMinutes:
+                                plan.durationMinutes ?? scene.durationMinutes
+                        },
+                        scene
+                    )
+                    : scene
+            );
+            adaptiveDjScenesState =
+                normalizeAdaptiveDjScenesState({
+                    ...state,
+                    scenes: nextScenes,
+                    updatedAt: Date.now()
+                });
+            saveAdaptiveDjScenesState();
+            setStatus(
+                `Réglages de la scène ${plan.sceneLabel} mis à jour.`
+            );
+            showToast(
+                "Scène mise à jour par l’assistant.",
+                "success"
+            );
+            displayPlaylists(playlistsCache);
+        } else {
+            throw new Error(
+                "Cette commande n’est pas encore exécutable."
+            );
+        }
+
+        addMusicalAssistantHistory({
+            request: plan.request,
+            plan,
+            status: "success",
+            message: "Commande exécutée avec succès."
+        });
+    } catch (error) {
+        console.error(error);
+        addMusicalAssistantHistory({
+            request: plan.request,
+            plan,
+            status: "error",
+            message:
+                error.message ||
+                "La commande a échoué."
+        });
+        setStatus(
+            error.message ||
+            "L’assistant musical n’a pas pu exécuter la commande.",
+            "error"
+        );
+    }
+}
+
+function renderMusicalAssistantPlan(plan) {
+    if (!plan) {
+        return `
+            <div class="musical-assistant-empty">
+                <span aria-hidden="true">✨</span>
+                <h4>Demande une action en français</h4>
+                <p>
+                    L’assistant fonctionne localement : ton texte
+                    n’est envoyé à aucun service d’intelligence artificielle.
+                </p>
+            </div>
+        `;
+    }
+
+    const details = Array.isArray(plan.details)
+        ? plan.details
+        : [];
+    return `
+        <article class="musical-assistant-plan
+            ${plan.ready ? "is-ready" : "is-warning"}">
+            <div class="musical-assistant-plan__heading">
+                <div>
+                    <span class="musical-assistant-confidence">
+                        Confiance ${escapeHtml(plan.confidence || "faible")}
+                    </span>
+                    <h4>${escapeHtml(plan.title || "Commande musicale")}</h4>
+                    <p>${escapeHtml(plan.summary || "")}</p>
+                </div>
+                <span class="musical-assistant-plan__type">
+                    ${escapeHtml(plan.type || "unknown")}
+                </span>
+            </div>
+            ${details.length
+                ? `<ul>${details.map((detail) =>
+                    `<li>${escapeHtml(detail)}</li>`
+                ).join("")}</ul>`
+                : ""}
+            ${plan.warning
+                ? `<p class="musical-assistant-warning">⚠ ${escapeHtml(plan.warning)}</p>`
+                : ""}
+            <div class="musical-assistant-plan__actions">
+                <button
+                    id="executeMusicalAssistantButton"
+                    class="primary-button musical-assistant-execute"
+                    type="button"
+                    ${plan.ready ? "" : "disabled"}
+                >
+                    ${escapeHtml(plan.actionLabel || "Exécuter")}
+                </button>
+            </div>
+        </article>
+    `;
+}
+
+function renderMusicalAssistantPage() {
+    const history = musicalAssistantHistory
+        .slice(0, 12)
+        .map((item) => `
+            <li class="musical-assistant-history__item is-${escapeHtml(item.status)}">
+                <div>
+                    <strong>${escapeHtml(item.request)}</strong>
+                    <span>${escapeHtml(item.title)}</span>
+                </div>
+                <small>
+                    ${new Intl.DateTimeFormat("fr-FR", {
+                        dateStyle: "short",
+                        timeStyle: "short"
+                    }).format(new Date(item.createdAt))}
+                    · ${item.status === "success"
+                        ? "réussi"
+                        : item.status === "error"
+                            ? "échec"
+                            : "analysé"}
+                </small>
+            </li>
+        `)
+        .join("");
+
+    return `
+        <section class="musical-assistant-page">
+            <div class="musical-assistant-hero">
+                <div>
+                    <span class="adaptive-menu-kicker">✨ Shuffle+ v6</span>
+                    <h3>Assistant musical</h3>
+                    <p>
+                        Écris naturellement ce que tu veux écouter,
+                        modifier ou programmer. L’analyse reste entièrement
+                        dans ton navigateur.
+                    </p>
+                </div>
+                <span class="musical-assistant-local-badge">
+                    🔒 100 % local
+                </span>
+            </div>
+
+            <form id="musicalAssistantForm" class="musical-assistant-form">
+                <label for="musicalAssistantInput">
+                    Ta demande
+                </label>
+                <textarea
+                    id="musicalAssistantInput"
+                    name="request"
+                    rows="4"
+                    maxlength="500"
+                    placeholder="Ex. Programme Chill tous les jours à 22h"
+                >${escapeHtml(musicalAssistantDraft)}</textarea>
+                <div class="musical-assistant-form__actions">
+                    <button class="primary-button" type="submit">
+                        ✨ Analyser la demande
+                    </button>
+                </div>
+            </form>
+
+            <div class="musical-assistant-examples" aria-label="Exemples de commandes">
+                ${MUSICAL_ASSISTANT_EXAMPLES.map((example) => `
+                    <button
+                        type="button"
+                        data-musical-assistant-example="${escapeHtml(example)}"
+                    >
+                        ${escapeHtml(example)}
+                    </button>
+                `).join("")}
+            </div>
+
+            ${renderMusicalAssistantPlan(musicalAssistantPlan)}
+
+            <section class="musical-assistant-capabilities">
+                <article><span>▶</span><strong>Lancer</strong><small>Scène ou mix enregistré</small></article>
+                <article><span>🌉</span><strong>Transition</strong><small>Passage progressif entre scènes</small></article>
+                <article><span>🗓️</span><strong>Programmer</strong><small>Routines quotidiennes ou hebdomadaires</small></article>
+                <article><span>🎚️</span><strong>Ajuster</strong><small>Énergie, variété, découverte et durée</small></article>
+            </section>
+
+            <details class="musical-assistant-history" ${history ? "" : "hidden"}>
+                <summary>
+                    Historique de l’assistant · ${musicalAssistantHistory.length}
+                </summary>
+                <div class="musical-assistant-history__actions">
+                    <button id="clearMusicalAssistantHistoryButton" type="button">
+                        Effacer l’historique
+                    </button>
+                </div>
+                <ul>${history}</ul>
+            </details>
+        </section>
+    `;
+}
+
 function renderAppMenu() {
     const items = [
         ["music", "🎵", "Ma musique"],
         ["mixes", "🔀", "Mix & iOS"],
         ["adaptive", "🤖", "Adaptive DJ"],
+        ["assistant", "✨", "Assistant"],
         ["intelligence", "🧠", "Intelligence"],
         ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
@@ -20018,6 +20590,7 @@ function buildBackupPayload() {
         quickContextsState,
         adaptiveDjScenesState,
         adaptiveTransitionSettings,
+        musicalAssistantHistory,
         uiThemeSettings,
         mixSchedules
     };
@@ -20211,6 +20784,10 @@ function validateBackupPayload(payload) {
                 payload.data.adaptiveTransitionSettings ||
                 DEFAULT_ADAPTIVE_TRANSITION_SETTINGS
             ),
+        musicalAssistantHistory:
+            normalizeMusicalAssistantHistory(
+                payload.data.musicalAssistantHistory || []
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -20333,6 +20910,9 @@ function applyValidatedBackupState(imported) {
     adaptiveTransitionSettings =
         imported.adaptiveTransitionSettings;
     saveAdaptiveTransitionSettings();
+    musicalAssistantHistory =
+        imported.musicalAssistantHistory;
+    saveMusicalAssistantHistory();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -20635,6 +21215,7 @@ function getSyncDataUpdatedAt(data = {}) {
         data.mixHistory,
         data.iosCommandHistory,
         data.adaptiveDjMenuHistory,
+        data.musicalAssistantHistory,
         data.mixSchedules
     ]) {
         if (!Array.isArray(collection)) {
@@ -22369,6 +22950,8 @@ function applySelectiveAutomationCategory(
         adaptiveDjMenuSettings = remoteImported.adaptiveDjMenuSettings;
         drivingModeSettings = remoteImported.drivingModeSettings;
         quickContextsState = remoteImported.quickContextsState;
+        musicalAssistantHistory =
+            remoteImported.musicalAssistantHistory;
         mixSchedules = remoteImported.mixSchedules;
     } else {
         iosCommands = mergeSyncArrays(
@@ -22387,6 +22970,14 @@ function applySelectiveAutomationCategory(
             localImported.quickContextsState,
             remoteImported.quickContextsState
         );
+        musicalAssistantHistory = mergeSyncArrays(
+            localImported.musicalAssistantHistory,
+            remoteImported.musicalAssistantHistory,
+            (item) => item.id,
+            MAX_MUSICAL_ASSISTANT_HISTORY
+        ).map((item) =>
+            normalizeMusicalAssistantHistory([item])[0]
+        ).filter(Boolean);
     }
 
     if (!iosCommands.length) {
@@ -22398,6 +22989,7 @@ function applySelectiveAutomationCategory(
     saveAdaptiveDjMenuSettings();
     saveDrivingModeSettings();
     saveQuickContextsState();
+    saveMusicalAssistantHistory();
     saveMixSchedules();
     return true;
 }
@@ -26758,6 +27350,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "assistant"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="assistant"
+            >
+                ${renderMusicalAssistantPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "intelligence"
                     ? "is-active"
                     : ""}"
@@ -29810,6 +30412,42 @@ contentElement.addEventListener(
             return;
         }
 
+        const assistantExampleButton =
+            event.target.closest(
+                "[data-musical-assistant-example]"
+            );
+
+        if (assistantExampleButton) {
+            analyzeMusicalAssistantRequest(
+                assistantExampleButton.dataset
+                    .musicalAssistantExample || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#executeMusicalAssistantButton"
+            )
+        ) {
+            await executeMusicalAssistantPlan();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearMusicalAssistantHistoryButton"
+            )
+        ) {
+            musicalAssistantHistory = [];
+            saveMusicalAssistantHistory();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Historique de l’assistant effacé."
+            );
+            return;
+        }
+
         const quickContextButton =
             event.target.closest(
                 "[data-launch-quick-context]"
@@ -31680,6 +32318,17 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (
+            event.target.id === "musicalAssistantForm"
+        ) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            analyzeMusicalAssistantRequest(
+                String(data.get("request") || "")
+            );
+            return;
+        }
+
         if (
             event.target.id === "mixStudioForm"
         ) {

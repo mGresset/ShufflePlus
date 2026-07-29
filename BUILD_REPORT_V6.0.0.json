@@ -1,0 +1,29 @@
+{
+  "version": "6.0.0",
+  "name": "Local Musical Assistant",
+  "source": "ShufflePlus-v5.6.0-Intelligent-Scheduler.zip",
+  "generatedAt": "2026-07-29T16:07:00.877325+00:00",
+  "javascriptFilesChecked": 13,
+  "serverTests": "ok",
+  "serverChangesRequired": false,
+  "parserTests": "ok",
+  "features": [
+    "local French command parser",
+    "assistant navigation page",
+    "scene and mix launch or preparation",
+    "progressive transition commands",
+    "intelligent schedule creation",
+    "scene energy and discovery configuration",
+    "local assistant history",
+    "backup and encrypted sync integration"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "assistantParser": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 68
+}

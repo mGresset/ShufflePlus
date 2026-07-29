@@ -1,4 +1,9 @@
 
+## v6.0.0 — Assistant musical local
+
+Le nouvel onglet **Assistant** comprend des commandes en français pour lancer une scène ou un mix, créer une transition, programmer une routine et modifier les réglages d’une scène. Le moteur est local et déterministe : aucun texte n’est envoyé à un service externe.
+
+
 ## v5.6.0 — Planificateur intelligent
 
 Shuffle+ peut désormais planifier des **mix** ou des **scènes Adaptive DJ** avec des routines quotidiennes, de semaine, de week-end ou personnalisées. Les priorités départagent les routines simultanées et la fenêtre de rattrapage permet d’exécuter une routine après une courte fermeture de l’application.
