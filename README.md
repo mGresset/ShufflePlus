@@ -1,3 +1,7 @@
+## v6.1.0 — Assistant vocal
+
+Shuffle+ peut désormais écouter une demande en français depuis l’onglet Assistant, les commandes rapides et le mode Conduite. Les actions sensibles restent confirmées à l’écran par défaut. Les réponses vocales, la vibration, la langue et le mode d’écoute se règlent directement dans l’interface.
+
 
 ## v6.0.0 — Assistant musical local
 

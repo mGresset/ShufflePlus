@@ -1,0 +1,17 @@
+Shuffle+ v6.1.0 — Installation
+
+1. Décompresser l’archive.
+2. Remplacer les fichiers du dépôt ShufflePlus.
+3. Publier :
+
+   git add .
+   git commit -m "v6.1.0 - Assistant vocal"
+   git pull --rebase origin main
+   git push origin main
+
+4. Attendre la publication GitHub Pages.
+5. Dans l’application : Réglages → Rechercher une mise à jour.
+6. Fermer complètement la PWA puis la relancer.
+7. Lors du premier essai, autoriser l’accès au microphone.
+
+Le serveur Node.js existant ne nécessite aucune modification.

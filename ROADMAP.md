@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v6.1.0 — Assistant vocal : terminée**
+  - reconnaissance vocale française ;
+  - confirmation des actions sensibles ;
+  - réponses vocales et retour haptique ;
+  - intégration Assistant, Rapide et Conduite.
+
 - **v6.0.0 — Assistant musical local : terminée**
   - commandes en français analysées localement ;
   - lancement, préparation, transition et programmation ;

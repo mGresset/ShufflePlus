@@ -40,6 +40,15 @@ import {
     parseMusicalAssistantRequest
 } from "./musical-assistant.js";
 
+import {
+    DEFAULT_VOICE_ASSISTANT_SETTINGS,
+    normalizeVoiceAssistantSettings,
+    getVoiceRecognitionErrorMessage,
+    isSensitiveVoicePlan,
+    buildVoicePlanAnnouncement,
+    buildVoiceExecutionAnnouncement
+} from "./voice-assistant.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -59,7 +68,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.0.0";
+const APP_VERSION = "6.1.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -109,6 +118,8 @@ const DEFAULT_UI_THEME_SETTINGS = {
 const MUSICAL_ASSISTANT_HISTORY_KEY =
     "shuffleplus_musical_assistant_history_v1";
 const MAX_MUSICAL_ASSISTANT_HISTORY = 40;
+const VOICE_ASSISTANT_SETTINGS_KEY =
+    "shuffleplus_voice_assistant_settings_v1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -926,6 +937,15 @@ let musicalAssistantHistory =
     readMusicalAssistantHistory();
 let musicalAssistantPlan = null;
 let musicalAssistantDraft = "";
+let voiceAssistantSettings =
+    readVoiceAssistantSettings();
+let voiceAssistantRecognition = null;
+let voiceAssistantListening = false;
+let voiceAssistantSource = "assistant";
+let voiceAssistantMessage = {
+    text: "",
+    type: ""
+};
 let uiThemeSettings = readUiThemeSettings();
 let adaptiveDjMenuSettings =
     readAdaptiveDjMenuSettings();
@@ -4346,6 +4366,8 @@ function renderDrivingModePage() {
         drivingExitArmedUntil > Date.now();
     const wakeLockAvailable =
         "wakeLock" in navigator;
+    const voiceSupported =
+        isVoiceAssistantSupported();
 
     contentElement.innerHTML = `
         <section class="driving-mode-page" aria-label="Mode conduite">
@@ -4421,6 +4443,21 @@ function renderDrivingModePage() {
                 >
                     <span aria-hidden="true">⏭</span>
                     <strong>Titre suivant</strong>
+                </button>
+
+                <button
+                    id="drivingVoiceButton"
+                    class="driving-control driving-voice-control ${voiceAssistantListening && voiceAssistantSource === "driving" ? "is-listening" : ""}"
+                    type="button"
+                    ${!voiceSupported || drivingActionBusy ? "disabled" : ""}
+                >
+                    <span aria-hidden="true">🎙️</span>
+                    <strong>
+                        ${voiceAssistantListening && voiceAssistantSource === "driving"
+                            ? "Arrêter l’écoute"
+                            : "Commande vocale"}
+                    </strong>
+                    <small>Pause, suivant, j’aime…</small>
                 </button>
             </div>
 
@@ -7036,13 +7073,13 @@ function renderQuickControlPage() {
                 <button
                     id="quickVoiceButton"
                     class="voice-control-button
-                    ${quickVoiceListening ? "is-listening" : ""}"
+                    ${voiceAssistantListening && voiceAssistantSource === "quick" ? "is-listening" : ""}"
                     type="button"
                     ${!voiceSupported || quickControlBusy
                         ? "disabled"
                         : ""}
                 >
-                    ${quickVoiceListening
+                    ${voiceAssistantListening && voiceAssistantSource === "quick"
                         ? "■ Arrêter"
                         : "🎙️ Écouter"}
                 </button>
@@ -7591,114 +7628,23 @@ function stopQuickVoiceRecognition() {
             error
         );
     }
+
+    if (
+        voiceAssistantListening &&
+        ["quick", "driving"].includes(
+            voiceAssistantSource
+        )
+    ) {
+        stopVoiceAssistantRecognition();
+    }
 }
 
 function startQuickVoiceRecognition() {
-    const Recognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
+    startVoiceAssistantRecognition("quick");
+}
 
-    if (!Recognition) {
-        setQuickControlMessage(
-            "La reconnaissance vocale n’est pas disponible dans ce navigateur.",
-            "error"
-        );
-        renderQuickControlPage();
-        return;
-    }
-
-    if (quickVoiceListening) {
-        stopQuickVoiceRecognition();
-        return;
-    }
-
-    const recognition = new Recognition();
-    quickVoiceRecognition = recognition;
-    quickVoiceListening = true;
-    recognition.lang = QUICK_CONTROL_LANGUAGE;
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-
-    setQuickControlMessage(
-        "Je t’écoute…",
-        "info"
-    );
-    renderQuickControlPage();
-
-    recognition.addEventListener(
-        "result",
-        async (event) => {
-            const transcript =
-                event.results?.[0]?.[0]
-                    ?.transcript || "";
-            const command =
-                parseVoiceQuickCommand(transcript);
-
-            if (!command) {
-                setQuickControlMessage(
-                    `Commande non reconnue : « ${transcript} »`,
-                    "error"
-                );
-                return;
-            }
-
-            setQuickControlMessage(
-                `Commande reconnue : « ${transcript} »`,
-                "info"
-            );
-
-            try {
-                await runQuickControlAction(
-                    command.action,
-                    {
-                        contextId:
-                            command.contextId || "",
-                        source: "voice-control"
-                    }
-                );
-            } catch (error) {
-                // Le message utilisateur est déjà géré.
-            }
-        }
-    );
-
-    recognition.addEventListener(
-        "error",
-        (event) => {
-            const message =
-                event.error === "not-allowed"
-                    ? "Autorise l’accès au microphone pour utiliser les commandes vocales."
-                    : `Reconnaissance vocale interrompue : ${event.error}.`;
-            setQuickControlMessage(
-                message,
-                "error"
-            );
-        }
-    );
-
-    recognition.addEventListener(
-        "end",
-        () => {
-            quickVoiceListening = false;
-            quickVoiceRecognition = null;
-            if (activeAppMenu === "quick") {
-                renderQuickControlPage();
-            }
-        }
-    );
-
-    try {
-        recognition.start();
-    } catch (error) {
-        quickVoiceListening = false;
-        quickVoiceRecognition = null;
-        setQuickControlMessage(
-            "Le microphone n’a pas pu démarrer.",
-            "error"
-        );
-        renderQuickControlPage();
-    }
+function startDrivingVoiceRecognition() {
+    startVoiceAssistantRecognition("driving");
 }
 
 function applyDrivingViewFromUrl() {
@@ -7714,6 +7660,7 @@ function applyDrivingViewFromUrl() {
         "music",
         "mixes",
         "adaptive",
+        "assistant",
         "intelligence",
         "quick",
         "driving",
@@ -9541,6 +9488,543 @@ function revealActiveAppMenuButton(
 }
 
 
+function readVoiceAssistantSettings() {
+    try {
+        const raw = localStorage.getItem(
+            VOICE_ASSISTANT_SETTINGS_KEY
+        );
+        return normalizeVoiceAssistantSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_VOICE_ASSISTANT_SETTINGS
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages vocaux illisibles :",
+            error
+        );
+        return normalizeVoiceAssistantSettings(
+            DEFAULT_VOICE_ASSISTANT_SETTINGS
+        );
+    }
+}
+
+function saveVoiceAssistantSettings() {
+    voiceAssistantSettings =
+        normalizeVoiceAssistantSettings({
+            ...voiceAssistantSettings,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            VOICE_ASSISTANT_SETTINGS_KEY,
+            JSON.stringify(voiceAssistantSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages vocaux non enregistrés :",
+            error
+        );
+    }
+}
+
+function getVoiceRecognitionConstructor() {
+    return (
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition ||
+        null
+    );
+}
+
+function isVoiceAssistantSupported() {
+    return Boolean(
+        getVoiceRecognitionConstructor()
+    );
+}
+
+function isVoiceSynthesisSupported() {
+    return Boolean(
+        window.speechSynthesis &&
+        window.SpeechSynthesisUtterance
+    );
+}
+
+function vibrateVoiceAssistant(pattern = 40) {
+    if (
+        !voiceAssistantSettings.vibration ||
+        typeof navigator.vibrate !== "function"
+    ) {
+        return;
+    }
+
+    try {
+        navigator.vibrate(pattern);
+    } catch (error) {
+        console.warn(
+            "Vibration indisponible :",
+            error
+        );
+    }
+}
+
+function speakVoiceAssistantText(
+    text = "",
+    { force = false } = {}
+) {
+    const message = String(text || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 620);
+
+    if (
+        !message ||
+        !isVoiceSynthesisSupported() ||
+        (!force && !voiceAssistantSettings.voiceResponses)
+    ) {
+        return false;
+    }
+
+    try {
+        window.speechSynthesis.cancel();
+        const utterance =
+            new SpeechSynthesisUtterance(message);
+        utterance.lang =
+            voiceAssistantSettings.language;
+        utterance.rate = 1;
+        utterance.pitch = 1;
+
+        const voices =
+            window.speechSynthesis.getVoices?.() || [];
+        const preferred = voices.find((voice) =>
+            String(voice.lang || "")
+                .toLowerCase()
+                .startsWith(
+                    voiceAssistantSettings.language
+                        .slice(0, 2)
+                        .toLowerCase()
+                )
+        );
+
+        if (preferred) {
+            utterance.voice = preferred;
+        }
+
+        window.speechSynthesis.speak(utterance);
+        return true;
+    } catch (error) {
+        console.warn(
+            "Réponse vocale indisponible :",
+            error
+        );
+        return false;
+    }
+}
+
+function setVoiceAssistantMessage(
+    text = "",
+    type = ""
+) {
+    voiceAssistantMessage = {
+        text: String(text || "").slice(0, 400),
+        type: String(type || "").slice(0, 40)
+    };
+}
+
+function stopVoiceAssistantRecognition() {
+    try {
+        voiceAssistantRecognition?.stop();
+    } catch (error) {
+        console.warn(
+            "Arrêt du microphone impossible :",
+            error
+        );
+    }
+}
+
+async function handleVoiceAssistantTranscript(
+    transcript = "",
+    source = "assistant"
+) {
+    const cleanTranscript =
+        String(transcript || "").trim();
+
+    if (!cleanTranscript) {
+        setVoiceAssistantMessage(
+            "Aucune commande détectée.",
+            "error"
+        );
+        return;
+    }
+
+    vibrateVoiceAssistant(35);
+
+    if (
+        source === "quick" ||
+        source === "driving"
+    ) {
+        const command =
+            parseVoiceQuickCommand(
+                cleanTranscript
+            );
+
+        if (!command) {
+            const message =
+                `Commande non reconnue : « ${cleanTranscript} »`;
+            setVoiceAssistantMessage(
+                message,
+                "error"
+            );
+            setQuickControlMessage(
+                message,
+                "error"
+            );
+            if (source === "driving") {
+                setDrivingMessage(
+                    message,
+                    "error"
+                );
+                renderDrivingModePage();
+            } else {
+                renderQuickControlPage();
+            }
+            speakVoiceAssistantText(
+                "Commande non reconnue."
+            );
+            return;
+        }
+
+        const recognizedMessage =
+            `Commande reconnue : « ${cleanTranscript} »`;
+        setVoiceAssistantMessage(
+            recognizedMessage,
+            "info"
+        );
+
+        try {
+            await runQuickControlAction(
+                command.action,
+                {
+                    contextId:
+                        command.contextId || "",
+                    source:
+                        source === "driving"
+                            ? "driving-voice"
+                            : "quick-voice"
+                }
+            );
+
+            const successMessage =
+                quickControlMessage.text ||
+                "Commande exécutée.";
+            speakVoiceAssistantText(
+                successMessage
+            );
+            vibrateVoiceAssistant([30, 45, 30]);
+
+            if (source === "driving") {
+                setDrivingMessage(
+                    successMessage,
+                    "success"
+                );
+                await refreshDrivingPlayback({
+                    silent: true
+                });
+            }
+        } catch (error) {
+            const message =
+                getPlaybackErrorMessage(error);
+            speakVoiceAssistantText(message);
+            if (source === "driving") {
+                setDrivingMessage(
+                    message,
+                    "error"
+                );
+                renderDrivingModePage();
+            }
+        }
+        return;
+    }
+
+    musicalAssistantDraft = cleanTranscript;
+    musicalAssistantPlan =
+        parseMusicalAssistantRequest(
+            musicalAssistantDraft,
+            getMusicalAssistantContext()
+        );
+    musicalAssistantPlan = {
+        ...musicalAssistantPlan,
+        voiceOrigin: true
+    };
+    addMusicalAssistantHistory({
+        request: musicalAssistantDraft,
+        plan: musicalAssistantPlan,
+        status: "preview",
+        message: musicalAssistantPlan.summary
+    });
+
+    const announcement =
+        buildVoicePlanAnnouncement(
+            musicalAssistantPlan,
+            {
+                confirmationRequired:
+                    voiceAssistantSettings
+                        .confirmBeforeAction
+            }
+        );
+    setVoiceAssistantMessage(
+        `Compris : « ${cleanTranscript} »`,
+        musicalAssistantPlan.ready
+            ? "success"
+            : "error"
+    );
+    displayPlaylists(playlistsCache);
+    speakVoiceAssistantText(announcement);
+
+    if (
+        musicalAssistantPlan.ready &&
+        musicalAssistantPlan.type === "status" &&
+        voiceAssistantSettings.autoExecuteStatus
+    ) {
+        await executeMusicalAssistantPlan();
+    }
+}
+
+function startVoiceAssistantRecognition(
+    source = "assistant"
+) {
+    const Recognition =
+        getVoiceRecognitionConstructor();
+
+    if (!Recognition) {
+        const message =
+            "La reconnaissance vocale n’est pas disponible dans ce navigateur.";
+        setVoiceAssistantMessage(
+            message,
+            "error"
+        );
+        setStatus(message, "error");
+        if (source === "driving") {
+            setDrivingMessage(message, "error");
+            renderDrivingModePage();
+        } else if (source === "quick") {
+            setQuickControlMessage(message, "error");
+            renderQuickControlPage();
+        } else {
+            displayPlaylists(playlistsCache);
+        }
+        return;
+    }
+
+    if (voiceAssistantListening) {
+        stopVoiceAssistantRecognition();
+        return;
+    }
+
+    stopQuickVoiceRecognition();
+    window.speechSynthesis?.cancel?.();
+
+    const recognition = new Recognition();
+    voiceAssistantRecognition = recognition;
+    voiceAssistantListening = true;
+    voiceAssistantSource = source;
+    recognition.lang =
+        voiceAssistantSettings.language;
+    recognition.continuous = false;
+    recognition.interimResults =
+        !voiceAssistantSettings.compactListening;
+    recognition.maxAlternatives = 1;
+
+    setVoiceAssistantMessage(
+        "Je t’écoute…",
+        "info"
+    );
+    vibrateVoiceAssistant(25);
+
+    if (source === "driving") {
+        setDrivingMessage(
+            "Je t’écoute…",
+            "info"
+        );
+        renderDrivingModePage();
+    } else if (source === "quick") {
+        setQuickControlMessage(
+            "Je t’écoute…",
+            "info"
+        );
+        renderQuickControlPage();
+    } else {
+        displayPlaylists(playlistsCache);
+    }
+
+    recognition.addEventListener(
+        "result",
+        async (event) => {
+            const results = [
+                ...(event.results || [])
+            ];
+            const transcript = results
+                .map((result) =>
+                    result?.[0]?.transcript || ""
+                )
+                .join(" ")
+                .trim();
+
+            if (transcript) {
+                await handleVoiceAssistantTranscript(
+                    transcript,
+                    source
+                );
+            }
+        }
+    );
+
+    recognition.addEventListener(
+        "error",
+        (event) => {
+            const message =
+                getVoiceRecognitionErrorMessage(
+                    event.error
+                );
+            setVoiceAssistantMessage(
+                message,
+                event.error === "aborted"
+                    ? "info"
+                    : "error"
+            );
+            if (source === "driving") {
+                setDrivingMessage(
+                    message,
+                    "error"
+                );
+            } else if (source === "quick") {
+                setQuickControlMessage(
+                    message,
+                    "error"
+                );
+            }
+        }
+    );
+
+    recognition.addEventListener(
+        "end",
+        () => {
+            voiceAssistantListening = false;
+            voiceAssistantRecognition = null;
+            voiceAssistantSource = "assistant";
+
+            if (activeAppMenu === "driving") {
+                renderDrivingModePage();
+            } else if (activeAppMenu === "quick") {
+                renderQuickControlPage();
+            } else if (activeAppMenu === "assistant") {
+                displayPlaylists(playlistsCache);
+            }
+        }
+    );
+
+    try {
+        recognition.start();
+    } catch (error) {
+        voiceAssistantListening = false;
+        voiceAssistantRecognition = null;
+        const message =
+            "Le microphone n’a pas pu démarrer.";
+        setVoiceAssistantMessage(
+            message,
+            "error"
+        );
+        setStatus(message, "error");
+        if (source === "driving") {
+            setDrivingMessage(message, "error");
+            renderDrivingModePage();
+        } else if (source === "quick") {
+            setQuickControlMessage(message, "error");
+            renderQuickControlPage();
+        } else {
+            displayPlaylists(playlistsCache);
+        }
+    }
+}
+
+function renderVoiceAssistantSettingsPanel() {
+    const recognitionSupported =
+        isVoiceAssistantSupported();
+    const synthesisSupported =
+        isVoiceSynthesisSupported();
+
+    return `
+        <details class="voice-assistant-settings">
+            <summary>
+                Réglages de l’assistant vocal
+            </summary>
+
+            <div class="voice-assistant-settings__grid">
+                <label>
+                    <span>Langue de reconnaissance</span>
+                    <select id="voiceAssistantLanguageInput">
+                        <option value="fr-FR" ${voiceAssistantSettings.language === "fr-FR" ? "selected" : ""}>Français · France</option>
+                        <option value="fr-CA" ${voiceAssistantSettings.language === "fr-CA" ? "selected" : ""}>Français · Canada</option>
+                        <option value="fr-BE" ${voiceAssistantSettings.language === "fr-BE" ? "selected" : ""}>Français · Belgique</option>
+                        <option value="fr-CH" ${voiceAssistantSettings.language === "fr-CH" ? "selected" : ""}>Français · Suisse</option>
+                    </select>
+                </label>
+
+                <label class="voice-assistant-setting-toggle">
+                    <input id="voiceAssistantResponsesInput" type="checkbox" ${voiceAssistantSettings.voiceResponses ? "checked" : ""} ${synthesisSupported ? "" : "disabled"}>
+                    <span>
+                        <strong>Réponses à voix haute</strong>
+                        <small>Lit les confirmations et les erreurs.</small>
+                    </span>
+                </label>
+
+                <label class="voice-assistant-setting-toggle">
+                    <input id="voiceAssistantVibrationInput" type="checkbox" ${voiceAssistantSettings.vibration ? "checked" : ""}>
+                    <span>
+                        <strong>Retour haptique</strong>
+                        <small>Vibre lors de l’écoute et après une commande.</small>
+                    </span>
+                </label>
+
+                <label class="voice-assistant-setting-toggle">
+                    <input id="voiceAssistantConfirmInput" type="checkbox" ${voiceAssistantSettings.confirmBeforeAction ? "checked" : ""}>
+                    <span>
+                        <strong>Confirmer les actions sensibles</strong>
+                        <small>Lancement, transition, programmation et modification restent à valider à l’écran.</small>
+                    </span>
+                </label>
+
+                <label class="voice-assistant-setting-toggle">
+                    <input id="voiceAssistantAutoStatusInput" type="checkbox" ${voiceAssistantSettings.autoExecuteStatus ? "checked" : ""}>
+                    <span>
+                        <strong>Répondre automatiquement aux questions d’état</strong>
+                        <small>Ex. « Quel est le programme musical actuel ? »</small>
+                    </span>
+                </label>
+
+                <label class="voice-assistant-setting-toggle">
+                    <input id="voiceAssistantCompactInput" type="checkbox" ${voiceAssistantSettings.compactListening ? "checked" : ""}>
+                    <span>
+                        <strong>Écoute courte</strong>
+                        <small>Une commande à la fois pour limiter la consommation.</small>
+                    </span>
+                </label>
+            </div>
+
+            <div class="voice-assistant-settings__footer">
+                <p>
+                    Microphone : ${recognitionSupported ? "disponible" : "non pris en charge"}
+                    · Réponse vocale : ${synthesisSupported ? "disponible" : "non prise en charge"}.
+                    La reconnaissance dépend des capacités du navigateur et du système.
+                </p>
+                <button id="testVoiceAssistantButton" type="button" ${synthesisSupported ? "" : "disabled"}>
+                    🔊 Tester la voix
+                </button>
+            </div>
+        </details>
+    `;
+}
+
 function normalizeMusicalAssistantHistory(
     values = []
 ) {
@@ -9775,6 +10259,17 @@ async function executeMusicalAssistantPlan() {
                 status: "success",
                 message: musicalAssistantPlan.details.join(" · ")
             });
+            setVoiceAssistantMessage(
+                "État musical actualisé.",
+                "success"
+            );
+            speakVoiceAssistantText(
+                buildVoiceExecutionAnnouncement(
+                    musicalAssistantPlan,
+                    { success: true }
+                )
+            );
+            vibrateVoiceAssistant([30, 40, 30]);
             displayPlaylists(playlistsCache);
             return;
         }
@@ -9932,6 +10427,21 @@ async function executeMusicalAssistantPlan() {
             status: "success",
             message: "Commande exécutée avec succès."
         });
+        setVoiceAssistantMessage(
+            "Commande exécutée avec succès.",
+            "success"
+        );
+        speakVoiceAssistantText(
+            buildVoiceExecutionAnnouncement(
+                plan,
+                {
+                    success: true,
+                    message:
+                        "Commande exécutée avec succès."
+                }
+            )
+        );
+        vibrateVoiceAssistant([30, 45, 30]);
     } catch (error) {
         console.error(error);
         addMusicalAssistantHistory({
@@ -9942,11 +10452,27 @@ async function executeMusicalAssistantPlan() {
                 error.message ||
                 "La commande a échoué."
         });
-        setStatus(
+        const voiceErrorMessage =
             error.message ||
-            "L’assistant musical n’a pas pu exécuter la commande.",
+            "L’assistant musical n’a pas pu exécuter la commande.";
+        setStatus(
+            voiceErrorMessage,
             "error"
         );
+        setVoiceAssistantMessage(
+            voiceErrorMessage,
+            "error"
+        );
+        speakVoiceAssistantText(
+            buildVoiceExecutionAnnouncement(
+                plan,
+                {
+                    success: false,
+                    message: voiceErrorMessage
+                }
+            )
+        );
+        vibrateVoiceAssistant([90, 50, 90]);
     }
 }
 
@@ -9997,7 +10523,13 @@ function renderMusicalAssistantPlan(plan) {
                     type="button"
                     ${plan.ready ? "" : "disabled"}
                 >
-                    ${escapeHtml(plan.actionLabel || "Exécuter")}
+                    ${escapeHtml(
+                        plan.voiceOrigin &&
+                        voiceAssistantSettings.confirmBeforeAction &&
+                        isSensitiveVoicePlan(plan)
+                            ? `Confirmer · ${plan.actionLabel || "Exécuter"}`
+                            : plan.actionLabel || "Exécuter"
+                    )}
                 </button>
             </div>
         </article>
@@ -10040,9 +10572,14 @@ function renderMusicalAssistantPage() {
                         dans ton navigateur.
                     </p>
                 </div>
-                <span class="musical-assistant-local-badge">
-                    🔒 100 % local
-                </span>
+                <div class="musical-assistant-hero__badges">
+                    <span class="musical-assistant-local-badge">
+                        🔒 Analyse locale
+                    </span>
+                    <span class="musical-assistant-local-badge">
+                        🎙️ Assistant vocal 6.1
+                    </span>
+                </div>
             </div>
 
             <form id="musicalAssistantForm" class="musical-assistant-form">
@@ -10057,11 +10594,32 @@ function renderMusicalAssistantPage() {
                     placeholder="Ex. Programme Chill tous les jours à 22h"
                 >${escapeHtml(musicalAssistantDraft)}</textarea>
                 <div class="musical-assistant-form__actions">
+                    <button
+                        id="musicalAssistantVoiceButton"
+                        class="voice-assistant-main-button ${voiceAssistantListening && voiceAssistantSource === "assistant" ? "is-listening" : ""}"
+                        type="button"
+                        ${isVoiceAssistantSupported() ? "" : "disabled"}
+                    >
+                        ${voiceAssistantListening && voiceAssistantSource === "assistant"
+                            ? "■ Arrêter l’écoute"
+                            : "🎙️ Parler à Shuffle+"}
+                    </button>
                     <button class="primary-button" type="submit">
                         ✨ Analyser la demande
                     </button>
                 </div>
             </form>
+
+            <p class="voice-assistant-message ${escapeHtml(voiceAssistantMessage.type)}" aria-live="polite">
+                ${escapeHtml(
+                    voiceAssistantMessage.text ||
+                    (isVoiceAssistantSupported()
+                        ? "Appuie sur le micro et parle naturellement."
+                        : "Le microphone vocal n’est pas pris en charge par ce navigateur.")
+                )}
+            </p>
+
+            ${renderVoiceAssistantSettingsPanel()}
 
             <div class="musical-assistant-examples" aria-label="Exemples de commandes">
                 ${MUSICAL_ASSISTANT_EXAMPLES.map((example) => `
@@ -20591,6 +21149,7 @@ function buildBackupPayload() {
         adaptiveDjScenesState,
         adaptiveTransitionSettings,
         musicalAssistantHistory,
+        voiceAssistantSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -20788,6 +21347,11 @@ function validateBackupPayload(payload) {
             normalizeMusicalAssistantHistory(
                 payload.data.musicalAssistantHistory || []
             ),
+        voiceAssistantSettings:
+            normalizeVoiceAssistantSettings(
+                payload.data.voiceAssistantSettings ||
+                DEFAULT_VOICE_ASSISTANT_SETTINGS
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -20913,6 +21477,9 @@ function applyValidatedBackupState(imported) {
     musicalAssistantHistory =
         imported.musicalAssistantHistory;
     saveMusicalAssistantHistory();
+    voiceAssistantSettings =
+        imported.voiceAssistantSettings;
+    saveVoiceAssistantSettings();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -22952,6 +23519,8 @@ function applySelectiveAutomationCategory(
         quickContextsState = remoteImported.quickContextsState;
         musicalAssistantHistory =
             remoteImported.musicalAssistantHistory;
+        voiceAssistantSettings =
+            remoteImported.voiceAssistantSettings;
         mixSchedules = remoteImported.mixSchedules;
     } else {
         iosCommands = mergeSyncArrays(
@@ -22978,6 +23547,16 @@ function applySelectiveAutomationCategory(
         ).map((item) =>
             normalizeMusicalAssistantHistory([item])[0]
         ).filter(Boolean);
+        voiceAssistantSettings =
+            Number(
+                remoteImported.voiceAssistantSettings
+                    ?.updatedAt || 0
+            ) >= Number(
+                localImported.voiceAssistantSettings
+                    ?.updatedAt || 0
+            )
+                ? remoteImported.voiceAssistantSettings
+                : localImported.voiceAssistantSettings;
     }
 
     if (!iosCommands.length) {
@@ -22990,6 +23569,7 @@ function applySelectiveAutomationCategory(
     saveDrivingModeSettings();
     saveQuickContextsState();
     saveMusicalAssistantHistory();
+    saveVoiceAssistantSettings();
     saveMixSchedules();
     return true;
 }
@@ -30543,10 +31123,43 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#musicalAssistantVoiceButton"
+            )
+        ) {
+            startVoiceAssistantRecognition(
+                "assistant"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testVoiceAssistantButton"
+            )
+        ) {
+            speakVoiceAssistantText(
+                "Shuffle plus est prêt à recevoir tes commandes vocales.",
+                { force: true }
+            );
+            vibrateVoiceAssistant([25, 40, 25]);
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#quickVoiceButton"
             )
         ) {
             startQuickVoiceRecognition();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#drivingVoiceButton"
+            )
+        ) {
+            startDrivingVoiceRecognition();
             return;
         }
 
@@ -32005,6 +32618,56 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (
+            event.target.id ===
+            "voiceAssistantLanguageInput"
+        ) {
+            voiceAssistantSettings =
+                normalizeVoiceAssistantSettings({
+                    ...voiceAssistantSettings,
+                    language:
+                        event.target.value
+                });
+            saveVoiceAssistantSettings();
+            setVoiceAssistantMessage(
+                "Langue vocale mise à jour.",
+                "success"
+            );
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const voiceSettingMap = {
+            voiceAssistantResponsesInput:
+                "voiceResponses",
+            voiceAssistantVibrationInput:
+                "vibration",
+            voiceAssistantConfirmInput:
+                "confirmBeforeAction",
+            voiceAssistantAutoStatusInput:
+                "autoExecuteStatus",
+            voiceAssistantCompactInput:
+                "compactListening"
+        };
+        const voiceSettingKey =
+            voiceSettingMap[event.target.id];
+
+        if (voiceSettingKey) {
+            voiceAssistantSettings =
+                normalizeVoiceAssistantSettings({
+                    ...voiceAssistantSettings,
+                    [voiceSettingKey]:
+                        event.target.checked
+                });
+            saveVoiceAssistantSettings();
+            setVoiceAssistantMessage(
+                "Réglages vocaux enregistrés.",
+                "success"
+            );
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
         if (
             event.target.id ===
             "uiThemeContrastInput"

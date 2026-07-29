@@ -11285,3 +11285,232 @@ html.high-contrast textarea {
         min-width: 0;
     }
 }
+
+
+/* ================================================================
+   Shuffle+ v6.1.0 — Assistant vocal
+   ================================================================ */
+
+.musical-assistant-hero__badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.voice-assistant-main-button {
+    min-height: 48px;
+    padding: 10px 18px;
+    border: 1px solid var(--border-active);
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb) / 13%);
+    color: #fff;
+    font-weight: 850;
+}
+
+.voice-assistant-main-button:hover:not(:disabled) {
+    background: rgb(var(--accent-rgb) / 24%);
+    box-shadow: var(--shadow-accent);
+}
+
+.voice-assistant-main-button.is-listening,
+.driving-voice-control.is-listening,
+.voice-control-button.is-listening {
+    border-color: #f472b6 !important;
+    background:
+        linear-gradient(
+            135deg,
+            rgb(244 114 182 / 28%),
+            rgb(var(--accent-rgb) / 26%)
+        ) !important;
+    animation: shuffleplus-voice-pulse 1.25s ease-in-out infinite;
+}
+
+@keyframes shuffleplus-voice-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 8%);
+    }
+    50% {
+        box-shadow: 0 0 0 9px rgb(var(--accent-rgb) / 10%);
+    }
+}
+
+.voice-assistant-message {
+    min-height: 24px;
+    margin: 0;
+    padding: 12px 15px;
+    border: 1px solid var(--border-soft);
+    border-radius: 15px;
+    background: rgb(255 255 255 / 2%);
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.voice-assistant-message.success {
+    border-color: rgb(16 185 129 / 34%);
+    color: #b7f7d7;
+}
+
+.voice-assistant-message.error {
+    border-color: rgb(239 68 68 / 38%);
+    color: #fecaca;
+}
+
+.voice-assistant-message.info {
+    border-color: var(--border-active);
+    color: #e9ddff;
+}
+
+.voice-assistant-settings {
+    border: 1px solid var(--border-soft);
+    border-radius: 20px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 6%),
+            rgb(10 10 23 / 96%)
+        );
+    box-shadow: var(--shadow-soft);
+    padding: 16px;
+}
+
+.voice-assistant-settings summary {
+    cursor: pointer;
+    color: #fff;
+    font-weight: 850;
+}
+
+.voice-assistant-settings__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.voice-assistant-settings__grid > label {
+    min-width: 0;
+}
+
+.voice-assistant-settings__grid > label:not(.voice-assistant-setting-toggle) {
+    display: grid;
+    gap: 7px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 15px;
+    background: rgb(255 255 255 / 2%);
+}
+
+.voice-assistant-settings select {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: rgb(5 5 13 / 78%);
+    color: #fff;
+}
+
+.voice-assistant-setting-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 15px;
+    background: rgb(255 255 255 / 2%);
+}
+
+.voice-assistant-setting-toggle input {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+}
+
+.voice-assistant-setting-toggle > span {
+    display: grid;
+    gap: 4px;
+}
+
+.voice-assistant-setting-toggle small {
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.voice-assistant-settings__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-soft);
+}
+
+.voice-assistant-settings__footer p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.voice-assistant-settings__footer button {
+    flex: 0 0 auto;
+    min-height: 42px;
+    padding: 8px 13px;
+    border: 1px solid var(--border-active);
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb) / 12%);
+    color: #fff;
+}
+
+.driving-main-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.driving-voice-control {
+    border-color: var(--border-active) !important;
+}
+
+@media (max-width: 760px) {
+    .musical-assistant-hero__badges {
+        justify-content: flex-start;
+    }
+
+    .musical-assistant-form__actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 9px;
+    }
+
+    .voice-assistant-main-button,
+    .musical-assistant-form__actions .primary-button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .voice-assistant-settings__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .voice-assistant-settings__footer {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .voice-assistant-settings__footer button {
+        width: 100%;
+    }
+
+    .driving-main-controls {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .voice-assistant-main-button.is-listening,
+    .driving-voice-control.is-listening,
+    .voice-control-button.is-listening {
+        animation: none;
+    }
+}
