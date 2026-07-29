@@ -1,5 +1,10 @@
 # Feuille de route Shuffle+
 
+- **v5.1.1 — Correctif iPhone : terminée**
+  - alignement responsive des panneaux et cartes ;
+  - prise en charge des zones de sécurité iOS ;
+  - confirmation flash après copie d’un lien iOS.
+
 - **v5.1.0 — Mix Studio : terminée**
   - générateur de mix multi-sources ;
   - ambiances rapides ;

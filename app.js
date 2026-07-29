@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.1.0";
+const APP_VERSION = "5.1.1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -791,6 +791,105 @@ function setStatus(message = "", type = "") {
 
     if (type) {
         statusElement.classList.add(type);
+    }
+}
+
+
+function showToast(
+    message = "",
+    type = "success"
+) {
+    let toast = document.getElementById(
+        "shuffleplusToast"
+    );
+
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "shuffleplusToast";
+        toast.className = "app-toast";
+        toast.setAttribute("role", "status");
+        toast.setAttribute(
+            "aria-live",
+            "polite"
+        );
+        toast.setAttribute(
+            "aria-atomic",
+            "true"
+        );
+        document.body.appendChild(toast);
+    }
+
+    window.clearTimeout(
+        showToast.hideTimer
+    );
+    window.clearTimeout(
+        showToast.removeTimer
+    );
+
+    toast.textContent = message;
+    toast.className =
+        `app-toast is-${type}`;
+    toast.hidden = false;
+
+    window.requestAnimationFrame(() => {
+        toast.classList.add("is-visible");
+    });
+
+    showToast.hideTimer =
+        window.setTimeout(() => {
+            toast.classList.remove(
+                "is-visible"
+            );
+
+            showToast.removeTimer =
+                window.setTimeout(() => {
+                    toast.hidden = true;
+                }, 240);
+        }, 2200);
+}
+
+async function copyTextToClipboard(
+    text = ""
+) {
+    if (
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText ===
+            "function"
+    ) {
+        await navigator.clipboard.writeText(
+            text
+        );
+        return;
+    }
+
+    const textarea =
+        document.createElement("textarea");
+
+    textarea.value = text;
+    textarea.setAttribute(
+        "readonly",
+        ""
+    );
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    textarea.style.pointerEvents = "none";
+
+    document.body.appendChild(textarea);
+    textarea.select();
+    textarea.setSelectionRange(
+        0,
+        textarea.value.length
+    );
+
+    const copied =
+        document.execCommand("copy");
+
+    textarea.remove();
+
+    if (!copied) {
+        throw new Error(
+            "Copie dans le presse-papiers impossible."
+        );
     }
 }
 
@@ -8559,13 +8658,26 @@ async function copyIosCommandUrl(commandId) {
         buildIosCommandUrl(command);
 
     try {
-        await navigator.clipboard.writeText(
-            url
-        );
-        setStatus(
-            `URL de « ${command.name} » copiée.`
+        await copyTextToClipboard(url);
+
+        const message =
+            `Lien « ${command.name} » copié ` +
+            "dans le presse-papiers.";
+
+        setStatus(message);
+        showToast(
+            `✅ ${message}`,
+            "success"
         );
     } catch (error) {
+        console.error(error);
+
+        showToast(
+            "⚠️ Copie automatique impossible. " +
+            "La copie manuelle va s’ouvrir.",
+            "warning"
+        );
+
         window.prompt(
             "Copie cette URL dans Raccourcis :",
             url
@@ -14471,7 +14583,7 @@ function renderMixStudioSection() {
                         Shuffle+ génère ensuite l’ordre complet des morceaux.
                     </p>
                 </div>
-                <span class="mix-studio-version">v5.1</span>
+                <span class="mix-studio-version">v5.1.1</span>
             </div>
 
             <form id="mixStudioForm" class="mix-studio-form">

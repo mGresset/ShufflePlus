@@ -1,6 +1,15 @@
-# Shuffle+ v5.1.0 — Mix Studio
+# Shuffle+ v5.1.1 — Mix Studio · Correctif iPhone
 
 Shuffle+ v5.1 ajoute un véritable générateur dans **Mix & iOS**. Il permet de sélectionner plusieurs playlists ou les morceaux aimés, choisir une ambiance, une durée cible et un niveau de diversité, puis générer un aperçu ou enregistrer le mix.
+
+
+## Correctif v5.1.1 pour iPhone
+
+- les panneaux, formulaires et cartes du centre de commandes iOS restent désormais dans la largeur de l’écran ;
+- les marges gauche et droite tiennent compte des zones de sécurité de l’iPhone ;
+- les champs `select` et les grilles ne peuvent plus imposer une largeur supérieure au viewport ;
+- un message flash confirme la copie du lien d’un raccourci iOS dans le presse-papiers ;
+- une copie manuelle est proposée lorsque l’accès au presse-papiers est indisponible.
 
 ## Fonctionnement de Mix Studio
 
@@ -21,7 +30,7 @@ Les mix créés dans Mix Studio sont inclus dans les sauvegardes et dans la sync
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.9.0 — Comparaison détaillée, annulation et chiffrement local**
+Version documentée : **5.1.1 — Mix Studio et correctif d’affichage iPhone**
 
 ## Sommaire
 
