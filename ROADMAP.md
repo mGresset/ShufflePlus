@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v5.6.0 — Planificateur intelligent : terminée**
+  - routines mix ou scènes ;
+  - priorités et rattrapage ;
+  - calendrier des prochaines occurrences ;
+  - routines conseillées.
+
 - **v5.5.0 — Transitions progressives : terminée**
   - transition entre scènes sans toucher aux titres déjà envoyés ;
   - aperçu, application et annulation ;

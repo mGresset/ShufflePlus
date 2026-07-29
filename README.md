@@ -1,4 +1,9 @@
 
+## v5.6.0 — Planificateur intelligent
+
+Shuffle+ peut désormais planifier des **mix** ou des **scènes Adaptive DJ** avec des routines quotidiennes, de semaine, de week-end ou personnalisées. Les priorités départagent les routines simultanées et la fenêtre de rattrapage permet d’exécuter une routine après une courte fermeture de l’application.
+
+
 ## v5.5.0 — Transitions progressives
 
 Adaptive DJ peut désormais transformer uniquement la partie non envoyée de

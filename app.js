@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.5.0";
+const APP_VERSION = "5.6.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -527,6 +527,15 @@ const SCHEDULE_CHECK_INTERVAL = 30 * 1000;
 const SCHEDULE_GRACE_PERIOD = 15 * 60 * 1000;
 const SCHEDULE_MISSED_WARNING_PERIOD =
     12 * 60 * 60 * 1000;
+const SMART_SCHEDULE_PRESET_VERSION = 1;
+const SCHEDULE_RECURRENCES = [
+    "once",
+    "daily",
+    "weekdays",
+    "weekends",
+    "weekly"
+];
+const DEFAULT_SCHEDULE_CATCH_UP_MINUTES = 30;
 const DEFAULT_EXCLUSION_RULES = {
     excludedArtists: [],
     excludedAlbums: [],
@@ -12250,10 +12259,15 @@ function normalizeScheduleDays(values) {
 }
 
 function normalizeMixSchedule(schedule = {}) {
-    const recurrence =
-        schedule.recurrence === "weekly"
-            ? "weekly"
-            : "once";
+    const recurrence = SCHEDULE_RECURRENCES.includes(
+        schedule.recurrence
+    )
+        ? schedule.recurrence
+        : "once";
+    const targetType =
+        schedule.targetType === "scene"
+            ? "scene"
+            : "mix";
 
     return {
         id:
@@ -12265,10 +12279,15 @@ function normalizeMixSchedule(schedule = {}) {
             typeof schedule.name === "string" &&
             schedule.name.trim()
                 ? schedule.name.trim().slice(0, 80)
-                : "Programmation Shuffle+",
+                : "Routine Shuffle+",
+        targetType,
         mixId:
             typeof schedule.mixId === "string"
                 ? schedule.mixId
+                : "",
+        sceneId:
+            typeof schedule.sceneId === "string"
+                ? schedule.sceneId.slice(0, 40)
                 : "",
         profileId:
             typeof schedule.profileId === "string"
@@ -12296,6 +12315,25 @@ function normalizeMixSchedule(schedule = {}) {
         ),
         enabled: schedule.enabled !== false,
         autoPlay: schedule.autoPlay !== false,
+        requireActiveDevice:
+            schedule.requireActiveDevice === true,
+        catchUpMinutes: Math.max(
+            0,
+            Math.min(
+                180,
+                Number(
+                    schedule.catchUpMinutes ??
+                    DEFAULT_SCHEDULE_CATCH_UP_MINUTES
+                ) || 0
+            )
+        ),
+        priority: Math.max(
+            1,
+            Math.min(
+                5,
+                Number(schedule.priority || 3)
+            )
+        ),
         createdAt: Number(
             schedule.createdAt || Date.now()
         ),
@@ -12310,7 +12348,10 @@ function normalizeMixSchedule(schedule = {}) {
         lastResult:
             typeof schedule.lastResult === "string"
                 ? schedule.lastResult.slice(0, 240)
-                : ""
+                : "",
+        presetVersion: Number(
+            schedule.presetVersion || 0
+        )
     };
 }
 
@@ -12383,24 +12424,29 @@ function formatScheduleDateTime(value) {
 }
 
 function getScheduleTimingLabel(schedule) {
-    if (schedule.recurrence === "weekly") {
-        const days = schedule.weekdays
-            .map(getScheduleDayLabel)
-            .join(", ");
-
-        return (
-            `${days || "Aucun jour"} à ` +
-            `${schedule.time}`
+    if (schedule.recurrence === "once") {
+        return formatScheduleDateTime(
+            schedule.dateTime
         );
     }
 
-    return formatScheduleDateTime(
-        schedule.dateTime
+    const recurrenceLabels = {
+        daily: "Tous les jours",
+        weekdays: "Du lundi au vendredi",
+        weekends: "Le week-end",
+        weekly: schedule.weekdays
+            .map(getScheduleDayLabel)
+            .join(", ") || "Aucun jour"
+    };
+
+    return (
+        `${recurrenceLabels[schedule.recurrence] || "Chaque semaine"}` +
+        ` à ${schedule.time}`
     );
 }
 
 function getScheduleRunKey(schedule, date = new Date()) {
-    if (schedule.recurrence === "weekly") {
+    if (schedule.recurrence !== "once") {
         const year = date.getFullYear();
         const month = String(
             date.getMonth() + 1
@@ -12418,6 +12464,176 @@ function getScheduleRunKey(schedule, date = new Date()) {
     return `${schedule.id}:${schedule.dateTime}`;
 }
 
+
+function getScheduleAllowedWeekdays(schedule) {
+    if (schedule.recurrence === "daily") {
+        return [0, 1, 2, 3, 4, 5, 6];
+    }
+
+    if (schedule.recurrence === "weekdays") {
+        return [1, 2, 3, 4, 5];
+    }
+
+    if (schedule.recurrence === "weekends") {
+        return [0, 6];
+    }
+
+    return normalizeScheduleDays(
+        schedule.weekdays
+    );
+}
+
+function getScheduleTarget(schedule) {
+    if (schedule.targetType === "scene") {
+        const scene = getAdaptiveDjSceneById(
+            schedule.sceneId
+        );
+        return {
+            available: Boolean(scene?.mixId),
+            icon: scene?.icon || "🎬",
+            label: scene?.label || "Scène indisponible",
+            detail: scene
+                ? getAdaptiveDjSceneMixName(scene)
+                : "Aucune scène"
+        };
+    }
+
+    const mix = savedMixes.find(
+        (item) => item.id === schedule.mixId
+    );
+    return {
+        available: Boolean(mix),
+        icon: "🎧",
+        label: mix?.name || "Mix indisponible",
+        detail: "Mix enregistré"
+    };
+}
+
+function getSchedulePriorityLabel(priority = 3) {
+    return {
+        1: "Basse",
+        2: "Normale",
+        3: "Importante",
+        4: "Haute",
+        5: "Prioritaire"
+    }[priority] || "Importante";
+}
+
+function getUpcomingScheduleOccurrences(
+    schedule,
+    count = 3,
+    now = new Date()
+) {
+    const dates = [];
+    let cursor = new Date(now);
+
+    for (
+        let attempt = 0;
+        attempt < 40 && dates.length < count;
+        attempt += 1
+    ) {
+        const next = getNextScheduleDate(
+            schedule,
+            cursor
+        );
+
+        if (!next) {
+            break;
+        }
+
+        dates.push(next);
+        cursor = new Date(
+            next.getTime() + 60 * 1000
+        );
+
+        if (schedule.recurrence === "once") {
+            break;
+        }
+    }
+
+    return dates;
+}
+
+function createSmartSchedulePresets() {
+    const presetDefinitions = [
+        {
+            id: "weekday-morning",
+            name: "Matin en semaine",
+            sceneId: "morning",
+            recurrence: "weekdays",
+            time: "07:30",
+            priority: 3
+        },
+        {
+            id: "weekday-focus",
+            name: "Focus en semaine",
+            sceneId: "focus",
+            recurrence: "weekdays",
+            time: "09:00",
+            priority: 2
+        },
+        {
+            id: "evening-chill",
+            name: "Chill du soir",
+            sceneId: "chill",
+            recurrence: "daily",
+            time: "21:30",
+            priority: 3
+        }
+    ];
+    const existingPresetIds = new Set(
+        mixSchedules
+            .filter(
+                (item) =>
+                    item.presetVersion ===
+                    SMART_SCHEDULE_PRESET_VERSION
+            )
+            .map((item) => item.id)
+    );
+    const additions = presetDefinitions
+        .filter(
+            (preset) =>
+                !existingPresetIds.has(
+                    `smart-${preset.id}`
+                )
+        )
+        .map((preset) => normalizeMixSchedule({
+            id: `smart-${preset.id}`,
+            name: preset.name,
+            targetType: "scene",
+            sceneId: preset.sceneId,
+            recurrence: preset.recurrence,
+            time: preset.time,
+            weekdays: [],
+            autoPlay: true,
+            requireActiveDevice: false,
+            catchUpMinutes: 45,
+            priority: preset.priority,
+            enabled: true,
+            presetVersion:
+                SMART_SCHEDULE_PRESET_VERSION,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+        }));
+
+    if (!additions.length) {
+        setStatus(
+            "Les routines intelligentes sont déjà installées."
+        );
+        return;
+    }
+
+    mixSchedules = [
+        ...additions,
+        ...mixSchedules
+    ].slice(0, MAX_MIX_SCHEDULES);
+    saveMixSchedules();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `${additions.length} routine${additions.length > 1 ? "s" : ""} intelligente${additions.length > 1 ? "s" : ""} ajoutée${additions.length > 1 ? "s" : ""}.`
+    );
+}
+
 function getScheduleDueState(
     schedule,
     now = new Date()
@@ -12432,11 +12648,10 @@ function getScheduleDueState(
 
     let target = null;
 
-    if (schedule.recurrence === "weekly") {
+    if (schedule.recurrence !== "once") {
         if (
-            !schedule.weekdays.includes(
-                now.getDay()
-            )
+            !getScheduleAllowedWeekdays(schedule)
+                .includes(now.getDay())
         ) {
             return {
                 due: false,
@@ -12473,25 +12688,31 @@ function getScheduleDueState(
         schedule,
         target
     );
+    const gracePeriod = Math.max(
+        SCHEDULE_GRACE_PERIOD,
+        schedule.catchUpMinutes * 60 * 1000
+    );
 
     if (schedule.lastRunKey === runKey) {
         return {
             due: false,
             missed: false,
-            difference
+            difference,
+            runKey
         };
     }
 
     return {
         due:
             difference >= 0 &&
-            difference <= SCHEDULE_GRACE_PERIOD,
+            difference <= gracePeriod,
         missed:
-            difference > SCHEDULE_GRACE_PERIOD &&
+            difference > gracePeriod &&
             difference <=
                 SCHEDULE_MISSED_WARNING_PERIOD,
         difference,
-        runKey
+        runKey,
+        target
     };
 }
 
@@ -12513,8 +12734,10 @@ function getNextScheduleDate(schedule, now = new Date()) {
 
     const [hours, minutes] =
         schedule.time.split(":").map(Number);
+    const allowedDays =
+        getScheduleAllowedWeekdays(schedule);
 
-    for (let offset = 0; offset < 8; offset += 1) {
+    for (let offset = 0; offset < 15; offset += 1) {
         const candidate = new Date(now);
         candidate.setDate(
             now.getDate() + offset
@@ -12527,7 +12750,7 @@ function getNextScheduleDate(schedule, now = new Date()) {
         );
 
         if (
-            schedule.weekdays.includes(
+            allowedDays.includes(
                 candidate.getDay()
             ) &&
             candidate.getTime() >= now.getTime()
@@ -12547,7 +12770,20 @@ function renderMixSchedulesSection() {
             </option>
         `)
         .join("");
-
+    const sceneOptions =
+        normalizeAdaptiveDjScenesState(
+            adaptiveDjScenesState
+        ).scenes
+            .map((scene) => `
+                <option value="${escapeHtml(scene.id)}">
+                    ${escapeHtml(scene.icon)}
+                    ${escapeHtml(scene.label)}
+                    ${scene.mixId
+                        ? ""
+                        : " · aucun mix"}
+                </option>
+            `)
+            .join("");
     const profileOptions = mixProfiles
         .map((profile) => `
             <option value="${escapeHtml(profile.id)}">
@@ -12556,7 +12792,6 @@ function renderMixSchedulesSection() {
             </option>
         `)
         .join("");
-
     const deviceOptions = availableDevices
         .map((device) => `
             <option
@@ -12570,21 +12805,42 @@ function renderMixSchedulesSection() {
         `)
         .join("");
 
+    const activeSchedules = mixSchedules
+        .filter((schedule) => schedule.enabled);
+    const nextOccurrences = activeSchedules
+        .flatMap((schedule) =>
+            getUpcomingScheduleOccurrences(
+                schedule,
+                2
+            ).map((date) => ({
+                schedule,
+                date
+            }))
+        )
+        .sort(
+            (first, second) =>
+                first.date.getTime() -
+                second.date.getTime()
+        )
+        .slice(0, 6);
     const scheduleCards = [...mixSchedules]
         .sort((first, second) => {
+            if (first.enabled !== second.enabled) {
+                return first.enabled ? -1 : 1;
+            }
+            if (first.priority !== second.priority) {
+                return second.priority - first.priority;
+            }
             const firstDate =
                 getNextScheduleDate(first)?.getTime() ||
                 Number.POSITIVE_INFINITY;
             const secondDate =
                 getNextScheduleDate(second)?.getTime() ||
                 Number.POSITIVE_INFINITY;
-
             return firstDate - secondDate;
         })
         .map((schedule) => {
-            const mix = savedMixes.find(
-                (item) => item.id === schedule.mixId
-            );
+            const target = getScheduleTarget(schedule);
             const profile = getProfileById(
                 schedule.profileId
             );
@@ -12592,35 +12848,34 @@ function renderMixSchedulesSection() {
                 getNextScheduleDate(schedule);
 
             return `
-                <article
-                    class="schedule-card
-                    ${schedule.enabled ? "" : "is-disabled"}"
-                >
+                <article class="schedule-card
+                    ${schedule.enabled ? "" : "is-disabled"}
+                    schedule-priority-${schedule.priority}">
                     <div class="schedule-card-main">
                         <span class="schedule-icon">
-                            ${schedule.recurrence === "weekly"
-                                ? "🔁"
-                                : "🗓️"}
+                            ${target.icon}
                         </span>
-
                         <div>
-                            <h4>
-                                ${escapeHtml(schedule.name)}
-                            </h4>
+                            <div class="schedule-title-row">
+                                <h4>${escapeHtml(schedule.name)}</h4>
+                                <span class="schedule-priority-badge">
+                                    ${escapeHtml(
+                                        getSchedulePriorityLabel(
+                                            schedule.priority
+                                        )
+                                    )}
+                                </span>
+                            </div>
                             <p>
-                                ${escapeHtml(
-                                    mix?.name ||
-                                    "Mix indisponible"
-                                )}
+                                ${escapeHtml(target.label)}
+                                · ${escapeHtml(target.detail)}
                                 ${profile
                                     ? ` · Profil ${escapeHtml(profile.name)}`
                                     : ""}
                             </p>
                             <small>
                                 ${escapeHtml(
-                                    getScheduleTimingLabel(
-                                        schedule
-                                    )
+                                    getScheduleTimingLabel(schedule)
                                 )}
                                 ${schedule.deviceName
                                     ? ` · ${escapeHtml(schedule.deviceName)}`
@@ -12629,28 +12884,28 @@ function renderMixSchedulesSection() {
                                     ? ` · prochain : ${escapeHtml(formatScheduleDateTime(nextDate))}`
                                     : ""}
                             </small>
-
+                            <div class="schedule-smart-flags">
+                                <span>⏱ Rattrapage ${schedule.catchUpMinutes} min</span>
+                                <span>${schedule.autoPlay ? "▶ Lecture auto" : "🧩 Préparation"}</span>
+                                ${schedule.requireActiveDevice
+                                    ? "<span>📱 Appareil actif requis</span>"
+                                    : ""}
+                            </div>
                             ${schedule.lastResult
-                                ? `
-                                    <span class="schedule-last-result">
-                                        ${escapeHtml(schedule.lastResult)}
-                                    </span>
-                                `
+                                ? `<span class="schedule-last-result">${escapeHtml(schedule.lastResult)}</span>`
                                 : ""}
                         </div>
                     </div>
-
                     <div class="schedule-actions">
                         <button
                             type="button"
                             class="schedule-run-button"
                             data-schedule-action="run"
                             data-schedule-id="${escapeHtml(schedule.id)}"
-                            ${mix ? "" : "disabled"}
+                            ${target.available ? "" : "disabled"}
                         >
                             ▶ Lancer maintenant
                         </button>
-
                         <button
                             type="button"
                             class="schedule-secondary-button"
@@ -12660,7 +12915,6 @@ function renderMixSchedulesSection() {
                         >
                             ${schedule.enabled ? "⏸" : "▶"}
                         </button>
-
                         <button
                             type="button"
                             class="schedule-secondary-button schedule-delete-button"
@@ -12677,60 +12931,94 @@ function renderMixSchedulesSection() {
         .join("");
 
     return `
-        <section class="schedules-panel">
+        <section class="schedules-panel intelligent-scheduler-panel">
             <div class="schedules-heading">
                 <div>
-                    <h3>Programmation des mix</h3>
+                    <span class="adaptive-menu-kicker">
+                        🗓️ Planificateur intelligent v5.6
+                    </span>
+                    <h3>Routines musicales</h3>
                     <p>
-                        Les lancements automatiques nécessitent que
-                        Shuffle+ soit ouvert et connecté à Spotify.
+                        Programme un mix ou une scène, avec priorité,
+                        rattrapage intelligent et appareil actif optionnel.
+                        Shuffle+ doit rester ouvert pour lancer Spotify.
                     </p>
                 </div>
-
-                <button
-                    id="refreshScheduleDevicesButton"
-                    class="schedule-refresh-button"
-                    type="button"
-                >
-                    ↻ Actualiser les appareils
-                </button>
+                <div class="schedule-heading-actions">
+                    <button
+                        id="createSmartSchedulePresetsButton"
+                        class="schedule-refresh-button"
+                        type="button"
+                    >
+                        ✨ Installer les routines conseillées
+                    </button>
+                    <button
+                        id="refreshScheduleDevicesButton"
+                        class="schedule-refresh-button"
+                        type="button"
+                    >
+                        ↻ Actualiser les appareils
+                    </button>
+                </div>
             </div>
 
-            <form
-                id="mixScheduleForm"
-                class="schedule-form"
-            >
+            <div class="schedule-timeline">
+                <div>
+                    <strong>${activeSchedules.length}</strong>
+                    <span>routine${activeSchedules.length > 1 ? "s" : ""} active${activeSchedules.length > 1 ? "s" : ""}</span>
+                </div>
+                <ol>
+                    ${nextOccurrences.length
+                        ? nextOccurrences.map(({ schedule, date }) => `
+                            <li>
+                                <time>${escapeHtml(formatScheduleDateTime(date))}</time>
+                                <span>${escapeHtml(schedule.name)}</span>
+                            </li>
+                        `).join("")
+                        : "<li>Aucune occurrence à venir.</li>"}
+                </ol>
+            </div>
+
+            <form id="mixScheduleForm" class="schedule-form intelligent-schedule-form">
                 <label class="schedule-field">
-                    <span>Nom de la programmation</span>
+                    <span>Nom de la routine</span>
                     <input
                         name="name"
                         type="text"
                         maxlength="80"
-                        placeholder="Ex. Sport du soir"
+                        placeholder="Ex. Chill après le dîner"
                         required
                     >
                 </label>
 
                 <label class="schedule-field">
+                    <span>Type de contenu</span>
+                    <select name="targetType" data-schedule-target-type>
+                        <option value="scene">Scène Adaptive DJ</option>
+                        <option value="mix">Mix enregistré</option>
+                    </select>
+                </label>
+
+                <label class="schedule-field" data-schedule-scene-field>
+                    <span>Scène</span>
+                    <select name="sceneId">
+                        <option value="">Choisir une scène</option>
+                        ${sceneOptions}
+                    </select>
+                </label>
+
+                <label class="schedule-field" data-schedule-mix-field hidden>
                     <span>Mix enregistré</span>
-                    <select
-                        name="mixId"
-                        ${savedMixes.length ? "" : "disabled"}
-                        required
-                    >
-                        <option value="">
-                            Choisir un mix
-                        </option>
+                    <select name="mixId">
+                        <option value="">Choisir un mix</option>
                         ${mixOptions}
                     </select>
                 </label>
 
                 <label class="schedule-field">
-                    <span>Profil appliqué</span>
+                    <span>Profil appliqué aux mix</span>
                     <select name="profileId">
-                        <option value="">
-                            Réglages du mix
-                        </option>
+                        <option value="">Réglages du contenu</option>
                         ${profileOptions}
                     </select>
                 </label>
@@ -12738,114 +13026,89 @@ function renderMixSchedulesSection() {
                 <label class="schedule-field">
                     <span>Appareil Spotify</span>
                     <select name="deviceId">
-                        <option value="">
-                            Appareil actif ou premier disponible
-                        </option>
+                        <option value="">Appareil actif ou premier disponible</option>
                         ${deviceOptions}
                     </select>
                 </label>
 
                 <label class="schedule-field">
                     <span>Répétition</span>
-                    <select
-                        name="recurrence"
-                        data-schedule-recurrence
-                    >
-                        <option value="once">
-                            Une seule fois
-                        </option>
-                        <option value="weekly">
-                            Chaque semaine
-                        </option>
+                    <select name="recurrence" data-schedule-recurrence>
+                        <option value="once">Une seule fois</option>
+                        <option value="daily">Tous les jours</option>
+                        <option value="weekdays">Du lundi au vendredi</option>
+                        <option value="weekends">Le week-end</option>
+                        <option value="weekly">Jours personnalisés</option>
                     </select>
                 </label>
 
-                <label
-                    class="schedule-field"
-                    data-schedule-once-field
-                >
+                <label class="schedule-field" data-schedule-once-field>
                     <span>Date et heure</span>
-                    <input
-                        name="dateTime"
-                        type="datetime-local"
-                    >
+                    <input name="dateTime" type="datetime-local">
                 </label>
 
-                <label
-                    class="schedule-field"
-                    data-schedule-weekly-field
-                    hidden
-                >
+                <label class="schedule-field" data-schedule-recurring-field hidden>
                     <span>Heure</span>
-                    <input
-                        name="time"
-                        type="time"
-                        value="18:00"
-                    >
+                    <input name="time" type="time" value="18:00">
                 </label>
 
-                <fieldset
-                    class="schedule-weekdays"
-                    data-schedule-weekly-field
-                    hidden
-                >
-                    <legend>Jours de la semaine</legend>
+                <fieldset class="schedule-weekdays" data-schedule-weekly-field hidden>
+                    <legend>Jours personnalisés</legend>
                     ${[
-                        [1, "Lun"],
-                        [2, "Mar"],
-                        [3, "Mer"],
-                        [4, "Jeu"],
-                        [5, "Ven"],
-                        [6, "Sam"],
-                        [0, "Dim"]
+                        [1, "Lun"], [2, "Mar"], [3, "Mer"],
+                        [4, "Jeu"], [5, "Ven"], [6, "Sam"], [0, "Dim"]
                     ].map(([value, label]) => `
                         <label>
-                            <input
-                                type="checkbox"
-                                name="weekdays"
-                                value="${value}"
-                            >
+                            <input type="checkbox" name="weekdays" value="${value}">
                             <span>${label}</span>
                         </label>
                     `).join("")}
                 </fieldset>
 
+                <label class="schedule-field">
+                    <span>Priorité</span>
+                    <select name="priority">
+                        <option value="1">Basse</option>
+                        <option value="2">Normale</option>
+                        <option value="3" selected>Importante</option>
+                        <option value="4">Haute</option>
+                        <option value="5">Prioritaire</option>
+                    </select>
+                </label>
+
+                <label class="schedule-field">
+                    <span>Fenêtre de rattrapage</span>
+                    <select name="catchUpMinutes">
+                        <option value="0">Aucun rattrapage</option>
+                        <option value="15">15 minutes</option>
+                        <option value="30" selected>30 minutes</option>
+                        <option value="45">45 minutes</option>
+                        <option value="60">1 heure</option>
+                        <option value="120">2 heures</option>
+                    </select>
+                </label>
+
                 <label class="schedule-auto-play">
-                    <input
-                        name="autoPlay"
-                        type="checkbox"
-                        checked
-                    >
-                    <span>
-                        Lancer automatiquement le premier
-                        bloc de 100 titres
-                    </span>
+                    <input name="autoPlay" type="checkbox" checked>
+                    <span>Lancer automatiquement la lecture Spotify</span>
+                </label>
+
+                <label class="schedule-auto-play">
+                    <input name="requireActiveDevice" type="checkbox">
+                    <span>Attendre qu’un appareil Spotify soit déjà actif</span>
                 </label>
 
                 <div class="schedule-form-actions">
-                    <button
-                        class="schedule-create-button"
-                        type="submit"
-                        ${savedMixes.length ? "" : "disabled"}
-                    >
-                        + Ajouter la programmation
+                    <button class="schedule-create-button" type="submit">
+                        + Ajouter la routine
                     </button>
                 </div>
             </form>
 
-            ${savedMixes.length
-                ? ""
-                : `
-                    <p class="schedule-warning">
-                        Enregistre d’abord un mix pour pouvoir
-                        le programmer.
-                    </p>
-                `}
-
             <div class="schedule-list">
                 ${scheduleCards || `
                     <div class="schedule-empty">
-                        Aucune programmation enregistrée.
+                        Aucune routine enregistrée.
                     </div>
                 `}
             </div>
@@ -12856,21 +13119,31 @@ function renderMixSchedulesSection() {
 function createMixScheduleFromForm(form) {
     if (mixSchedules.length >= MAX_MIX_SCHEDULES) {
         setStatus(
-            `Tu peux créer jusqu’à ${MAX_MIX_SCHEDULES} programmations.`,
+            `Tu peux créer jusqu’à ${MAX_MIX_SCHEDULES} routines.`,
             "error"
         );
         return;
     }
 
     const formData = new FormData(form);
+    const targetType =
+        formData.get("targetType") === "mix"
+            ? "mix"
+            : "scene";
     const mixId = String(
         formData.get("mixId") || ""
+    );
+    const sceneId = String(
+        formData.get("sceneId") || ""
     );
     const mix = savedMixes.find(
         (item) => item.id === mixId
     );
+    const scene = getAdaptiveDjSceneById(
+        sceneId
+    );
 
-    if (!mix) {
+    if (targetType === "mix" && !mix) {
         setStatus(
             "Choisis un mix enregistré valide.",
             "error"
@@ -12878,9 +13151,22 @@ function createMixScheduleFromForm(form) {
         return;
     }
 
+    if (
+        targetType === "scene" &&
+        (!scene || !scene.mixId)
+    ) {
+        setStatus(
+            "Choisis une scène associée à un mix.",
+            "error"
+        );
+        return;
+    }
+
     const recurrence =
-        formData.get("recurrence") === "weekly"
-            ? "weekly"
+        SCHEDULE_RECURRENCES.includes(
+            formData.get("recurrence")
+        )
+            ? formData.get("recurrence")
             : "once";
     const weekdays = formData
         .getAll("weekdays")
@@ -12915,7 +13201,7 @@ function createMixScheduleFromForm(form) {
         !weekdays.length
     ) {
         setStatus(
-            "Choisis au moins un jour de la semaine.",
+            "Choisis au moins un jour personnalisé.",
             "error"
         );
         return;
@@ -12924,13 +13210,17 @@ function createMixScheduleFromForm(form) {
     const deviceSelect = form.elements.deviceId;
     const selectedDeviceOption =
         deviceSelect?.selectedOptions?.[0];
-
+    const fallbackName = targetType === "scene"
+        ? `${scene.icon} ${scene.label}`
+        : mix.name;
     const schedule = normalizeMixSchedule({
         id: createSavedMixId(),
         name:
             String(formData.get("name") || "").trim() ||
-            mix.name,
-        mixId,
+            fallbackName,
+        targetType,
+        mixId: targetType === "mix" ? mixId : "",
+        sceneId: targetType === "scene" ? sceneId : "",
         profileId:
             String(formData.get("profileId") || ""),
         deviceId:
@@ -12944,6 +13234,12 @@ function createMixScheduleFromForm(form) {
         weekdays,
         autoPlay:
             formData.get("autoPlay") === "on",
+        requireActiveDevice:
+            formData.get("requireActiveDevice") === "on",
+        catchUpMinutes:
+            Number(formData.get("catchUpMinutes") || 30),
+        priority:
+            Number(formData.get("priority") || 3),
         enabled: true,
         createdAt: Date.now(),
         updatedAt: Date.now()
@@ -12957,7 +13253,7 @@ function createMixScheduleFromForm(form) {
     saveMixSchedules();
     displayPlaylists(playlistsCache);
     setStatus(
-        `Programmation « ${schedule.name} » ajoutée.`
+        `Routine « ${schedule.name} » ajoutée.`
     );
 }
 
@@ -13144,48 +13440,84 @@ async function runMixSchedule(
     const schedule = mixSchedules.find(
         (item) => item.id === scheduleId
     );
-    const mix = savedMixes.find(
-        (item) => item.id === schedule?.mixId
-    );
+    const target = schedule
+        ? getScheduleTarget(schedule)
+        : null;
 
-    if (!schedule || !mix) {
+    if (!schedule || !target?.available) {
         setStatus(
-            "Le mix associé à cette programmation est indisponible.",
+            "Le contenu associé à cette routine est indisponible.",
             "error"
         );
         return;
     }
 
+    if (
+        schedule.requireActiveDevice &&
+        schedule.autoPlay &&
+        !availableDevices.some(
+            (device) => device.is_active
+        )
+    ) {
+        schedule.lastResult =
+            "En attente d’un appareil Spotify actif.";
+        saveMixSchedules();
+        setStatus(
+            `Routine « ${schedule.name} » en attente d’un appareil actif.`
+        );
+        return;
+    }
+
     scheduleRunInProgress = true;
-    schedule.lastResult =
-        automatic
-            ? "Lancement automatique en cours…"
-            : "Lancement manuel en cours…";
+    schedule.lastResult = automatic
+        ? "Lancement intelligent en cours…"
+        : "Lancement manuel en cours…";
     saveMixSchedules();
 
     try {
-        if (schedule.profileId) {
-            const profile = getProfileById(
-                schedule.profileId
+        if (schedule.targetType === "scene") {
+            await runAdaptiveDjScene(
+                schedule.sceneId,
+                {
+                    autoplay: schedule.autoPlay
+                }
+            );
+        } else {
+            const mix = savedMixes.find(
+                (item) => item.id === schedule.mixId
             );
 
-            if (profile) {
-                applyMixProfile(
-                    profile.id,
-                    {
-                        persist: false,
-                        rerender: false
-                    }
+            if (schedule.profileId) {
+                const profile = getProfileById(
+                    schedule.profileId
+                );
+
+                if (profile) {
+                    applyMixProfile(
+                        profile.id,
+                        {
+                            persist: false,
+                            rerender: false
+                        }
+                    );
+                }
+            }
+
+            pendingScheduledPlayback = schedule;
+            const prepared = await launchSavedMix(
+                mix.id
+            );
+
+            if (!prepared) {
+                throw new Error(
+                    "Le mix programmé n’a pas pu être préparé."
                 );
             }
-        }
 
-        pendingScheduledPlayback = schedule;
-        await launchSavedMix(mix.id);
-
-        if (pendingScheduledPlayback) {
-            await playScheduledCurrentMix(schedule);
-            pendingScheduledPlayback = null;
+            if (pendingScheduledPlayback) {
+                await playScheduledCurrentMix(schedule);
+                pendingScheduledPlayback = null;
+            }
         }
 
         const completedAt = Date.now();
@@ -13196,10 +13528,9 @@ async function runMixSchedule(
                 schedule,
                 new Date(completedAt)
             );
-        schedule.lastResult =
-            schedule.autoPlay
-                ? "Mix lancé automatiquement avec succès."
-                : "Mix préparé avec succès.";
+        schedule.lastResult = schedule.autoPlay
+            ? "Routine lancée automatiquement avec succès."
+            : "Contenu préparé avec succès.";
 
         if (schedule.recurrence === "once") {
             schedule.enabled = false;
@@ -13207,18 +13538,18 @@ async function runMixSchedule(
 
         saveMixSchedules();
         setStatus(
-            `Programmation « ${schedule.name} » exécutée.`
+            `Routine « ${schedule.name} » exécutée.`
         );
     } catch (error) {
         console.error(error);
         pendingScheduledPlayback = null;
         schedule.lastResult =
             error.message ||
-            "Échec du lancement programmé.";
+            "Échec de la routine musicale.";
         saveMixSchedules();
 
         setStatus(
-            `Programmation « ${schedule.name} » : ` +
+            `Routine « ${schedule.name} » : ` +
             `${schedule.lastResult}`,
             "error"
         );
@@ -13236,36 +13567,55 @@ async function checkDueMixSchedules() {
     }
 
     const now = new Date();
-
-    for (const schedule of mixSchedules) {
-        const state = getScheduleDueState(
+    const states = mixSchedules
+        .map((schedule) => ({
             schedule,
-            now
-        );
-
-        if (state.due) {
-            await runMixSchedule(
-                schedule.id,
-                {
-                    automatic: true,
-                    runKey: state.runKey
-                }
+            state: getScheduleDueState(
+                schedule,
+                now
+            )
+        }));
+    const due = states
+        .filter((item) => item.state.due)
+        .sort((first, second) => {
+            if (
+                first.schedule.priority !==
+                second.schedule.priority
+            ) {
+                return (
+                    second.schedule.priority -
+                    first.schedule.priority
+                );
+            }
+            return (
+                second.state.difference -
+                first.state.difference
             );
-            break;
-        }
+        });
 
+    if (due.length) {
+        await runMixSchedule(
+            due[0].schedule.id,
+            {
+                automatic: true,
+                runKey: due[0].state.runKey
+            }
+        );
+        return;
+    }
+
+    for (const { schedule, state } of states) {
         if (
             state.missed &&
             !schedule.lastResult.startsWith(
-                "Programmation manquée"
+                "Routine manquée"
             )
         ) {
             schedule.lastResult =
-                "Programmation manquée pendant que Shuffle+ était fermé.";
+                "Routine manquée pendant que Shuffle+ était fermé.";
             saveMixSchedules();
-
             setStatus(
-                `Programmation manquée : « ${schedule.name} ».`,
+                `Routine manquée : « ${schedule.name} ».`,
                 "error"
             );
         }
@@ -30086,6 +30436,15 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#createSmartSchedulePresetsButton"
+            )
+        ) {
+            createSmartSchedulePresets();
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#refreshScheduleDevicesButton"
             )
         ) {
@@ -31588,25 +31947,55 @@ contentElement.addEventListener(
 
         if (
             event.target.matches(
+                "[data-schedule-target-type]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#mixScheduleForm"
+            );
+            const isScene =
+                event.target.value === "scene";
+
+            form?.querySelectorAll(
+                "[data-schedule-scene-field]"
+            ).forEach((element) => {
+                element.hidden = !isScene;
+            });
+            form?.querySelectorAll(
+                "[data-schedule-mix-field]"
+            ).forEach((element) => {
+                element.hidden = isScene;
+            });
+            return;
+        }
+
+        if (
+            event.target.matches(
                 "[data-schedule-recurrence]"
             )
         ) {
             const form = event.target.closest(
                 "#mixScheduleForm"
             );
-            const weekly =
-                event.target.value === "weekly";
-
-            form?.querySelectorAll(
-                "[data-schedule-weekly-field]"
-            ).forEach((element) => {
-                element.hidden = !weekly;
-            });
+            const recurrence =
+                event.target.value;
+            const once = recurrence === "once";
+            const weekly = recurrence === "weekly";
 
             form?.querySelectorAll(
                 "[data-schedule-once-field]"
             ).forEach((element) => {
-                element.hidden = weekly;
+                element.hidden = !once;
+            });
+            form?.querySelectorAll(
+                "[data-schedule-recurring-field]"
+            ).forEach((element) => {
+                element.hidden = once;
+            });
+            form?.querySelectorAll(
+                "[data-schedule-weekly-field]"
+            ).forEach((element) => {
+                element.hidden = !weekly;
             });
 
             return;
