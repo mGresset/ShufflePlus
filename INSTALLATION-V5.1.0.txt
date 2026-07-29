@@ -1,0 +1,13 @@
+Shuffle+ v5.1.0 — Installation
+
+1. Remplacer les fichiers du site par le contenu de ce dossier.
+2. Conserver le dossier server/ déjà déployé : aucune modification serveur n'est requise.
+3. Publier :
+
+   git add .
+   git commit -m "v5.1.0 - Mix Studio"
+   git pull --rebase origin main
+   git push origin main
+
+4. Dans la PWA : Réglages → Rechercher une mise à jour.
+5. Ouvrir Mix & iOS → Mix Studio.

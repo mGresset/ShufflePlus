@@ -11,9 +11,12 @@
   - durée cible et diversité ;
   - aperçu, sauvegarde et association Adaptive DJ ;
   - synchronisation serveur des mix.
-- **v5.2 — Mix Studio avancé : prévue**
+- **v5.2.0 — Mix Studio avancé : terminée**
   - modèles réutilisables ;
   - pondération des sources ;
-  - comparaison de plusieurs variantes.
+  - comparaison et aperçu de plusieurs variantes.
+- **v5.2.1 — Stabilisation Mix Studio : prévue**
+  - retours d’usage et optimisation de la pondération ;
+  - édition directe des modèles existants.
 - **v5.3 — Collaboration privée : étude**
   - partage chiffré d’un mix entre espaces autorisés.

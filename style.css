@@ -9054,3 +9054,194 @@ body {
         font-size: 13px;
     }
 }
+
+
+/* Shuffle+ v5.2.0 — Mix Studio avancé */
+.mix-studio-template-toolbar {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    padding: 14px;
+    border: 1px solid #405247;
+    border-radius: 14px;
+    background: rgb(12 19 14 / 82%);
+}
+
+.mix-studio-template-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.mix-studio-template-actions button,
+.mix-studio-compare-button,
+.mix-studio-variant-actions button {
+    min-height: 42px;
+    padding: 8px 13px;
+    border: 1px solid #4c6856;
+    border-radius: 999px;
+    background: #101712;
+    color: #edf7f0;
+    font-weight: 800;
+}
+
+.mix-studio-source-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(120px, .42fr);
+    gap: 12px;
+    align-items: center;
+}
+
+.mix-studio-source-main {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 11px;
+    cursor: pointer;
+}
+
+.mix-studio-source-main > input {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 auto;
+    accent-color: #1ed760;
+}
+
+.mix-studio-source-weight {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+.mix-studio-source-weight > span {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: #aeb8b1;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.mix-studio-source-weight output {
+    color: #80e9a4;
+}
+
+.mix-studio-source-weight input {
+    width: 100%;
+    min-width: 0;
+    accent-color: #1ed760;
+}
+
+.mix-studio-source-weight input:disabled {
+    opacity: .35;
+}
+
+.mix-studio-compare-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.mix-studio-compare-actions small {
+    color: #98a59c;
+}
+
+.mix-studio-variant-comparison {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.mix-studio-variant-comparison[hidden] {
+    display: none;
+}
+
+.mix-studio-variant-card {
+    display: grid;
+    gap: 9px;
+    min-width: 0;
+    padding: 15px;
+    border: 1px solid #395443;
+    border-radius: 15px;
+    background: linear-gradient(145deg, #121a14, #0d100e);
+}
+
+.mix-studio-variant-icon {
+    font-size: 25px;
+}
+
+.mix-studio-variant-card h4,
+.mix-studio-variant-card p,
+.mix-studio-variant-card small {
+    margin: 0;
+}
+
+.mix-studio-variant-card p,
+.mix-studio-variant-card small {
+    color: #a9b5ad;
+    line-height: 1.45;
+}
+
+.mix-studio-variant-card dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin: 0;
+}
+
+.mix-studio-variant-card dl > div {
+    padding: 8px;
+    border-radius: 10px;
+    background: #17221a;
+}
+
+.mix-studio-variant-card dt {
+    color: #92a096;
+    font-size: 11px;
+}
+
+.mix-studio-variant-card dd {
+    margin: 2px 0 0;
+    color: #86eca8;
+    font-weight: 900;
+}
+
+.mix-studio-variant-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: auto;
+}
+
+.mix-studio-variant-actions button:last-child {
+    border-color: #2f8c4c;
+    background: #17331f;
+}
+
+@media (max-width: 880px) {
+    .mix-studio-template-toolbar,
+    .mix-studio-variant-comparison {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .mix-studio-template-actions,
+    .mix-studio-template-actions button,
+    .mix-studio-compare-actions,
+    .mix-studio-compare-button,
+    .mix-studio-variant-actions,
+    .mix-studio-variant-actions button {
+        width: 100%;
+    }
+
+    .mix-studio-source-row {
+        grid-template-columns: 1fr;
+    }
+
+    .mix-studio-source-weight {
+        padding-left: 30px;
+    }
+}

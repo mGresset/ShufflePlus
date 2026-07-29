@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.1.1";
+const APP_VERSION = "5.2.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -67,6 +67,9 @@ const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
 const FAVORITE_SOURCES_KEY = "shuffleplus_favorite_sources_v1";
 const SAVED_MIXES_KEY = "shuffleplus_saved_mixes_v1";
 const MAX_SAVED_MIXES = 20;
+const MIX_STUDIO_TEMPLATES_KEY =
+    "shuffleplus_mix_studio_templates_v1";
+const MAX_MIX_STUDIO_TEMPLATES = 12;
 const TRACK_HISTORY_KEY = "shuffleplus_recent_track_uris_v1";
 const BACKUP_FORMAT = "shuffleplus-backup";
 const BACKUP_SCHEMA_VERSION = 1;
@@ -638,6 +641,8 @@ const DEFAULT_MIX_STUDIO_SETTINGS = {
     artistDiversity: 6,
     albumDiversity: 6,
     adaptiveSlot: "",
+    sourceWeights: {},
+    templateId: "",
     preview: false
 };
 
@@ -663,6 +668,9 @@ const playlistRecentActivity = new Map();
 let recentActivityLoading = false;
 const favoriteSourceKeys = new Set(readFavoriteSources());
 let savedMixes = readSavedMixes();
+let mixStudioTemplates =
+    readMixStudioTemplates();
+let mixStudioVariantOptions = [];
 let editingSavedMixId = "";
 let configuringSavedMixId = "";
 let currentShuffleSettings = {
@@ -14418,6 +14426,319 @@ function getMixStudioMood(moodId = "balanced") {
     );
 }
 
+
+function createMixStudioTemplateId() {
+    if (crypto?.randomUUID) {
+        return crypto.randomUUID();
+    }
+
+    return (
+        `studio-template-${Date.now()}-` +
+        Math.random().toString(36).slice(2, 10)
+    );
+}
+
+function normalizeMixStudioSourceWeights(
+    weights = {},
+    sourceKeys = []
+) {
+    const allowedKeys = new Set(
+        (Array.isArray(sourceKeys) ? sourceKeys : [])
+            .filter((key) =>
+                key === "liked" ||
+                /^playlist:[A-Za-z0-9]+$/.test(key)
+            )
+    );
+    const result = {};
+
+    Object.entries(
+        weights && typeof weights === "object"
+            ? weights
+            : {}
+    ).forEach(([key, value]) => {
+        if (
+            (allowedKeys.size && !allowedKeys.has(key)) ||
+            (
+                key !== "liked" &&
+                !/^playlist:[A-Za-z0-9]+$/.test(key)
+            )
+        ) {
+            return;
+        }
+
+        result[key] = clampInteger(
+            value,
+            1,
+            5,
+            3
+        );
+    });
+
+    allowedKeys.forEach((key) => {
+        if (!Object.hasOwn(result, key)) {
+            result[key] = 3;
+        }
+    });
+
+    return result;
+}
+
+function normalizeMixStudioTemplate(template = {}) {
+    const sourceKeys = [...new Set(
+        (Array.isArray(template.sourceKeys)
+            ? template.sourceKeys
+            : [])
+            .filter((key) =>
+                key === "liked" ||
+                /^playlist:[A-Za-z0-9]+$/.test(key)
+            )
+    )].slice(0, MAX_MIX_SOURCES);
+    const settings = normalizeMixStudioSettings({
+        ...template,
+        sourceWeights:
+            normalizeMixStudioSourceWeights(
+                template.sourceWeights,
+                sourceKeys
+            )
+    });
+
+    return {
+        id:
+            typeof template.id === "string" &&
+            template.id.trim()
+                ? template.id.trim().slice(0, 120)
+                : createMixStudioTemplateId(),
+        name:
+            typeof template.name === "string" &&
+            template.name.trim()
+                ? template.name.trim().slice(0, 60)
+                : "Modèle Mix Studio",
+        defaultMixName:
+            typeof template.defaultMixName === "string"
+                ? template.defaultMixName.trim().slice(0, 60)
+                : "",
+        sourceKeys,
+        mood: settings.mood,
+        durationMinutes: settings.durationMinutes,
+        artistDiversity: settings.artistDiversity,
+        albumDiversity: settings.albumDiversity,
+        adaptiveSlot: settings.adaptiveSlot,
+        sourceWeights:
+            normalizeMixStudioSourceWeights(
+                settings.sourceWeights,
+                sourceKeys
+            ),
+        createdAt: Number(
+            template.createdAt || Date.now()
+        ),
+        updatedAt: Number(
+            template.updatedAt ||
+            template.createdAt ||
+            Date.now()
+        )
+    };
+}
+
+function readMixStudioTemplates() {
+    try {
+        const raw = localStorage.getItem(
+            MIX_STUDIO_TEMPLATES_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : [];
+
+        return (Array.isArray(parsed) ? parsed : [])
+            .map((template) =>
+                normalizeMixStudioTemplate(template)
+            )
+            .slice(0, MAX_MIX_STUDIO_TEMPLATES);
+    } catch (error) {
+        console.warn(
+            "Modèles Mix Studio illisibles :",
+            error
+        );
+        return [];
+    }
+}
+
+function saveMixStudioTemplates() {
+    try {
+        localStorage.setItem(
+            MIX_STUDIO_TEMPLATES_KEY,
+            JSON.stringify(mixStudioTemplates)
+        );
+    } catch (error) {
+        console.warn(
+            "Modèles Mix Studio non enregistrés :",
+            error
+        );
+    }
+}
+
+function randomizeMixStudioTracks(items = []) {
+    const copy = [...items];
+
+    for (
+        let index = copy.length - 1;
+        index > 0;
+        index -= 1
+    ) {
+        const swapIndex = Math.floor(
+            Math.random() * (index + 1)
+        );
+        [copy[index], copy[swapIndex]] = [
+            copy[swapIndex],
+            copy[index]
+        ];
+    }
+
+    return copy;
+}
+
+function getMixStudioTrackIdentity(track) {
+    return (
+        track?.uri ||
+        track?.id ||
+        `${track?.name || "track"}-` +
+        `${track?.album?.id || "album"}`
+    );
+}
+
+function buildMixStudioWeightedTrackPool(
+    tracks = [],
+    settings = DEFAULT_MIX_STUDIO_SETTINGS
+) {
+    const normalized = normalizeMixStudioSettings(
+        settings
+    );
+    const entries = Object.entries(
+        normalized.sourceWeights || {}
+    ).filter(([, weight]) => Number(weight) > 0);
+
+    if (entries.length < 2 || tracks.length < 2) {
+        return [...tracks];
+    }
+
+    const averageDuration = tracks.reduce(
+        (total, track) =>
+            total + Math.max(
+                1,
+                Number(track?.duration_ms || 0)
+            ),
+        0
+    ) / tracks.length;
+    const targetMs = Math.max(
+        0,
+        Number(normalized.durationMinutes || 0)
+    ) * 60 * 1000;
+    const desiredCount = targetMs
+        ? Math.min(
+            tracks.length,
+            Math.max(
+                12,
+                Math.ceil(
+                    targetMs /
+                    Math.max(averageDuration, 1) *
+                    1.35
+                )
+            )
+        )
+        : tracks.length;
+    const queues = new Map();
+    const selectedCounts = new Map();
+
+    entries.forEach(([sourceKey]) => {
+        queues.set(
+            sourceKey,
+            randomizeMixStudioTracks(
+                tracks.filter((track) =>
+                    Array.isArray(
+                        track?.__shufflePlusSourceKeys
+                    ) &&
+                    track.__shufflePlusSourceKeys.includes(
+                        sourceKey
+                    )
+                )
+            )
+        );
+        selectedCounts.set(sourceKey, 0);
+    });
+
+    const used = new Set();
+    const result = [];
+
+    while (result.length < desiredCount) {
+        const availableKeys = entries
+            .map(([sourceKey, weight]) => ({
+                sourceKey,
+                weight,
+                queue: queues.get(sourceKey) || [],
+                ratio:
+                    (selectedCounts.get(sourceKey) || 0) /
+                    Math.max(Number(weight), 1)
+            }))
+            .filter((entry) =>
+                entry.queue.some((track) =>
+                    !used.has(
+                        getMixStudioTrackIdentity(track)
+                    )
+                )
+            )
+            .sort((first, second) =>
+                first.ratio - second.ratio ||
+                second.weight - first.weight
+            );
+
+        if (!availableKeys.length) {
+            break;
+        }
+
+        const selectedSource = availableKeys[0];
+        const queue = selectedSource.queue;
+        let track = null;
+
+        while (queue.length && !track) {
+            const candidate = queue.shift();
+            const identity =
+                getMixStudioTrackIdentity(candidate);
+
+            if (!used.has(identity)) {
+                track = candidate;
+                used.add(identity);
+            }
+        }
+
+        if (!track) {
+            continue;
+        }
+
+        result.push(track);
+        selectedCounts.set(
+            selectedSource.sourceKey,
+            (selectedCounts.get(
+                selectedSource.sourceKey
+            ) || 0) + 1
+        );
+    }
+
+    if (result.length < desiredCount) {
+        const remaining = randomizeMixStudioTracks(
+            tracks.filter((track) =>
+                !used.has(
+                    getMixStudioTrackIdentity(track)
+                )
+            )
+        );
+        result.push(
+            ...remaining.slice(
+                0,
+                desiredCount - result.length
+            )
+        );
+    }
+
+    return result.length ? result : [...tracks];
+}
+
 function normalizeMixStudioSettings(settings = {}) {
     const mood = getMixStudioMood(
         typeof settings.mood === "string"
@@ -14462,6 +14783,18 @@ function normalizeMixStudioSettings(settings = {}) {
                 (slot) => slot.id === settings.adaptiveSlot
             )
                 ? settings.adaptiveSlot
+                : "",
+        sourceWeights:
+            normalizeMixStudioSourceWeights(
+                settings.sourceWeights,
+                settings.sourceKeys ||
+                Object.keys(
+                    settings.sourceWeights || {}
+                )
+            ),
+        templateId:
+            typeof settings.templateId === "string"
+                ? settings.templateId.slice(0, 120)
                 : "",
         preview: settings.preview === true
     };
@@ -14557,19 +14890,38 @@ function renderMixStudioSection() {
         : new Set();
 
     const sourceRows = sources.map((source) => `
-        <label class="mix-studio-source-row">
-            <input
-                class="mix-studio-source-checkbox"
-                type="checkbox"
-                name="sourceKeys"
-                value="${escapeHtml(source.key)}"
-                ${checkedKeys.has(source.key) ? "checked" : ""}
-            >
-            <span class="mix-studio-source-copy">
-                <strong>${escapeHtml(source.name)}</strong>
-                <small>${escapeHtml(source.detail)}</small>
-            </span>
-        </label>
+        <div class="mix-studio-source-row">
+            <label class="mix-studio-source-main">
+                <input
+                    class="mix-studio-source-checkbox"
+                    type="checkbox"
+                    name="sourceKeys"
+                    value="${escapeHtml(source.key)}"
+                    ${checkedKeys.has(source.key) ? "checked" : ""}
+                >
+                <span class="mix-studio-source-copy">
+                    <strong>${escapeHtml(source.name)}</strong>
+                    <small>${escapeHtml(source.detail)}</small>
+                </span>
+            </label>
+            <label class="mix-studio-source-weight">
+                <span>
+                    Poids
+                    <output
+                        data-mix-studio-weight-output="${escapeHtml(source.key)}"
+                    >3/5</output>
+                </span>
+                <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value="3"
+                    name="sourceWeight:${escapeHtml(source.key)}"
+                    data-mix-studio-source-weight="${escapeHtml(source.key)}"
+                    ${checkedKeys.has(source.key) ? "" : "disabled"}
+                >
+            </label>
+        </div>
     `).join("");
 
     return `
@@ -14583,10 +14935,39 @@ function renderMixStudioSection() {
                         Shuffle+ génère ensuite l’ordre complet des morceaux.
                     </p>
                 </div>
-                <span class="mix-studio-version">v5.1.1</span>
+                <span class="mix-studio-version">v5.2</span>
             </div>
 
             <form id="mixStudioForm" class="mix-studio-form">
+                <div class="mix-studio-template-toolbar">
+                    <label class="mix-studio-field">
+                        <span>Modèle réutilisable</span>
+                        <select id="mixStudioTemplateSelect" name="templateId">
+                            <option value="">Configuration libre</option>
+                            ${mixStudioTemplates.map((template) => `
+                                <option value="${escapeHtml(template.id)}">
+                                    ${escapeHtml(template.name)}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <div class="mix-studio-template-actions">
+                        <button
+                            type="button"
+                            data-mix-studio-template-action="save"
+                        >
+                            💾 Enregistrer comme modèle
+                        </button>
+                        <button
+                            type="button"
+                            data-mix-studio-template-action="delete"
+                            ${mixStudioTemplates.length ? "" : "disabled"}
+                        >
+                            🗑️ Supprimer le modèle
+                        </button>
+                    </div>
+                </div>
+
                 <div class="mix-studio-grid">
                     <label class="mix-studio-field mix-studio-name-field">
                         <span>Nom du mix</span>
@@ -14697,6 +15078,25 @@ function renderMixStudioSection() {
                     <span>🎧 Sélectionne au moins une source.</span>
                 </div>
 
+                <div class="mix-studio-compare-actions">
+                    <button
+                        id="mixStudioCompareVariants"
+                        class="mix-studio-compare-button"
+                        type="button"
+                    >
+                        ⚖️ Comparer 3 variantes
+                    </button>
+                    <small>
+                        Compare fidélité aux sources, équilibre et découverte.
+                    </small>
+                </div>
+
+                <div
+                    id="mixStudioVariantComparison"
+                    class="mix-studio-variant-comparison"
+                    hidden
+                ></div>
+
                 <div class="mix-studio-actions">
                     <button
                         class="mix-studio-preview-button"
@@ -14738,6 +15138,17 @@ function readMixStudioDraftFromForm(form) {
     const mood = getMixStudioMood(
         String(data.get("mood") || "balanced")
     );
+    const sourceWeights = Object.fromEntries(
+        sourceKeys.map((sourceKey) => [
+            sourceKey,
+            clampInteger(
+                data.get(`sourceWeight:${sourceKey}`),
+                1,
+                5,
+                3
+            )
+        ])
+    );
     const studioSettings = normalizeMixStudioSettings({
         enabled: true,
         mood: mood.id,
@@ -14748,7 +15159,11 @@ function readMixStudioDraftFromForm(form) {
         albumDiversity:
             data.get("albumDiversity"),
         adaptiveSlot:
-            data.get("adaptiveSlot")
+            data.get("adaptiveSlot"),
+        sourceKeys,
+        sourceWeights,
+        templateId:
+            data.get("templateId")
     });
     const profile = getProfileById(
         mood.profileId
@@ -14807,6 +15222,432 @@ function readMixStudioDraftFromForm(form) {
             ),
         studioSettings
     };
+}
+
+
+function buildMixStudioTemplateFromForm(
+    form,
+    templateName = ""
+) {
+    const draft = readMixStudioDraftFromForm(form);
+
+    return normalizeMixStudioTemplate({
+        id: createMixStudioTemplateId(),
+        name:
+            templateName ||
+            draft.name ||
+            "Modèle Mix Studio",
+        defaultMixName: draft.name,
+        sourceKeys: draft.sourceKeys,
+        mood: draft.studioSettings.mood,
+        durationMinutes:
+            draft.studioSettings.durationMinutes,
+        artistDiversity:
+            draft.studioSettings.artistDiversity,
+        albumDiversity:
+            draft.studioSettings.albumDiversity,
+        adaptiveSlot:
+            draft.studioSettings.adaptiveSlot,
+        sourceWeights:
+            draft.studioSettings.sourceWeights,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+    });
+}
+
+function applyMixStudioTemplateToForm(
+    templateId,
+    form
+) {
+    const template = mixStudioTemplates.find(
+        (item) => item.id === templateId
+    );
+
+    if (!template || !form) {
+        return false;
+    }
+
+    if (form.elements.templateId) {
+        form.elements.templateId.value =
+            template.id;
+    }
+    if (form.elements.name) {
+        form.elements.name.value =
+            template.defaultMixName ||
+            template.name;
+    }
+    if (form.elements.mood) {
+        form.elements.mood.value =
+            template.mood;
+    }
+    if (form.elements.durationMinutes) {
+        form.elements.durationMinutes.value =
+            String(template.durationMinutes);
+    }
+    if (form.elements.artistDiversity) {
+        form.elements.artistDiversity.value =
+            String(template.artistDiversity);
+    }
+    if (form.elements.albumDiversity) {
+        form.elements.albumDiversity.value =
+            String(template.albumDiversity);
+    }
+    if (form.elements.adaptiveSlot) {
+        form.elements.adaptiveSlot.value =
+            template.adaptiveSlot;
+    }
+
+    const selected = new Set(
+        template.sourceKeys
+    );
+
+    form.querySelectorAll(
+        ".mix-studio-source-checkbox"
+    ).forEach((checkbox) => {
+        checkbox.checked = selected.has(
+            checkbox.value
+        );
+    });
+
+    form.querySelectorAll(
+        "[data-mix-studio-source-weight]"
+    ).forEach((input) => {
+        const sourceKey =
+            input.dataset.mixStudioSourceWeight;
+        input.value = String(
+            template.sourceWeights[sourceKey] || 3
+        );
+    });
+
+    updateMixStudioFormPreview(form);
+    showToast(
+        `✅ Modèle « ${template.name} » appliqué.`,
+        "success"
+    );
+    return true;
+}
+
+function saveMixStudioTemplateFromForm(form) {
+    if (!form) {
+        return;
+    }
+
+    if (
+        mixStudioTemplates.length >=
+        MAX_MIX_STUDIO_TEMPLATES
+    ) {
+        setStatus(
+            `Tu peux enregistrer jusqu’à ${MAX_MIX_STUDIO_TEMPLATES} modèles.`,
+            "error"
+        );
+        return;
+    }
+
+    const suggestedName = String(
+        form.elements.name?.value ||
+        `Modèle ${mixStudioTemplates.length + 1}`
+    ).trim();
+    const requestedName = window.prompt(
+        "Nom du modèle Mix Studio :",
+        suggestedName
+    );
+
+    if (requestedName === null) {
+        return;
+    }
+
+    const name = requestedName.trim();
+
+    if (!name) {
+        setStatus(
+            "Le nom du modèle ne peut pas être vide.",
+            "error"
+        );
+        return;
+    }
+
+    const template =
+        buildMixStudioTemplateFromForm(
+            form,
+            name
+        );
+
+    if (!template.sourceKeys.length) {
+        setStatus(
+            "Sélectionne au moins une source avant d’enregistrer un modèle.",
+            "error"
+        );
+        return;
+    }
+
+    mixStudioTemplates = [
+        template,
+        ...mixStudioTemplates
+    ].slice(0, MAX_MIX_STUDIO_TEMPLATES);
+    saveMixStudioTemplates();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Modèle « ${template.name} » enregistré.`
+    );
+    showToast(
+        `✅ Modèle « ${template.name} » enregistré.`,
+        "success"
+    );
+}
+
+function deleteMixStudioTemplate(
+    templateId,
+    form
+) {
+    const template = mixStudioTemplates.find(
+        (item) => item.id === templateId
+    );
+
+    if (!template) {
+        setStatus(
+            "Choisis d’abord un modèle à supprimer.",
+            "error"
+        );
+        return;
+    }
+
+    if (!window.confirm(
+        `Supprimer le modèle « ${template.name} » ?`
+    )) {
+        return;
+    }
+
+    mixStudioTemplates = mixStudioTemplates.filter(
+        (item) => item.id !== template.id
+    );
+    saveMixStudioTemplates();
+
+    if (form?.elements?.templateId) {
+        form.elements.templateId.value = "";
+    }
+
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `Modèle « ${template.name} » supprimé.`
+    );
+}
+
+function getMixStudioVariantSourceWeights(
+    sourceWeights,
+    mode
+) {
+    const entries = Object.entries(
+        sourceWeights || {}
+    );
+
+    if (mode === "explore") {
+        return Object.fromEntries(
+            entries.map(([key]) => [key, 3])
+        );
+    }
+
+    if (mode === "faithful") {
+        return Object.fromEntries(
+            entries.map(([key, value]) => [
+                key,
+                clampInteger(
+                    Number(value) +
+                    (Number(value) >= 4 ? 1 : 0),
+                    1,
+                    5,
+                    3
+                )
+            ])
+        );
+    }
+
+    return Object.fromEntries(entries);
+}
+
+function buildMixStudioVariantOptions(form) {
+    const draft = readMixStudioDraftFromForm(form);
+    const base = draft.studioSettings;
+
+    return [
+        {
+            id: "faithful",
+            icon: "🎚️",
+            label: "Fidèle aux sources",
+            description:
+                "Respecte davantage les poids choisis et limite l’exploration.",
+            artistDiversity: Math.max(
+                1,
+                base.artistDiversity - 2
+            ),
+            albumDiversity: Math.max(
+                1,
+                base.albumDiversity - 2
+            ),
+            sourceWeights:
+                getMixStudioVariantSourceWeights(
+                    base.sourceWeights,
+                    "faithful"
+                )
+        },
+        {
+            id: "balanced",
+            icon: "⚖️",
+            label: "Équilibre actuel",
+            description:
+                "Conserve exactement les réglages du formulaire.",
+            artistDiversity:
+                base.artistDiversity,
+            albumDiversity:
+                base.albumDiversity,
+            sourceWeights: {
+                ...base.sourceWeights
+            }
+        },
+        {
+            id: "explore",
+            icon: "🧭",
+            label: "Découverte",
+            description:
+                "Aplanit les poids et augmente la variété artistes/albums.",
+            artistDiversity: Math.min(
+                10,
+                base.artistDiversity + 2
+            ),
+            albumDiversity: Math.min(
+                10,
+                base.albumDiversity + 2
+            ),
+            sourceWeights:
+                getMixStudioVariantSourceWeights(
+                    base.sourceWeights,
+                    "explore"
+                )
+        }
+    ];
+}
+
+function getMixStudioWeightSummary(weights = {}) {
+    const values = Object.entries(weights)
+        .sort((first, second) =>
+            Number(second[1]) - Number(first[1])
+        )
+        .slice(0, 3)
+        .map(([sourceKey, weight]) =>
+            `${getSourceDisplayName(sourceKey)} ${weight}/5`
+        );
+
+    return values.join(" · ") ||
+        "Poids équilibrés";
+}
+
+function renderMixStudioVariantComparison(form) {
+    const container = form?.querySelector(
+        "#mixStudioVariantComparison"
+    );
+
+    if (!container) {
+        return;
+    }
+
+    const draft = readMixStudioDraftFromForm(form);
+
+    if (!draft.sourceKeys.length) {
+        setStatus(
+            "Sélectionne au moins une source avant de comparer les variantes.",
+            "error"
+        );
+        return;
+    }
+
+    mixStudioVariantOptions =
+        buildMixStudioVariantOptions(form);
+    container.hidden = false;
+    container.innerHTML = `
+        ${mixStudioVariantOptions.map(
+            (variant, index) => `
+                <article class="mix-studio-variant-card">
+                    <span class="mix-studio-variant-icon">
+                        ${escapeHtml(variant.icon)}
+                    </span>
+                    <h4>${escapeHtml(variant.label)}</h4>
+                    <p>${escapeHtml(variant.description)}</p>
+                    <dl>
+                        <div>
+                            <dt>Artistes</dt>
+                            <dd>${variant.artistDiversity}/10</dd>
+                        </div>
+                        <div>
+                            <dt>Albums</dt>
+                            <dd>${variant.albumDiversity}/10</dd>
+                        </div>
+                    </dl>
+                    <small>
+                        ${escapeHtml(
+                            getMixStudioWeightSummary(
+                                variant.sourceWeights
+                            )
+                        )}
+                    </small>
+                    <div class="mix-studio-variant-actions">
+                        <button
+                            type="button"
+                            data-mix-studio-variant-index="${index}"
+                            data-mix-studio-variant-action="apply"
+                        >
+                            Utiliser
+                        </button>
+                        <button
+                            type="button"
+                            data-mix-studio-variant-index="${index}"
+                            data-mix-studio-variant-action="preview"
+                        >
+                            👀 Aperçu
+                        </button>
+                    </div>
+                </article>
+            `
+        ).join("")}
+    `;
+    container.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest"
+    });
+}
+
+function applyMixStudioVariantToForm(
+    variantIndex,
+    form
+) {
+    const variant =
+        mixStudioVariantOptions[
+            Number(variantIndex)
+        ];
+
+    if (!variant || !form) {
+        return false;
+    }
+
+    form.elements.artistDiversity.value =
+        String(variant.artistDiversity);
+    form.elements.albumDiversity.value =
+        String(variant.albumDiversity);
+
+    form.querySelectorAll(
+        "[data-mix-studio-source-weight]"
+    ).forEach((input) => {
+        const sourceKey =
+            input.dataset.mixStudioSourceWeight;
+        input.value = String(
+            variant.sourceWeights[sourceKey] || 3
+        );
+    });
+
+    updateMixStudioFormPreview(form);
+    showToast(
+        `✅ Variante « ${variant.label} » appliquée.`,
+        "success"
+    );
+    return true;
 }
 
 async function submitMixStudioForm(
@@ -14912,6 +15753,20 @@ function updateMixStudioFormPreview(form) {
     const duration = formatMixStudioDuration(
         form.elements.durationMinutes?.value
     );
+    const selectedWeights = [
+        ...form.querySelectorAll(
+            ".mix-studio-source-checkbox:checked"
+        )
+    ].map((checkbox) => {
+        const weightInput = form.querySelector(
+            `[data-mix-studio-source-weight="${CSS.escape(checkbox.value)}"]`
+        );
+        return Number(weightInput?.value || 3);
+    });
+    const totalWeight = selectedWeights.reduce(
+        (total, value) => total + value,
+        0
+    );
 
     if (countElement) {
         countElement.textContent = String(
@@ -14927,10 +15782,38 @@ function updateMixStudioFormPreview(form) {
                     <strong>${escapeHtml(mood.label)}</strong>
                     · ${escapeHtml(duration)}
                     · ${selectedCount} source${selectedCount > 1 ? "s" : ""}
+                    · poids total ${totalWeight}
                 </span>
             `
             : '<span>🎧 Sélectionne au moins une source.</span>';
     }
+
+    form.querySelectorAll(
+        ".mix-studio-source-checkbox"
+    ).forEach((checkbox) => {
+        const sourceKey = checkbox.value;
+        const weightInput = form.querySelector(
+            `[data-mix-studio-source-weight="${CSS.escape(sourceKey)}"]`
+        );
+
+        if (weightInput) {
+            weightInput.disabled = !checkbox.checked;
+        }
+    });
+
+    form.querySelectorAll(
+        "[data-mix-studio-source-weight]"
+    ).forEach((input) => {
+        const sourceKey =
+            input.dataset.mixStudioSourceWeight;
+        const output = form.querySelector(
+            `[data-mix-studio-weight-output="${CSS.escape(sourceKey)}"]`
+        );
+
+        if (output) {
+            output.textContent = `${input.value}/5`;
+        }
+    });
 
     form.querySelectorAll(
         '[data-mix-studio-range]'
@@ -16611,6 +17494,34 @@ function normalizeImportedMixes(values) {
         .slice(0, MAX_SAVED_MIXES);
 }
 
+
+function normalizeImportedMixStudioTemplates(values) {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    const seenIds = new Set();
+
+    return values
+        .map((template) =>
+            normalizeMixStudioTemplate(template)
+        )
+        .map((template) => {
+            if (seenIds.has(template.id)) {
+                return {
+                    ...template,
+                    id: createMixStudioTemplateId()
+                };
+            }
+            seenIds.add(template.id);
+            return template;
+        })
+        .filter((template) =>
+            template.sourceKeys.length
+        )
+        .slice(0, MAX_MIX_STUDIO_TEMPLATES);
+}
+
 function normalizeImportedPreferences(preferences = {}) {
     const allowedFilters = new Set([
         "all",
@@ -16649,6 +17560,7 @@ function buildBackupPayload() {
     const data = {
         favoriteSourceKeys: [...favoriteSourceKeys],
         savedMixes,
+        mixStudioTemplates,
         preferences: {
             searchTerm: librarySearchTerm,
             filter: libraryFilter,
@@ -16751,6 +17663,10 @@ function validateBackupPayload(payload) {
         savedMixes: normalizeImportedMixes(
             payload.data.savedMixes
         ),
+        mixStudioTemplates:
+            normalizeImportedMixStudioTemplates(
+                payload.data.mixStudioTemplates
+            ),
         preferences: normalizeImportedPreferences(
             payload.data.preferences
         ),
@@ -16879,6 +17795,9 @@ function applyValidatedBackupState(imported) {
     }
 
     savedMixes = imported.savedMixes;
+    mixStudioTemplates =
+        imported.mixStudioTemplates;
+    saveMixStudioTemplates();
     librarySearchTerm = imported.preferences.searchTerm;
     libraryFilter = imported.preferences.filter;
     librarySort = imported.preferences.sort;
@@ -17212,6 +18131,10 @@ function getSyncDataSummary(data = {}) {
         mixes: Array.isArray(data.savedMixes)
             ? data.savedMixes.length
             : 0,
+        mixStudioTemplates:
+            Array.isArray(data.mixStudioTemplates)
+                ? data.mixStudioTemplates.length
+                : 0,
         favorites: Array.isArray(data.favoriteSourceKeys)
             ? data.favoriteSourceKeys.length
             : 0,
@@ -17251,6 +18174,7 @@ function getSyncDataUpdatedAt(data = {}) {
 
     for (const collection of [
         data.savedMixes,
+        data.mixStudioTemplates,
         data.mixHistory,
         data.iosCommandHistory,
         data.adaptiveDjMenuHistory,
@@ -18006,6 +18930,14 @@ function getSyncCategoryItems(
                 `${item?.sourceKeys?.length || 0} source(s)`
         );
         pushArray(
+            "Modèle Mix Studio",
+            imported.mixStudioTemplates,
+            (item, index) => item?.id || index,
+            (item) => item?.name || "Modèle sans nom",
+            (item) =>
+                `${item?.sourceKeys?.length || 0} source(s)`
+        );
+        pushArray(
             "Favori",
             imported.favoriteSourceKeys,
             (item) => item,
@@ -18587,9 +19519,11 @@ function getSelectiveSyncMetrics(imported = {}) {
         library: {
             total:
                 (imported.savedMixes?.length || 0) +
+                (imported.mixStudioTemplates?.length || 0) +
                 (imported.favoriteSourceKeys?.length || 0),
             detail:
                 `${imported.savedMixes?.length || 0} mix · ` +
+                `${imported.mixStudioTemplates?.length || 0} modèles · ` +
                 `${imported.favoriteSourceKeys?.length || 0} favoris`
         },
         profiles: {
@@ -18872,6 +19806,13 @@ function applySelectiveLibraryCategory(
                     (item) => item.id,
                     MAX_SAVED_MIXES
                 ),
+            mixStudioTemplates:
+                mergeSyncArrays(
+                    localImported.mixStudioTemplates,
+                    remoteImported.mixStudioTemplates,
+                    (item) => item.id,
+                    MAX_MIX_STUDIO_TEMPLATES
+                ),
             playbackQueueStates: {
                 ...(localImported.playbackQueueStates || {}),
                 ...(remoteImported.playbackQueueStates || {})
@@ -18883,6 +19824,9 @@ function applySelectiveLibraryCategory(
         (key) => favoriteSourceKeys.add(key)
     );
     savedMixes = imported.savedMixes;
+    mixStudioTemplates =
+        imported.mixStudioTemplates;
+    saveMixStudioTemplates();
     writePlaybackQueueStates(
         imported.playbackQueueStates
     );
@@ -25847,6 +26791,12 @@ async function createSelectedMix() {
                                 ...(track?.__shufflePlusSources || []),
                                 source.name
                             ])
+                        ],
+                        __shufflePlusSourceKeys: [
+                            ...new Set([
+                                ...(track?.__shufflePlusSourceKeys || []),
+                                source.key
+                            ])
                         ]
                     }))
                 );
@@ -25905,7 +26855,12 @@ async function createSelectedMix() {
             external_urls: {}
         };
 
-        sourceTracks = filteredTracks;
+        sourceTracks = pendingMixStudioRuntime?.enabled
+            ? buildMixStudioWeightedTrackPool(
+                filteredTracks,
+                pendingMixStudioRuntime
+            )
+            : filteredTracks;
         selectedTracks = smartShuffleTracks(
             sourceTracks,
             getShuffleEngineOptions(currentShuffleSettings)
@@ -27390,6 +28345,73 @@ contentElement.addEventListener(
             return;
         }
 
+        const mixStudioTemplateButton =
+            event.target.closest(
+                "[data-mix-studio-template-action]"
+            );
+
+        if (mixStudioTemplateButton) {
+            const form = mixStudioTemplateButton.closest(
+                "#mixStudioForm"
+            );
+            const action =
+                mixStudioTemplateButton.dataset
+                    .mixStudioTemplateAction;
+
+            if (action === "save") {
+                saveMixStudioTemplateFromForm(form);
+            } else if (action === "delete") {
+                deleteMixStudioTemplate(
+                    form?.elements?.templateId?.value || "",
+                    form
+                );
+            }
+            return;
+        }
+
+        const mixStudioCompareButton =
+            event.target.closest(
+                "#mixStudioCompareVariants"
+            );
+
+        if (mixStudioCompareButton) {
+            renderMixStudioVariantComparison(
+                mixStudioCompareButton.closest(
+                    "#mixStudioForm"
+                )
+            );
+            return;
+        }
+
+        const mixStudioVariantButton =
+            event.target.closest(
+                "[data-mix-studio-variant-action]"
+            );
+
+        if (mixStudioVariantButton) {
+            const form = mixStudioVariantButton.closest(
+                "#mixStudioForm"
+            );
+            const applied =
+                applyMixStudioVariantToForm(
+                    mixStudioVariantButton.dataset
+                        .mixStudioVariantIndex,
+                    form
+                );
+
+            if (
+                applied &&
+                mixStudioVariantButton.dataset
+                    .mixStudioVariantAction === "preview"
+            ) {
+                await submitMixStudioForm(
+                    form,
+                    "preview"
+                );
+            }
+            return;
+        }
+
         const mixStudioClearButton =
             event.target.closest(
                 "#mixStudioClearSources"
@@ -27767,6 +28789,20 @@ contentElement.addEventListener(
                 "#mixStudioForm"
             )
         ) {
+            if (
+                event.target.id ===
+                "mixStudioTemplateSelect" &&
+                event.target.value
+            ) {
+                applyMixStudioTemplateToForm(
+                    event.target.value,
+                    event.target.closest(
+                        "#mixStudioForm"
+                    )
+                );
+                return;
+            }
+
             if (
                 event.target.matches(
                     ".mix-studio-source-checkbox"
