@@ -8391,3 +8391,234 @@ body.is-driving-mode #content {
         flex-wrap: wrap;
     }
 }
+
+
+/* Shuffle+ v5.0 — Serveur & synchronisation automatique */
+.server-sync-panel {
+    display: grid;
+    gap: 16px;
+    margin: 18px 0;
+    padding: 20px;
+    border: 1px solid #334a67;
+    border-radius: 18px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(24 43 65 / 92%),
+            rgb(13 16 22 / 98%) 70%
+        );
+}
+
+.server-sync-panel.is-connected {
+    border-color: #286940;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(20 70 43 / 75%),
+            rgb(12 17 14 / 98%) 72%
+        );
+}
+
+.server-sync-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.server-sync-heading h4 {
+    margin: 5px 0 7px;
+    font-size: 24px;
+}
+
+.server-sync-heading p {
+    margin: 0;
+    color: #b7c4d3;
+    line-height: 1.55;
+}
+
+.server-sync-badge {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.server-sync-badge.is-online {
+    background: #1b6037;
+    color: #a2f4bc;
+}
+
+.server-sync-badge.is-offline {
+    background: #26384d;
+    color: #bad0e8;
+}
+
+.server-sync-form,
+.server-sync-options-form {
+    display: grid;
+    gap: 12px;
+    padding: 15px;
+    border: 1px solid rgb(130 164 201 / 25%);
+    border-radius: 14px;
+    background: rgb(8 12 17 / 58%);
+}
+
+.server-sync-form label,
+.server-sync-options-form label {
+    display: grid;
+    gap: 7px;
+}
+
+.server-sync-form input,
+.server-sync-form textarea,
+.server-sync-options-form select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid #48627f;
+    border-radius: 10px;
+    background: #0a1017;
+    color: #ffffff;
+}
+
+.server-sync-form textarea {
+    resize: vertical;
+}
+
+.server-sync-inline-actions,
+.server-sync-danger-zone {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.server-sync-message {
+    margin: 0;
+    padding: 11px 13px;
+    border-radius: 11px;
+    background: #1b2633;
+    color: #c9d8e8;
+}
+
+.server-sync-message.success {
+    background: #183d27;
+    color: #a8edbd;
+}
+
+.server-sync-message.error {
+    background: #4a242a;
+    color: #ffb8c0;
+}
+
+.server-sync-security-note {
+    margin: 0;
+    color: #aebaca;
+    font-size: 13px;
+}
+
+.server-sync-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.server-sync-metrics > div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid rgb(90 163 116 / 24%);
+    border-radius: 12px;
+    background: rgb(7 16 11 / 58%);
+}
+
+.server-sync-metrics span {
+    color: #94aa9b;
+    font-size: 12px;
+}
+
+.server-sync-metrics strong {
+    overflow-wrap: anywhere;
+}
+
+.server-sync-options-form {
+    grid-template-columns: minmax(260px, 1fr) minmax(140px, auto) auto;
+    align-items: end;
+}
+
+.server-sync-checkbox {
+    display: flex !important;
+    align-items: center;
+    gap: 9px !important;
+}
+
+.server-sync-checkbox input {
+    width: 18px;
+    height: 18px;
+    accent-color: #1ed760;
+}
+
+.server-sync-devices {
+    padding: 14px;
+    border: 1px solid rgb(99 160 120 / 25%);
+    border-radius: 13px;
+    background: rgb(8 16 11 / 56%);
+}
+
+.server-sync-devices summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.server-sync-devices > div {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.server-sync-device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #111d15;
+}
+
+.server-sync-device > div {
+    display: grid;
+    gap: 3px;
+}
+
+.server-sync-device small {
+    color: #91a899;
+}
+
+.server-sync-danger-zone {
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+@media (max-width: 760px) {
+    .server-sync-heading {
+        flex-direction: column;
+    }
+
+    .server-sync-metrics,
+    .server-sync-options-form {
+        grid-template-columns: 1fr;
+    }
+
+    .server-sync-inline-actions > *,
+    .server-sync-danger-zone > * {
+        width: 100%;
+    }
+
+    .server-sync-device {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}

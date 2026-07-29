@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Mix intelligent Spotify, Adaptive DJ, mode conduite et synchronisation multi-appareils avec fusion sélective par catégorie.",
+  "description": "Mix intelligent Spotify, Adaptive DJ et synchronisation automatique chiffrée de bout en bout via le serveur Shuffle+.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

@@ -1,0 +1,12 @@
+Shuffle+ v5.0.0
+
+CLIENT
+1. Publier tout le dossier ShufflePlus sur GitHub Pages.
+2. Vider/recharger la PWA si nécessaire.
+
+SERVEUR
+1. Déployer le sous-dossier server sur un hébergement Node 20 ou Docker.
+2. Fournir un disque persistant.
+3. Configurer SHUFFLEPLUS_ALLOWED_ORIGINS=https://mgresset.github.io
+4. Vérifier /health.
+5. Renseigner l’URL dans Réglages → Synchronisation multi-appareils.

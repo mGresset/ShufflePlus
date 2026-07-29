@@ -1150,3 +1150,21 @@ Avant une fusion, l’application conserve désormais une sauvegarde d’annulat
 Le bouton **Exporter chiffré** protège un paquet avec AES-GCM. La clé est dérivée du mot de passe par PBKDF2-SHA-256 et le mot de passe n’est jamais enregistré. Un paquet chiffré est reconnu automatiquement lors de l’analyse. Sans le bon mot de passe, son contenu ne peut pas être restauré.
 
 Le chiffrement est effectué entièrement dans le navigateur. Aucun jeton Spotify n’est inclus dans les paquets et aucun serveur n’est contacté en v4.9.
+
+
+## v5.0 — Serveur Shuffle+ et synchronisation automatique
+
+La v5.0 ajoute un serveur réel dans le sous-dossier `server/`. La PWA crée un espace privé puis chiffre chaque paquet localement avant de l’envoyer. Le serveur ne reçoit jamais la clé et ne peut pas lire les mix, profils, feedbacks ou historiques.
+
+### Mise en route
+
+1. déployer `server/` sur une URL HTTPS avec un disque persistant ;
+2. vérifier l’endpoint `/health` ;
+3. ouvrir **Réglages → Synchronisation multi-appareils** ;
+4. créer un espace ;
+5. copier le code SP5 sur les autres appareils ;
+6. activer la synchronisation automatique.
+
+Les conflits simultanés restent traités par la comparaison détaillée et la fusion sélective introduites en v4.8 et v4.9.
+
+Documentation : `DEPLOIEMENT_SERVEUR_V5.md` et `server/README.md`.

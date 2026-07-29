@@ -1,17 +1,8 @@
-# Feuille de route Shuffle+
+# Shuffle+ — Feuille de route
 
-## Version actuelle — v4.9.0
-
-- aperçu élément par élément avant fusion ;
-- recherche dans les différences ;
-- annulation complète de la dernière fusion ;
-- export et import de paquets chiffrés côté client ;
-- aucune transmission serveur.
-
-## Prochaine étape — v5.0
-
-- serveur Shuffle+ ;
-- compte de synchronisation ;
-- transport automatique des enveloppes chiffrées ;
-- synchronisation iPhone / ordinateur ;
-- historique des révisions et résolution distante des conflits.
+- ✅ v4.9 : comparaison détaillée, annulation et transfert chiffré
+- ✅ v5.0 : serveur réel, espaces privés, chiffrement de bout en bout et synchronisation automatique
+- 🔜 v5.1 : notifications de conflit et état de synchronisation global
+- 🔜 v5.2 : historique des révisions et restauration distante
+- 🔜 v5.3 : partage facultatif de profils sans partager l’historique personnel
+- 🔭 v6.0 : application native ou compagnon serveur administrable

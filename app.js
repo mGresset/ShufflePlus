@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.9.0";
+const APP_VERSION = "5.0.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -188,6 +188,14 @@ const SYNC_ENCRYPTED_PACKAGE_FORMAT =
 const SYNC_ENCRYPTION_SCHEMA_VERSION = 1;
 const SYNC_ENCRYPTION_ITERATIONS = 210000;
 const SYNC_DIFF_MAX_ITEMS_PER_CATEGORY = 250;
+const SERVER_SYNC_STORAGE_KEY =
+    "shuffleplus_server_sync_v1";
+const SERVER_SYNC_LINK_FORMAT =
+    "shuffleplus-server-link";
+const SERVER_SYNC_SCHEMA_VERSION = 1;
+const SERVER_SYNC_DEFAULT_INTERVAL_MINUTES = 5;
+const SERVER_SYNC_MAX_INTERVAL_MINUTES = 60;
+const SERVER_SYNC_REQUEST_TIMEOUT = 15000;
 const DEFAULT_QUICK_CONTEXTS = [
     {
         id: "drive",
@@ -636,6 +644,14 @@ let syncPairingInvites = readSyncPairingInvites();
 let syncSessionHistory = readSyncSessionHistory();
 let syncSimulationResult = null;
 let lastSyncMergeUndo = readLastSyncMergeUndo();
+let serverSyncState = readServerSyncState();
+let serverSyncTimer = 0;
+let serverSyncBusy = false;
+let serverSyncDevices = [];
+let serverSyncMessage = {
+    text: "",
+    type: ""
+};
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -19870,6 +19886,1419 @@ function renderSyncPairingPanel() {
     `;
 }
 
+
+function normalizeServerSyncUrl(value = "") {
+    const raw = String(value || "").trim().replace(/\/+$/, "");
+
+    if (!raw) {
+        return "";
+    }
+
+    try {
+        const url = new URL(raw);
+        const localHost = [
+            "localhost",
+            "127.0.0.1",
+            "::1"
+        ].includes(url.hostname);
+
+        if (url.protocol !== "https:" && !(
+            localHost && url.protocol === "http:"
+        )) {
+            return "";
+        }
+
+        return url.origin + url.pathname.replace(/\/$/, "");
+    } catch (error) {
+        return "";
+    }
+}
+
+function normalizeServerSyncState(value = {}) {
+    const interval = Math.min(
+        SERVER_SYNC_MAX_INTERVAL_MINUTES,
+        Math.max(
+            1,
+            Number(
+                value.intervalMinutes ||
+                SERVER_SYNC_DEFAULT_INTERVAL_MINUTES
+            )
+        )
+    );
+
+    return {
+        enabled: value.enabled === true,
+        autoSync: value.autoSync !== false,
+        serverUrl: normalizeServerSyncUrl(
+            value.serverUrl || ""
+        ),
+        spaceId:
+            typeof value.spaceId === "string"
+                ? value.spaceId.slice(0, 120)
+                : "",
+        deviceToken:
+            typeof value.deviceToken === "string"
+                ? value.deviceToken.slice(0, 240)
+                : "",
+        rootSecret:
+            typeof value.rootSecret === "string"
+                ? value.rootSecret.slice(0, 240)
+                : "",
+        revision: Math.max(
+            0,
+            Number(value.revision || 0)
+        ),
+        lastSyncedFingerprint:
+            typeof value.lastSyncedFingerprint === "string"
+                ? value.lastSyncedFingerprint.slice(0, 120)
+                : "",
+        lastPushAt: Math.max(
+            0,
+            Number(value.lastPushAt || 0)
+        ),
+        lastPullAt: Math.max(
+            0,
+            Number(value.lastPullAt || 0)
+        ),
+        connectedAt: Math.max(
+            0,
+            Number(value.connectedAt || 0)
+        ),
+        intervalMinutes: interval,
+        lastError:
+            typeof value.lastError === "string"
+                ? value.lastError.slice(0, 300)
+                : ""
+    };
+}
+
+function readServerSyncState() {
+    try {
+        const raw = localStorage.getItem(
+            SERVER_SYNC_STORAGE_KEY
+        );
+        return normalizeServerSyncState(
+            raw ? JSON.parse(raw) : {}
+        );
+    } catch (error) {
+        return normalizeServerSyncState();
+    }
+}
+
+function saveServerSyncState() {
+    serverSyncState = normalizeServerSyncState(
+        serverSyncState
+    );
+
+    try {
+        localStorage.setItem(
+            SERVER_SYNC_STORAGE_KEY,
+            JSON.stringify(serverSyncState)
+        );
+    } catch (error) {
+        console.warn(
+            "Configuration serveur non enregistrée :",
+            error
+        );
+    }
+}
+
+function isServerSyncConnected() {
+    return Boolean(
+        serverSyncState.enabled &&
+        serverSyncState.serverUrl &&
+        serverSyncState.spaceId &&
+        serverSyncState.deviceToken &&
+        serverSyncState.rootSecret
+    );
+}
+
+function setServerSyncMessage(
+    text = "",
+    type = ""
+) {
+    serverSyncMessage = {
+        text: String(text || "").slice(0, 400),
+        type: type === "error"
+            ? "error"
+            : type === "success"
+                ? "success"
+                : ""
+    };
+}
+
+function serverSyncBytesToBase64Url(bytes) {
+    return bytesToSyncBase64(bytes)
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/g, "");
+}
+
+function serverSyncTextToBase64Url(text) {
+    return serverSyncBytesToBase64Url(
+        new TextEncoder().encode(text)
+    );
+}
+
+function serverSyncBase64UrlToText(value = "") {
+    const normalized = String(value || "")
+        .replace(/-/g, "+")
+        .replace(/_/g, "/");
+    const padding = "=".repeat(
+        (4 - normalized.length % 4) % 4
+    );
+    return new TextDecoder().decode(
+        syncBase64ToBytes(normalized + padding)
+    );
+}
+
+function createServerSyncSecret() {
+    return serverSyncBytesToBase64Url(
+        crypto.getRandomValues(
+            new Uint8Array(32)
+        )
+    );
+}
+
+async function hashServerSyncSecret(secret) {
+    const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(secret)
+    );
+
+    return [...new Uint8Array(digest)]
+        .map((byte) =>
+            byte.toString(16).padStart(2, "0")
+        )
+        .join("");
+}
+
+function buildServerSyncLinkCode() {
+    if (!isServerSyncConnected()) {
+        throw new Error(
+            "Connecte d’abord Shuffle+ à un espace serveur."
+        );
+    }
+
+    const payload = {
+        format: SERVER_SYNC_LINK_FORMAT,
+        schemaVersion: SERVER_SYNC_SCHEMA_VERSION,
+        serverUrl: serverSyncState.serverUrl,
+        spaceId: serverSyncState.spaceId,
+        rootSecret: serverSyncState.rootSecret,
+        createdAt: new Date().toISOString()
+    };
+
+    return "SP5." + serverSyncTextToBase64Url(
+        JSON.stringify(payload)
+    );
+}
+
+function parseServerSyncLinkCode(value = "") {
+    const input = String(value || "").trim();
+    const encoded = input.startsWith("SP5.")
+        ? input.slice(4)
+        : input;
+
+    try {
+        const payload = JSON.parse(
+            serverSyncBase64UrlToText(encoded)
+        );
+
+        if (
+            payload?.format !== SERVER_SYNC_LINK_FORMAT ||
+            Number(payload.schemaVersion) !==
+                SERVER_SYNC_SCHEMA_VERSION ||
+            !normalizeServerSyncUrl(payload.serverUrl) ||
+            !payload.spaceId ||
+            !payload.rootSecret
+        ) {
+            throw new Error();
+        }
+
+        return {
+            serverUrl: normalizeServerSyncUrl(
+                payload.serverUrl
+            ),
+            spaceId: String(payload.spaceId),
+            rootSecret: String(payload.rootSecret)
+        };
+    } catch (error) {
+        throw new Error(
+            "Code de liaison serveur Shuffle+ invalide."
+        );
+    }
+}
+
+async function serverSyncRequest(
+    path,
+    {
+        method = "GET",
+        body = null,
+        authenticated = true,
+        rootAuthHash = ""
+    } = {}
+) {
+    const baseUrl = normalizeServerSyncUrl(
+        serverSyncState.serverUrl
+    );
+
+    if (!baseUrl) {
+        throw new Error(
+            "Adresse du serveur Shuffle+ invalide."
+        );
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(
+        () => controller.abort(),
+        SERVER_SYNC_REQUEST_TIMEOUT
+    );
+    const headers = {
+        Accept: "application/json"
+    };
+
+    if (body !== null) {
+        headers["Content-Type"] = "application/json";
+    }
+
+    if (authenticated && serverSyncState.deviceToken) {
+        headers.Authorization =
+            `Bearer ${serverSyncState.deviceToken}`;
+        headers["X-ShufflePlus-Installation"] =
+            syncInstallation.id;
+    }
+
+    if (rootAuthHash) {
+        headers["X-ShufflePlus-Root-Auth"] =
+            rootAuthHash;
+    }
+
+    try {
+        const response = await fetch(
+            baseUrl + path,
+            {
+                method,
+                headers,
+                body: body === null
+                    ? undefined
+                    : JSON.stringify(body),
+                signal: controller.signal,
+                cache: "no-store"
+            }
+        );
+
+        if (response.status === 204) {
+            return {
+                response,
+                data: null
+            };
+        }
+
+        let data = null;
+        const contentType =
+            response.headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            data = text ? { message: text } : null;
+        }
+
+        if (!response.ok) {
+            const error = new Error(
+                data?.message ||
+                data?.error ||
+                `Erreur serveur ${response.status}.`
+            );
+            error.status = response.status;
+            error.payload = data;
+            throw error;
+        }
+
+        return {
+            response,
+            data
+        };
+    } catch (error) {
+        if (error.name === "AbortError") {
+            throw new Error(
+                "Le serveur Shuffle+ ne répond pas assez vite."
+            );
+        }
+        throw error;
+    } finally {
+        window.clearTimeout(timeout);
+    }
+}
+
+async function createServerSyncSpace(form) {
+    if (serverSyncBusy) {
+        return;
+    }
+
+    const data = new FormData(form);
+    const serverUrl = normalizeServerSyncUrl(
+        data.get("serverUrl") || ""
+    );
+
+    if (!serverUrl) {
+        setServerSyncMessage(
+            "Utilise une adresse HTTPS valide. HTTP est accepté uniquement en local.",
+            "error"
+        );
+        refreshSyncPreparationPanel();
+        return;
+    }
+
+    serverSyncBusy = true;
+    serverSyncState = normalizeServerSyncState({
+        ...serverSyncState,
+        serverUrl
+    });
+    saveServerSyncState();
+    setServerSyncMessage(
+        "Création de l’espace chiffré…"
+    );
+    refreshSyncPreparationPanel();
+
+    try {
+        const rootSecret = createServerSyncSecret();
+        const rootAuthHash =
+            await hashServerSyncSecret(rootSecret);
+        const { data: response } =
+            await serverSyncRequest(
+                "/v1/spaces",
+                {
+                    method: "POST",
+                    authenticated: false,
+                    body: {
+                        rootAuthHash,
+                        installation: {
+                            ...syncInstallation
+                        },
+                        appVersion: APP_VERSION
+                    }
+                }
+            );
+
+        serverSyncState = normalizeServerSyncState({
+            enabled: true,
+            autoSync: true,
+            intervalMinutes:
+                SERVER_SYNC_DEFAULT_INTERVAL_MINUTES,
+            serverUrl,
+            spaceId: response.spaceId,
+            deviceToken: response.deviceToken,
+            rootSecret,
+            revision: Number(response.revision || 0),
+            connectedAt: Date.now()
+        });
+        saveServerSyncState();
+        startServerSyncWatcher();
+        await pushServerSync({
+            force: true,
+            silent: true
+        });
+        await refreshServerSyncDevices({
+            silent: true
+        });
+        setServerSyncMessage(
+            "Espace serveur créé. Les données sont chiffrées avant l’envoi.",
+            "success"
+        );
+        setStatus(
+            "Synchronisation serveur Shuffle+ activée."
+        );
+    } catch (error) {
+        console.error(error);
+        serverSyncState = normalizeServerSyncState({
+            serverUrl
+        });
+        saveServerSyncState();
+        setServerSyncMessage(
+            error.message ||
+            "Impossible de créer l’espace serveur.",
+            "error"
+        );
+    } finally {
+        serverSyncBusy = false;
+        refreshSyncPreparationPanel();
+    }
+}
+
+async function joinServerSyncSpace(form) {
+    if (serverSyncBusy) {
+        return;
+    }
+
+    const data = new FormData(form);
+    let link;
+
+    try {
+        link = parseServerSyncLinkCode(
+            data.get("linkCode") || ""
+        );
+    } catch (error) {
+        setServerSyncMessage(error.message, "error");
+        refreshSyncPreparationPanel();
+        return;
+    }
+
+    serverSyncBusy = true;
+    serverSyncState = normalizeServerSyncState({
+        ...serverSyncState,
+        serverUrl: link.serverUrl
+    });
+    saveServerSyncState();
+    setServerSyncMessage(
+        "Connexion à l’espace distant…"
+    );
+    refreshSyncPreparationPanel();
+
+    try {
+        const rootAuthHash =
+            await hashServerSyncSecret(
+                link.rootSecret
+            );
+        const { data: response } =
+            await serverSyncRequest(
+                `/v1/spaces/${encodeURIComponent(link.spaceId)}/join`,
+                {
+                    method: "POST",
+                    authenticated: false,
+                    body: {
+                        rootAuthHash,
+                        installation: {
+                            ...syncInstallation
+                        },
+                        appVersion: APP_VERSION
+                    }
+                }
+            );
+
+        serverSyncState = normalizeServerSyncState({
+            enabled: true,
+            autoSync: true,
+            intervalMinutes:
+                SERVER_SYNC_DEFAULT_INTERVAL_MINUTES,
+            serverUrl: link.serverUrl,
+            spaceId: link.spaceId,
+            deviceToken: response.deviceToken,
+            rootSecret: link.rootSecret,
+            revision: 0,
+            connectedAt: Date.now()
+        });
+        saveServerSyncState();
+        startServerSyncWatcher();
+        await pullServerSync({
+            force: true,
+            silent: true,
+            firstJoin: true
+        });
+        await refreshServerSyncDevices({
+            silent: true
+        });
+        if (!pendingSyncPackage) {
+            setServerSyncMessage(
+                "Appareil relié. Les données sont déjà synchronisées.",
+                "success"
+            );
+        }
+        setStatus(
+            "Appareil relié au serveur Shuffle+."
+        );
+    } catch (error) {
+        console.error(error);
+        serverSyncState = normalizeServerSyncState({
+            serverUrl: link.serverUrl
+        });
+        saveServerSyncState();
+        setServerSyncMessage(
+            error.message ||
+            "Impossible de rejoindre cet espace.",
+            "error"
+        );
+    } finally {
+        serverSyncBusy = false;
+        refreshSyncPreparationPanel();
+    }
+}
+
+async function copyServerSyncLinkCode() {
+    try {
+        const code = buildServerSyncLinkCode();
+        await navigator.clipboard.writeText(code);
+        setServerSyncMessage(
+            "Code de liaison copié. Il donne accès aux données chiffrées : conserve-le comme un mot de passe.",
+            "success"
+        );
+    } catch (error) {
+        if (isServerSyncConnected()) {
+            window.prompt(
+                "Copie ce code de liaison privé :",
+                buildServerSyncLinkCode()
+            );
+        } else {
+            setServerSyncMessage(
+                error.message,
+                "error"
+            );
+        }
+    }
+    refreshSyncPreparationPanel();
+}
+
+async function testServerSyncConnection() {
+    if (!serverSyncState.serverUrl) {
+        setServerSyncMessage(
+            "Renseigne d’abord l’adresse du serveur.",
+            "error"
+        );
+        refreshSyncPreparationPanel();
+        return;
+    }
+
+    try {
+        const { data } = await serverSyncRequest(
+            "/health",
+            {
+                authenticated: false
+            }
+        );
+        setServerSyncMessage(
+            `Serveur disponible · ${data?.version || "version inconnue"}.`,
+            "success"
+        );
+    } catch (error) {
+        setServerSyncMessage(
+            error.message ||
+            "Serveur inaccessible.",
+            "error"
+        );
+    }
+    refreshSyncPreparationPanel();
+}
+
+async function pushServerSync({
+    force = false,
+    silent = false
+} = {}) {
+    if (!isServerSyncConnected()) {
+        if (!silent) {
+            setServerSyncMessage(
+                "Aucun espace serveur n’est connecté.",
+                "error"
+            );
+            refreshSyncPreparationPanel();
+        }
+        return false;
+    }
+
+    if (serverSyncBusy && !force) {
+        return false;
+    }
+
+    const previousBusy = serverSyncBusy;
+    serverSyncBusy = true;
+
+    try {
+        const localPackage = buildSyncPackage();
+
+        if (
+            !force &&
+            localPackage.fingerprint ===
+                serverSyncState.lastSyncedFingerprint
+        ) {
+            return false;
+        }
+
+        if (!silent) {
+            setServerSyncMessage(
+                "Chiffrement et envoi en cours…"
+            );
+            refreshSyncPreparationPanel();
+        }
+
+        const envelope =
+            await encryptSyncPackagePayload(
+                localPackage,
+                serverSyncState.rootSecret
+            );
+        const { data: response } =
+            await serverSyncRequest(
+                `/v1/spaces/${encodeURIComponent(serverSyncState.spaceId)}/state`,
+                {
+                    method: "PUT",
+                    body: {
+                        baseRevision:
+                            serverSyncState.revision,
+                        envelope,
+                        fingerprint:
+                            localPackage.fingerprint,
+                        dataUpdatedAt:
+                            localPackage.dataUpdatedAt,
+                        sourceInstallation: {
+                            ...syncInstallation
+                        },
+                        appVersion: APP_VERSION
+                    }
+                }
+            );
+
+        serverSyncState = normalizeServerSyncState({
+            ...serverSyncState,
+            revision: response.revision,
+            lastSyncedFingerprint:
+                localPackage.fingerprint,
+            lastPushAt: Date.now(),
+            lastError: ""
+        });
+        saveServerSyncState();
+        addSyncSessionHistory({
+            type: "server-push",
+            peerId: serverSyncState.spaceId,
+            peerLabel: "Serveur Shuffle+",
+            status: "success",
+            message:
+                `Révision ${response.revision} envoyée avec chiffrement de bout en bout.`
+        });
+        if (!silent) {
+            setServerSyncMessage(
+                `Données envoyées · révision ${response.revision}.`,
+                "success"
+            );
+            setStatus(
+                "Synchronisation serveur terminée."
+            );
+        }
+        return true;
+    } catch (error) {
+        if (error.status === 409) {
+            serverSyncState = normalizeServerSyncState({
+                ...serverSyncState,
+                revision: Number(
+                    error.payload?.revision ||
+                    serverSyncState.revision
+                )
+            });
+            saveServerSyncState();
+            await pullServerSync({
+                force: true,
+                silent
+            });
+            return false;
+        }
+
+        console.error(error);
+        serverSyncState = normalizeServerSyncState({
+            ...serverSyncState,
+            lastError: error.message ||
+                "Échec de l’envoi"
+        });
+        saveServerSyncState();
+        addSyncSessionHistory({
+            type: "server-push",
+            peerId: serverSyncState.spaceId,
+            peerLabel: "Serveur Shuffle+",
+            status: "error",
+            message:
+                error.message || "Échec de l’envoi serveur."
+        });
+        if (!silent) {
+            setServerSyncMessage(
+                error.message ||
+                "Impossible d’envoyer les données.",
+                "error"
+            );
+        }
+        return false;
+    } finally {
+        serverSyncBusy = previousBusy;
+        if (!silent) {
+            refreshSyncPreparationPanel();
+        }
+    }
+}
+
+async function pullServerSync({
+    force = false,
+    silent = false,
+    firstJoin = false
+} = {}) {
+    if (!isServerSyncConnected()) {
+        if (!silent) {
+            setServerSyncMessage(
+                "Aucun espace serveur n’est connecté.",
+                "error"
+            );
+            refreshSyncPreparationPanel();
+        }
+        return false;
+    }
+
+    const previousBusy = serverSyncBusy;
+    serverSyncBusy = true;
+
+    try {
+        if (!silent) {
+            setServerSyncMessage(
+                "Recherche d’une révision distante…"
+            );
+            refreshSyncPreparationPanel();
+        }
+
+        const afterRevision = force
+            ? 0
+            : serverSyncState.revision;
+        const { response, data } =
+            await serverSyncRequest(
+                `/v1/spaces/${encodeURIComponent(serverSyncState.spaceId)}/state?afterRevision=${encodeURIComponent(afterRevision)}`
+            );
+
+        serverSyncState = normalizeServerSyncState({
+            ...serverSyncState,
+            lastPullAt: Date.now(),
+            lastError: ""
+        });
+
+        if (response.status === 204 || !data) {
+            saveServerSyncState();
+            if (!silent) {
+                setServerSyncMessage(
+                    "Aucune nouvelle révision distante.",
+                    "success"
+                );
+            }
+            return false;
+        }
+
+        const decrypted =
+            await decryptSyncPackagePayload(
+                data.envelope,
+                serverSyncState.rootSecret
+            );
+        const remote = validateSyncPackage(
+            decrypted
+        );
+        const local = buildSyncPackage();
+        const previousFingerprint =
+            serverSyncState.lastSyncedFingerprint;
+
+        serverSyncState = normalizeServerSyncState({
+            ...serverSyncState,
+            revision: Number(data.revision || 0)
+        });
+        saveServerSyncState();
+
+        if (remote.fingerprint === local.fingerprint) {
+            serverSyncState = normalizeServerSyncState({
+                ...serverSyncState,
+                lastSyncedFingerprint:
+                    remote.fingerprint
+            });
+            saveServerSyncState();
+            if (!silent) {
+                setServerSyncMessage(
+                    `Déjà synchronisé · révision ${data.revision}.`,
+                    "success"
+                );
+            }
+            return true;
+        }
+
+        if (
+            !firstJoin &&
+            previousFingerprint &&
+            local.fingerprint === previousFingerprint
+        ) {
+            saveLastSyncMergeUndo(
+                buildBackupPayload(),
+                "Serveur Shuffle+",
+                { server: "remote" }
+            );
+            applyValidatedBackupState(
+                remote.importedBackup
+            );
+            serverSyncState = normalizeServerSyncState({
+                ...serverSyncState,
+                revision: Number(data.revision || 0),
+                lastSyncedFingerprint:
+                    remote.fingerprint,
+                lastPullAt: Date.now()
+            });
+            saveServerSyncState();
+            displayPlaylists(playlistsCache);
+            addSyncSessionHistory({
+                type: "server-pull",
+                peerId: serverSyncState.spaceId,
+                peerLabel: "Serveur Shuffle+",
+                status: "success",
+                message:
+                    `Révision ${data.revision} appliquée automatiquement.`
+            });
+            if (!silent) {
+                setServerSyncMessage(
+                    `Révision ${data.revision} appliquée automatiquement.`,
+                    "success"
+                );
+            }
+            return true;
+        }
+
+        if (
+            previousFingerprint &&
+            remote.fingerprint === previousFingerprint
+        ) {
+            if (!silent) {
+                setServerSyncMessage(
+                    "Le serveur est inchangé, les données locales vont être envoyées.",
+                    "success"
+                );
+            }
+            await pushServerSync({
+                force: true,
+                silent
+            });
+            return true;
+        }
+
+        pendingSyncPackage = remote;
+        registerSyncPackageSource(remote);
+        addSyncSessionHistory({
+            type: "server-conflict",
+            peerId: serverSyncState.spaceId,
+            peerLabel: "Serveur Shuffle+",
+            status: "warning",
+            message:
+                `Conflit à résoudre avec la révision ${data.revision}.`
+        });
+        setServerSyncMessage(
+            "Les deux appareils ont changé les données. Choisis la fusion dans la comparaison ci-dessous.",
+            "error"
+        );
+        setStatus(
+            "Conflit de synchronisation serveur à résoudre.",
+            "error"
+        );
+        return true;
+    } catch (error) {
+        console.error(error);
+        serverSyncState = normalizeServerSyncState({
+            ...serverSyncState,
+            lastError:
+                error.message || "Échec de réception"
+        });
+        saveServerSyncState();
+        addSyncSessionHistory({
+            type: "server-pull",
+            peerId: serverSyncState.spaceId,
+            peerLabel: "Serveur Shuffle+",
+            status: "error",
+            message:
+                error.message || "Échec de réception serveur."
+        });
+        if (!silent) {
+            setServerSyncMessage(
+                error.message ||
+                "Impossible de recevoir les données.",
+                "error"
+            );
+        }
+        return false;
+    } finally {
+        serverSyncBusy = previousBusy;
+        if (!silent) {
+            refreshSyncPreparationPanel();
+        }
+    }
+}
+
+async function refreshServerSyncDevices({
+    silent = false
+} = {}) {
+    if (!isServerSyncConnected()) {
+        serverSyncDevices = [];
+        return;
+    }
+
+    try {
+        const { data } = await serverSyncRequest(
+            `/v1/spaces/${encodeURIComponent(serverSyncState.spaceId)}/devices`
+        );
+        serverSyncDevices = Array.isArray(data?.devices)
+            ? data.devices
+            : [];
+        if (!silent) {
+            setServerSyncMessage(
+                `${serverSyncDevices.length} appareil${serverSyncDevices.length > 1 ? "s" : ""} autorisé${serverSyncDevices.length > 1 ? "s" : ""}.`,
+                "success"
+            );
+            refreshSyncPreparationPanel();
+        }
+    } catch (error) {
+        if (!silent) {
+            setServerSyncMessage(
+                error.message ||
+                "Impossible de charger les appareils.",
+                "error"
+            );
+            refreshSyncPreparationPanel();
+        }
+    }
+}
+
+async function revokeServerSyncDevice(
+    installationId
+) {
+    const device = serverSyncDevices.find(
+        (item) => item.installationId === installationId
+    );
+
+    if (!device) {
+        return;
+    }
+
+    if (installationId === syncInstallation.id) {
+        setServerSyncMessage(
+            "Utilise Déconnecter cet appareil pour retirer l’installation actuelle.",
+            "error"
+        );
+        refreshSyncPreparationPanel();
+        return;
+    }
+
+    if (!window.confirm(
+        `Révoquer « ${device.label} » ?`
+    )) {
+        return;
+    }
+
+    try {
+        await serverSyncRequest(
+            `/v1/spaces/${encodeURIComponent(serverSyncState.spaceId)}/devices/${encodeURIComponent(installationId)}`,
+            { method: "DELETE" }
+        );
+        await refreshServerSyncDevices({
+            silent: true
+        });
+        setServerSyncMessage(
+            `${device.label} a été révoqué.`,
+            "success"
+        );
+    } catch (error) {
+        setServerSyncMessage(
+            error.message ||
+            "Révocation impossible.",
+            "error"
+        );
+    }
+    refreshSyncPreparationPanel();
+}
+
+function disconnectServerSync() {
+    if (!window.confirm(
+        "Déconnecter cet appareil de l’espace serveur ?\n\nLes données locales ne seront pas supprimées."
+    )) {
+        return;
+    }
+
+    stopServerSyncWatcher();
+    serverSyncState = normalizeServerSyncState();
+    serverSyncDevices = [];
+    pendingSyncPackage = null;
+    saveServerSyncState();
+    setServerSyncMessage(
+        "Cet appareil est déconnecté du serveur.",
+        "success"
+    );
+    refreshSyncPreparationPanel();
+}
+
+async function deleteServerSyncSpace() {
+    if (!isServerSyncConnected()) {
+        return;
+    }
+
+    const confirmation = window.prompt(
+        "Cette action supprime définitivement l’espace distant.\n\nÉcris SUPPRIMER pour confirmer."
+    );
+
+    if (confirmation !== "SUPPRIMER") {
+        setServerSyncMessage(
+            "Suppression annulée."
+        );
+        refreshSyncPreparationPanel();
+        return;
+    }
+
+    try {
+        const rootAuthHash =
+            await hashServerSyncSecret(
+                serverSyncState.rootSecret
+            );
+        await serverSyncRequest(
+            `/v1/spaces/${encodeURIComponent(serverSyncState.spaceId)}`,
+            {
+                method: "DELETE",
+                rootAuthHash
+            }
+        );
+        stopServerSyncWatcher();
+        serverSyncState = normalizeServerSyncState();
+        serverSyncDevices = [];
+        saveServerSyncState();
+        setServerSyncMessage(
+            "Espace distant supprimé.",
+            "success"
+        );
+        refreshSyncPreparationPanel();
+    } catch (error) {
+        setServerSyncMessage(
+            error.message ||
+            "Suppression impossible.",
+            "error"
+        );
+        refreshSyncPreparationPanel();
+    }
+}
+
+function saveServerSyncOptions(form) {
+    const data = new FormData(form);
+    serverSyncState = normalizeServerSyncState({
+        ...serverSyncState,
+        autoSync: data.get("autoSync") === "on",
+        intervalMinutes: Number(
+            data.get("intervalMinutes") ||
+            SERVER_SYNC_DEFAULT_INTERVAL_MINUTES
+        )
+    });
+    saveServerSyncState();
+    startServerSyncWatcher();
+    setServerSyncMessage(
+        "Réglages de synchronisation automatique enregistrés.",
+        "success"
+    );
+    refreshSyncPreparationPanel();
+}
+
+async function runServerAutoSync(
+    reason = "timer"
+) {
+    if (
+        !isServerSyncConnected() ||
+        !serverSyncState.autoSync ||
+        serverSyncBusy ||
+        !navigator.onLine ||
+        pendingSyncPackage
+    ) {
+        return;
+    }
+
+    await pullServerSync({
+        silent: true
+    });
+
+    if (!pendingSyncPackage) {
+        const local = buildSyncPackage();
+        if (
+            local.fingerprint !==
+                serverSyncState.lastSyncedFingerprint
+        ) {
+            await pushServerSync({
+                silent: true
+            });
+        }
+    }
+
+    if (reason !== "timer") {
+        refreshSyncPreparationPanel();
+    }
+}
+
+function stopServerSyncWatcher() {
+    if (serverSyncTimer) {
+        window.clearInterval(
+            serverSyncTimer
+        );
+        serverSyncTimer = 0;
+    }
+}
+
+function startServerSyncWatcher() {
+    stopServerSyncWatcher();
+
+    if (
+        !isServerSyncConnected() ||
+        !serverSyncState.autoSync
+    ) {
+        return;
+    }
+
+    const delay = Math.max(
+        60 * 1000,
+        serverSyncState.intervalMinutes *
+            60 * 1000
+    );
+
+    serverSyncTimer = window.setInterval(
+        () => runServerAutoSync("timer"),
+        delay
+    );
+}
+
+function formatServerSyncDate(timestamp) {
+    if (!timestamp) {
+        return "Jamais";
+    }
+
+    return new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            dateStyle: "short",
+            timeStyle: "short"
+        }
+    ).format(new Date(timestamp));
+}
+
+function renderServerSyncPanel() {
+    const connected = isServerSyncConnected();
+    const message = serverSyncMessage.text
+        ? `
+            <p class="server-sync-message ${escapeHtml(serverSyncMessage.type)}">
+                ${escapeHtml(serverSyncMessage.text)}
+            </p>
+        `
+        : "";
+
+    if (!connected) {
+        return `
+            <section class="server-sync-panel">
+                <div class="server-sync-heading">
+                    <div>
+                        <span class="sync-eyebrow">v5.0 · Serveur réel</span>
+                        <h4>Synchronisation automatique chiffrée</h4>
+                        <p>
+                            Shuffle+ chiffre le paquet dans ce navigateur.
+                            Le serveur ne reçoit qu’une enveloppe illisible.
+                        </p>
+                    </div>
+                    <span class="server-sync-badge is-offline">
+                        Non connecté
+                    </span>
+                </div>
+
+                <form id="serverSyncCreateForm" class="server-sync-form">
+                    <label>
+                        <span>Adresse du serveur Shuffle+</span>
+                        <input
+                            name="serverUrl"
+                            type="url"
+                            placeholder="https://sync.exemple.fr"
+                            value="${escapeHtml(serverSyncState.serverUrl)}"
+                            required
+                        >
+                    </label>
+                    <div class="server-sync-inline-actions">
+                        <button
+                            class="sync-primary-button"
+                            type="submit"
+                            ${serverSyncBusy ? "disabled" : ""}
+                        >
+                            ☁ Créer mon espace
+                        </button>
+                        <button
+                            id="testServerSyncButton"
+                            class="sync-secondary-button"
+                            type="button"
+                            ${serverSyncBusy ? "disabled" : ""}
+                        >
+                            Tester le serveur
+                        </button>
+                    </div>
+                </form>
+
+                <form id="serverSyncJoinForm" class="server-sync-form">
+                    <label>
+                        <span>Code de liaison reçu d’un autre appareil</span>
+                        <textarea
+                            name="linkCode"
+                            rows="3"
+                            placeholder="SP5.…"
+                            required
+                        ></textarea>
+                    </label>
+                    <button
+                        class="sync-secondary-button"
+                        type="submit"
+                        ${serverSyncBusy ? "disabled" : ""}
+                    >
+                        Relier cet appareil
+                    </button>
+                </form>
+
+                ${message}
+
+                <p class="server-sync-security-note">
+                    Le code de liaison contient la clé de chiffrement.
+                    Ne le partage qu’avec tes propres appareils.
+                </p>
+            </section>
+        `;
+    }
+
+    const devices = serverSyncDevices
+        .map((device) => `
+            <div class="server-sync-device">
+                <div>
+                    <strong>${escapeHtml(device.label || "Appareil Shuffle+")}</strong>
+                    <small>
+                        ${device.installationId === syncInstallation.id
+                            ? "Cet appareil · "
+                            : ""}
+                        vu ${escapeHtml(formatServerSyncDate(device.lastSeenAt))}
+                    </small>
+                </div>
+                ${device.installationId !== syncInstallation.id
+                    ? `
+                        <button
+                            class="sync-danger-button"
+                            type="button"
+                            data-revoke-server-device="${escapeHtml(device.installationId)}"
+                        >
+                            Révoquer
+                        </button>
+                    `
+                    : ""}
+            </div>
+        `)
+        .join("");
+
+    return `
+        <section class="server-sync-panel is-connected">
+            <div class="server-sync-heading">
+                <div>
+                    <span class="sync-eyebrow">v5.0 · Synchronisation active</span>
+                    <h4>Serveur Shuffle+</h4>
+                    <p>
+                        Espace <code>${escapeHtml(serverSyncState.spaceId)}</code>
+                        · révision ${serverSyncState.revision}
+                    </p>
+                </div>
+                <span class="server-sync-badge is-online">
+                    Chiffré E2E
+                </span>
+            </div>
+
+            <div class="server-sync-metrics">
+                <div>
+                    <span>Dernier envoi</span>
+                    <strong>${escapeHtml(formatServerSyncDate(serverSyncState.lastPushAt))}</strong>
+                </div>
+                <div>
+                    <span>Dernière réception</span>
+                    <strong>${escapeHtml(formatServerSyncDate(serverSyncState.lastPullAt))}</strong>
+                </div>
+                <div>
+                    <span>Serveur</span>
+                    <strong>${escapeHtml(serverSyncState.serverUrl)}</strong>
+                </div>
+            </div>
+
+            <form id="serverSyncOptionsForm" class="server-sync-options-form">
+                <label class="server-sync-checkbox">
+                    <input
+                        name="autoSync"
+                        type="checkbox"
+                        ${serverSyncState.autoSync ? "checked" : ""}
+                    >
+                    <span>Synchroniser automatiquement quand l’application est ouverte</span>
+                </label>
+                <label>
+                    <span>Fréquence</span>
+                    <select name="intervalMinutes">
+                        ${[1, 5, 15, 30, 60].map((value) => `
+                            <option
+                                value="${value}"
+                                ${serverSyncState.intervalMinutes === value
+                                    ? "selected"
+                                    : ""}
+                            >
+                                ${value === 1 ? "1 minute" : `${value} minutes`}
+                            </option>
+                        `).join("")}
+                    </select>
+                </label>
+                <button class="sync-secondary-button" type="submit">
+                    Enregistrer
+                </button>
+            </form>
+
+            <div class="server-sync-inline-actions">
+                <button
+                    id="pushServerSyncButton"
+                    class="sync-primary-button"
+                    type="button"
+                    ${serverSyncBusy ? "disabled" : ""}
+                >
+                    ↑ Envoyer maintenant
+                </button>
+                <button
+                    id="pullServerSyncButton"
+                    class="sync-secondary-button"
+                    type="button"
+                    ${serverSyncBusy ? "disabled" : ""}
+                >
+                    ↓ Recevoir maintenant
+                </button>
+                <button
+                    id="copyServerSyncLinkButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    🔗 Copier le code de liaison
+                </button>
+                <button
+                    id="refreshServerDevicesButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Actualiser les appareils
+                </button>
+            </div>
+
+            ${message}
+
+            <details class="server-sync-devices" ${serverSyncDevices.length ? "" : "open"}>
+                <summary>
+                    Appareils autorisés · ${serverSyncDevices.length}
+                </summary>
+                <div>
+                    ${devices || "Aucun appareil chargé. Clique sur Actualiser."}
+                </div>
+            </details>
+
+            <div class="server-sync-danger-zone">
+                <button
+                    id="disconnectServerSyncButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Déconnecter cet appareil
+                </button>
+                <button
+                    id="deleteServerSyncSpaceButton"
+                    class="sync-danger-button"
+                    type="button"
+                >
+                    Supprimer l’espace distant
+                </button>
+            </div>
+        </section>
+    `;
+}
+
 function renderSyncPreparationPanel() {
     const localPackage = buildSyncPackage();
 
@@ -19881,15 +21310,17 @@ function renderSyncPreparationPanel() {
         >
             <div class="sync-panel-heading">
                 <div>
-                    <span class="sync-eyebrow">v4.9 · Diff détaillé & chiffrement</span>
+                    <span class="sync-eyebrow">v5.0 · Serveur & fusion chiffrée</span>
                     <h3>Synchronisation multi-appareils</h3>
                     <p>
-                        Compare chaque élément, recherche dans les différences,
-                        annule une fusion et protège un paquet par chiffrement local.
+                        Synchronise automatiquement tes appareils, tout en gardant la comparaison,
+                        la fusion sélective et le chiffrement de bout en bout.
                     </p>
                 </div>
-                <span class="sync-local-badge">Local uniquement</span>
+                <span class="sync-local-badge">Local + serveur</span>
             </div>
+
+            ${renderServerSyncPanel()}
 
             <form id="syncPreparationForm" class="sync-settings-form">
                 <label>
@@ -24007,6 +25438,18 @@ async function initializeApp() {
             `Bienvenue ${displayName} 👋`;
 
         displayPlaylists(playlistsCache);
+        startServerSyncWatcher();
+
+        if (isServerSyncConnected()) {
+            window.setTimeout(
+                () => runServerAutoSync("startup"),
+                1200
+            );
+            window.setTimeout(
+                () => refreshServerSyncDevices({ silent: true }),
+                1800
+            );
+        }
 
         if (activeAppMenu === "driving") {
             await refreshDrivingPlayback({
@@ -24134,6 +25577,8 @@ loginButton.addEventListener("click", async () => {
 
 if (logoutButton) {
 logoutButton.addEventListener("click", () => {
+    stopServerSyncWatcher();
+
     if (scheduleCheckTimer) {
         window.clearInterval(
             scheduleCheckTimer
@@ -24823,6 +26268,81 @@ contentElement.addEventListener(
 
         if (clearMixHistoryButton) {
             clearMixHistory();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testServerSyncButton"
+            )
+        ) {
+            await testServerSyncConnection();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#pushServerSyncButton"
+            )
+        ) {
+            await pushServerSync({ force: true });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#pullServerSyncButton"
+            )
+        ) {
+            await pullServerSync({ force: true });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copyServerSyncLinkButton"
+            )
+        ) {
+            await copyServerSyncLinkCode();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshServerDevicesButton"
+            )
+        ) {
+            await refreshServerSyncDevices();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#disconnectServerSyncButton"
+            )
+        ) {
+            disconnectServerSync();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#deleteServerSyncSpaceButton"
+            )
+        ) {
+            await deleteServerSyncSpace();
+            return;
+        }
+
+        const revokeServerDeviceButton =
+            event.target.closest(
+                "[data-revoke-server-device]"
+            );
+        if (revokeServerDeviceButton) {
+            await revokeServerSyncDevice(
+                revokeServerDeviceButton.dataset
+                    .revokeServerDevice || ""
+            );
             return;
         }
 
@@ -25660,6 +27180,36 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "serverSyncCreateForm"
+        ) {
+            event.preventDefault();
+            await createServerSyncSpace(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncJoinForm"
+        ) {
+            event.preventDefault();
+            await joinServerSyncSpace(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncOptionsForm"
+        ) {
+            event.preventDefault();
+            saveServerSyncOptions(
+                event.target
+            );
+            return;
+        }
+
+        if (
             event.target.id === "syncPairingTokenForm"
         ) {
             event.preventDefault();
@@ -26285,4 +27835,19 @@ document.addEventListener(
 );
 
 initializePwa();
+
+window.addEventListener(
+    "online",
+    () => runServerAutoSync("online")
+);
+
+document.addEventListener(
+    "visibilitychange",
+    () => {
+        if (document.visibilityState === "visible") {
+            runServerAutoSync("visible");
+        }
+    }
+);
+
 initializeApp();

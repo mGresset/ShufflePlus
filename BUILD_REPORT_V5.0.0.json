@@ -1,0 +1,12 @@
+{
+  "version": "5.0.0",
+  "base": "ShufflePlus-v4.9.0-Detailed-Diff-Encrypted-Transfer.zip",
+  "features": [
+    "real Node server",
+    "end-to-end encrypted automatic sync",
+    "device tokens and revocation",
+    "revision conflicts and selective merge",
+    "Docker and integration tests"
+  ],
+  "generatedAt": "2026-07-28T20:31:18Z"
+}

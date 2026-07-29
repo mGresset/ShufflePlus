@@ -133,3 +133,19 @@ Champs principaux :
   "ciphertext": "base64"
 }
 ```
+
+
+## API mise en œuvre en v5.0
+
+Le sous-dossier `server/` implémente réellement :
+
+- `POST /v1/spaces`
+- `POST /v1/spaces/{spaceId}/join`
+- `GET /v1/spaces/{spaceId}/state?afterRevision=N`
+- `PUT /v1/spaces/{spaceId}/state`
+- `GET /v1/spaces/{spaceId}/devices`
+- `DELETE /v1/spaces/{spaceId}/devices/{installationId}`
+- `DELETE /v1/spaces/{spaceId}`
+- `GET /health`
+
+Le serveur utilise un jeton révocable par installation. Le secret racine n’est jamais envoyé ; seule son empreinte SHA-256 sert à autoriser l’ajout d’un nouvel appareil. Les enveloppes de données sont chiffrées par le navigateur avec la clé contenue dans le code SP5.

@@ -1,0 +1,16 @@
+services:
+  shuffleplus-sync:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      PORT: 8787
+      HOST: 0.0.0.0
+      SHUFFLEPLUS_DATA_DIR: /app/data
+      SHUFFLEPLUS_ALLOWED_ORIGINS: https://mgresset.github.io
+    volumes:
+      - shuffleplus-sync-data:/app/data
+
+volumes:
+  shuffleplus-sync-data:
