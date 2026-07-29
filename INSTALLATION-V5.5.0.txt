@@ -1,0 +1,16 @@
+Shuffle+ v5.5.0 — Installation
+
+1. Sauvegarder le dossier actuellement publié.
+2. Remplacer tous les fichiers client par ceux du ZIP.
+3. Le serveur Node.js existant ne nécessite aucune modification.
+4. Publier :
+
+   git add .
+   git commit -m "v5.5.0 - Progressive transitions"
+   git pull --rebase origin main
+   git push origin main
+
+5. Dans Shuffle+ : Réglages → Rechercher une mise à jour.
+6. Fermer complètement la PWA, puis la rouvrir.
+
+Le nouvel atelier se trouve dans : Adaptive DJ → Transition progressive.

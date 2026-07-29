@@ -1,0 +1,26 @@
+{
+  "version": "5.5.0",
+  "name": "Progressive Transitions & Energy",
+  "source": "ShufflePlus-v5.4.0-Adaptive-DJ-2.0.zip",
+  "generatedAt": "2026-07-29T15:32:01.731057+00:00",
+  "javascriptFilesChecked": 12,
+  "serverChangesRequired": false,
+  "features": [
+    "progressive transition studio",
+    "three transition curves",
+    "transition preview",
+    "preserve sent queue prefix",
+    "session undo",
+    "scene metadata energy heuristic",
+    "transition URL action",
+    "backup and sync settings"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 61
+}

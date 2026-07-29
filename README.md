@@ -1,3 +1,14 @@
+
+## v5.5.0 — Transitions progressives
+
+Adaptive DJ peut désormais transformer uniquement la partie non envoyée de
+la file pour aller progressivement vers une autre scène. L’utilisateur choisit
+la scène cible, la courbe et le nombre de morceaux de transition, puis peut
+prévisualiser, appliquer ou annuler le résultat.
+
+L’énergie affichée est une estimation construite à partir des métadonnées
+accessibles à Shuffle+ ; elle ne remplace pas une analyse audio Spotify.
+
 # Shuffle+
 
 ## Nouveautés v5.4.0 — Adaptive DJ 2.0

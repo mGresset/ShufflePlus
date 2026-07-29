@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.4.0";
+const APP_VERSION = "5.5.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -438,6 +438,32 @@ const DEFAULT_ADAPTIVE_DJ_SCENES_STATE = {
     activeSceneId: "drive",
     scenes: DEFAULT_ADAPTIVE_DJ_SCENES,
     updatedAt: 0
+};
+const ADAPTIVE_TRANSITION_KEY =
+    "shuffleplus_adaptive_transition_v1";
+const DEFAULT_ADAPTIVE_TRANSITION_SETTINGS = {
+    targetSceneId: "chill",
+    bridgeTrackCount: 6,
+    preserveSentTracks: true,
+    energyCurve: "progressive",
+    updatedAt: 0
+};
+const ADAPTIVE_TRANSITION_CURVES = {
+    progressive: {
+        id: "progressive",
+        label: "Progressive",
+        description: "La nouvelle scène prend doucement le dessus."
+    },
+    soft: {
+        id: "soft",
+        label: "Très douce",
+        description: "Conserve davantage de titres de la file actuelle."
+    },
+    direct: {
+        id: "direct",
+        label: "Dynamique",
+        description: "Bascule plus rapidement vers la scène cible."
+    }
 };
 const APP_MENU_KEY =
     "shuffleplus_active_menu_v1";
@@ -886,6 +912,10 @@ let adaptiveDjMenuHistory =
     readAdaptiveDjMenuHistory();
 let adaptiveDjScenesState =
     readAdaptiveDjScenesState();
+let adaptiveTransitionSettings =
+    readAdaptiveTransitionSettings();
+let adaptiveTransitionPreview = null;
+let adaptiveTransitionUndoSnapshot = null;
 let adaptiveLearningState =
     readAdaptiveLearningState();
 let intelligenceAnalytics =
@@ -5233,6 +5263,940 @@ function saveAdaptiveDjScenesFromForm(form) {
     );
 }
 
+
+function normalizeAdaptiveTransitionSettings(
+    value = DEFAULT_ADAPTIVE_TRANSITION_SETTINGS
+) {
+    const source =
+        value && typeof value === "object"
+            ? value
+            : DEFAULT_ADAPTIVE_TRANSITION_SETTINGS;
+    const scene = getAdaptiveDjSceneById(
+        source.targetSceneId
+    );
+    const energyCurve = Object.hasOwn(
+        ADAPTIVE_TRANSITION_CURVES,
+        source.energyCurve
+    )
+        ? source.energyCurve
+        : DEFAULT_ADAPTIVE_TRANSITION_SETTINGS.energyCurve;
+
+    return {
+        targetSceneId:
+            scene?.id ||
+            getAdaptiveDjSceneById()?.id ||
+            "drive",
+        bridgeTrackCount: Math.max(
+            3,
+            Math.min(
+                12,
+                Number(source.bridgeTrackCount) || 6
+            )
+        ),
+        preserveSentTracks:
+            source.preserveSentTracks !== false,
+        energyCurve,
+        updatedAt: Number(source.updatedAt || 0)
+    };
+}
+
+function readAdaptiveTransitionSettings() {
+    try {
+        const raw = localStorage.getItem(
+            ADAPTIVE_TRANSITION_KEY
+        );
+        return normalizeAdaptiveTransitionSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_ADAPTIVE_TRANSITION_SETTINGS
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages de transition illisibles :",
+            error
+        );
+        return normalizeAdaptiveTransitionSettings(
+            DEFAULT_ADAPTIVE_TRANSITION_SETTINGS
+        );
+    }
+}
+
+function saveAdaptiveTransitionSettings() {
+    adaptiveTransitionSettings =
+        normalizeAdaptiveTransitionSettings({
+            ...adaptiveTransitionSettings,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            ADAPTIVE_TRANSITION_KEY,
+            JSON.stringify(adaptiveTransitionSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Réglages de transition non enregistrés :",
+            error
+        );
+    }
+}
+
+function getAdaptiveTransitionSettingsFromForm(
+    form
+) {
+    const data = new FormData(form);
+    return normalizeAdaptiveTransitionSettings({
+        targetSceneId: String(
+            data.get("targetSceneId") || ""
+        ),
+        bridgeTrackCount: Number(
+            data.get("bridgeTrackCount") || 6
+        ),
+        preserveSentTracks:
+            data.get("preserveSentTracks") === "on",
+        energyCurve: String(
+            data.get("energyCurve") || "progressive"
+        )
+    });
+}
+
+function saveAdaptiveTransitionSettingsFromForm(
+    form
+) {
+    adaptiveTransitionSettings =
+        getAdaptiveTransitionSettingsFromForm(form);
+    saveAdaptiveTransitionSettings();
+    adaptiveTransitionPreview = null;
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Réglages de transition enregistrés."
+    );
+}
+
+function getAdaptiveSceneTrackEnergy(track) {
+    const popularity = Math.max(
+        0,
+        Math.min(100, Number(track?.popularity || 0))
+    );
+    const feedback = Math.max(
+        -20,
+        Math.min(20, getMusicFeedbackScore(track))
+    );
+    const durationSeconds = Math.max(
+        0,
+        Number(track?.duration_ms || 0) / 1000
+    );
+    const durationAdjustment =
+        durationSeconds >= 150 && durationSeconds <= 270
+            ? 5
+            : durationSeconds > 360
+                ? -5
+                : 0;
+
+    return Math.max(
+        0,
+        Math.min(
+            100,
+            Math.round(
+                popularity * 0.82 +
+                12 +
+                feedback * 0.35 +
+                durationAdjustment
+            )
+        )
+    );
+}
+
+function sortTracksForAdaptiveScene(
+    tracks = [],
+    scene = {}
+) {
+    const targetEnergy = Math.max(
+        0,
+        Math.min(100, Number(scene.energyTarget || 50))
+    );
+    const discovery = Math.max(
+        0,
+        Math.min(100, Number(scene.discoveryTarget || 0))
+    );
+    const desiredPopularity = Math.max(
+        20,
+        Math.min(
+            90,
+            targetEnergy - discovery * 0.28 + 18
+        )
+    );
+    const randomized = tracks.map((track) => ({
+        track,
+        score:
+            Math.abs(
+                getAdaptiveSceneTrackEnergy(track) -
+                targetEnergy
+            ) * 1.1 +
+            Math.abs(
+                Number(track?.popularity || 0) -
+                desiredPopularity
+            ) * 0.35 -
+            getMusicFeedbackScore(track) * 0.25 +
+            Math.random() * 4
+    }));
+
+    randomized.sort(
+        (first, second) =>
+            first.score - second.score
+    );
+
+    const variety = Math.max(
+        0,
+        Math.min(100, Number(scene.varietyTarget || 50))
+    );
+    const options = {
+        ...getShuffleEngineOptions(
+            currentShuffleSettings
+        ),
+        artistGap: Math.max(
+            1,
+            Math.min(7, Math.round(1 + variety / 18))
+        ),
+        albumGap: Math.max(
+            1,
+            Math.min(5, Math.round(1 + variety / 28))
+        )
+    };
+
+    return smartShuffleTracks(
+        randomized.map((item) => item.track),
+        options
+    );
+}
+
+function getSavedMixRuntimeSettings(mix) {
+    const assignedProfile = mix?.profileId
+        ? getProfileById(mix.profileId)
+        : null;
+
+    return {
+        shuffleSettings:
+            normalizeShuffleSettings(
+                assignedProfile?.shuffleSettings ||
+                mix?.shuffleSettings
+            ),
+        exclusionRules:
+            normalizeExclusionRules(
+                assignedProfile?.exclusionRules ||
+                mix?.exclusionRules
+            ),
+        priorityRules:
+            normalizePriorityRules(
+                assignedProfile?.priorityRules ||
+                mix?.priorityRules
+            ),
+        cleanupSettings:
+            normalizeCleanupSettings(
+                assignedProfile?.cleanupSettings ||
+                mix?.cleanupSettings
+            ),
+        studioSettings:
+            normalizeMixStudioSettings(
+                mix?.studioSettings
+            )
+    };
+}
+
+async function prepareSavedMixTracksForTransition(
+    mixId,
+    scene
+) {
+    const mix = savedMixes.find(
+        (item) => item.id === mixId
+    );
+
+    if (!mix) {
+        throw new Error(
+            "Le mix de la scène cible est introuvable."
+        );
+    }
+
+    const sourceKeys =
+        getValidSavedMixSourceKeys(mix);
+
+    if (!sourceKeys.length) {
+        throw new Error(
+            "Les sources du mix cible ne sont plus accessibles."
+        );
+    }
+
+    const collectedTracks = [];
+
+    for (const sourceKey of sourceKeys) {
+        try {
+            let tracks = [];
+
+            if (sourceKey === "liked") {
+                tracks = await getMySavedTracks();
+            } else {
+                const playlistId = sourceKey.replace(
+                    /^playlist:/,
+                    ""
+                );
+                const playlist = playlistsCache.find(
+                    (item) => item.id === playlistId
+                );
+
+                if (!playlist || !canReadPlaylist(playlist)) {
+                    continue;
+                }
+
+                tracks = await getPlaylistItems(
+                    playlist.id
+                );
+            }
+
+            collectedTracks.push(
+                ...tracks.map((track) => ({
+                    ...track,
+                    __shufflePlusSourceKeys: [
+                        ...new Set([
+                            ...(track?.__shufflePlusSourceKeys || []),
+                            sourceKey
+                        ])
+                    ]
+                }))
+            );
+        } catch (error) {
+            console.warn(
+                `Source de transition ignorée : ${sourceKey}`,
+                error
+            );
+        }
+    }
+
+    const runtime = getSavedMixRuntimeSettings(mix);
+    const cleaned = cleanTracks(
+        collectedTracks,
+        runtime.cleanupSettings
+    ).tracks;
+    const filtered = applyExclusionRules(
+        cleaned,
+        runtime.exclusionRules
+    ).tracks;
+
+    if (!filtered.length) {
+        throw new Error(
+            "Aucun morceau utilisable n’a été trouvé dans la scène cible."
+        );
+    }
+
+    const weighted = runtime.studioSettings.enabled
+        ? buildMixStudioWeightedTrackPool(
+            filtered,
+            runtime.studioSettings
+        )
+        : filtered;
+    let ordered = smartShuffleTracks(
+        weighted,
+        getShuffleEngineOptions(
+            runtime.shuffleSettings
+        )
+    );
+
+    ordered = sortTracksForAdaptiveScene(
+        ordered,
+        scene
+    );
+
+    if (runtime.studioSettings.enabled) {
+        ordered = limitTracksToMixStudioDuration(
+            ordered,
+            runtime.studioSettings.durationMinutes
+        );
+    }
+
+    const sceneTargetMs = Math.max(
+        15,
+        Number(scene.durationMinutes || 60)
+    ) * 60 * 1000;
+    let total = 0;
+    const durationLimited = [];
+
+    for (const track of ordered) {
+        if (!track?.uri) {
+            continue;
+        }
+        if (
+            durationLimited.length &&
+            total >= sceneTargetMs
+        ) {
+            break;
+        }
+        durationLimited.push(track);
+        total += Math.max(
+            1,
+            Number(track.duration_ms || 0)
+        );
+    }
+
+    return durationLimited.length
+        ? durationLimited
+        : ordered;
+}
+
+function buildAdaptiveTransitionQueue({
+    currentTracks = [],
+    targetTracks = [],
+    settings,
+    targetScene
+}) {
+    const normalized =
+        normalizeAdaptiveTransitionSettings(settings);
+    const cursor = normalized.preserveSentTracks
+        ? Math.min(
+            playbackQueueCursor,
+            currentTracks.length
+        )
+        : 0;
+    const prefix = currentTracks.slice(0, cursor);
+    const currentRemaining = currentTracks.slice(cursor);
+    const usedUris = new Set(
+        prefix.map((track) => track?.uri).filter(Boolean)
+    );
+    const targetRemaining = targetTracks.filter((track) => {
+        const uri = track?.uri || "";
+        if (!uri || usedUris.has(uri)) {
+            return false;
+        }
+        usedUris.add(uri);
+        return true;
+    });
+    const bridgeCount = Math.min(
+        normalized.bridgeTrackCount,
+        Math.max(
+            0,
+            currentRemaining.length +
+            targetRemaining.length
+        )
+    );
+    const bridge = [];
+    let currentIndex = 0;
+    let targetIndex = 0;
+
+    for (let index = 0; index < bridgeCount; index += 1) {
+        const progress = bridgeCount <= 1
+            ? 1
+            : index / (bridgeCount - 1);
+        let targetThreshold = progress;
+
+        if (normalized.energyCurve === "soft") {
+            targetThreshold = Math.pow(progress, 1.65);
+        } else if (
+            normalized.energyCurve === "direct"
+        ) {
+            targetThreshold = Math.pow(progress, 0.58);
+        }
+
+        const chooseTarget =
+            targetIndex < targetRemaining.length &&
+            (
+                currentIndex >= currentRemaining.length ||
+                targetThreshold >= 0.5 ||
+                index === bridgeCount - 1
+            );
+        const candidate = chooseTarget
+            ? targetRemaining[targetIndex++]
+            : currentRemaining[currentIndex++];
+
+        if (candidate?.uri) {
+            bridge.push(candidate);
+        }
+    }
+
+    const bridgeUris = new Set(
+        bridge.map((track) => track?.uri).filter(Boolean)
+    );
+    const tail = targetRemaining.filter(
+        (track) => !bridgeUris.has(track?.uri)
+    );
+    const finalTracks = [
+        ...prefix,
+        ...bridge,
+        ...tail
+    ];
+    const bridgeEnergy = bridge.length
+        ? Math.round(
+            bridge.reduce(
+                (sum, track) =>
+                    sum + getAdaptiveSceneTrackEnergy(track),
+                0
+            ) / bridge.length
+        )
+        : Number(targetScene?.energyTarget || 0);
+
+    return {
+        tracks: finalTracks,
+        prefixCount: prefix.length,
+        bridgeCount: bridge.length,
+        targetCount: tail.length,
+        estimatedBridgeEnergy: bridgeEnergy,
+        targetSceneId: targetScene?.id || "",
+        targetSceneLabel: targetScene?.label || "Scène",
+        targetSceneIcon: targetScene?.icon || "🎵"
+    };
+}
+
+async function createAdaptiveTransitionPlan(
+    settings
+) {
+    const normalized =
+        normalizeAdaptiveTransitionSettings(settings);
+    const targetScene = getAdaptiveDjSceneById(
+        normalized.targetSceneId
+    );
+
+    if (!targetScene) {
+        throw new Error(
+            "Choisis une scène cible."
+        );
+    }
+
+    if (!targetScene.mixId) {
+        throw new Error(
+            `Aucun mix n’est associé à la scène ${targetScene.label}.`
+        );
+    }
+
+    if (!selectedTracks.length) {
+        throw new Error(
+            "Prépare ou lance d’abord un mix avant de créer une transition."
+        );
+    }
+
+    setStatus(
+        `Préparation de la transition vers ${targetScene.label}…`
+    );
+    const targetTracks =
+        await prepareSavedMixTracksForTransition(
+            targetScene.mixId,
+            targetScene
+        );
+    const plan = buildAdaptiveTransitionQueue({
+        currentTracks: selectedTracks,
+        targetTracks,
+        settings: normalized,
+        targetScene
+    });
+
+    return {
+        ...plan,
+        settings: normalized,
+        targetScene,
+        createdAt: Date.now()
+    };
+}
+
+async function previewAdaptiveTransition(form) {
+    try {
+        const settings =
+            getAdaptiveTransitionSettingsFromForm(form);
+        adaptiveTransitionSettings = settings;
+        saveAdaptiveTransitionSettings();
+        adaptiveTransitionPreview =
+            await createAdaptiveTransitionPlan(settings);
+        displayPlaylists(playlistsCache);
+        setStatus(
+            `Aperçu prêt : ${adaptiveTransitionPreview.bridgeCount} titre${adaptiveTransitionPreview.bridgeCount > 1 ? "s" : ""} de transition vers ${adaptiveTransitionPreview.targetScene.label}.`
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Impossible de préparer la transition.",
+            "error"
+        );
+    }
+}
+
+function captureAdaptiveTransitionUndoSnapshot() {
+    adaptiveTransitionUndoSnapshot = {
+        selectedTracks: [...selectedTracks],
+        sourceTracks: [...sourceTracks],
+        originalGeneratedOrder: [
+            ...originalGeneratedOrder
+        ],
+        selectedPlaylist: selectedPlaylist
+            ? { ...selectedPlaylist }
+            : null,
+        playbackQueueCursor,
+        playbackQueueResumeKey,
+        savedAt: Date.now()
+    };
+}
+
+async function applyAdaptiveTransition(form) {
+    try {
+        const settings =
+            getAdaptiveTransitionSettingsFromForm(form);
+        adaptiveTransitionSettings = settings;
+        saveAdaptiveTransitionSettings();
+        const plan =
+            adaptiveTransitionPreview &&
+            adaptiveTransitionPreview.targetSceneId ===
+                settings.targetSceneId &&
+            adaptiveTransitionPreview.settings.bridgeTrackCount ===
+                settings.bridgeTrackCount &&
+            adaptiveTransitionPreview.settings.energyCurve ===
+                settings.energyCurve &&
+            adaptiveTransitionPreview.settings.preserveSentTracks ===
+                settings.preserveSentTracks
+                ? adaptiveTransitionPreview
+                : await createAdaptiveTransitionPlan(
+                    settings
+                );
+
+        captureAdaptiveTransitionUndoSnapshot();
+        selectedTracks = [...plan.tracks];
+        originalGeneratedOrder = [
+            ...plan.tracks
+        ];
+        sourceTracks = [
+            ...sourceTracks,
+            ...plan.tracks.filter(
+                (track) =>
+                    !sourceTracks.some(
+                        (sourceTrack) =>
+                            sourceTrack?.uri === track?.uri
+                    )
+            )
+        ];
+        selectedPlaylist = {
+            id: `adaptive-transition-${Date.now()}`,
+            name:
+                `Transition → ${plan.targetScene.label}`,
+            sourceType: "mix",
+            sourceCount: 2,
+            sourceNames: [
+                adaptiveTransitionUndoSnapshot
+                    .selectedPlaylist?.name ||
+                    "File actuelle",
+                getAdaptiveDjSceneMixName(
+                    plan.targetScene
+                )
+            ],
+            owner: {
+                display_name: "Adaptive DJ 2.0"
+            },
+            images: [],
+            external_urls: {}
+        };
+        playbackQueueCursor = plan.prefixCount;
+        playbackQueueResumeKey =
+            `adaptive-transition:${plan.targetScene.id}`;
+        saveCurrentPlaybackQueueState();
+        adaptiveTransitionPreview = null;
+        setActiveAdaptiveDjScene(
+            plan.targetScene.id
+        );
+        displayPlaylistDetails(
+            selectedPlaylist,
+            selectedTracks
+        );
+        renderShuffleStats(
+            analyzeShuffleOrder(
+                selectedTracks,
+                getShuffleEngineOptions(
+                    currentShuffleSettings
+                )
+            )
+        );
+        setStatus(
+            `${plan.targetScene.icon} Transition appliquée vers ${plan.targetScene.label} · ${plan.bridgeCount} titre${plan.bridgeCount > 1 ? "s" : ""} de passage · prochain bloc Spotify inchangé tant que tu ne cliques pas sur Lire/Continuer.`
+        );
+        showToast(
+            "Transition progressive appliquée à la file Shuffle+.",
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Impossible d’appliquer la transition.",
+            "error"
+        );
+    }
+}
+
+function undoAdaptiveTransition() {
+    const snapshot = adaptiveTransitionUndoSnapshot;
+
+    if (!snapshot) {
+        setStatus(
+            "Aucune transition récente à annuler.",
+            "error"
+        );
+        return;
+    }
+
+    selectedTracks = [
+        ...snapshot.selectedTracks
+    ];
+    sourceTracks = [...snapshot.sourceTracks];
+    originalGeneratedOrder = [
+        ...snapshot.originalGeneratedOrder
+    ];
+    selectedPlaylist = snapshot.selectedPlaylist
+        ? { ...snapshot.selectedPlaylist }
+        : null;
+    playbackQueueCursor =
+        snapshot.playbackQueueCursor;
+    playbackQueueResumeKey =
+        snapshot.playbackQueueResumeKey;
+    adaptiveTransitionUndoSnapshot = null;
+    adaptiveTransitionPreview = null;
+    saveCurrentPlaybackQueueState();
+
+    if (selectedPlaylist) {
+        displayPlaylistDetails(
+            selectedPlaylist,
+            selectedTracks
+        );
+        renderShuffleStats(
+            analyzeShuffleOrder(
+                selectedTracks,
+                getShuffleEngineOptions(
+                    currentShuffleSettings
+                )
+            )
+        );
+    } else {
+        displayPlaylists(playlistsCache);
+    }
+
+    setStatus(
+        "La file précédente a été restaurée."
+    );
+    showToast(
+        "Transition annulée.",
+        "success"
+    );
+}
+
+function renderAdaptiveTransitionPanel() {
+    const settings =
+        normalizeAdaptiveTransitionSettings(
+            adaptiveTransitionSettings
+        );
+    const targetScene = getAdaptiveDjSceneById(
+        settings.targetSceneId
+    );
+    const preview = adaptiveTransitionPreview;
+    const hasCurrentQueue =
+        selectedTracks.length > 0;
+
+    return `
+        <section class="adaptive-transition-panel">
+            <div class="adaptive-transition-heading">
+                <div>
+                    <span class="adaptive-menu-kicker">
+                        🌊 v5.5 · Transition progressive
+                    </span>
+                    <h4>Changer d’ambiance sans casser la file</h4>
+                    <p>
+                        Shuffle+ conserve la partie déjà envoyée et
+                        prépare une montée progressive vers la scène cible.
+                    </p>
+                </div>
+                <span class="adaptive-transition-status">
+                    ${hasCurrentQueue
+                        ? `${selectedTracks.length} titres dans la file`
+                        : "Aucune file préparée"}
+                </span>
+            </div>
+
+            <form
+                id="adaptiveTransitionForm"
+                class="adaptive-transition-form"
+            >
+                <div class="adaptive-transition-controls">
+                    <label>
+                        <span>Scène cible</span>
+                        <select name="targetSceneId">
+                            ${adaptiveDjScenesState.scenes.map(
+                                (scene) => `
+                                    <option
+                                        value="${escapeHtml(scene.id)}"
+                                        ${scene.id === settings.targetSceneId
+                                            ? "selected"
+                                            : ""}
+                                        ${scene.mixId ? "" : "disabled"}
+                                    >
+                                        ${escapeHtml(scene.icon)}
+                                        ${escapeHtml(scene.label)}
+                                        ${scene.mixId
+                                            ? ""
+                                            : " · mix requis"}
+                                    </option>
+                                `
+                            ).join("")}
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Courbe</span>
+                        <select name="energyCurve">
+                            ${Object.values(
+                                ADAPTIVE_TRANSITION_CURVES
+                            ).map((curve) => `
+                                <option
+                                    value="${escapeHtml(curve.id)}"
+                                    ${curve.id === settings.energyCurve
+                                        ? "selected"
+                                        : ""}
+                                >
+                                    ${escapeHtml(curve.label)}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+
+                    <label class="adaptive-transition-range">
+                        <span>
+                            Longueur de transition
+                            <strong
+                                data-transition-count-output
+                            >
+                                ${settings.bridgeTrackCount} titres
+                            </strong>
+                        </span>
+                        <input
+                            name="bridgeTrackCount"
+                            type="range"
+                            min="3"
+                            max="12"
+                            step="1"
+                            value="${settings.bridgeTrackCount}"
+                            data-transition-count-input
+                        >
+                    </label>
+
+                    <label class="adaptive-scene-autoplay">
+                        <input
+                            name="preserveSentTracks"
+                            type="checkbox"
+                            ${settings.preserveSentTracks
+                                ? "checked"
+                                : ""}
+                        >
+                        <span>
+                            Conserver les titres déjà envoyés à Spotify
+                        </span>
+                    </label>
+                </div>
+
+                <div class="adaptive-transition-target">
+                    <div>
+                        <span>Destination</span>
+                        <strong>
+                            ${escapeHtml(targetScene?.icon || "🎵")}
+                            ${escapeHtml(targetScene?.label || "Scène")}
+                        </strong>
+                    </div>
+                    <div>
+                        <span>Énergie cible</span>
+                        <strong>
+                            ${Number(targetScene?.energyTarget || 0)} %
+                        </strong>
+                    </div>
+                    <div>
+                        <span>Mix</span>
+                        <strong>
+                            ${escapeHtml(
+                                targetScene
+                                    ? getAdaptiveDjSceneMixName(
+                                        targetScene
+                                    )
+                                    : "Aucun"
+                            )}
+                        </strong>
+                    </div>
+                </div>
+
+                ${preview ? `
+                    <div class="adaptive-transition-preview">
+                        <strong>
+                            Aperçu vers
+                            ${escapeHtml(preview.targetScene.icon)}
+                            ${escapeHtml(preview.targetScene.label)}
+                        </strong>
+                        <div>
+                            <span>
+                                ${preview.prefixCount}
+                                titre${preview.prefixCount > 1 ? "s" : ""}
+                                déjà envoyé${preview.prefixCount > 1 ? "s" : ""}
+                                préservé${preview.prefixCount > 1 ? "s" : ""}
+                            </span>
+                            <span>
+                                ${preview.bridgeCount}
+                                titre${preview.bridgeCount > 1 ? "s" : ""}
+                                de transition
+                            </span>
+                            <span>
+                                énergie de passage estimée :
+                                ${preview.estimatedBridgeEnergy} %
+                            </span>
+                            <span>
+                                ${preview.tracks.length}
+                                titres dans la nouvelle file
+                            </span>
+                        </div>
+                    </div>
+                ` : ""}
+
+                <div class="adaptive-transition-actions">
+                    <button
+                        id="previewAdaptiveTransitionButton"
+                        type="button"
+                        class="adaptive-menu-secondary"
+                        ${hasCurrentQueue ? "" : "disabled"}
+                    >
+                        👀 Prévisualiser
+                    </button>
+                    <button
+                        id="applyAdaptiveTransitionButton"
+                        type="button"
+                        class="adaptive-menu-primary"
+                        ${hasCurrentQueue && targetScene?.mixId
+                            ? ""
+                            : "disabled"}
+                    >
+                        🌊 Appliquer à la file
+                    </button>
+                    <button
+                        id="undoAdaptiveTransitionButton"
+                        type="button"
+                        class="adaptive-menu-secondary"
+                        ${adaptiveTransitionUndoSnapshot
+                            ? ""
+                            : "disabled"}
+                    >
+                        ↶ Annuler
+                    </button>
+                    <button
+                        type="submit"
+                        class="adaptive-menu-save"
+                    >
+                        Enregistrer les réglages
+                    </button>
+                </div>
+            </form>
+
+            <p class="adaptive-transition-note">
+                La transition modifie uniquement la partie non envoyée de
+                la file Shuffle+. Spotify recevra le nouvel ordre au prochain
+                clic sur « Lire/Continuer ».
+            </p>
+        </section>
+    `;
+}
+
 function renderAdaptiveDjSceneStudioPanel() {
     const state = normalizeAdaptiveDjScenesState(
         adaptiveDjScenesState
@@ -8789,6 +9753,8 @@ function renderAdaptiveDjMenu() {
 
             ${renderAdaptiveDjSceneStudioPanel()}
 
+            ${renderAdaptiveTransitionPanel()}
+
             ${renderAdaptiveLearningPanel()}
 
             <details class="adaptive-menu-history">
@@ -10815,6 +11781,39 @@ async function executeAutomationCommand(
                 autoplay: normalized.autoplay
             }
         );
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+        return;
+    }
+
+    if (
+        normalized.action === "transition"
+    ) {
+        const settings = normalizeAdaptiveTransitionSettings({
+            ...adaptiveTransitionSettings,
+            targetSceneId:
+                normalized.contextId ||
+                adaptiveTransitionSettings.targetSceneId
+        });
+
+        if (selectedTracks.length) {
+            const mockForm = document.createElement("form");
+            mockForm.innerHTML = `
+                <input name="targetSceneId" value="${escapeHtml(settings.targetSceneId)}">
+                <input name="bridgeTrackCount" value="${settings.bridgeTrackCount}">
+                <input name="energyCurve" value="${escapeHtml(settings.energyCurve)}">
+                <input name="preserveSentTracks" type="checkbox" ${settings.preserveSentTracks ? "checked" : ""}>
+            `;
+            await applyAdaptiveTransition(mockForm);
+        } else {
+            await runAdaptiveDjScene(
+                settings.targetSceneId,
+                {
+                    autoplay: normalized.autoplay
+                }
+            );
+        }
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
@@ -18668,6 +19667,7 @@ function buildBackupPayload() {
         drivingModeSettings,
         quickContextsState,
         adaptiveDjScenesState,
+        adaptiveTransitionSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -18856,6 +19856,11 @@ function validateBackupPayload(payload) {
                 payload.data.adaptiveDjScenesState ||
                 DEFAULT_ADAPTIVE_DJ_SCENES_STATE
             ),
+        adaptiveTransitionSettings:
+            normalizeAdaptiveTransitionSettings(
+                payload.data.adaptiveTransitionSettings ||
+                DEFAULT_ADAPTIVE_TRANSITION_SETTINGS
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -18975,6 +19980,9 @@ function applyValidatedBackupState(imported) {
     adaptiveDjScenesState =
         imported.adaptiveDjScenesState;
     saveAdaptiveDjScenesState();
+    adaptiveTransitionSettings =
+        imported.adaptiveTransitionSettings;
+    saveAdaptiveTransitionSettings();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -28880,6 +29888,43 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "#previewAdaptiveTransitionButton"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveTransitionForm"
+            );
+            if (form) {
+                await previewAdaptiveTransition(form);
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applyAdaptiveTransitionButton"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveTransitionForm"
+            );
+            if (form) {
+                await applyAdaptiveTransition(form);
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#undoAdaptiveTransitionButton"
+            )
+        ) {
+            undoAdaptiveTransition();
+            return;
+        }
+
         const adaptiveLearningActionButton =
             event.target.closest(
                 "[data-adaptive-learning-action]"
@@ -30383,6 +31428,16 @@ contentElement.addEventListener(
         }
 
         if (
+            event.target.id === "adaptiveTransitionForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveTransitionSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
             event.target.id === "iosCommandForm"
         ) {
             event.preventDefault();
@@ -30488,6 +31543,19 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (
+            event.target.closest(
+                "#adaptiveTransitionForm"
+            ) &&
+            [
+                "targetSceneId",
+                "energyCurve",
+                "preserveSentTracks"
+            ].includes(event.target.name)
+        ) {
+            adaptiveTransitionPreview = null;
+            return;
+        }
         if (
             event.target.id ===
             "quickShortcutContextSelect"
@@ -30713,6 +31781,29 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (
+            event.target.matches(
+                "[data-transition-count-input]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveTransitionForm"
+            );
+            const output = form?.querySelector(
+                "[data-transition-count-output]"
+            );
+            const count = Math.max(
+                3,
+                Math.min(12, Number(event.target.value) || 6)
+            );
+
+            if (output) {
+                output.textContent =
+                    `${count} titre${count > 1 ? "s" : ""}`;
+            }
+            adaptiveTransitionPreview = null;
+            return;
+        }
         if (
             event.target.closest(
                 "#mixStudioForm"

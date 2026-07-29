@@ -10588,3 +10588,195 @@ html.high-contrast textarea {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ================================================================
+   Shuffle+ v5.5.0 — Transitions progressives et énergie
+   ================================================================ */
+
+.adaptive-transition-panel {
+    display: grid;
+    gap: 18px;
+    margin: 22px 0;
+    padding: 22px;
+    overflow: hidden;
+    border: 1px solid rgb(var(--accent-rgb) / 28%);
+    border-radius: 22px;
+    background:
+        radial-gradient(
+            circle at 90% 0,
+            rgb(var(--accent-rgb) / 16%),
+            transparent 42%
+        ),
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 7%),
+            rgb(9 9 20 / 95%)
+        );
+    box-shadow: var(--shadow-soft);
+}
+
+.adaptive-transition-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.adaptive-transition-heading h4 {
+    margin: 5px 0 7px;
+    font-size: clamp(24px, 4vw, 34px);
+    letter-spacing: -0.035em;
+}
+
+.adaptive-transition-heading p,
+.adaptive-transition-note {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.55;
+}
+
+.adaptive-transition-status {
+    flex: 0 0 auto;
+    padding: 7px 11px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb) / 12%);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.adaptive-transition-form {
+    display: grid;
+    gap: 16px;
+}
+
+.adaptive-transition-controls {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.adaptive-transition-controls > label {
+    display: grid;
+    min-width: 0;
+    gap: 7px;
+    padding: 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 2.5%);
+}
+
+.adaptive-transition-controls label > span {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 750;
+}
+
+.adaptive-transition-controls select,
+.adaptive-transition-controls input[type="range"] {
+    width: 100%;
+    min-width: 0;
+}
+
+.adaptive-transition-range strong {
+    float: right;
+    color: #ffffff;
+}
+
+.adaptive-transition-target {
+    display: grid;
+    grid-template-columns:
+        repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.adaptive-transition-target > div {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 12%),
+            rgb(8 8 18 / 86%)
+        );
+}
+
+.adaptive-transition-target span {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.adaptive-transition-target strong {
+    overflow-wrap: anywhere;
+}
+
+.adaptive-transition-preview {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-active);
+    border-radius: 16px;
+    background: rgb(var(--accent-rgb) / 10%);
+}
+
+.adaptive-transition-preview > div {
+    display: grid;
+    grid-template-columns:
+        repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.adaptive-transition-preview span {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgb(0 0 0 / 18%);
+    color: #e9e8f1;
+    font-size: 13px;
+}
+
+.adaptive-transition-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.adaptive-transition-actions button {
+    min-height: 44px;
+}
+
+.adaptive-transition-note {
+    padding-top: 4px;
+    font-size: 12px;
+}
+
+@media (max-width: 760px) {
+    .adaptive-transition-panel {
+        padding: 16px 13px;
+    }
+
+    .adaptive-transition-heading {
+        flex-direction: column;
+    }
+
+    .adaptive-transition-controls,
+    .adaptive-transition-target,
+    .adaptive-transition-preview > div {
+        grid-template-columns: 1fr;
+    }
+
+    .adaptive-transition-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .adaptive-transition-actions button {
+        width: 100%;
+    }
+}

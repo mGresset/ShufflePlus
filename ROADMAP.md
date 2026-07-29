@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v5.5.0 — Transitions progressives : terminée**
+  - transition entre scènes sans toucher aux titres déjà envoyés ;
+  - aperçu, application et annulation ;
+  - courbe d’énergie configurable ;
+  - réglages sauvegardés et synchronisés.
+
 - **v5.3.1 — Visual Polish & Accessibility : terminée**
   - stabilisation responsive ;
   - contraste renforcé optionnel ;
