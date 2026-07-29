@@ -1,0 +1,28 @@
+{
+  "version": "5.3.0",
+  "name": "Dynamic Musical Themes",
+  "source": "ShufflePlus-v5.2.0-Mix-Studio-Advanced.zip",
+  "javascriptFilesChecked": 12,
+  "serverTests": "ok",
+  "serverChangesRequired": false,
+  "features": [
+    "dynamic musical dark interface",
+    "violet default accent",
+    "five selectable accent colors",
+    "compact connected header",
+    "mobile bottom navigation",
+    "motion preference",
+    "theme backup and encrypted server sync",
+    "v5.1.1 iPhone overflow hotfix retained",
+    "v5.2 advanced Mix Studio retained"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "serverTests": "ok",
+    "pwaVersions": "ok",
+    "themePersistence": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 52
+}

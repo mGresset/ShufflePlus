@@ -1,3 +1,14 @@
+
+## v5.3 — Interface Dynamique & Musicale
+
+Shuffle+ utilise désormais une direction visuelle sombre et immersive,
+proche des applications musicales modernes, sans modifier le fonctionnement
+du moteur Spotify. Le violet est le thème par défaut, avec quatre autres
+couleurs disponibles dans **Réglages → Apparence**.
+
+Les préférences d’apparence sont sauvegardées et synchronisées entre les
+appareils reliés au serveur Shuffle+.
+
 # Shuffle+ v5.2.0 — Mix Studio avancé
 
 Shuffle+ v5.1 ajoute un véritable générateur dans **Mix & iOS**. Il permet de sélectionner plusieurs playlists ou les morceaux aimés, choisir une ambiance, une durée cible et un niveau de diversité, puis générer un aperçu ou enregistrer le mix.

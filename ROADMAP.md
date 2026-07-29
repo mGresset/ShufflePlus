@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v5.3.0 — Interface Dynamique & Musicale : terminée**
+  - violet par défaut et couleurs personnalisables ;
+  - design sombre et immersif ;
+  - navigation mobile façon application musicale ;
+  - préférences d’apparence synchronisées.
+
 - **v5.1.1 — Correctif iPhone : terminée**
   - alignement responsive des panneaux et cartes ;
   - prise en charge des zones de sécurité iOS ;

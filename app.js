@@ -54,7 +54,52 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "5.2.0";
+const APP_VERSION = "5.3.0";
+
+const UI_THEME_KEY =
+    "shuffleplus_ui_theme_v1";
+const UI_ACCENT_PRESETS = {
+    violet: {
+        id: "violet",
+        label: "Violet",
+        primary: "#8b5cf6",
+        secondary: "#2563eb",
+        rgb: "139 92 246"
+    },
+    blue: {
+        id: "blue",
+        label: "Bleu",
+        primary: "#3b82f6",
+        secondary: "#06b6d4",
+        rgb: "59 130 246"
+    },
+    pink: {
+        id: "pink",
+        label: "Rose",
+        primary: "#ec4899",
+        secondary: "#8b5cf6",
+        rgb: "236 72 153"
+    },
+    emerald: {
+        id: "emerald",
+        label: "Émeraude",
+        primary: "#10b981",
+        secondary: "#2563eb",
+        rgb: "16 185 129"
+    },
+    orange: {
+        id: "orange",
+        label: "Orange",
+        primary: "#f59e0b",
+        secondary: "#ef4444",
+        rgb: "245 158 11"
+    }
+};
+const DEFAULT_UI_THEME_SETTINGS = {
+    accent: "violet",
+    motionEnabled: true,
+    updatedAt: 0
+};
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -746,6 +791,7 @@ let iosCommands = readIosCommands();
 let iosCommandHistory =
     readIosCommandHistory();
 let activeAppMenu = readActiveAppMenu();
+let uiThemeSettings = readUiThemeSettings();
 let adaptiveDjMenuSettings =
     readAdaptiveDjMenuSettings();
 let adaptiveDjMenuHistory =
@@ -768,6 +814,7 @@ let deferredPwaInstallPrompt = null;
 let pwaRegistration = null;
 let pwaReloadRequested = false;
 
+applyUiThemeSettings();
 versionElement.textContent = `Version ${APP_VERSION}`;
 
 function escapeHtml(value = "") {
@@ -901,7 +948,292 @@ async function copyTextToClipboard(
     }
 }
 
+
+function normalizeUiThemeSettings(value = {}) {
+    const accent =
+        typeof value.accent === "string" &&
+        Object.hasOwn(
+            UI_ACCENT_PRESETS,
+            value.accent
+        )
+            ? value.accent
+            : DEFAULT_UI_THEME_SETTINGS.accent;
+
+    return {
+        accent,
+        motionEnabled:
+            value.motionEnabled !== false,
+        updatedAt: Number(
+            value.updatedAt || 0
+        )
+    };
+}
+
+function readUiThemeSettings() {
+    try {
+        const raw = localStorage.getItem(
+            UI_THEME_KEY
+        );
+
+        return normalizeUiThemeSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_UI_THEME_SETTINGS
+        );
+    } catch (error) {
+        console.warn(
+            "Thème Shuffle+ illisible :",
+            error
+        );
+
+        return normalizeUiThemeSettings(
+            DEFAULT_UI_THEME_SETTINGS
+        );
+    }
+}
+
+function saveUiThemeSettings() {
+    uiThemeSettings =
+        normalizeUiThemeSettings({
+            ...uiThemeSettings,
+            updatedAt: Date.now()
+        });
+
+    try {
+        localStorage.setItem(
+            UI_THEME_KEY,
+            JSON.stringify(uiThemeSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Thème Shuffle+ non enregistré :",
+            error
+        );
+    }
+}
+
+function applyUiThemeSettings() {
+    const preset =
+        UI_ACCENT_PRESETS[
+            uiThemeSettings.accent
+        ] ||
+        UI_ACCENT_PRESETS.violet;
+
+    document.documentElement.dataset.accent =
+        preset.id;
+    document.documentElement.classList.toggle(
+        "reduce-motion",
+        !uiThemeSettings.motionEnabled
+    );
+
+    document.documentElement.style.setProperty(
+        "--accent",
+        preset.primary
+    );
+    document.documentElement.style.setProperty(
+        "--accent-secondary",
+        preset.secondary
+    );
+    document.documentElement.style.setProperty(
+        "--accent-rgb",
+        preset.rgb
+    );
+
+    const themeColorMeta =
+        document.querySelector(
+            'meta[name="theme-color"]'
+        );
+
+    if (themeColorMeta) {
+        themeColorMeta.setAttribute(
+            "content",
+            preset.primary
+        );
+    }
+}
+
+function updateUiThemeAccent(accent = "") {
+    if (
+        !Object.hasOwn(
+            UI_ACCENT_PRESETS,
+            accent
+        )
+    ) {
+        return;
+    }
+
+    uiThemeSettings =
+        normalizeUiThemeSettings({
+            ...uiThemeSettings,
+            accent
+        });
+
+    saveUiThemeSettings();
+    applyUiThemeSettings();
+
+    document
+        .querySelectorAll("[data-ui-accent]")
+        .forEach((button) => {
+            const selected =
+                button.dataset.uiAccent ===
+                uiThemeSettings.accent;
+
+            button.classList.toggle(
+                "is-selected",
+                selected
+            );
+            button.setAttribute(
+                "aria-pressed",
+                String(selected)
+            );
+        });
+
+    const preset =
+        UI_ACCENT_PRESETS[accent];
+
+    showToast(
+        `🎨 Couleur ${preset.label} appliquée.`,
+        "success"
+    );
+}
+
+function renderUiThemeSettingsPanel() {
+    const accentButtons =
+        Object.values(UI_ACCENT_PRESETS)
+            .map((preset) => {
+                const selected =
+                    preset.id ===
+                    uiThemeSettings.accent;
+
+                return `
+                    <button
+                        class="ui-theme-swatch
+                        ${selected
+                            ? "is-selected"
+                            : ""}"
+                        type="button"
+                        data-ui-accent="${escapeHtml(
+                            preset.id
+                        )}"
+                        aria-pressed="${String(
+                            selected
+                        )}"
+                        title="Utiliser le thème ${escapeHtml(
+                            preset.label
+                        )}"
+                        style="
+                            --swatch-primary:
+                                ${escapeHtml(
+                                    preset.primary
+                                )};
+                            --swatch-secondary:
+                                ${escapeHtml(
+                                    preset.secondary
+                                )};
+                        "
+                    >
+                        <span
+                            class="ui-theme-swatch-color"
+                            aria-hidden="true"
+                        ></span>
+                        <span>
+                            ${escapeHtml(
+                                preset.label
+                            )}
+                        </span>
+                    </button>
+                `;
+            })
+            .join("");
+
+    return `
+        <section
+            id="uiThemeSettingsPanel"
+            class="settings-panel ui-theme-panel"
+        >
+            <div class="panel-heading">
+                <div>
+                    <span class="ui-theme-kicker">
+                        ✨ Apparence v5.3
+                    </span>
+                    <h3>
+                        Dynamique & musicale
+                    </h3>
+                    <p>
+                        Une interface sombre, immersive et
+                        moins flashy, avec le violet comme
+                        couleur par défaut.
+                    </p>
+                </div>
+
+                <span class="ui-theme-active-badge">
+                    ${escapeHtml(
+                        UI_ACCENT_PRESETS[
+                            uiThemeSettings.accent
+                        ]?.label || "Violet"
+                    )}
+                </span>
+            </div>
+
+            <div class="ui-theme-preview">
+                <article>
+                    <span>Adaptive DJ</span>
+                    <strong>Énergie · 72 %</strong>
+                    <div class="ui-theme-preview-meter">
+                        <i></i>
+                    </div>
+                </article>
+
+                <article>
+                    <span>Mix en cours</span>
+                    <strong>Conduite dynamique</strong>
+                    <small>
+                        Fluide · Varié · Personnalisé
+                    </small>
+                </article>
+
+                <article>
+                    <span>Ambiance</span>
+                    <strong>Couleur personnalisable</strong>
+                    <small>
+                        Le contenu reste identique.
+                    </small>
+                </article>
+            </div>
+
+            <fieldset class="ui-theme-accent-picker">
+                <legend>Couleur d’accent</legend>
+                <div class="ui-theme-swatches">
+                    ${accentButtons}
+                </div>
+            </fieldset>
+
+            <label class="ui-theme-motion-toggle">
+                <input
+                    id="uiThemeMotionInput"
+                    type="checkbox"
+                    ${uiThemeSettings.motionEnabled
+                        ? "checked"
+                        : ""}
+                >
+                <span>
+                    <strong>
+                        Animations fluides
+                    </strong>
+                    <small>
+                        Désactive-les pour une interface
+                        plus calme ou pour économiser la batterie.
+                    </small>
+                </span>
+            </label>
+        </section>
+    `;
+}
+
 function setDisconnectedInterface() {
+    document.body.classList.remove(
+        "is-connected"
+    );
     loginButton.hidden = false;
     loginButton.disabled = false;
     loginButton.textContent = "Se connecter à Spotify";
@@ -947,6 +1279,9 @@ function setDisconnectedInterface() {
 }
 
 function setConnectedInterface() {
+    document.body.classList.add(
+        "is-connected"
+    );
     loginButton.hidden = true;
     logoutButton.hidden = false;
 }
@@ -17587,6 +17922,7 @@ function buildBackupPayload() {
         musicFeedbackState,
         drivingModeSettings,
         quickContextsState,
+        uiThemeSettings,
         mixSchedules
     };
 
@@ -17769,6 +18105,11 @@ function validateBackupPayload(payload) {
                 payload.data.quickContextsState ||
                 DEFAULT_QUICK_CONTEXTS
             ),
+        uiThemeSettings:
+            normalizeUiThemeSettings(
+                payload.data.uiThemeSettings ||
+                DEFAULT_UI_THEME_SETTINGS
+            ),
         mixSchedules:
             Array.isArray(payload.data.mixSchedules)
                 ? payload.data.mixSchedules
@@ -17880,6 +18221,10 @@ function applyValidatedBackupState(imported) {
     quickContextsState =
         imported.quickContextsState;
     saveQuickContextsState();
+    uiThemeSettings =
+        imported.uiThemeSettings;
+    saveUiThemeSettings();
+    applyUiThemeSettings();
     mixSchedules =
         imported.mixSchedules;
     saveMixSchedules();
@@ -18972,7 +19317,8 @@ function getSyncCategoryItems(
             ["Priorités", imported.priorityRules],
             ["Cohérence", imported.coherenceSettings],
             ["Intensité", imported.intensitySettings],
-            ["Nettoyage", imported.cleanupSettings]
+            ["Nettoyage", imported.cleanupSettings],
+            ["Apparence", imported.uiThemeSettings]
         ].forEach(([label, value]) => {
             items.push(
                 buildSyncDiffItem(
@@ -24325,6 +24671,7 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="settings"
             >
+                ${renderUiThemeSettingsPanel()}
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
                 ${renderSyncPreparationPanel()}
@@ -27338,6 +27685,19 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const uiAccentButton =
+            event.target.closest(
+                "[data-ui-accent]"
+            );
+
+        if (uiAccentButton) {
+            updateUiThemeAccent(
+                uiAccentButton.dataset.uiAccent ||
+                ""
+            );
+            return;
+        }
+
         const quickContextButton =
             event.target.closest(
                 "[data-launch-quick-context]"
@@ -28784,6 +29144,29 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (
+            event.target.id ===
+            "uiThemeMotionInput"
+        ) {
+            uiThemeSettings =
+                normalizeUiThemeSettings({
+                    ...uiThemeSettings,
+                    motionEnabled:
+                        event.target.checked
+                });
+
+            saveUiThemeSettings();
+            applyUiThemeSettings();
+
+            showToast(
+                event.target.checked
+                    ? "✨ Animations fluides activées."
+                    : "🌙 Animations réduites.",
+                "success"
+            );
+            return;
+        }
+
         if (
             event.target.closest(
                 "#mixStudioForm"
