@@ -1,0 +1,23 @@
+{
+  "version": "4.7.1",
+  "baseVersion": "4.7.0",
+  "fixedError": "ReferenceError: dataUpdatedAt is not defined",
+  "javascriptSyntaxChecks": {
+    "adaptive-config.js": true,
+    "adaptive-dashboard.js": true,
+    "adaptive-dj.js": true,
+    "app.js": true,
+    "auth.js": true,
+    "config.js": true,
+    "service-worker.js": true,
+    "shuffle-engine.js": true,
+    "spotify-api.js": true,
+    "storage.js": true
+  },
+  "versionChecks": {
+    "index_app_4_7_1": true,
+    "index_style_4_7_1": true,
+    "sw_cache_4_7_1": true,
+    "config_4_7_1": true
+  }
+}

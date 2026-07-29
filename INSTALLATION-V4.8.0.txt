@@ -1,0 +1,12 @@
+Shuffle+ v4.8.0 — Installation
+
+1. Remplacer tous les fichiers du dépôt par ceux du ZIP.
+2. Publier :
+
+   git add .
+   git commit -m "v4.8.0 - Fusion selective"
+   git pull --rebase origin main
+   git push origin main
+
+3. Dans la PWA : Réglages → Rechercher une mise à jour.
+4. En cas d’ancienne version persistante : fermer complètement la PWA puis la rouvrir.

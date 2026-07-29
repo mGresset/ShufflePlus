@@ -8239,3 +8239,155 @@ body.is-driving-mode #content {
         grid-column: auto;
     }
 }
+
+
+/* Shuffle+ v4.9 — Diff détaillé, annulation et chiffrement */
+.sync-undo-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    margin: 16px 0;
+    padding: 18px;
+    border: 1px solid #6b5629;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #2a2416, #151515);
+}
+
+.sync-undo-card h4 {
+    margin: 5px 0 6px;
+}
+
+.sync-undo-card p {
+    margin: 0;
+    color: #cfc5aa;
+}
+
+.sync-diff-search {
+    display: grid;
+    gap: 7px;
+    margin: 16px 0;
+}
+
+.sync-diff-search > span {
+    font-weight: 800;
+}
+
+.sync-diff-search input {
+    width: 100%;
+    min-height: 46px;
+    padding: 0 14px;
+    border: 1px solid #4a4a4a;
+    border-radius: 12px;
+    background: #101010;
+    color: #fff;
+}
+
+.sync-diff-details {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+    padding: 0 14px 14px;
+    border: 1px solid #333;
+    border-radius: 13px;
+    background: #101010;
+}
+
+.sync-diff-details > summary {
+    cursor: pointer;
+    padding: 13px 0;
+    font-weight: 800;
+}
+
+.sync-diff-list {
+    display: grid;
+    gap: 7px;
+}
+
+.sync-diff-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 12px;
+    border: 1px solid #2d2d2d;
+    border-radius: 11px;
+    background: #171717;
+}
+
+.sync-diff-item.is-changed {
+    border-color: #725a25;
+}
+
+.sync-diff-item.is-remote-only {
+    border-color: #255e3a;
+}
+
+.sync-diff-item.is-local-only {
+    border-color: #35577a;
+}
+
+.sync-diff-main {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.sync-diff-main strong,
+.sync-diff-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sync-diff-main small {
+    color: #a7a7a7;
+}
+
+.sync-diff-status {
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: #292929;
+    color: #e3e3e3;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sync-diff-presence {
+    display: flex;
+    gap: 6px;
+    font-size: 12px;
+}
+
+.sync-diff-presence span {
+    padding: 4px 7px;
+    border-radius: 7px;
+}
+
+.sync-diff-presence .is-present {
+    background: #183723;
+    color: #8ee6aa;
+}
+
+.sync-diff-presence .is-missing {
+    background: #2a2a2a;
+    color: #8e8e8e;
+}
+
+.sync-diff-empty {
+    color: #aaa;
+}
+
+@media (max-width: 760px) {
+    .sync-undo-card {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .sync-diff-item {
+        grid-template-columns: 1fr;
+    }
+
+    .sync-diff-presence {
+        flex-wrap: wrap;
+    }
+}

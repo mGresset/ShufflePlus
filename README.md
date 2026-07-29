@@ -2,7 +2,7 @@
 
 **Shuffle+** est une application web personnelle qui se connecte à Spotify afin de créer des ordres de lecture plus variés, construire des mix à partir de plusieurs sources, piloter la lecture sur les appareils Spotify et automatiser le lancement depuis iOS.
 
-Version documentée : **4.8.0 — Fusion sélective de synchronisation**
+Version documentée : **4.9.0 — Comparaison détaillée, annulation et chiffrement local**
 
 ## Sommaire
 
@@ -18,6 +18,7 @@ Version documentée : **4.8.0 — Fusion sélective de synchronisation**
 - [Feedback musical](#feedback-musical)
 - [Préparation à la synchronisation](#préparation-à-la-synchronisation)
 - [Fusion sélective v4.8](#fusion-sélective-v48)
+- [Comparaison détaillée v4.9](#comparaison-détaillée-v49)
 - [Application installable PWA](#application-installable-pwa)
 - [Commandes iOS et Raccourcis](#commandes-ios-et-raccourcis)
 - [Lecture Spotify](#lecture-spotify)
@@ -1140,3 +1141,12 @@ La simulation ne déplace pas encore les données automatiquement. Elle compare 
 
 Elle indique ensuite si les appareils semblent déjà synchronisés, si les données locales devraient être envoyées ou si un paquet plus récent devrait être demandé à l’autre appareil.
 
+## Comparaison détaillée v4.9
+
+La v4.9 complète la fusion sélective avec un aperçu élément par élément. Pour chaque catégorie, Shuffle+ indique si un mix, un profil, une commande, un feedback ou un événement est identique, modifié, uniquement local ou uniquement distant. Un champ de recherche permet de retrouver rapidement un élément dans les différences.
+
+Avant une fusion, l’application conserve désormais une sauvegarde d’annulation dans le navigateur pendant 30 jours, en plus du fichier JSON téléchargé. Le panneau Synchronisation propose **Annuler la dernière fusion** pour restaurer intégralement l’état précédent.
+
+Le bouton **Exporter chiffré** protège un paquet avec AES-GCM. La clé est dérivée du mot de passe par PBKDF2-SHA-256 et le mot de passe n’est jamais enregistré. Un paquet chiffré est reconnu automatiquement lors de l’analyse. Sans le bon mot de passe, son contenu ne peut pas être restauré.
+
+Le chiffrement est effectué entièrement dans le navigateur. Aucun jeton Spotify n’est inclus dans les paquets et aucun serveur n’est contacté en v4.9.

@@ -54,7 +54,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "4.8.0";
+const APP_VERSION = "4.9.0";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -179,6 +179,15 @@ const SYNC_SELECTIVE_CATEGORY_IDS = [
     "learning",
     "history"
 ];
+const SYNC_LAST_MERGE_UNDO_KEY =
+    "shuffleplus_sync_last_merge_undo_v1";
+const SYNC_LAST_MERGE_UNDO_TTL =
+    30 * 24 * 60 * 60 * 1000;
+const SYNC_ENCRYPTED_PACKAGE_FORMAT =
+    "shuffleplus-encrypted-sync-package";
+const SYNC_ENCRYPTION_SCHEMA_VERSION = 1;
+const SYNC_ENCRYPTION_ITERATIONS = 210000;
+const SYNC_DIFF_MAX_ITEMS_PER_CATEGORY = 250;
 const DEFAULT_QUICK_CONTEXTS = [
     {
         id: "drive",
@@ -626,6 +635,7 @@ let syncPairedDevices = readSyncPairedDevices();
 let syncPairingInvites = readSyncPairingInvites();
 let syncSessionHistory = readSyncSessionHistory();
 let syncSimulationResult = null;
+let lastSyncMergeUndo = readLastSyncMergeUndo();
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -16088,6 +16098,101 @@ function validateBackupPayload(payload) {
     };
 }
 
+function applyValidatedBackupState(imported) {
+    favoriteSourceKeys.clear();
+
+    for (const sourceKey of imported.favoriteSourceKeys) {
+        favoriteSourceKeys.add(sourceKey);
+    }
+
+    savedMixes = imported.savedMixes;
+    librarySearchTerm = imported.preferences.searchTerm;
+    libraryFilter = imported.preferences.filter;
+    librarySort = imported.preferences.sort;
+    editingSavedMixId = "";
+    configuringSavedMixId = "";
+    selectedSourceKeys.clear();
+
+    saveFavoriteSources();
+    saveSavedMixes();
+    localStorage.setItem(
+        TRACK_HISTORY_KEY,
+        JSON.stringify(imported.recentTrackUris)
+    );
+    writePlaybackQueueStates(imported.playbackQueueStates);
+    mixHistory = imported.mixHistory
+        .filter((item) =>
+            item &&
+            typeof item.id === "string" &&
+            typeof item.name === "string" &&
+            Array.isArray(item.sourceKeys)
+        )
+        .slice(0, MAX_MIX_HISTORY_ITEMS);
+    saveMixHistory();
+    currentExclusionRules =
+        imported.exclusionRules;
+    saveExclusionRules();
+    mixProfiles = imported.mixProfiles;
+    activeProfileId = mixProfiles.some(
+        (profile) =>
+            profile.id === imported.activeProfileId
+    )
+        ? imported.activeProfileId
+        : "";
+    saveMixProfiles();
+    saveActiveProfileId();
+    currentPriorityRules =
+        imported.priorityRules;
+    savePriorityRules();
+    currentCoherenceSettings =
+        imported.coherenceSettings;
+    saveCoherenceSettings();
+    currentIntensitySettings =
+        imported.intensitySettings;
+    saveIntensitySettings();
+    currentAdaptiveSettings =
+        imported.adaptiveSettings;
+    saveAdaptiveSettings();
+    currentCleanupSettings =
+        imported.cleanupSettings;
+    saveCleanupSettings();
+    iosQuickPlaySettings =
+        imported.iosQuickPlaySettings;
+    saveIosQuickPlaySettings();
+    iosCommands =
+        imported.iosCommands.length
+            ? imported.iosCommands
+            : migrateLegacyIosCommand();
+    saveIosCommands();
+    iosCommandHistory =
+        imported.iosCommandHistory;
+    saveIosCommandHistory();
+    adaptiveDjMenuSettings =
+        imported.adaptiveDjMenuSettings;
+    saveAdaptiveDjMenuSettings();
+    adaptiveDjMenuHistory =
+        imported.adaptiveDjMenuHistory;
+    saveAdaptiveDjMenuHistory();
+    adaptiveLearningState =
+        imported.adaptiveLearningState;
+    saveAdaptiveLearningState();
+    intelligenceAnalytics =
+        imported.intelligenceAnalytics;
+    saveIntelligenceAnalytics();
+    musicFeedbackState =
+        imported.musicFeedbackState;
+    saveMusicFeedbackState();
+    drivingModeSettings =
+        imported.drivingModeSettings;
+    saveDrivingModeSettings();
+    quickContextsState =
+        imported.quickContextsState;
+    saveQuickContextsState();
+    mixSchedules =
+        imported.mixSchedules;
+    saveMixSchedules();
+}
+
 async function importBackupFile(file) {
     if (!file) {
         return;
@@ -16131,98 +16236,7 @@ async function importBackupFile(file) {
             return;
         }
 
-        favoriteSourceKeys.clear();
-
-        for (const sourceKey of imported.favoriteSourceKeys) {
-            favoriteSourceKeys.add(sourceKey);
-        }
-
-        savedMixes = imported.savedMixes;
-        librarySearchTerm = imported.preferences.searchTerm;
-        libraryFilter = imported.preferences.filter;
-        librarySort = imported.preferences.sort;
-        editingSavedMixId = "";
-        configuringSavedMixId = "";
-        selectedSourceKeys.clear();
-
-        saveFavoriteSources();
-        saveSavedMixes();
-        localStorage.setItem(
-            TRACK_HISTORY_KEY,
-            JSON.stringify(imported.recentTrackUris)
-        );
-        writePlaybackQueueStates(imported.playbackQueueStates);
-        mixHistory = imported.mixHistory
-            .filter((item) =>
-                item &&
-                typeof item.id === "string" &&
-                typeof item.name === "string" &&
-                Array.isArray(item.sourceKeys)
-            )
-            .slice(0, MAX_MIX_HISTORY_ITEMS);
-        saveMixHistory();
-        currentExclusionRules =
-            imported.exclusionRules;
-        saveExclusionRules();
-        mixProfiles = imported.mixProfiles;
-        activeProfileId = mixProfiles.some(
-            (profile) =>
-                profile.id === imported.activeProfileId
-        )
-            ? imported.activeProfileId
-            : "";
-        saveMixProfiles();
-        saveActiveProfileId();
-        currentPriorityRules =
-            imported.priorityRules;
-        savePriorityRules();
-        currentCoherenceSettings =
-            imported.coherenceSettings;
-        saveCoherenceSettings();
-        currentIntensitySettings =
-            imported.intensitySettings;
-        saveIntensitySettings();
-        currentAdaptiveSettings =
-            imported.adaptiveSettings;
-        saveAdaptiveSettings();
-        currentCleanupSettings =
-            imported.cleanupSettings;
-        saveCleanupSettings();
-        iosQuickPlaySettings =
-            imported.iosQuickPlaySettings;
-        saveIosQuickPlaySettings();
-        iosCommands =
-            imported.iosCommands.length
-                ? imported.iosCommands
-                : migrateLegacyIosCommand();
-        saveIosCommands();
-        iosCommandHistory =
-            imported.iosCommandHistory;
-        saveIosCommandHistory();
-        adaptiveDjMenuSettings =
-            imported.adaptiveDjMenuSettings;
-        saveAdaptiveDjMenuSettings();
-        adaptiveDjMenuHistory =
-            imported.adaptiveDjMenuHistory;
-        saveAdaptiveDjMenuHistory();
-        adaptiveLearningState =
-            imported.adaptiveLearningState;
-        saveAdaptiveLearningState();
-        intelligenceAnalytics =
-            imported.intelligenceAnalytics;
-        saveIntelligenceAnalytics();
-        musicFeedbackState =
-            imported.musicFeedbackState;
-        saveMusicFeedbackState();
-        drivingModeSettings =
-            imported.drivingModeSettings;
-        saveDrivingModeSettings();
-        quickContextsState =
-            imported.quickContextsState;
-        saveQuickContextsState();
-        mixSchedules =
-            imported.mixSchedules;
-        saveMixSchedules();
+        applyValidatedBackupState(imported);
 
         displayPlaylists(playlistsCache);
         setStatus(
@@ -16711,8 +16725,31 @@ async function analyzeSyncPackageFile(file) {
 
     try {
         const text = await file.text();
+        let payload = JSON.parse(text);
+
+        if (
+            payload?.format ===
+                SYNC_ENCRYPTED_PACKAGE_FORMAT
+        ) {
+            const passphrase = window.prompt(
+                "Ce paquet est chiffré. Saisis son mot de passe."
+            );
+
+            if (passphrase === null) {
+                setStatus(
+                    "Analyse du paquet chiffré annulée."
+                );
+                return;
+            }
+
+            payload = await decryptSyncPackagePayload(
+                payload,
+                passphrase
+            );
+        }
+
         pendingSyncPackage = validateSyncPackage(
-            JSON.parse(text)
+            payload
         );
         registerSyncPackageSource(
             pendingSyncPackage
@@ -16941,6 +16978,821 @@ function mergeQuickContextsForSync(
     );
 }
 
+
+function normalizeLastSyncMergeUndo(value = null) {
+    if (
+        !value ||
+        typeof value !== "object" ||
+        !value.backup ||
+        typeof value.backup !== "object"
+    ) {
+        return null;
+    }
+
+    const createdAt = Number(value.createdAt || 0);
+
+    if (
+        !createdAt ||
+        Date.now() - createdAt >
+            SYNC_LAST_MERGE_UNDO_TTL
+    ) {
+        return null;
+    }
+
+    return {
+        createdAt,
+        sourceLabel:
+            typeof value.sourceLabel === "string"
+                ? value.sourceLabel.slice(0, 120)
+                : "Appareil distant",
+        choices:
+            value.choices &&
+            typeof value.choices === "object"
+                ? value.choices
+                : {},
+        backup: value.backup
+    };
+}
+
+function readLastSyncMergeUndo() {
+    try {
+        const raw = localStorage.getItem(
+            SYNC_LAST_MERGE_UNDO_KEY
+        );
+        const snapshot = normalizeLastSyncMergeUndo(
+            raw ? JSON.parse(raw) : null
+        );
+
+        if (!snapshot && raw) {
+            localStorage.removeItem(
+                SYNC_LAST_MERGE_UNDO_KEY
+            );
+        }
+
+        return snapshot;
+    } catch (error) {
+        return null;
+    }
+}
+
+function saveLastSyncMergeUndo(
+    backup,
+    sourceLabel = "Appareil distant",
+    choices = {}
+) {
+    const snapshot = normalizeLastSyncMergeUndo({
+        createdAt: Date.now(),
+        sourceLabel,
+        choices,
+        backup
+    });
+
+    if (!snapshot) {
+        return;
+    }
+
+    lastSyncMergeUndo = snapshot;
+
+    try {
+        localStorage.setItem(
+            SYNC_LAST_MERGE_UNDO_KEY,
+            JSON.stringify(snapshot)
+        );
+    } catch (error) {
+        console.warn(
+            "Sauvegarde d’annulation non enregistrée :",
+            error
+        );
+    }
+}
+
+function clearLastSyncMergeUndo() {
+    lastSyncMergeUndo = null;
+
+    try {
+        localStorage.removeItem(
+            SYNC_LAST_MERGE_UNDO_KEY
+        );
+    } catch (error) {
+        console.warn(
+            "Sauvegarde d’annulation non supprimée :",
+            error
+        );
+    }
+}
+
+function renderLastSyncMergeUndo() {
+    if (!lastSyncMergeUndo) {
+        return "";
+    }
+
+    const date = new Intl.DateTimeFormat(
+        "fr-FR",
+        {
+            dateStyle: "medium",
+            timeStyle: "short"
+        }
+    ).format(
+        new Date(lastSyncMergeUndo.createdAt)
+    );
+
+    return `
+        <section class="sync-undo-card">
+            <div>
+                <span class="sync-eyebrow">Filet de sécurité v4.9</span>
+                <h4>Dernière fusion annulable</h4>
+                <p>
+                    État local conservé avant la fusion avec
+                    <strong>${escapeHtml(lastSyncMergeUndo.sourceLabel)}</strong>,
+                    le ${escapeHtml(date)}.
+                </p>
+            </div>
+            <button
+                id="undoLastSyncMergeButton"
+                class="sync-secondary-button"
+                type="button"
+            >
+                ↩ Annuler la dernière fusion
+            </button>
+        </section>
+    `;
+}
+
+async function undoLastSelectiveSyncMerge() {
+    if (!lastSyncMergeUndo) {
+        setStatus(
+            "Aucune fusion récente à annuler.",
+            "error"
+        );
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Restaurer intégralement l’état enregistré avant la dernière fusion ?\n\n" +
+        "Les modifications effectuées depuis cette fusion seront remplacées."
+    );
+
+    if (!confirmed) {
+        setStatus("Restauration annulée.");
+        return;
+    }
+
+    try {
+        const imported = validateBackupPayload(
+            lastSyncMergeUndo.backup
+        );
+        applyValidatedBackupState(imported);
+        clearLastSyncMergeUndo();
+        pendingSyncPackage = null;
+        displayPlaylists(playlistsCache);
+        setStatus(
+            "État antérieur restauré : la dernière fusion a été annulée."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Impossible d’annuler cette fusion.",
+            "error"
+        );
+    }
+}
+
+function getSyncDiffComparableValue(value) {
+    if (value === undefined) {
+        return "";
+    }
+
+    try {
+        return JSON.stringify(value);
+    } catch (error) {
+        return String(value);
+    }
+}
+
+function buildSyncDiffItem(
+    kind,
+    key,
+    label,
+    value,
+    detail = ""
+) {
+    return {
+        id: `${kind}:${String(key || label)}`,
+        kind,
+        label:
+            String(label || key || "Élément")
+                .slice(0, 180),
+        detail:
+            String(detail || "")
+                .slice(0, 240),
+        value,
+        timestamp:
+            getSyncMergeItemTimestamp(
+                value && typeof value === "object"
+                    ? value
+                    : {}
+            )
+    };
+}
+
+function getSyncCategoryItems(
+    imported = {},
+    categoryId = ""
+) {
+    const items = [];
+    const pushArray = (
+        kind,
+        values,
+        getKey,
+        getLabel,
+        getDetail = () => ""
+    ) => {
+        (Array.isArray(values) ? values : [])
+            .forEach((value, index) => {
+                const key = getKey(value, index);
+                items.push(
+                    buildSyncDiffItem(
+                        kind,
+                        key,
+                        getLabel(value, index),
+                        value,
+                        getDetail(value, index)
+                    )
+                );
+            });
+    };
+
+    if (categoryId === "library") {
+        pushArray(
+            "Mix",
+            imported.savedMixes,
+            (item, index) => item?.id || index,
+            (item) => item?.name || "Mix sans nom",
+            (item) =>
+                `${item?.sourceKeys?.length || 0} source(s)`
+        );
+        pushArray(
+            "Favori",
+            imported.favoriteSourceKeys,
+            (item) => item,
+            (item) => item,
+            () => "Source favorite"
+        );
+        Object.entries(
+            imported.playbackQueueStates || {}
+        ).forEach(([key, value]) => {
+            items.push(
+                buildSyncDiffItem(
+                    "File",
+                    key,
+                    key,
+                    value,
+                    "État de reprise"
+                )
+            );
+        });
+    }
+
+    if (categoryId === "profiles") {
+        pushArray(
+            "Profil",
+            imported.mixProfiles,
+            (item, index) => item?.id || index,
+            (item) => item?.name || "Profil sans nom",
+            (item) => item?.description || ""
+        );
+        [
+            ["Règles d’exclusion", imported.exclusionRules],
+            ["Priorités", imported.priorityRules],
+            ["Cohérence", imported.coherenceSettings],
+            ["Intensité", imported.intensitySettings],
+            ["Nettoyage", imported.cleanupSettings]
+        ].forEach(([label, value]) => {
+            items.push(
+                buildSyncDiffItem(
+                    "Réglage",
+                    label,
+                    label,
+                    value,
+                    "Configuration globale"
+                )
+            );
+        });
+    }
+
+    if (categoryId === "automation") {
+        pushArray(
+            "Commande iOS",
+            imported.iosCommands,
+            (item, index) => item?.id || index,
+            (item) => item?.name || "Commande iOS",
+            (item) => item?.deviceName || ""
+        );
+        pushArray(
+            "Programmation",
+            imported.mixSchedules,
+            (item, index) => item?.id || index,
+            (item) => item?.name || "Programmation",
+            (item) => item?.time || item?.dateTime || ""
+        );
+        pushArray(
+            "Contexte rapide",
+            imported.quickContextsState,
+            (item, index) => item?.id || index,
+            (item) =>
+                `${item?.icon || "⚡"} ${item?.name || "Contexte"}`,
+            (item) => item?.mixId || "Mix non associé"
+        );
+        [
+            ["Adaptive DJ", imported.adaptiveDjMenuSettings],
+            ["Réglages Adaptive", imported.adaptiveSettings],
+            ["Lecture iOS", imported.iosQuickPlaySettings],
+            ["Mode conduite", imported.drivingModeSettings]
+        ].forEach(([label, value]) => {
+            items.push(
+                buildSyncDiffItem(
+                    "Réglage",
+                    label,
+                    label,
+                    value,
+                    "Automatisation"
+                )
+            );
+        });
+    }
+
+    if (categoryId === "feedback") {
+        Object.entries(
+            imported.musicFeedbackState?.records || {}
+        ).forEach(([key, record]) => {
+            items.push(
+                buildSyncDiffItem(
+                    "Feedback",
+                    key,
+                    record?.trackName || key,
+                    record,
+                    [record?.artists, record?.action]
+                        .filter(Boolean)
+                        .join(" · ")
+                )
+            );
+        });
+    }
+
+    if (categoryId === "learning") {
+        const learning =
+            imported.adaptiveLearningState || {};
+        pushArray(
+            "Observation",
+            learning.observations,
+            (item, index) => item?.id || index,
+            (item) => item?.mixName || "Observation Adaptive",
+            (item) =>
+                `${item?.slotId || "contexte"} · ${item?.source || "source"}`
+        );
+        pushArray(
+            "Suggestion acceptée",
+            learning.acceptedSuggestions,
+            (item, index) => item?.id || index,
+            (item) => item?.mixName || item?.label || "Suggestion acceptée"
+        );
+        pushArray(
+            "Suggestion ignorée",
+            learning.dismissedSuggestions,
+            (item, index) => item?.id || index,
+            (item) => item?.mixName || item?.label || "Suggestion ignorée"
+        );
+        pushArray(
+            "Adaptation automatique",
+            learning.autoApplyHistory,
+            (item, index) => item?.id || index,
+            (item) => item?.mixName || item?.label || "Adaptation automatique"
+        );
+    }
+
+    if (categoryId === "history") {
+        pushArray(
+            "Historique de mix",
+            imported.mixHistory,
+            (item, index) => item?.id || index,
+            (item) => item?.name || "Mix",
+            (item) => `${item?.trackCount || 0} titre(s)`
+        );
+        pushArray(
+            "Commande exécutée",
+            imported.iosCommandHistory,
+            (item, index) => item?.id || index,
+            (item) => item?.name || item?.commandName || "Commande iOS"
+        );
+        pushArray(
+            "Adaptive DJ",
+            imported.adaptiveDjMenuHistory,
+            (item, index) => item?.id || index,
+            (item) => item?.mixName || item?.slotLabel || "Adaptive DJ"
+        );
+        pushArray(
+            "Intelligence",
+            imported.intelligenceAnalytics?.events,
+            (item, index) => item?.id || index,
+            (item) => item?.mixName || item?.type || "Événement Intelligence"
+        );
+        pushArray(
+            "Titre récent",
+            imported.recentTrackUris,
+            (item, index) => item?.uri || item || index,
+            (item) => item?.name || item?.uri || item || "Titre récent"
+        );
+    }
+
+    return items.slice(
+        0,
+        SYNC_DIFF_MAX_ITEMS_PER_CATEGORY
+    );
+}
+
+function compareSyncCategoryItems(
+    localImported,
+    remoteImported,
+    categoryId
+) {
+    const localMap = new Map(
+        getSyncCategoryItems(
+            localImported,
+            categoryId
+        ).map((item) => [item.id, item])
+    );
+    const remoteMap = new Map(
+        getSyncCategoryItems(
+            remoteImported,
+            categoryId
+        ).map((item) => [item.id, item])
+    );
+    const allIds = new Set([
+        ...localMap.keys(),
+        ...remoteMap.keys()
+    ]);
+
+    return [...allIds]
+        .map((id) => {
+            const local = localMap.get(id) || null;
+            const remote = remoteMap.get(id) || null;
+            let status = "same";
+
+            if (local && !remote) {
+                status = "local-only";
+            } else if (!local && remote) {
+                status = "remote-only";
+            } else if (
+                getSyncDiffComparableValue(local?.value) !==
+                getSyncDiffComparableValue(remote?.value)
+            ) {
+                status = "changed";
+            }
+
+            return {
+                id,
+                local,
+                remote,
+                status,
+                label:
+                    local?.label ||
+                    remote?.label ||
+                    "Élément",
+                kind:
+                    local?.kind ||
+                    remote?.kind ||
+                    "Élément",
+                detail:
+                    local?.detail ||
+                    remote?.detail ||
+                    ""
+            };
+        })
+        .sort((first, second) => {
+            const priority = {
+                changed: 0,
+                "remote-only": 1,
+                "local-only": 2,
+                same: 3
+            };
+            return (
+                priority[first.status] -
+                    priority[second.status] ||
+                first.label.localeCompare(
+                    second.label,
+                    "fr",
+                    { sensitivity: "base" }
+                )
+            );
+        });
+}
+
+function getSyncDiffStatusLabel(status) {
+    return {
+        changed: "Modifié",
+        "remote-only": "Nouveau distant",
+        "local-only": "Local uniquement",
+        same: "Identique"
+    }[status] || "Différence";
+}
+
+function renderSyncDetailedDiff(rows = []) {
+    if (!rows.length) {
+        return `
+            <p class="sync-diff-empty">
+                Aucun élément détaillé dans cette catégorie.
+            </p>
+        `;
+    }
+
+    return `
+        <div class="sync-diff-list">
+            ${rows.map((row) => `
+                <div
+                    class="sync-diff-item is-${escapeHtml(row.status)}"
+                >
+                    <div class="sync-diff-main">
+                        <strong>${escapeHtml(row.label)}</strong>
+                        <small>
+                            ${escapeHtml(row.kind)}
+                            ${row.detail
+                                ? ` · ${escapeHtml(row.detail)}`
+                                : ""}
+                        </small>
+                    </div>
+                    <span class="sync-diff-status">
+                        ${escapeHtml(
+                            getSyncDiffStatusLabel(row.status)
+                        )}
+                    </span>
+                    <div class="sync-diff-presence">
+                        <span class="${row.local ? "is-present" : "is-missing"}">
+                            Local ${row.local ? "✓" : "—"}
+                        </span>
+                        <span class="${row.remote ? "is-present" : "is-missing"}">
+                            Distant ${row.remote ? "✓" : "—"}
+                        </span>
+                    </div>
+                </div>
+            `).join("")}
+        </div>
+    `;
+}
+
+function filterSyncDetailedDiff(searchValue = "") {
+    const query = String(searchValue || "")
+        .trim()
+        .toLocaleLowerCase("fr");
+
+    document
+        .querySelectorAll(".sync-diff-details")
+        .forEach((details) => {
+            let visibleCount = 0;
+
+            details
+                .querySelectorAll(".sync-diff-item")
+                .forEach((row) => {
+                    const visible =
+                        !query ||
+                        row.textContent
+                            .toLocaleLowerCase("fr")
+                            .includes(query);
+                    row.hidden = !visible;
+                    if (visible) {
+                        visibleCount += 1;
+                    }
+                });
+
+            details.hidden =
+                Boolean(query) && visibleCount === 0;
+            if (query && visibleCount > 0) {
+                details.open = true;
+            }
+        });
+}
+
+function bytesToSyncBase64(bytes) {
+    let binary = "";
+    const chunkSize = 0x8000;
+
+    for (
+        let offset = 0;
+        offset < bytes.length;
+        offset += chunkSize
+    ) {
+        binary += String.fromCharCode(
+            ...bytes.subarray(
+                offset,
+                offset + chunkSize
+            )
+        );
+    }
+
+    return btoa(binary);
+}
+
+function syncBase64ToBytes(value = "") {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+    }
+
+    return bytes;
+}
+
+async function deriveSyncEncryptionKey(
+    passphrase,
+    salt,
+    usage
+) {
+    if (!globalThis.crypto?.subtle) {
+        throw new Error(
+            "Le chiffrement n’est pas disponible dans ce navigateur."
+        );
+    }
+
+    const baseKey = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(passphrase),
+        "PBKDF2",
+        false,
+        ["deriveKey"]
+    );
+
+    return crypto.subtle.deriveKey(
+        {
+            name: "PBKDF2",
+            salt,
+            iterations: SYNC_ENCRYPTION_ITERATIONS,
+            hash: "SHA-256"
+        },
+        baseKey,
+        {
+            name: "AES-GCM",
+            length: 256
+        },
+        false,
+        [usage]
+    );
+}
+
+async function encryptSyncPackagePayload(
+    payload,
+    passphrase
+) {
+    const salt = crypto.getRandomValues(
+        new Uint8Array(16)
+    );
+    const iv = crypto.getRandomValues(
+        new Uint8Array(12)
+    );
+    const key = await deriveSyncEncryptionKey(
+        passphrase,
+        salt,
+        "encrypt"
+    );
+    const plaintext = new TextEncoder().encode(
+        JSON.stringify(payload)
+    );
+    const ciphertext = new Uint8Array(
+        await crypto.subtle.encrypt(
+            {
+                name: "AES-GCM",
+                iv
+            },
+            key,
+            plaintext
+        )
+    );
+
+    return {
+        format: SYNC_ENCRYPTED_PACKAGE_FORMAT,
+        schemaVersion:
+            SYNC_ENCRYPTION_SCHEMA_VERSION,
+        appVersion: APP_VERSION,
+        encryptedAt: new Date().toISOString(),
+        encryption: {
+            algorithm: "AES-GCM",
+            keyDerivation: "PBKDF2-SHA-256",
+            iterations:
+                SYNC_ENCRYPTION_ITERATIONS,
+            salt: bytesToSyncBase64(salt),
+            iv: bytesToSyncBase64(iv)
+        },
+        ciphertext:
+            bytesToSyncBase64(ciphertext)
+    };
+}
+
+async function decryptSyncPackagePayload(
+    envelope,
+    passphrase
+) {
+    if (
+        !envelope ||
+        envelope.format !==
+            SYNC_ENCRYPTED_PACKAGE_FORMAT ||
+        Number(envelope.schemaVersion) !==
+            SYNC_ENCRYPTION_SCHEMA_VERSION ||
+        !envelope.encryption ||
+        typeof envelope.ciphertext !== "string"
+    ) {
+        throw new Error(
+            "Ce paquet chiffré Shuffle+ n’est pas compatible."
+        );
+    }
+
+    const salt = syncBase64ToBytes(
+        envelope.encryption.salt || ""
+    );
+    const iv = syncBase64ToBytes(
+        envelope.encryption.iv || ""
+    );
+    const ciphertext = syncBase64ToBytes(
+        envelope.ciphertext
+    );
+    const key = await deriveSyncEncryptionKey(
+        passphrase,
+        salt,
+        "decrypt"
+    );
+
+    try {
+        const plaintext = await crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv
+            },
+            key,
+            ciphertext
+        );
+        return JSON.parse(
+            new TextDecoder().decode(plaintext)
+        );
+    } catch (error) {
+        throw new Error(
+            "Mot de passe incorrect ou paquet chiffré endommagé."
+        );
+    }
+}
+
+async function downloadEncryptedSyncPackage() {
+    const passphrase = window.prompt(
+        "Choisis un mot de passe d’au moins 8 caractères pour chiffrer ce paquet.\n\nIl ne sera pas enregistré par Shuffle+."
+    );
+
+    if (passphrase === null) {
+        setStatus("Export chiffré annulé.");
+        return;
+    }
+
+    if (passphrase.length < 8) {
+        setStatus(
+            "Le mot de passe doit contenir au moins 8 caractères.",
+            "error"
+        );
+        return;
+    }
+
+    const confirmation = window.prompt(
+        "Confirme le mot de passe du paquet chiffré."
+    );
+
+    if (confirmation !== passphrase) {
+        setStatus(
+            "Les deux mots de passe ne correspondent pas.",
+            "error"
+        );
+        return;
+    }
+
+    try {
+        setStatus("Chiffrement du paquet en cours…");
+        const encrypted =
+            await encryptSyncPackagePayload(
+                buildSyncPackage(),
+                passphrase
+            );
+        downloadJsonPayload(
+            encrypted,
+            `shuffleplus-sync-chiffre-${getSyncDatePart()}.json`
+        );
+        setStatus(
+            "Paquet chiffré exporté. Garde le mot de passe séparément."
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error.message ||
+            "Impossible de chiffrer le paquet.",
+            "error"
+        );
+    }
+}
+
 function getSelectiveSyncMetrics(imported = {}) {
     const feedbackCount = Object.keys(
         imported.musicFeedbackState?.records || {}
@@ -17062,6 +17914,27 @@ function renderSelectiveSyncMerge() {
         getSelectiveSyncMetrics(localImported);
     const remoteMetrics =
         getSelectiveSyncMetrics(remoteImported);
+    const detailedDiffs = Object.fromEntries(
+        SYNC_SELECTIVE_CATEGORY_IDS.map(
+            (categoryId) => [
+                categoryId,
+                compareSyncCategoryItems(
+                    localImported,
+                    remoteImported,
+                    categoryId
+                )
+            ]
+        )
+    );
+    const detailedCount = Object.values(
+        detailedDiffs
+    ).reduce(
+        (total, rows) =>
+            total + rows.filter(
+                (row) => row.status !== "same"
+            ).length,
+        0
+    );
 
     return `
         <form
@@ -17070,12 +17943,12 @@ function renderSelectiveSyncMerge() {
         >
             <div class="sync-selective-heading">
                 <div>
-                    <span class="sync-eyebrow">v4.8 · Fusion sélective</span>
-                    <h4>Choisir catégorie par catégorie</h4>
+                    <span class="sync-eyebrow">v4.9 · Comparaison détaillée</span>
+                    <h4>Vérifier puis choisir catégorie par catégorie</h4>
                     <p>
-                        Rien n’est appliqué avant validation. « Fusionner »
-                        conserve les réglages locaux et ajoute les éléments
-                        distants sans doublons lorsqu’un identifiant existe.
+                        ${detailedCount} différence${detailedCount > 1 ? "s" : ""}
+                        détectée${detailedCount > 1 ? "s" : ""}.
+                        Ouvre une catégorie pour examiner chaque élément avant validation.
                     </p>
                 </div>
                 <div class="sync-merge-presets">
@@ -17100,9 +17973,26 @@ function renderSelectiveSyncMerge() {
                 </div>
             </div>
 
+            <label class="sync-diff-search">
+                <span>Rechercher dans les différences</span>
+                <input
+                    id="syncDiffSearchInput"
+                    type="search"
+                    placeholder="Nom d’un mix, profil, morceau, commande…"
+                    autocomplete="off"
+                >
+            </label>
+
             <div class="sync-category-comparison">
                 ${getSelectiveSyncCategoryDefinitions()
-                    .map((category) => `
+                    .map((category) => {
+                        const rows =
+                            detailedDiffs[category.id] || [];
+                        const changedCount = rows.filter(
+                            (row) => row.status !== "same"
+                        ).length;
+
+                        return `
                         <article class="sync-category-row">
                             <div class="sync-category-title">
                                 <span>${category.icon}</span>
@@ -17138,15 +18028,25 @@ function renderSelectiveSyncMerge() {
                                 <strong>${remoteMetrics[category.id].total}</strong>
                                 <small>${escapeHtml(remoteMetrics[category.id].detail)}</small>
                             </div>
+
+                            <details class="sync-diff-details">
+                                <summary>
+                                    Voir ${rows.length} élément${rows.length > 1 ? "s" : ""}
+                                    · ${changedCount} différence${changedCount > 1 ? "s" : ""}
+                                </summary>
+                                ${renderSyncDetailedDiff(rows)}
+                            </details>
                         </article>
-                    `)
+                    `;
+                    })
                     .join("")}
             </div>
 
             <div class="sync-selective-footer">
                 <p>
-                    Une sauvegarde locale automatique est téléchargée avant
-                    l’application de la fusion.
+                    Une sauvegarde locale est téléchargée et conservée dans
+                    l’application avant la fusion. Elle pourra être restaurée
+                    pendant 30 jours.
                 </p>
                 <button
                     class="sync-primary-button"
@@ -17522,10 +18422,17 @@ async function applySelectiveSyncPackage(form) {
         return;
     }
 
+    const localBackupBeforeMerge =
+        buildBackupPayload();
+    saveLastSyncMergeUndo(
+        localBackupBeforeMerge,
+        source?.label || "Appareil distant",
+        choices
+    );
     downloadBackupFile();
 
     const localImported = validateBackupPayload(
-        buildBackupPayload()
+        localBackupBeforeMerge
     );
     const remoteImported =
         pendingSyncPackage.importedBackup;
@@ -18974,11 +19881,11 @@ function renderSyncPreparationPanel() {
         >
             <div class="sync-panel-heading">
                 <div>
-                    <span class="sync-eyebrow">v4.8 · Fusion sélective</span>
+                    <span class="sync-eyebrow">v4.9 · Diff détaillé & chiffrement</span>
                     <h3>Synchronisation multi-appareils</h3>
                     <p>
-                        Appaire deux installations, compare les catégories et choisis
-                        précisément ce qui doit rester local, être fusionné ou remplacé.
+                        Compare chaque élément, recherche dans les différences,
+                        annule une fusion et protège un paquet par chiffrement local.
                     </p>
                 </div>
                 <span class="sync-local-badge">Local uniquement</span>
@@ -19047,6 +19954,8 @@ function renderSyncPreparationPanel() {
 
             ${renderSyncPairingPanel()}
 
+            ${renderLastSyncMergeUndo()}
+
             <div class="sync-preview-block">
                 <div>
                     <h4>Aperçu synchronisable</h4>
@@ -19065,6 +19974,14 @@ function renderSyncPreparationPanel() {
                     type="button"
                 >
                     ⬇ Exporter un paquet
+                </button>
+
+                <button
+                    id="exportEncryptedSyncPackageButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    🔒 Exporter chiffré
                 </button>
 
                 <button
@@ -23998,10 +24915,28 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#undoLastSyncMergeButton"
+            )
+        ) {
+            await undoLastSelectiveSyncMerge();
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#exportSyncPackageButton"
             )
         ) {
             downloadSyncPackage();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportEncryptedSyncPackageButton"
+            )
+        ) {
+            await downloadEncryptedSyncPackage();
             return;
         }
 
@@ -25106,6 +26041,16 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (
+            event.target.id ===
+                "syncDiffSearchInput"
+        ) {
+            filterSyncDetailedDiff(
+                event.target.value
+            );
+            return;
+        }
+
         if (
             event.target.matches(
                 "[data-intensity-control]"

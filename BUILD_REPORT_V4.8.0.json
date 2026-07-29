@@ -1,0 +1,160 @@
+{
+  "version": "4.8.0",
+  "base": "4.7.1",
+  "feature": "Selective sync merge",
+  "modifiedFiles": [
+    "app.js",
+    "style.css",
+    "config.js",
+    "index.html",
+    "service-worker.js",
+    "manifest.webmanifest",
+    "README.md",
+    "ROADMAP.md",
+    "SYNC_API_CONTRACT.md"
+  ],
+  "checks": {
+    "javascriptSyntax": {
+      "adaptive-config.js": true,
+      "adaptive-dashboard.js": true,
+      "adaptive-dj.js": true,
+      "app.js": true,
+      "auth.js": true,
+      "config.js": true,
+      "service-worker.js": true,
+      "shuffle-engine.js": true,
+      "spotify-api.js": true,
+      "storage.js": true
+    },
+    "namedImports": [
+      {
+        "module": "./shuffle-engine.js",
+        "name": "smartShuffleTracks",
+        "ok": true
+      },
+      {
+        "module": "./shuffle-engine.js",
+        "name": "analyzeShuffleOrder",
+        "ok": true
+      },
+      {
+        "module": "./shuffle-engine.js",
+        "name": "rememberPlaybackOrder",
+        "ok": true
+      },
+      {
+        "module": "./auth.js",
+        "name": "loginWithSpotify",
+        "ok": true
+      },
+      {
+        "module": "./auth.js",
+        "name": "handleSpotifyCallback",
+        "ok": true
+      },
+      {
+        "module": "./auth.js",
+        "name": "getValidAccessToken",
+        "ok": true
+      },
+      {
+        "module": "./auth.js",
+        "name": "logoutSpotify",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getMyPlaylists",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getMyProfile",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getPlaylistItems",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getMySavedTracks",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getAvailableDevices",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getCurrentPlayback",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "transferPlayback",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "setPlaybackShuffle",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "startPlayback",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "resumePlayback",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "pausePlayback",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "skipToNext",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "createPrivatePlaylist",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "addItemsToPlaylist",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getPlaylistLastAddedAt",
+        "ok": true
+      },
+      {
+        "module": "./spotify-api.js",
+        "name": "getRecentlyPlayedPlaylistActivity",
+        "ok": true
+      },
+      {
+        "module": "./adaptive-dj.js",
+        "name": "ADAPTIVE_SLOTS",
+        "ok": true
+      },
+      {
+        "module": "./adaptive-dj.js",
+        "name": "getAdaptiveSlot",
+        "ok": true
+      }
+    ],
+    "manifestJson": true,
+    "cacheVersion": "shuffleplus-v4.8.0-shell",
+    "requiredTokens": true
+  }
+}

@@ -108,3 +108,28 @@ La v4.8 ajoute un plan de résolution par catégorie avant tout transport serveu
 Le futur serveur pourra transporter le paquet complet, mais la décision finale reste côté client.
 Les catégories actuelles sont : `library`, `profiles`, `automation`, `feedback`, `learning` et `history`.
 Chaque catégorie accepte `local`, `merge` ou `remote`. Aucun jeton Spotify n’est inclus.
+## Préparation cryptographique v4.9
+
+La v4.9 introduit une enveloppe locale `shuffleplus-encrypted-sync-package`.
+Le contenu du paquet de synchronisation est chiffré dans le navigateur avec AES-GCM 256 bits.
+La clé est dérivée d’une phrase secrète par PBKDF2-SHA-256 avec 210 000 itérations.
+Le futur serveur v5 devra transporter cette enveloppe sans connaître la phrase secrète ni déchiffrer son contenu.
+
+Champs principaux :
+
+```json
+{
+  "format": "shuffleplus-encrypted-sync-package",
+  "schemaVersion": 1,
+  "appVersion": "4.9.0",
+  "encryptedAt": "2026-07-28T20:00:00.000Z",
+  "encryption": {
+    "algorithm": "AES-GCM",
+    "keyDerivation": "PBKDF2-SHA-256",
+    "iterations": 210000,
+    "salt": "base64",
+    "iv": "base64"
+  },
+  "ciphertext": "base64"
+}
+```
