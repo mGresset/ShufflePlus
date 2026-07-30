@@ -1,3 +1,7 @@
+## v6.5.2 — Maintien de l’écran fiable
+
+Le mode voiture affiche désormais l’état réel du Screen Wake Lock et tente de le réactiver après un retour dans Safari, un changement de visibilité ou une nouvelle interaction utilisateur.
+
 ## v6.5.1 — Mode voiture iPhone
 
 Le mode voiture tient désormais dans la hauteur visible de Safari, utilise les zones sûres de l’iPhone et conserve toutes les commandes essentielles sans défilement.

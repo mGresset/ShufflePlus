@@ -106,3 +106,10 @@
 - interface Safari sur une seule page ;
 - hauteur dynamique et zones sûres ;
 - portrait et paysage compacts.
+
+
+## v6.5.2 — Fiabilité Wake Lock
+
+- état réel actif/en attente/erreur ;
+- réacquisition après visibilité, focus, pageshow et interaction ;
+- messages Safari explicites.

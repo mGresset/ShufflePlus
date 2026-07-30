@@ -12529,3 +12529,78 @@ body.is-driving-mode #content {
         align-self: center;
     }
 }
+
+
+/* v6.5.2 — état réel du maintien de l’écran */
+.driving-wake-lock-control {
+    position: relative;
+}
+
+.driving-wake-lock-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: #7f8790;
+    box-shadow: 0 0 0 3px rgb(127 135 144 / 13%);
+}
+
+.driving-wake-lock-control.is-active {
+    border-color: #1ed760 !important;
+    background: #173523 !important;
+    color: #b8f4ca !important;
+}
+
+.driving-wake-lock-control.is-active
+.driving-wake-lock-dot {
+    background: #1ed760;
+    box-shadow:
+        0 0 0 3px rgb(30 215 96 / 16%),
+        0 0 10px rgb(30 215 96 / 70%);
+}
+
+.driving-wake-lock-control.is-pending,
+.driving-wake-lock-control.is-waiting {
+    border-color: #d6a843 !important;
+    background: #332a17 !important;
+    color: #f5dc9c !important;
+}
+
+.driving-wake-lock-control.is-pending
+.driving-wake-lock-dot,
+.driving-wake-lock-control.is-waiting
+.driving-wake-lock-dot {
+    background: #f1b946;
+}
+
+.driving-wake-lock-control.is-error,
+.driving-wake-lock-control.is-released,
+.driving-wake-lock-control.is-unsupported {
+    border-color: #c9656b !important;
+    background: #3b2024 !important;
+    color: #ffc1c5 !important;
+}
+
+.driving-wake-lock-control.is-error
+.driving-wake-lock-dot,
+.driving-wake-lock-control.is-released
+.driving-wake-lock-dot,
+.driving-wake-lock-control.is-unsupported
+.driving-wake-lock-dot {
+    background: #ff747d;
+}
+
+@media (max-width: 700px) {
+    body.is-driving-mode .driving-wake-lock-control {
+        grid-template-columns: auto minmax(0, auto) auto !important;
+    }
+
+    body.is-driving-mode .driving-wake-lock-control small {
+        max-width: 82px;
+    }
+
+    body.is-driving-mode .driving-wake-lock-dot {
+        width: 7px;
+        height: 7px;
+    }
+}

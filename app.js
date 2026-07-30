@@ -96,7 +96,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.5.1";
+const APP_VERSION = "6.5.2";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -925,6 +925,14 @@ let drivingModeSettings = readDrivingModeSettings();
 let drivingPlaybackState = null;
 let drivingRefreshTimer = 0;
 let drivingWakeLock = null;
+let drivingWakeLockRetryTimer = 0;
+let drivingWakeLockRequestSequence = 0;
+let drivingWakeLockStatus = {
+    state: "idle",
+    message: "",
+    errorName: "",
+    updatedAt: 0
+};
 let drivingActionBusy = false;
 let drivingExitArmedUntil = 0;
 let drivingMessage = {
@@ -5167,6 +5175,176 @@ function syncDrivingViewportHeight() {
     );
 }
 
+
+function setDrivingWakeLockStatus(
+    state = "idle",
+    message = "",
+    errorName = ""
+) {
+    drivingWakeLockStatus = {
+        state: [
+            "idle",
+            "pending",
+            "active",
+            "released",
+            "waiting",
+            "unsupported",
+            "error",
+            "disabled"
+        ].includes(state)
+            ? state
+            : "idle",
+        message: String(message || "").slice(0, 220),
+        errorName: String(errorName || "").slice(0, 80),
+        updatedAt: Date.now()
+    };
+}
+
+function getDrivingWakeLockState() {
+    const supported =
+        window.isSecureContext &&
+        "wakeLock" in navigator;
+    const active = Boolean(
+        drivingWakeLock &&
+        drivingWakeLock.released !== true
+    );
+
+    if (!drivingModeSettings.keepScreenAwake) {
+        return {
+            supported,
+            active: false,
+            state: "disabled",
+            shortLabel: "Écran",
+            label: "Maintien de l’écran désactivé"
+        };
+    }
+
+    if (!window.isSecureContext) {
+        return {
+            supported: false,
+            active: false,
+            state: "unsupported",
+            shortLabel: "HTTPS requis",
+            label: "Le maintien de l’écran nécessite une page HTTPS."
+        };
+    }
+
+    if (!("wakeLock" in navigator)) {
+        return {
+            supported: false,
+            active: false,
+            state: "unsupported",
+            shortLabel: "Non compatible",
+            label: "Ce navigateur ne prend pas en charge le maintien de l’écran."
+        };
+    }
+
+    if (active) {
+        return {
+            supported: true,
+            active: true,
+            state: "active",
+            shortLabel: "Écran actif",
+            label: "Le maintien de l’écran est réellement actif."
+        };
+    }
+
+    const status = drivingWakeLockStatus.state;
+
+    if (status === "pending") {
+        return {
+            supported: true,
+            active: false,
+            state: "pending",
+            shortLabel: "Activation…",
+            label: drivingWakeLockStatus.message ||
+                "Activation du maintien de l’écran en cours."
+        };
+    }
+
+    if (status === "waiting") {
+        return {
+            supported: true,
+            active: false,
+            state: "waiting",
+            shortLabel: "En attente",
+            label: drivingWakeLockStatus.message ||
+                "Reviens sur Shuffle+ pour réactiver le maintien de l’écran."
+        };
+    }
+
+    if (["error", "released"].includes(status)) {
+        return {
+            supported: true,
+            active: false,
+            state: status,
+            shortLabel: "Écran inactif",
+            label: drivingWakeLockStatus.message ||
+                "Le navigateur n’a pas accordé le maintien de l’écran. Touche l’écran pour réessayer."
+        };
+    }
+
+    return {
+        supported: true,
+        active: false,
+        state: "idle",
+        shortLabel: "Écran demandé",
+        label: "Le maintien de l’écran sera activé dès que Safari l’autorise."
+    };
+}
+
+function clearDrivingWakeLockRetry() {
+    if (drivingWakeLockRetryTimer) {
+        window.clearTimeout(
+            drivingWakeLockRetryTimer
+        );
+        drivingWakeLockRetryTimer = 0;
+    }
+}
+
+function scheduleDrivingWakeLockRetry(
+    delay = 700
+) {
+    clearDrivingWakeLockRetry();
+
+    if (
+        !drivingModeSettings.keepScreenAwake ||
+        activeAppMenu !== "driving" ||
+        document.visibilityState !== "visible"
+    ) {
+        return;
+    }
+
+    drivingWakeLockRetryTimer =
+        window.setTimeout(() => {
+            drivingWakeLockRetryTimer = 0;
+            requestDrivingWakeLock({
+                notify: false,
+                source: "automatic-retry"
+            });
+        }, delay);
+}
+
+function getDrivingWakeLockErrorMessage(error) {
+    const name = String(error?.name || "");
+
+    if (name === "NotAllowedError") {
+        return "Safari a refusé le maintien de l’écran. Désactive le mode économie d’énergie, garde Shuffle+ visible, puis touche l’écran pour réessayer.";
+    }
+
+    if (name === "NotSupportedError") {
+        return "Le maintien de l’écran n’est pas pris en charge par cette version du navigateur.";
+    }
+
+    if (name === "AbortError") {
+        return "Le maintien de l’écran a été interrompu par le système. Touche l’écran pour le réactiver.";
+    }
+
+    return error?.message
+        ? `Maintien de l’écran indisponible : ${error.message}`
+        : "Le navigateur n’a pas accordé le maintien de l’écran.";
+}
+
 function renderDrivingModePage() {
     syncDrivingViewportHeight();
 
@@ -5184,8 +5362,10 @@ function renderDrivingModePage() {
         track?.album?.images?.[0]?.url || "";
     const exitArmed =
         drivingExitArmedUntil > Date.now();
+    const wakeLockState =
+        getDrivingWakeLockState();
     const wakeLockAvailable =
-        "wakeLock" in navigator;
+        wakeLockState.supported;
     const voiceSupported =
         isVoiceAssistantSupported();
 
@@ -5317,8 +5497,9 @@ function renderDrivingModePage() {
                 </button>
 
                 <label
-                    aria-label="Garder l’écran allumé"
-                    title="Garder l’écran allumé"
+                    class="driving-wake-lock-control is-${escapeHtml(wakeLockState.state)}"
+                    aria-label="${escapeHtml(wakeLockState.label)}"
+                    title="${escapeHtml(wakeLockState.label)}"
                 >
                     <input
                         id="drivingWakeLockInput"
@@ -5327,7 +5508,8 @@ function renderDrivingModePage() {
                         ${wakeLockAvailable ? "" : "disabled"}
                     >
                     <span aria-hidden="true">☀️</span>
-                    <small>Écran</small>
+                    <small>${escapeHtml(wakeLockState.shortLabel)}</small>
+                    <i class="driving-wake-lock-dot" aria-hidden="true"></i>
                 </label>
 
                 <label
@@ -5397,44 +5579,195 @@ function startDrivingRefreshTimer() {
     );
 }
 
-async function requestDrivingWakeLock() {
-    if (
-        !drivingModeSettings.keepScreenAwake ||
-        !("wakeLock" in navigator) ||
-        document.visibilityState !== "visible"
-    ) {
-        return;
+async function requestDrivingWakeLock({
+    notify = false,
+    source = "automatic"
+} = {}) {
+    clearDrivingWakeLockRetry();
+
+    if (!drivingModeSettings.keepScreenAwake) {
+        setDrivingWakeLockStatus(
+            "disabled",
+            "Maintien de l’écran désactivé."
+        );
+        return false;
     }
 
+    if (!window.isSecureContext) {
+        const message =
+            "Le maintien de l’écran nécessite une page HTTPS.";
+        setDrivingWakeLockStatus(
+            "unsupported",
+            message,
+            "SecurityError"
+        );
+        if (notify) {
+            setDrivingMessage(message, "error");
+        }
+        return false;
+    }
+
+    if (!("wakeLock" in navigator)) {
+        const message =
+            "Cette version du navigateur ne prend pas en charge le maintien de l’écran.";
+        setDrivingWakeLockStatus(
+            "unsupported",
+            message,
+            "NotSupportedError"
+        );
+        if (notify) {
+            setDrivingMessage(message, "error");
+        }
+        return false;
+    }
+
+    if (document.visibilityState !== "visible") {
+        setDrivingWakeLockStatus(
+            "waiting",
+            "Reviens sur Shuffle+ pour réactiver le maintien de l’écran."
+        );
+        return false;
+    }
+
+    if (
+        drivingWakeLock &&
+        drivingWakeLock.released !== true
+    ) {
+        setDrivingWakeLockStatus(
+            "active",
+            "Maintien de l’écran actif."
+        );
+        return true;
+    }
+
+    const requestSequence =
+        ++drivingWakeLockRequestSequence;
+    setDrivingWakeLockStatus(
+        "pending",
+        "Activation du maintien de l’écran…"
+    );
+
     try {
-        if (!drivingWakeLock) {
-            drivingWakeLock =
-                await navigator.wakeLock.request(
-                    "screen"
-                );
-            drivingWakeLock.addEventListener(
-                "release",
-                () => {
+        const sentinel =
+            await navigator.wakeLock.request(
+                "screen"
+            );
+
+        if (
+            requestSequence !==
+            drivingWakeLockRequestSequence
+        ) {
+            await sentinel.release().catch(
+                () => {}
+            );
+            return false;
+        }
+
+        drivingWakeLock = sentinel;
+        setDrivingWakeLockStatus(
+            "active",
+            "Maintien de l’écran actif."
+        );
+
+        sentinel.addEventListener(
+            "release",
+            () => {
+                if (
+                    drivingWakeLock === sentinel
+                ) {
                     drivingWakeLock = null;
-                },
-                { once: true }
+                }
+
+                setDrivingWakeLockStatus(
+                    "released",
+                    "Le système a interrompu le maintien de l’écran. Touche l’écran pour réessayer."
+                );
+
+                if (
+                    activeAppMenu === "driving"
+                ) {
+                    renderDrivingModePage();
+                    scheduleDrivingWakeLockRetry();
+                }
+            },
+            { once: true }
+        );
+
+        if (notify) {
+            setDrivingMessage(
+                "☀️ Écran maintenu allumé : actif.",
+                "success"
             );
         }
+
+        if (
+            activeAppMenu === "driving"
+        ) {
+            renderDrivingModePage();
+        }
+
+        return true;
     } catch (error) {
+        const message =
+            getDrivingWakeLockErrorMessage(
+                error
+            );
         console.warn(
-            "Verrouillage de l’écran indisponible :",
+            `Verrouillage de l’écran indisponible (${source}) :`,
             error
         );
+        drivingWakeLock = null;
+        setDrivingWakeLockStatus(
+            "error",
+            message,
+            error?.name || ""
+        );
+
+        if (notify) {
+            setDrivingMessage(
+                message,
+                "warning"
+            );
+        }
+
+        if (
+            activeAppMenu === "driving"
+        ) {
+            renderDrivingModePage();
+        }
+
+        return false;
     }
 }
 
-async function releaseDrivingWakeLock() {
+async function releaseDrivingWakeLock({
+    keepStatus = false
+} = {}) {
+    clearDrivingWakeLockRetry();
+    drivingWakeLockRequestSequence += 1;
+    const sentinel = drivingWakeLock;
+    drivingWakeLock = null;
+
     try {
-        await drivingWakeLock?.release();
+        if (
+            sentinel &&
+            sentinel.released !== true
+        ) {
+            await sentinel.release();
+        }
     } catch (error) {
         console.warn(error);
     } finally {
-        drivingWakeLock = null;
+        if (!keepStatus) {
+            setDrivingWakeLockStatus(
+                drivingModeSettings.keepScreenAwake
+                    ? "released"
+                    : "disabled",
+                drivingModeSettings.keepScreenAwake
+                    ? "Maintien de l’écran interrompu."
+                    : "Maintien de l’écran désactivé."
+            );
+        }
     }
 }
 
@@ -5488,7 +5821,10 @@ async function enterDrivingMode({
     );
     renderDrivingModePage();
     startDrivingRefreshTimer();
-    await requestDrivingWakeLock();
+    await requestDrivingWakeLock({
+        notify: true,
+        source: "enter-driving-mode"
+    });
 
     if (refresh) {
         await refreshDrivingPlayback({
@@ -34070,12 +34406,18 @@ contentElement.addEventListener(
             saveDrivingModeSettings();
 
             if (event.target.checked) {
-                requestDrivingWakeLock();
+                requestDrivingWakeLock({
+                    notify: true,
+                    source: "checkbox"
+                });
             } else {
                 releaseDrivingWakeLock();
+                setDrivingMessage(
+                    "Maintien de l’écran désactivé.",
+                    "warning"
+                );
+                renderDrivingModePage();
             }
-
-            renderDrivingModePage();
             return;
         }
 
@@ -35084,9 +35426,68 @@ document.addEventListener(
             activeAppMenu === "driving" &&
             document.visibilityState === "visible"
         ) {
-            requestDrivingWakeLock();
+            requestDrivingWakeLock({
+                notify: false,
+                source: "visibilitychange"
+            });
             refreshDrivingPlayback({
                 silent: true
+            });
+        }
+    }
+);
+
+
+function retryDrivingWakeLockFromUserGesture() {
+    if (
+        activeAppMenu !== "driving" ||
+        !drivingModeSettings.keepScreenAwake ||
+        document.visibilityState !== "visible" ||
+        (
+            drivingWakeLock &&
+            drivingWakeLock.released !== true
+        )
+    ) {
+        return;
+    }
+
+    requestDrivingWakeLock({
+        notify: false,
+        source: "user-gesture"
+    });
+}
+
+document.addEventListener(
+    "pointerdown",
+    retryDrivingWakeLockFromUserGesture,
+    { passive: true, capture: true }
+);
+
+document.addEventListener(
+    "touchstart",
+    retryDrivingWakeLockFromUserGesture,
+    { passive: true, capture: true }
+);
+
+window.addEventListener(
+    "focus",
+    () => {
+        if (activeAppMenu === "driving") {
+            requestDrivingWakeLock({
+                notify: false,
+                source: "window-focus"
+            });
+        }
+    }
+);
+
+window.addEventListener(
+    "pageshow",
+    () => {
+        if (activeAppMenu === "driving") {
+            requestDrivingWakeLock({
+                notify: false,
+                source: "pageshow"
             });
         }
     }
