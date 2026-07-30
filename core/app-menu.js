@@ -23,7 +23,7 @@ export const APP_MENU_GROUPS = Object.freeze([
             Object.freeze(["dashboard", "🏠", "Accueil"]),
             Object.freeze(["music", "🎵", "Ma musique"]),
             Object.freeze(["mixes", "🔀", "Mix & iOS"]),
-            Object.freeze(["quick", "⚡", "Rapide"]),
+            Object.freeze(["quick", "📱", "Mes raccourcis"]),
             Object.freeze(["driving", "🚗", "Conduite"])
         ])
     }),
