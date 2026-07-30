@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v6.7.0 — Visite guidée et aide contextuelle : terminée**
+  - parcours en six étapes ;
+  - aide « ? » par rubrique ;
+  - conseils dynamiques et états de démarrage ;
+  - réglages, sauvegarde et restauration.
+
 - **v6.6.0 — Guide simplifié : terminée**
   - manuel intégré ;
   - explication courte de chaque rubrique ;

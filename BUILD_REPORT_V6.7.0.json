@@ -1,0 +1,26 @@
+{
+  "version": "6.7.0",
+  "name": "Contextual Help and Guided Onboarding",
+  "source": "ShufflePlus-v6.6.0-Simple-Guide.zip",
+  "generatedAt": "2026-07-30T13:10:48.252639+00:00",
+  "javascriptFilesChecked": 19,
+  "serverChangesRequired": false,
+  "features": [
+    "six-step guided tour",
+    "contextual help button",
+    "dynamic per-section tips",
+    "first-use guidance",
+    "settings controls",
+    "visited-section progress",
+    "backup and restore support"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "contextualHelpSmokeTest": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 107
+}

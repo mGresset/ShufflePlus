@@ -1,9 +1,9 @@
-const CACHE_VERSION = "shuffleplus-v6.6.0-shell";
+const CACHE_VERSION = "shuffleplus-v6.7.0-shell";
 const APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=6.6.0",
-    "./app.js?v=6.6.0",
+    "./style.css?v=6.7.0",
+    "./app.js?v=6.7.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
@@ -16,6 +16,7 @@ const APP_SHELL = [
     "./listening-statistics.js",
     "./musical-dashboard.js",
     "./musical-goals.js",
+    "./contextual-help.js",
     "./manifest.webmanifest",
     "./favicon.ico",
     "./icons/icon-192.png",

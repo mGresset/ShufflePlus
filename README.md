@@ -1,3 +1,9 @@
+## v6.7.0 — Visite guidée et aide contextuelle
+
+Shuffle+ propose maintenant une visite guidée en six étapes et un bouton **?** contextuel dans chaque rubrique. Les conseils restent volontairement courts ; le Guide et le README conservent les explications plus détaillées.
+
+La visite et les conseils peuvent être gérés depuis **Réglages → Aide et prise en main**.
+
 ## v6.6.0 — Guide simplifié
 
 La rubrique **Guide** présente chaque catégorie de Shuffle+ en quelques phrases, propose un parcours de démarrage et explique les notions de source, mix, profil et scène. Elle donne également accès à ce README pour les explications détaillées.

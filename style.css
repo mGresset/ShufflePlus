@@ -12900,3 +12900,458 @@ body.is-driving-mode #content {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ================================================================
+   Shuffle+ v6.7.0 — Visite guidée et aide contextuelle
+   ================================================================ */
+
+[data-contextual-help-bar-slot]:empty,
+[data-contextual-help-layers]:empty {
+    display: none;
+}
+
+.contextual-help-hint {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin: 14px 0 18px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 17px;
+    background:
+        linear-gradient(
+            120deg,
+            rgb(var(--accent-rgb) / 11%),
+            rgb(10 10 22 / 90%)
+        );
+}
+
+.contextual-help-hint__icon {
+    display: grid;
+    width: 39px;
+    height: 39px;
+    place-items: center;
+    border-radius: 12px;
+    background: rgb(var(--accent-rgb) / 14%);
+    font-size: 19px;
+}
+
+.contextual-help-hint div {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.contextual-help-hint small {
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .045em;
+    text-transform: uppercase;
+}
+
+.contextual-help-hint strong {
+    overflow: hidden;
+    font-size: 14px;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+}
+
+.contextual-help-hint button,
+.contextual-help-floating-button {
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--border-active);
+    border-radius: 50%;
+    background:
+        linear-gradient(
+            135deg,
+            var(--accent),
+            var(--accent-secondary)
+        );
+    color: #fff;
+    font-weight: 950;
+}
+
+.contextual-help-hint button {
+    width: 38px;
+    height: 38px;
+    font-size: 18px;
+}
+
+.contextual-help-floating-button {
+    position: fixed;
+    z-index: 110;
+    right: max(18px, env(safe-area-inset-right));
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 50px;
+    height: 50px;
+    box-shadow:
+        0 16px 34px rgb(0 0 0 / 38%),
+        0 0 28px rgb(var(--accent-rgb) / 30%);
+    font-size: 22px;
+}
+
+.contextual-help-overlay,
+.contextual-onboarding-overlay {
+    position: fixed;
+    z-index: 400;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding:
+        max(18px, env(safe-area-inset-top))
+        max(18px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(18px, env(safe-area-inset-left));
+    overflow-y: auto;
+    background: rgb(2 2 10 / 78%);
+    backdrop-filter: blur(13px);
+}
+
+.contextual-help-dialog,
+.contextual-onboarding-dialog {
+    position: relative;
+    display: grid;
+    width: min(100%, 620px);
+    gap: 14px;
+    padding: 24px;
+    border: 1px solid var(--border-active);
+    border-radius: 25px;
+    background:
+        radial-gradient(
+            circle at 90% 0,
+            rgb(var(--accent-rgb) / 22%),
+            transparent 38%
+        ),
+        rgb(9 9 22 / 98%);
+    box-shadow:
+        0 30px 90px rgb(0 0 0 / 55%),
+        var(--shadow-accent);
+}
+
+.contextual-help-dialog__close,
+.contextual-onboarding-dialog header > button {
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--border-soft);
+    border-radius: 50%;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text-main);
+    font-size: 22px;
+}
+
+.contextual-help-dialog__close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+}
+
+.contextual-help-dialog__icon,
+.contextual-onboarding-dialog__icon {
+    display: grid;
+    width: 60px;
+    height: 60px;
+    place-items: center;
+    border: 1px solid var(--border-soft);
+    border-radius: 19px;
+    background: rgb(var(--accent-rgb) / 15%);
+    font-size: 30px;
+}
+
+.contextual-help-dialog > small,
+.contextual-onboarding-dialog header small {
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 68%,
+            white
+        );
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+}
+
+.contextual-help-dialog h3,
+.contextual-onboarding-dialog h3 {
+    margin: 0;
+    padding-right: 35px;
+    font-size: clamp(24px, 4vw, 34px);
+    letter-spacing: -.035em;
+}
+
+.contextual-help-dialog p,
+.contextual-onboarding-dialog p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.62;
+}
+
+.contextual-help-dialog ul {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-muted);
+}
+
+.contextual-help-dialog__actions,
+.contextual-onboarding-dialog footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.contextual-help-dialog__actions button,
+.contextual-help-dialog__actions a,
+.contextual-onboarding-dialog footer button {
+    padding: 11px 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 13px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text-main);
+    text-decoration: none;
+}
+
+.contextual-help-dialog__actions .primary,
+.contextual-onboarding-dialog footer .primary {
+    border-color: transparent;
+    background:
+        linear-gradient(
+            120deg,
+            var(--accent),
+            var(--accent-secondary)
+        );
+    color: #fff;
+    font-weight: 850;
+}
+
+.contextual-onboarding-dialog header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px;
+}
+
+.contextual-onboarding-dialog header > div {
+    display: grid;
+    gap: 8px;
+}
+
+.contextual-onboarding-progress {
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 7%);
+}
+
+.contextual-onboarding-progress i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background:
+        linear-gradient(
+            90deg,
+            var(--accent-secondary),
+            var(--accent)
+        );
+}
+
+.contextual-onboarding-location {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 15px;
+    border: 1px solid var(--border-soft);
+    border-radius: 15px;
+    background: rgb(var(--accent-rgb) / 8%);
+}
+
+.contextual-onboarding-location span {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.contextual-help-settings-panel {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.2fr) auto;
+    gap: 18px;
+    margin-bottom: 18px;
+    padding: 20px;
+    border: 1px solid var(--border-active);
+    border-radius: 22px;
+    background:
+        radial-gradient(
+            circle at 92% 5%,
+            rgb(var(--accent-rgb) / 18%),
+            transparent 40%
+        ),
+        rgb(10 10 23 / 94%);
+}
+
+.contextual-help-settings-panel h3 {
+    margin: 5px 0 7px;
+    font-size: 24px;
+}
+
+.contextual-help-settings-panel p {
+    max-width: 650px;
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.contextual-help-settings-panel > div:first-child > span {
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 68%,
+            white
+        );
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.contextual-help-settings-panel__progress {
+    display: grid;
+    min-width: 150px;
+    align-content: center;
+    gap: 5px;
+    padding: 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    background: rgb(255 255 255 / 3%);
+}
+
+.contextual-help-settings-panel__progress strong {
+    font-size: 22px;
+}
+
+.contextual-help-settings-panel__progress span {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.contextual-help-settings-panel__progress i {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 7%);
+}
+
+.contextual-help-settings-panel__progress b {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+}
+
+.contextual-help-settings-panel__options,
+.contextual-help-settings-panel__actions {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.contextual-help-settings-panel__options label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 13px;
+    background: rgb(255 255 255 / 3%);
+}
+
+.contextual-help-settings-panel__actions button {
+    padding: 11px 15px;
+    border: 1px solid var(--border-soft);
+    border-radius: 13px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text-main);
+}
+
+.contextual-help-settings-panel__actions .primary {
+    border-color: transparent;
+    background:
+        linear-gradient(
+            120deg,
+            var(--accent),
+            var(--accent-secondary)
+        );
+    color: #fff;
+    font-weight: 850;
+}
+
+body.is-driving-mode .contextual-help-floating-button,
+body.is-driving-mode .contextual-help-hint {
+    display: none !important;
+}
+
+@media (min-width: 761px) {
+    .contextual-help-floating-button {
+        display: none;
+    }
+}
+
+@media (max-width: 760px) {
+    .contextual-help-hint {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .contextual-help-hint > button {
+        display: none;
+    }
+
+    .contextual-help-hint strong {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        white-space: normal;
+    }
+
+    .contextual-help-dialog,
+    .contextual-onboarding-dialog {
+        padding: 20px;
+        border-radius: 22px;
+    }
+
+    .contextual-help-dialog__actions,
+    .contextual-onboarding-dialog footer {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .contextual-help-dialog__actions button,
+    .contextual-help-dialog__actions a,
+    .contextual-onboarding-dialog footer button {
+        width: 100%;
+        text-align: center;
+    }
+
+    .contextual-help-settings-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .contextual-help-settings-panel__progress,
+    .contextual-help-settings-panel__options,
+    .contextual-help-settings-panel__actions {
+        grid-column: auto;
+    }
+
+    .contextual-help-settings-panel__options,
+    .contextual-help-settings-panel__actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+}

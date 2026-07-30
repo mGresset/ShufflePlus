@@ -1,0 +1,16 @@
+Shuffle+ v6.7.0 — Installation
+
+1. Remplacer les fichiers du dépôt par ceux du ZIP.
+2. Publier :
+
+   git add .
+   git commit -m "v6.7.0 - Visite guidee et aide contextuelle"
+   git pull --rebase origin main
+   git push origin main
+
+3. Attendre la publication GitHub Pages.
+4. Ouvrir Réglages → Rechercher une mise à jour.
+5. Fermer complètement Safari ou la PWA puis relancer Shuffle+.
+
+La visite se déclenche automatiquement si elle n’a pas encore été terminée.
+Elle peut être relancée depuis Réglages → Aide et prise en main.

@@ -77,6 +77,14 @@ import {
     buildMusicalGoalsExport
 } from "./musical-goals.js";
 
+import {
+    DEFAULT_CONTEXTUAL_HELP_STATE,
+    normalizeContextualHelpState,
+    getContextualHelpSection,
+    getContextualOnboardingSteps,
+    getContextualHelpProgress
+} from "./contextual-help.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -96,7 +104,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.6.0";
+const APP_VERSION = "6.7.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -156,6 +164,8 @@ const MUSICAL_DASHBOARD_SETTINGS_KEY =
     "shuffleplus_musical_dashboard_settings_v1";
 const MUSICAL_GOALS_SETTINGS_KEY =
     "shuffleplus_musical_goals_settings_v1";
+const CONTEXTUAL_HELP_STATE_KEY =
+    "shuffleplus_contextual_help_state_v1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -1001,6 +1011,11 @@ let listeningStatisticsSettings =
     readListeningStatisticsSettings();
 let musicalDashboardSettings = readMusicalDashboardSettings();
 let musicalGoalsSettings = readMusicalGoalsSettings();
+let contextualHelpState = readContextualHelpState();
+let contextualHelpDialogOpen = false;
+let contextualOnboardingOpen =
+    contextualHelpState.tourEnabled &&
+    !contextualHelpState.tourCompleted;
 let musicalDashboardRefreshTimer = 0;
 let musicalDashboardRefreshing = false;
 let voiceAssistantRecognition = null;
@@ -1188,6 +1203,597 @@ async function copyTextToClipboard(
 
 
 
+
+
+function readContextualHelpState() {
+    try {
+        const raw = localStorage.getItem(
+            CONTEXTUAL_HELP_STATE_KEY
+        );
+        return normalizeContextualHelpState(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_CONTEXTUAL_HELP_STATE
+        );
+    } catch (error) {
+        console.warn(
+            "Aide contextuelle illisible :",
+            error
+        );
+        return normalizeContextualHelpState(
+            DEFAULT_CONTEXTUAL_HELP_STATE
+        );
+    }
+}
+
+function saveContextualHelpState() {
+    contextualHelpState =
+        normalizeContextualHelpState({
+            ...contextualHelpState,
+            updatedAt: Date.now()
+        });
+    try {
+        localStorage.setItem(
+            CONTEXTUAL_HELP_STATE_KEY,
+            JSON.stringify(
+                contextualHelpState
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Aide contextuelle non enregistrée :",
+            error
+        );
+    }
+}
+
+function getContextualHelpRuntime() {
+    const sceneState =
+        normalizeAdaptiveDjScenesState(
+            adaptiveDjScenesState
+        );
+    const statistics =
+        getAdvancedListeningStatistics();
+
+    return {
+        mixCount: savedMixes.length,
+        selectedSourceCount:
+            selectedSourceKeys.size,
+        configuredSceneCount:
+            sceneState.scenes.filter(
+                (scene) => scene.mixId
+            ).length,
+        sessionCount:
+            Number(
+                statistics.sessionCount || 0
+            ),
+        observationCount:
+            Array.isArray(
+                adaptiveLearningState
+                    .observations
+            )
+                ? adaptiveLearningState
+                    .observations.length
+                : 0,
+        seenSections:
+            contextualHelpState
+                .seenSections
+    };
+}
+
+function markContextualSectionSeen(
+    menuId
+) {
+    const normalizedMenu =
+        normalizeActiveAppMenu(menuId);
+    if (
+        contextualHelpState
+            .seenSections.includes(
+                normalizedMenu
+            )
+    ) {
+        return;
+    }
+    contextualHelpState =
+        normalizeContextualHelpState({
+            ...contextualHelpState,
+            seenSections: [
+                ...contextualHelpState
+                    .seenSections,
+                normalizedMenu
+            ]
+        });
+    saveContextualHelpState();
+}
+
+function renderContextualHelpBar() {
+    if (
+        activeAppMenu === "driving"
+    ) {
+        return "";
+    }
+    const section =
+        getContextualHelpSection(
+            activeAppMenu,
+            getContextualHelpRuntime()
+        );
+    const hint =
+        contextualHelpState
+            .hintsEnabled
+            ? `
+                <aside
+                    class="contextual-help-hint"
+                    aria-label="Conseil pour ${escapeHtml(section.title)}"
+                >
+                    <span
+                        class="contextual-help-hint__icon"
+                        aria-hidden="true"
+                    >
+                        ${escapeHtml(section.icon)}
+                    </span>
+                    <div>
+                        <small>
+                            ${escapeHtml(section.level)} ·
+                            ${escapeHtml(section.title)}
+                        </small>
+                        <strong>
+                            ${escapeHtml(section.tip)}
+                        </strong>
+                    </div>
+                    <button
+                        type="button"
+                        data-open-contextual-help
+                        aria-label="Aide pour ${escapeHtml(section.title)}"
+                    >
+                        ?
+                    </button>
+                </aside>
+            `
+            : "";
+
+    return `
+        ${hint}
+        <button
+            type="button"
+            class="contextual-help-floating-button"
+            data-open-contextual-help
+            aria-label="Aide pour ${escapeHtml(section.title)}"
+            title="Aide · ${escapeHtml(section.title)}"
+        >
+            ?
+        </button>
+    `;
+}
+
+function renderContextualHelpDialog() {
+    const section =
+        getContextualHelpSection(
+            activeAppMenu,
+            getContextualHelpRuntime()
+        );
+
+    return `
+        <div
+            class="contextual-help-overlay"
+            role="presentation"
+        >
+            <section
+                class="contextual-help-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="contextualHelpTitle"
+            >
+                <button
+                    type="button"
+                    class="contextual-help-dialog__close"
+                    data-close-contextual-help
+                    aria-label="Fermer l’aide"
+                >
+                    ×
+                </button>
+
+                <span
+                    class="contextual-help-dialog__icon"
+                    aria-hidden="true"
+                >
+                    ${escapeHtml(section.icon)}
+                </span>
+                <small>
+                    Aide rapide · ${escapeHtml(section.title)}
+                </small>
+                <h3 id="contextualHelpTitle">
+                    ${escapeHtml(section.summary)}
+                </h3>
+                <p>
+                    ${escapeHtml(section.detail)}
+                </p>
+
+                <ul>
+                    ${section.tips.map(
+                        (tip) => `
+                            <li>
+                                ${escapeHtml(tip)}
+                            </li>
+                        `
+                    ).join("")}
+                </ul>
+
+                <div
+                    class="contextual-help-dialog__actions"
+                >
+                    <button
+                        type="button"
+                        data-contextual-help-menu="guide"
+                    >
+                        📖 Ouvrir le Guide
+                    </button>
+                    <a
+                        href="./README.md"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        README détaillé
+                    </a>
+                    <button
+                        type="button"
+                        class="primary"
+                        data-close-contextual-help
+                    >
+                        Compris
+                    </button>
+                </div>
+            </section>
+        </div>
+    `;
+}
+
+function renderContextualOnboarding() {
+    const runtime =
+        getContextualHelpRuntime();
+    const steps =
+        getContextualOnboardingSteps(
+            runtime
+        );
+    const stepIndex =
+        Math.max(
+            0,
+            Math.min(
+                steps.length - 1,
+                contextualHelpState
+                    .currentStep
+            )
+        );
+    const step = steps[stepIndex];
+    const percent =
+        Math.round(
+            (stepIndex + 1) /
+            steps.length * 100
+        );
+
+    return `
+        <div
+            class="contextual-onboarding-overlay"
+            role="presentation"
+        >
+            <section
+                class="contextual-onboarding-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="contextualOnboardingTitle"
+            >
+                <header>
+                    <div>
+                        <small>
+                            Visite guidée ·
+                            ${stepIndex + 1}/${steps.length}
+                        </small>
+                        <div
+                            class="contextual-onboarding-progress"
+                            aria-hidden="true"
+                        >
+                            <i style="width:${percent}%"></i>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        data-skip-contextual-onboarding
+                        aria-label="Passer la visite"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <span
+                    class="contextual-onboarding-dialog__icon"
+                    aria-hidden="true"
+                >
+                    ${escapeHtml(step.icon)}
+                </span>
+                <h3 id="contextualOnboardingTitle">
+                    ${escapeHtml(step.title)}
+                </h3>
+                <p>
+                    ${escapeHtml(step.text)}
+                </p>
+
+                <div
+                    class="contextual-onboarding-location"
+                >
+                    <span>Rubrique affichée</span>
+                    <strong>
+                        ${escapeHtml(
+                            getContextualHelpSection(
+                                step.menuId,
+                                runtime
+                            ).title
+                        )}
+                    </strong>
+                </div>
+
+                <footer>
+                    <button
+                        type="button"
+                        data-previous-contextual-onboarding
+                        ${stepIndex === 0
+                            ? "disabled"
+                            : ""}
+                    >
+                        Précédent
+                    </button>
+                    <button
+                        type="button"
+                        data-skip-contextual-onboarding
+                    >
+                        Passer
+                    </button>
+                    <button
+                        type="button"
+                        class="primary"
+                        data-next-contextual-onboarding
+                    >
+                        ${escapeHtml(step.action)}
+                    </button>
+                </footer>
+            </section>
+        </div>
+    `;
+}
+
+function renderContextualHelpLayers() {
+    if (contextualOnboardingOpen) {
+        return renderContextualOnboarding();
+    }
+    if (contextualHelpDialogOpen) {
+        return renderContextualHelpDialog();
+    }
+    return "";
+}
+
+function refreshContextualHelpDom() {
+    const barSlot =
+        document.querySelector(
+            "[data-contextual-help-bar-slot]"
+        );
+    if (barSlot) {
+        barSlot.innerHTML =
+            renderContextualHelpBar();
+    }
+    const layersSlot =
+        document.querySelector(
+            "[data-contextual-help-layers]"
+        );
+    if (layersSlot) {
+        layersSlot.innerHTML =
+            renderContextualHelpLayers();
+    }
+}
+
+function openContextualHelp() {
+    contextualOnboardingOpen = false;
+    contextualHelpDialogOpen = true;
+    refreshContextualHelpDom();
+}
+
+function closeContextualHelp() {
+    contextualHelpDialogOpen = false;
+    refreshContextualHelpDom();
+}
+
+function openContextualOnboardingStep(
+    stepIndex
+) {
+    const steps =
+        getContextualOnboardingSteps(
+            getContextualHelpRuntime()
+        );
+    const normalizedIndex =
+        Math.max(
+            0,
+            Math.min(
+                steps.length - 1,
+                Number(stepIndex) || 0
+            )
+        );
+    contextualHelpState =
+        normalizeContextualHelpState({
+            ...contextualHelpState,
+            tourEnabled: true,
+            tourCompleted: false,
+            currentStep:
+                normalizedIndex
+        });
+    contextualOnboardingOpen = true;
+    contextualHelpDialogOpen = false;
+    activeAppMenu =
+        normalizeActiveAppMenu(
+            steps[normalizedIndex]
+                .menuId
+        );
+    saveActiveAppMenu();
+    saveContextualHelpState();
+    displayPlaylists(
+        playlistsCache
+    );
+}
+
+function startContextualOnboarding() {
+    openContextualOnboardingStep(0);
+}
+
+function moveContextualOnboarding(
+    direction
+) {
+    const steps =
+        getContextualOnboardingSteps(
+            getContextualHelpRuntime()
+        );
+    const current =
+        contextualHelpState
+            .currentStep;
+    const next =
+        current + direction;
+
+    if (next >= steps.length) {
+        completeContextualOnboarding();
+        return;
+    }
+    openContextualOnboardingStep(
+        Math.max(0, next)
+    );
+}
+
+function completeContextualOnboarding() {
+    contextualHelpState =
+        normalizeContextualHelpState({
+            ...contextualHelpState,
+            tourCompleted: true,
+            currentStep: 0
+        });
+    contextualOnboardingOpen = false;
+    contextualHelpDialogOpen = false;
+    activeAppMenu = "dashboard";
+    saveActiveAppMenu();
+    saveContextualHelpState();
+    displayPlaylists(
+        playlistsCache
+    );
+    showToast(
+        "✅ Visite guidée terminée.",
+        "success"
+    );
+}
+
+function skipContextualOnboarding() {
+    contextualHelpState =
+        normalizeContextualHelpState({
+            ...contextualHelpState,
+            tourCompleted: true,
+            currentStep: 0
+        });
+    contextualOnboardingOpen = false;
+    saveContextualHelpState();
+    refreshContextualHelpDom();
+    showToast(
+        "Visite guidée fermée. Tu peux la relancer dans Réglages.",
+        "success"
+    );
+}
+
+function resetContextualHelpProgress() {
+    contextualHelpState =
+        normalizeContextualHelpState({
+            ...DEFAULT_CONTEXTUAL_HELP_STATE,
+            tourEnabled:
+                contextualHelpState
+                    .tourEnabled,
+            hintsEnabled:
+                contextualHelpState
+                    .hintsEnabled
+        });
+    saveContextualHelpState();
+    startContextualOnboarding();
+}
+
+function renderContextualHelpSettingsPanel() {
+    const progress =
+        getContextualHelpProgress(
+            contextualHelpState
+        );
+
+    return `
+        <section
+            class="contextual-help-settings-panel"
+        >
+            <div>
+                <span>🧭 Aide et prise en main</span>
+                <h3>Visite guidée</h3>
+                <p>
+                    Relance le parcours de découverte ou règle
+                    l’affichage des conseils simples.
+                </p>
+            </div>
+
+            <div
+                class="contextual-help-settings-panel__progress"
+            >
+                <strong>
+                    ${progress.visited}/${progress.total}
+                </strong>
+                <span>rubriques consultées</span>
+                <i>
+                    <b style="width:${progress.percent}%"></b>
+                </i>
+            </div>
+
+            <div
+                class="contextual-help-settings-panel__options"
+            >
+                <label>
+                    <input
+                        id="contextualTourEnabledInput"
+                        type="checkbox"
+                        ${contextualHelpState.tourEnabled
+                            ? "checked"
+                            : ""}
+                    >
+                    <span>
+                        Proposer la visite sur une nouvelle installation
+                    </span>
+                </label>
+                <label>
+                    <input
+                        id="contextualHintsEnabledInput"
+                        type="checkbox"
+                        ${contextualHelpState.hintsEnabled
+                            ? "checked"
+                            : ""}
+                    >
+                    <span>
+                        Afficher les conseils rapides dans les rubriques
+                    </span>
+                </label>
+            </div>
+
+            <div
+                class="contextual-help-settings-panel__actions"
+            >
+                <button
+                    id="startContextualOnboardingButton"
+                    type="button"
+                    class="primary"
+                >
+                    ▶ Relancer la visite
+                </button>
+                <button
+                    id="resetContextualHelpProgressButton"
+                    type="button"
+                >
+                    Réinitialiser la progression
+                </button>
+            </div>
+        </section>
+    `;
+}
 
 function readMusicalGoalsSettings() {
     try {
@@ -8835,6 +9441,9 @@ function applyDrivingViewFromUrl() {
         "mixes",
         "adaptive",
         "assistant",
+        "recommendations",
+        "statistics",
+        "goals",
         "intelligence",
         "quick",
         "driving",
@@ -10748,6 +11357,9 @@ async function navigateToAppMenu(
 
     activeAppMenu = normalizedMenu;
     saveActiveAppMenu();
+    markContextualSectionSeen(
+        normalizedMenu
+    );
 
     const pageExists =
         refreshTargetAppMenuPage(
@@ -10782,6 +11394,8 @@ async function navigateToAppMenu(
             rerender: true
         });
     }
+
+    refreshContextualHelpDom();
 
     window.requestAnimationFrame(
         () => {
@@ -22846,6 +23460,7 @@ function buildBackupPayload() {
         listeningStatisticsSettings,
         musicalDashboardSettings,
         musicalGoalsSettings,
+        contextualHelpState,
         uiThemeSettings,
         mixSchedules
     };
@@ -23068,6 +23683,11 @@ function validateBackupPayload(payload) {
                 payload.data.musicalGoalsSettings ||
                 DEFAULT_MUSICAL_GOALS_SETTINGS
             ),
+        contextualHelpState:
+            normalizeContextualHelpState(
+                payload.data.contextualHelpState ||
+                DEFAULT_CONTEXTUAL_HELP_STATE
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -23207,6 +23827,10 @@ function applyValidatedBackupState(imported) {
     saveMusicalDashboardSettings();
     musicalGoalsSettings = imported.musicalGoalsSettings;
     saveMusicalGoalsSettings();
+    contextualHelpState = imported.contextualHelpState;
+    contextualOnboardingOpen = false;
+    contextualHelpDialogOpen = false;
+    saveContextualHelpState();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -29514,6 +30138,10 @@ function displayPlaylists(playlists) {
 
             ${renderAppMenu()}
 
+            <div data-contextual-help-bar-slot>
+                ${renderContextualHelpBar()}
+            </div>
+
             <div
                 class="app-menu-page
                 ${activeAppMenu === "dashboard"
@@ -29783,6 +30411,7 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="settings"
             >
+                ${renderContextualHelpSettingsPanel()}
                 ${renderUiThemeSettingsPanel()}
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
@@ -29793,6 +30422,10 @@ function displayPlaylists(playlists) {
                 ${renderCoherencePanel()}
                 ${renderIntensityPanel()}
                 ${renderExclusionPanel()}
+            </div>
+
+            <div data-contextual-help-layers>
+                ${renderContextualHelpLayers()}
             </div>
         </section>
     `;
@@ -32820,6 +33453,84 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "[data-open-contextual-help]"
+            )
+        ) {
+            openContextualHelp();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-close-contextual-help]"
+            )
+        ) {
+            closeContextualHelp();
+            return;
+        }
+
+        const contextualHelpMenuButton =
+            event.target.closest(
+                "[data-contextual-help-menu]"
+            );
+        if (contextualHelpMenuButton) {
+            contextualHelpDialogOpen = false;
+            await navigateToAppMenu(
+                contextualHelpMenuButton
+                    .dataset
+                    .contextualHelpMenu ||
+                "guide"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#startContextualOnboardingButton"
+            )
+        ) {
+            startContextualOnboarding();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetContextualHelpProgressButton"
+            )
+        ) {
+            resetContextualHelpProgress();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-next-contextual-onboarding]"
+            )
+        ) {
+            moveContextualOnboarding(1);
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-previous-contextual-onboarding]"
+            )
+        ) {
+            moveContextualOnboarding(-1);
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-skip-contextual-onboarding]"
+            )
+        ) {
+            skipContextualOnboarding();
+            return;
+        }
+
         if (event.target.closest("#refreshMusicalDashboardButton")) { await refreshMusicalDashboardPlayback(); return; }
         if (event.target.closest("#exportMusicalDashboardButton")) { exportMusicalDashboardSnapshot(); return; }
         if (event.target.closest("#exportMusicalGoalsButton")) { exportMusicalGoalsSummary(); return; }
@@ -34493,6 +35204,53 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (
+            event.target.id ===
+            "contextualTourEnabledInput"
+        ) {
+            contextualHelpState =
+                normalizeContextualHelpState({
+                    ...contextualHelpState,
+                    tourEnabled:
+                        event.target.checked
+                });
+            if (!event.target.checked) {
+                contextualOnboardingOpen = false;
+            }
+            saveContextualHelpState();
+            showToast(
+                event.target.checked
+                    ? "Visite guidée activée."
+                    : "Visite guidée automatique désactivée.",
+                "success"
+            );
+            refreshContextualHelpDom();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "contextualHintsEnabledInput"
+        ) {
+            contextualHelpState =
+                normalizeContextualHelpState({
+                    ...contextualHelpState,
+                    hintsEnabled:
+                        event.target.checked
+                });
+            saveContextualHelpState();
+            displayPlaylists(
+                playlistsCache
+            );
+            showToast(
+                event.target.checked
+                    ? "Conseils rapides affichés."
+                    : "Conseils rapides masqués.",
+                "success"
+            );
+            return;
+        }
+
         if (
             event.target.id ===
             "voiceAssistantLanguageInput"
