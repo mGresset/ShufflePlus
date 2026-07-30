@@ -41,7 +41,7 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=7.0.0">
+    <link rel="stylesheet" href="./style.css?v=7.1.0">
 </head>
 
 <body>
@@ -52,7 +52,7 @@
         aria-live="polite"
         hidden
     >
-        Mode hors connexion : l’interface reste disponible, mais Spotify nécessite Internet.
+        Hors connexion · les données locales restent consultables en lecture seule.
     </div>
 
     <main class="app">
@@ -65,7 +65,17 @@
                 <h1>Shuffle+</h1>
             </div>
 
-            <p class="version"></p>
+            <div class="version-line">
+                <p class="version"></p>
+                <span
+                    id="connectionStateBadge"
+                    class="connection-state-badge is-online"
+                    role="status"
+                    aria-live="polite"
+                >
+                    ● En ligne
+                </span>
+            </div>
 
             <h2 id="welcome">
                 Bienvenue Matthieu !👋
@@ -136,6 +146,6 @@
         </div>
     </aside>
 
-    <script type="module" src="./app.js?v=7.0.0"></script>
+    <script type="module" src="./app.js?v=7.1.0"></script>
 </body>
 </html>

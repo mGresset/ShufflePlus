@@ -1,0 +1,26 @@
+{
+  "version": "7.1.0",
+  "name": "Performance and Intelligent Offline Mode",
+  "source": "ShufflePlus-v7.0.0-Stability-Navigation.zip",
+  "generatedAt": "2026-07-30T15:52:32.240389+00:00",
+  "javascriptFilesChecked": 23,
+  "serverChangesRequired": false,
+  "features": [
+    "cache-first library rendering",
+    "offline read-only library",
+    "IndexedDB cache for opened playlists",
+    "online cached syncing indicator",
+    "mobile data saver",
+    "configurable cache retention",
+    "PWA shell and runtime cache separation",
+    "backup of offline preferences"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "offlineModuleSmokeTest": "ok",
+    "serverTests": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 123
+}

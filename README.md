@@ -1,4 +1,12 @@
 
+## v7.1.0 — Performance et hors connexion
+
+Shuffle+ affiche la dernière bibliothèque locale dès l’ouverture et met en
+cache les playlists récemment consultées. Le mode économie de données réduit
+les appels automatiques à Spotify. Hors connexion, les données mémorisées
+restent consultables en lecture seule.
+
+
 ## v7.0.0 — Stabilisation et navigation organisée
 
 La navigation est regroupée en **Essentiel**, **Intelligence** et **Outils**, tout en conservant chaque rubrique. Les intitulés restent sur une seule ligne et la position de lecture de chaque page est mémorisée.

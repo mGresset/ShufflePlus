@@ -104,6 +104,18 @@ import {
     buildAppHealthExport
 } from "./app-health.js";
 
+import {
+    DEFAULT_OFFLINE_PERFORMANCE_SETTINGS,
+    normalizeOfflinePerformanceSettings,
+    readOfflineLibraryCache,
+    writeOfflineLibraryCache,
+    readOfflineTrackCache,
+    writeOfflineTrackCache,
+    clearOfflineMusicCache,
+    getOfflineCacheSummary,
+    formatOfflineCacheAge
+} from "./offline-performance.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -114,6 +126,8 @@ const installAppButton =
     document.getElementById("installAppButton");
 const networkBannerElement =
     document.getElementById("networkBanner");
+const connectionStateBadgeElement =
+    document.getElementById("connectionStateBadge");
 const pwaInstallGuideElement =
     document.getElementById("pwaInstallGuide");
 const pwaUpdateBannerElement =
@@ -123,7 +137,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.0.0";
+const APP_VERSION = "7.1.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -189,6 +203,8 @@ const UNIVERSAL_SEARCH_HISTORY_KEY =
     "shuffleplus_universal_search_history_v1";
 const USAGE_PROFILE_STATE_KEY =
     "shuffleplus_usage_profile_state_v1";
+const OFFLINE_PERFORMANCE_SETTINGS_KEY =
+    "shuffleplus_offline_performance_settings_v1";
 const MAX_UNIVERSAL_SEARCH_HISTORY = 8;
 const MAX_UNIVERSAL_SEARCH_RESULTS = 14;
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
@@ -1046,6 +1062,23 @@ let appMenuScrollPositions = readAppMenuScrollPositions();
 let appMenuScrollSaveTimer = 0;
 let appHealthSnapshot = null;
 let appHealthRunning = false;
+let offlinePerformanceSettings =
+    readOfflinePerformanceSettings();
+let offlineCacheSummary = {
+    librarySavedAt: 0,
+    playlistCount: 0,
+    libraryBytes: 0,
+    trackSourceCount: 0,
+    trackCount: 0,
+    trackBytes: 0,
+    totalBytes: 0
+};
+let offlineRuntimeState = {
+    source: "none",
+    syncing: false,
+    readOnly: false,
+    lastSyncAt: 0
+};
 let universalSearchOpen = false;
 let universalSearchQuery = "";
 let universalSearchResults = [];
@@ -3021,6 +3054,267 @@ function syncPwaInstallControls() {
             : "⬇ Installer l’application";
 }
 
+
+function readOfflinePerformanceSettings() {
+    try {
+        const raw = localStorage.getItem(
+            OFFLINE_PERFORMANCE_SETTINGS_KEY
+        );
+        return normalizeOfflinePerformanceSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_OFFLINE_PERFORMANCE_SETTINGS
+        );
+    } catch {
+        return normalizeOfflinePerformanceSettings(
+            DEFAULT_OFFLINE_PERFORMANCE_SETTINGS
+        );
+    }
+}
+
+function saveOfflinePerformanceSettings() {
+    offlinePerformanceSettings =
+        normalizeOfflinePerformanceSettings({
+            ...offlinePerformanceSettings,
+            updatedAt: Date.now()
+        });
+    localStorage.setItem(
+        OFFLINE_PERFORMANCE_SETTINGS_KEY,
+        JSON.stringify(offlinePerformanceSettings)
+    );
+}
+
+function formatOfflineBytes(value = 0) {
+    const bytes = Math.max(0, Number(value || 0));
+    if (bytes < 1024) return `${bytes} o`;
+    if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} Ko`;
+    }
+    return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
+}
+
+function getOfflineLibraryMaxAgeMs() {
+    return offlinePerformanceSettings.libraryTtlMinutes * 60000;
+}
+
+function getOfflineTrackMaxAgeMs() {
+    return offlinePerformanceSettings.trackTtlDays * 86400000;
+}
+
+function applyOfflineLibraryCache(cache, { render = true } = {}) {
+    if (!cache?.playlists) return false;
+    const profile = cache.profile || {};
+    currentUserId = profile.id || currentUserId || "";
+    currentUserProduct = profile.product || "";
+    playlistsCache = cache.playlists;
+    const displayName = profile.display_name || profile.id || "utilisateur";
+    welcomeElement.textContent = `Bienvenue ${displayName} 👋`;
+    offlineRuntimeState = {
+        ...offlineRuntimeState,
+        source: "cache",
+        readOnly: !navigator.onLine,
+        lastSyncAt: cache.savedAt || 0
+    };
+    if (render) displayPlaylists(playlistsCache);
+    updateNetworkStatus();
+    return true;
+}
+
+async function refreshOfflineCacheSummary({ rerender = false } = {}) {
+    offlineCacheSummary = await getOfflineCacheSummary();
+    if (rerender && activeAppMenu === "settings") {
+        displayPlaylists(playlistsCache);
+    }
+    return offlineCacheSummary;
+}
+
+async function refreshLiveLibrary({ force = false, silent = false } = {}) {
+    if (!navigator.onLine) {
+        if (!silent) setStatus("Connexion Internet requise pour actualiser Spotify.", "error");
+        return false;
+    }
+    const cached = offlinePerformanceSettings.enabled
+        ? readOfflineLibraryCache({
+            allowExpired: false,
+            maxAgeMs: getOfflineLibraryMaxAgeMs()
+        })
+        : null;
+    if (!force && offlinePerformanceSettings.dataSaver && cached) {
+        applyOfflineLibraryCache(cached);
+        if (!silent) setStatus("Données locales récentes utilisées · mode économie actif.");
+        return true;
+    }
+    offlineRuntimeState.syncing = true;
+    updateNetworkStatus();
+    if (!silent) setStatus("Synchronisation avec Spotify…");
+    try {
+        const [profile, playlists] = await Promise.all([
+            getMyProfile(),
+            getMyPlaylists()
+        ]);
+        currentUserId = profile?.id || "";
+        currentUserProduct = profile?.product || "";
+        playlistsCache = playlists;
+        const displayName = profile?.display_name || profile?.id || "utilisateur";
+        welcomeElement.textContent = `Bienvenue ${displayName} 👋`;
+        if (offlinePerformanceSettings.enabled) {
+            const saved = writeOfflineLibraryCache(profile, playlists);
+            offlineRuntimeState.lastSyncAt = saved.savedAt;
+        }
+        offlineRuntimeState.source = "live";
+        offlineRuntimeState.readOnly = false;
+        displayPlaylists(playlistsCache);
+        if (activeAppMenu === "music" && !offlinePerformanceSettings.dataSaver) {
+            await ensureLibrarySortDataLoaded({ rerender: true });
+        }
+        await refreshOfflineCacheSummary();
+        if (!silent) setStatus("Bibliothèque Spotify actualisée.");
+        return true;
+    } catch (error) {
+        const fallback = offlinePerformanceSettings.enabled
+            ? readOfflineLibraryCache({ allowExpired: true })
+            : null;
+        if (fallback) {
+            applyOfflineLibraryCache(fallback);
+            if (!silent) setStatus("Spotify est indisponible · données locales affichées.", "error");
+            return true;
+        }
+        throw error;
+    } finally {
+        offlineRuntimeState.syncing = false;
+        updateNetworkStatus();
+    }
+}
+
+function saveOfflinePerformanceSettingsFromForm(form) {
+    const data = new FormData(form);
+    offlinePerformanceSettings = normalizeOfflinePerformanceSettings({
+        ...offlinePerformanceSettings,
+        enabled: data.get("enabled") === "on",
+        cacheOpenedTracks: data.get("cacheOpenedTracks") === "on",
+        dataSaver: data.get("dataSaver") === "on",
+        libraryTtlMinutes: Number(data.get("libraryTtlMinutes") || 60),
+        trackTtlDays: Number(data.get("trackTtlDays") || 30)
+    });
+    saveOfflinePerformanceSettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Réglages de performance enregistrés.");
+}
+
+async function clearOfflinePerformanceData() {
+    const confirmed = window.confirm(
+        "Vider les playlists et morceaux mis en cache ? Les mix et réglages Shuffle+ seront conservés."
+    );
+    if (!confirmed) return;
+    await clearOfflineMusicCache();
+    offlineRuntimeState = {
+        ...offlineRuntimeState,
+        source: navigator.onLine ? "live" : "none",
+        lastSyncAt: 0
+    };
+    await refreshOfflineCacheSummary({ rerender: true });
+    setStatus("Cache musical local vidé.");
+}
+
+function renderOfflinePerformancePanel() {
+    const settings = offlinePerformanceSettings;
+    const summary = offlineCacheSummary;
+    return `
+        <section class="settings-panel offline-performance-panel">
+            <div class="panel-heading">
+                <div>
+                    <h3>⚡ Performance et hors connexion</h3>
+                    <p>
+                        Affiche rapidement la dernière bibliothèque connue et
+                        conserve les playlists récemment ouvertes.
+                    </p>
+                </div>
+                <span class="offline-performance-state ${navigator.onLine ? "is-online" : "is-offline"}">
+                    ${navigator.onLine ? "En ligne" : "Lecture locale"}
+                </span>
+            </div>
+
+            <div class="offline-performance-summary">
+                <article>
+                    <strong>${summary.playlistCount}</strong>
+                    <span>playlists locales</span>
+                </article>
+                <article>
+                    <strong>${summary.trackSourceCount}</strong>
+                    <span>sources de morceaux</span>
+                </article>
+                <article>
+                    <strong>${summary.trackCount}</strong>
+                    <span>morceaux mémorisés</span>
+                </article>
+                <article>
+                    <strong>${formatOfflineBytes(summary.totalBytes)}</strong>
+                    <span>espace estimé</span>
+                </article>
+            </div>
+
+            <p class="offline-performance-last-sync">
+                Dernière bibliothèque locale :
+                <strong>${escapeHtml(formatOfflineCacheAge(summary.librarySavedAt))}</strong>
+            </p>
+
+            <form id="offlinePerformanceSettingsForm" class="offline-performance-form">
+                <label class="offline-performance-toggle">
+                    <input name="enabled" type="checkbox" ${settings.enabled ? "checked" : ""}>
+                    <span>
+                        <strong>Activer le cache musical local</strong>
+                        <small>Conserve les métadonnées de la bibliothèque dans ce navigateur.</small>
+                    </span>
+                </label>
+                <label class="offline-performance-toggle">
+                    <input name="cacheOpenedTracks" type="checkbox" ${settings.cacheOpenedTracks ? "checked" : ""}>
+                    <span>
+                        <strong>Mémoriser les playlists ouvertes</strong>
+                        <small>Leur contenu restera consultable sans connexion.</small>
+                    </span>
+                </label>
+                <label class="offline-performance-toggle">
+                    <input name="dataSaver" type="checkbox" ${settings.dataSaver ? "checked" : ""}>
+                    <span>
+                        <strong>Économie de données mobiles</strong>
+                        <small>Réutilise le cache récent et évite les analyses Spotify automatiques.</small>
+                    </span>
+                </label>
+
+                <div class="offline-performance-selects">
+                    <label>
+                        <span>Actualiser la bibliothèque après</span>
+                        <select name="libraryTtlMinutes">
+                            ${[[15,"15 minutes"],[60,"1 heure"],[180,"3 heures"],[720,"12 heures"],[1440,"24 heures"]].map(([value,label]) => `
+                                <option value="${value}" ${settings.libraryTtlMinutes === value ? "selected" : ""}>${label}</option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <label>
+                        <span>Conserver les morceaux</span>
+                        <select name="trackTtlDays">
+                            ${[[7,"7 jours"],[30,"30 jours"],[90,"90 jours"]].map(([value,label]) => `
+                                <option value="${value}" ${settings.trackTtlDays === value ? "selected" : ""}>${label}</option>
+                            `).join("")}
+                        </select>
+                    </label>
+                </div>
+
+                <div class="offline-performance-actions">
+                    <button type="submit" class="primary-button">Enregistrer</button>
+                    <button id="refreshOfflineLibraryButton" type="button">↻ Actualiser maintenant</button>
+                    <button id="clearOfflineMusicCacheButton" type="button">Vider le cache musical</button>
+                </div>
+            </form>
+
+            <p class="pwa-offline-note">
+                Hors connexion, les playlists déjà mémorisées sont consultables
+                en lecture seule. La lecture et les commandes Spotify restent indisponibles.
+            </p>
+        </section>
+    `;
+}
+
 function refreshPwaPanel() {
     const currentPanel =
         document.getElementById("pwaSettingsPanel");
@@ -3033,13 +3327,34 @@ function refreshPwaPanel() {
 
 function updateNetworkStatus() {
     const offline = !navigator.onLine;
-    document.body.classList.toggle(
-        "is-offline",
-        offline
-    );
+    const syncing = offlineRuntimeState.syncing;
+    document.body.classList.toggle("is-offline", offline);
+    document.body.classList.toggle("is-syncing", syncing);
 
     if (networkBannerElement) {
         networkBannerElement.hidden = !offline;
+        networkBannerElement.textContent = offline
+            ? "Hors connexion · données locales en lecture seule · Spotify indisponible."
+            : "";
+    }
+
+    if (connectionStateBadgeElement) {
+        const state = syncing
+            ? "syncing"
+            : offline
+                ? "offline"
+                : offlineRuntimeState.source === "cache"
+                    ? "cached"
+                    : "online";
+        const labels = {
+            syncing: "↻ Synchronisation",
+            offline: "● Hors connexion",
+            cached: "● Données locales",
+            online: "● En ligne"
+        };
+        connectionStateBadgeElement.className =
+            `connection-state-badge is-${state}`;
+        connectionStateBadgeElement.textContent = labels[state];
     }
 }
 
@@ -3227,7 +3542,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=6.4.2",
+                "./service-worker.js?v=7.1.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -3882,9 +4197,9 @@ function renderPwaSettingsPanel() {
             </div>
 
             <p class="pwa-offline-note">
-                Le cache permet d’ouvrir l’interface hors connexion.
-                Le chargement des playlists et la lecture Spotify exigent
-                toujours une connexion Internet.
+                L’interface, la dernière bibliothèque et les playlists déjà
+                ouvertes peuvent rester consultables hors connexion. La lecture
+                et les commandes Spotify exigent toujours Internet.
             </p>
         </section>
     `;
@@ -14044,6 +14359,23 @@ async function executeMusicalAssistantPlan() {
             speakVoiceAssistantText("J’ouvre tes objectifs musicaux de la semaine.");
             vibrateVoiceAssistant([30,40,30]);
             displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (plan.type === "offline-settings") {
+            activeAppMenu = "settings";
+            saveActiveAppMenu();
+            addMusicalAssistantHistory({
+                request: plan.request,
+                plan,
+                status: "success",
+                message: "Réglages hors connexion ouverts."
+            });
+            displayPlaylists(playlistsCache);
+            window.requestAnimationFrame(() => {
+                document.querySelector(".offline-performance-panel")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
             return;
         }
 
@@ -25339,6 +25671,11 @@ function saveLibraryPreferences() {
 async function ensureLibrarySortDataLoaded({
     rerender = true
 } = {}) {
+    if (offlinePerformanceSettings.dataSaver) {
+        if (rerender) displayPlaylists(playlistsCache);
+        return;
+    }
+
     if (librarySort.startsWith("modified")) {
         await ensureModificationDatesLoaded();
     } else if (librarySort.startsWith("recent")) {
@@ -25397,6 +25734,7 @@ function buildBackupPayload() {
         musicalGoalsSettings,
         contextualHelpState,
         usageProfileState,
+        offlinePerformanceSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -25629,6 +25967,11 @@ function validateBackupPayload(payload) {
                 payload.data.usageProfileState ||
                 DEFAULT_USAGE_PROFILE_STATE
             ),
+        offlinePerformanceSettings:
+            normalizeOfflinePerformanceSettings(
+                payload.data.offlinePerformanceSettings ||
+                DEFAULT_OFFLINE_PERFORMANCE_SETTINGS
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -25771,6 +26114,8 @@ function applyValidatedBackupState(imported) {
     contextualHelpState = imported.contextualHelpState;
     usageProfileState = imported.usageProfileState;
     saveUsageProfileState();
+    offlinePerformanceSettings = imported.offlinePerformanceSettings;
+    saveOfflinePerformanceSettings();
     contextualOnboardingOpen = false;
     contextualHelpDialogOpen = false;
     saveContextualHelpState();
@@ -32368,6 +32713,7 @@ function displayPlaylists(playlists) {
                 ${renderContextualHelpSettingsPanel()}
                 ${renderAppHealthPanel()}
                 ${renderUiThemeSettingsPanel()}
+                ${renderOfflinePerformancePanel()}
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
                 ${renderSyncPreparationPanel()}
@@ -35079,21 +35425,63 @@ async function openPlaylist(playlist) {
     `;
 
     try {
-        const tracksPromise = isLikedTracks
-            ? getMySavedTracks()
-            : getPlaylistItems(playlist.id);
+        const cacheKey = isLikedTracks
+            ? "liked"
+            : `playlist:${playlist.id}`;
+        const cachedTracks = offlinePerformanceSettings.enabled &&
+            offlinePerformanceSettings.cacheOpenedTracks
+                ? await readOfflineTrackCache(cacheKey, {
+                    allowExpired: !navigator.onLine,
+                    maxAgeMs: getOfflineTrackMaxAgeMs()
+                })
+                : null;
+        let tracks = [];
+        let devices = [];
+        let usedLocalTracks = false;
 
-        const [tracks, devices] = await Promise.all([
-            tracksPromise,
-            getAvailableDevices().catch((error) => {
-                console.warn(
-                    "Appareils Spotify indisponibles :",
-                    error
+        if (!navigator.onLine) {
+            if (!cachedTracks) {
+                throw new Error(
+                    "Cette playlist n’a pas encore été préparée pour le mode hors connexion."
                 );
-
-                return [];
-            })
-        ]);
+            }
+            tracks = cachedTracks.tracks;
+            usedLocalTracks = true;
+        } else if (
+            offlinePerformanceSettings.dataSaver &&
+            cachedTracks &&
+            !cachedTracks.stale
+        ) {
+            tracks = cachedTracks.tracks;
+            usedLocalTracks = true;
+        } else {
+            try {
+                const tracksPromise = isLikedTracks
+                    ? getMySavedTracks()
+                    : getPlaylistItems(playlist.id);
+                [tracks, devices] = await Promise.all([
+                    tracksPromise,
+                    getAvailableDevices().catch((error) => {
+                        console.warn("Appareils Spotify indisponibles :", error);
+                        return [];
+                    })
+                ]);
+                if (
+                    offlinePerformanceSettings.enabled &&
+                    offlinePerformanceSettings.cacheOpenedTracks
+                ) {
+                    await writeOfflineTrackCache(cacheKey, tracks, {
+                        ttlDays: offlinePerformanceSettings.trackTtlDays,
+                        label: playlist.name
+                    });
+                    refreshOfflineCacheSummary().catch(() => {});
+                }
+            } catch (networkError) {
+                if (!cachedTracks) throw networkError;
+                tracks = cachedTracks.tracks;
+                usedLocalTracks = true;
+            }
+        }
 
         const cleanupResult = cleanTracks(
             [...tracks],
@@ -35124,7 +35512,11 @@ async function openPlaylist(playlist) {
             selectedTracks
         );
 
-        setStatus("");
+        setStatus(
+            usedLocalTracks
+                ? "Playlist chargée depuis le cache local · lecture seule hors connexion."
+                : ""
+        );
 
         contentElement.scrollIntoView({
             behavior: "smooth",
@@ -35133,13 +35525,15 @@ async function openPlaylist(playlist) {
     } catch (error) {
         console.error(error);
 
-        const message = isLikedTracks
-            ? "Impossible de charger tes morceaux aimés."
-            : (
-                error.status === 403
-                    ? "Spotify ne permet pas de consulter le contenu de cette playlist avec l’application actuelle."
-                    : "Impossible de charger les morceaux de cette playlist."
-            );
+        const message = error?.message?.includes("hors connexion")
+            ? error.message
+            : isLikedTracks
+                ? "Impossible de charger tes morceaux aimés."
+                : (
+                    error.status === 403
+                        ? "Spotify ne permet pas de consulter le contenu de cette playlist avec l’application actuelle."
+                        : "Impossible de charger les morceaux de cette playlist."
+                );
 
         contentElement.innerHTML = `
             <section class="playlist-error-panel">
@@ -35186,59 +35580,82 @@ async function initializeApp() {
     try {
         await handleSpotifyCallback();
 
-        const accessToken = await getValidAccessToken();
+        const cachedLibrary = offlinePerformanceSettings.enabled
+            ? readOfflineLibraryCache({
+                allowExpired: true,
+                maxAgeMs: getOfflineLibraryMaxAgeMs()
+            })
+            : null;
+        let accessToken = null;
+        let tokenError = null;
 
-        if (!accessToken) {
+        try {
+            accessToken = await getValidAccessToken();
+        } catch (error) {
+            tokenError = error;
+        }
+
+        if (!accessToken && !(cachedLibrary && !navigator.onLine)) {
+            if (tokenError) throw tokenError;
             setDisconnectedInterface();
-
             if (loginButton) {
                 loginButton.disabled = false;
-                loginButton.textContent =
-                    "Se connecter à Spotify";
+                loginButton.textContent = "Se connecter à Spotify";
             }
-
             setStatus("");
             return;
         }
 
         setConnectedInterface();
-        setStatus("Chargement de ton compte Spotify…");
 
-        const [profile, playlists] = await Promise.all([
-            getMyProfile(),
-            getMyPlaylists()
-        ]);
-
-        currentUserId = profile?.id || "";
-        currentUserProduct = profile?.product || "";
-        playlistsCache = playlists;
-
-        try {
-            availableDevices =
-                await getAvailableDevices();
-        } catch (deviceError) {
-            console.warn(
-                "Appareils Spotify indisponibles au démarrage :",
-                deviceError
+        if (cachedLibrary) {
+            applyOfflineLibraryCache(cachedLibrary);
+            setStatus(
+                navigator.onLine
+                    ? "Bibliothèque locale affichée · vérification Spotify…"
+                    : "Mode hors connexion · dernière bibliothèque locale affichée."
             );
+        }
+
+        if (!navigator.onLine) {
+            if (!cachedLibrary) {
+                throw new Error(
+                    "Aucune bibliothèque locale n’est disponible. Reconnecte-toi une fois pour préparer le mode hors connexion."
+                );
+            }
             availableDevices = [];
-        }
-
-        const displayName =
-            profile?.display_name ||
-            profile?.id ||
-            "utilisateur";
-
-        welcomeElement.textContent =
-            `Bienvenue ${displayName} 👋`;
-
-        displayPlaylists(playlistsCache);
-
-        if (activeAppMenu === "music") {
-            await ensureLibrarySortDataLoaded({
-                rerender: true
+            offlineRuntimeState.readOnly = true;
+            updateNetworkStatus();
+        } else {
+            await refreshLiveLibrary({
+                force: !cachedLibrary,
+                silent: Boolean(cachedLibrary)
             });
+
+            if (!offlinePerformanceSettings.dataSaver) {
+                try {
+                    availableDevices = await getAvailableDevices();
+                } catch (deviceError) {
+                    console.warn(
+                        "Appareils Spotify indisponibles au démarrage :",
+                        deviceError
+                    );
+                    availableDevices = [];
+                }
+            }
         }
+
+        if (
+            activeAppMenu === "music" &&
+            !offlinePerformanceSettings.dataSaver &&
+            navigator.onLine
+        ) {
+            await ensureLibrarySortDataLoaded({ rerender: true });
+        }
+
+        refreshOfflineCacheSummary({
+            rerender: activeAppMenu === "settings"
+        }).catch(() => {});
 
         startServerSyncWatcher();
 
@@ -35403,6 +35820,29 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        if (
+            event.target.closest(
+                "#refreshOfflineLibraryButton"
+            )
+        ) {
+            try {
+                await refreshLiveLibrary({ force: true });
+            } catch (error) {
+                console.error(error);
+                setStatus(error.message || "Actualisation impossible.", "error");
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearOfflineMusicCacheButton"
+            )
+        ) {
+            await clearOfflinePerformanceData();
+            return;
+        }
+
         if (
             event.target.closest(
                 "#runAppHealthCheckButton"
@@ -37731,6 +38171,14 @@ contentElement.addEventListener(
     "submit",
     async (event) => {
         if (
+            event.target.id === "offlinePerformanceSettingsForm"
+        ) {
+            event.preventDefault();
+            saveOfflinePerformanceSettingsFromForm(event.target);
+            return;
+        }
+
+        if (
             event.target.id === "musicalAssistantForm"
         ) {
             event.preventDefault();
@@ -38710,7 +39158,14 @@ initializePwa();
 
 window.addEventListener(
     "online",
-    () => runServerAutoSync("online")
+    () => {
+        runServerAutoSync("online");
+        if (document.body.classList.contains("is-connected")) {
+            refreshLiveLibrary({ silent: true }).catch((error) => {
+                console.warn("Actualisation après reconnexion impossible :", error);
+            });
+        }
+    }
 );
 
 document.addEventListener(

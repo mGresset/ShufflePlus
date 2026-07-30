@@ -14113,3 +14113,185 @@ body.is-universal-search-open {
         width: 100%;
     }
 }
+
+
+/* ================================================================
+   Shuffle+ v7.1.0 — Performance et hors connexion intelligent
+   ================================================================ */
+
+.version-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.version-line .version {
+    margin: 0;
+}
+
+.connection-state-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 4%);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.connection-state-badge.is-online {
+    border-color: rgb(16 185 129 / 42%);
+    background: rgb(16 185 129 / 11%);
+    color: #8df0bd;
+}
+
+.connection-state-badge.is-cached {
+    border-color: rgb(var(--accent-rgb) / 42%);
+    background: rgb(var(--accent-rgb) / 11%);
+    color: color-mix(in srgb, var(--accent) 55%, white);
+}
+
+.connection-state-badge.is-syncing {
+    border-color: rgb(59 130 246 / 45%);
+    background: rgb(59 130 246 / 12%);
+    color: #9fc4ff;
+}
+
+.connection-state-badge.is-offline {
+    border-color: rgb(245 158 11 / 50%);
+    background: rgb(245 158 11 / 13%);
+    color: #ffd989;
+}
+
+.offline-performance-panel {
+    display: grid;
+    gap: 16px;
+}
+
+.offline-performance-state {
+    padding: 7px 11px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 850;
+    white-space: nowrap;
+}
+
+.offline-performance-state.is-online {
+    border-color: rgb(16 185 129 / 38%);
+    color: #8df0bd;
+}
+
+.offline-performance-state.is-offline {
+    border-color: rgb(245 158 11 / 45%);
+    color: #ffd989;
+}
+
+.offline-performance-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.offline-performance-summary article {
+    display: grid;
+    gap: 4px;
+    padding: 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 15px;
+    background: rgb(255 255 255 / 2.5%);
+}
+
+.offline-performance-summary strong {
+    font-size: 21px;
+}
+
+.offline-performance-summary span,
+.offline-performance-last-sync,
+.offline-performance-form small {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.offline-performance-form {
+    display: grid;
+    gap: 11px;
+}
+
+.offline-performance-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 2.5%);
+}
+
+.offline-performance-toggle span {
+    display: grid;
+    gap: 4px;
+}
+
+.offline-performance-selects {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.offline-performance-selects label {
+    display: grid;
+    gap: 7px;
+}
+
+.offline-performance-selects select {
+    width: 100%;
+}
+
+.offline-performance-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.offline-performance-actions button {
+    padding: 10px 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 3%);
+    color: var(--text-main);
+}
+
+.offline-performance-actions .primary-button {
+    border-color: transparent;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary));
+}
+
+body.is-offline .playlist-card,
+body.is-offline .source-card {
+    border-style: dashed;
+}
+
+@media (max-width: 760px) {
+    .offline-performance-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .offline-performance-summary,
+    .offline-performance-selects {
+        grid-template-columns: 1fr;
+    }
+
+    .offline-performance-actions button {
+        width: 100%;
+    }
+}

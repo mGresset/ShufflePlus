@@ -39,6 +39,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Recommande-moi quelque chose maintenant",
     "Montre mes statistiques d’écoute",
     "Ouvre mon tableau de bord musical",
+    "Ouvre les réglages hors connexion",
     "Montre mes objectifs musicaux",
     "Ouvre la recherche universelle",
     "Active le mode Sport",

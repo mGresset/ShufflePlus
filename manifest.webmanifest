@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Mix Studio Spotify, Adaptive DJ et synchronisation automatique chiffrée de bout en bout via le serveur Shuffle+.",
+  "description": "Mix Studio Spotify, Adaptive DJ, mode hors connexion et synchronisation automatique via le serveur Shuffle+.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

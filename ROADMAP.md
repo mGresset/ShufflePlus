@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v7.1.0 — Performance et hors connexion : terminée**
+  - affichage immédiat de la bibliothèque locale ;
+  - cache IndexedDB des playlists ouvertes ;
+  - état réseau clair ;
+  - mode économie de données ;
+  - cache PWA séparé et plus robuste.
+
 - **v7.0.0 — Stabilisation et navigation organisée : terminée**
   - navigation regroupée ;
   - mémoire de position par rubrique ;
