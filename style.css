@@ -11899,3 +11899,58 @@ html.high-contrast textarea {
         touch-action: manipulation;
     }
 }
+
+
+/* ================================================================
+   Shuffle+ v6.4.2 — Menu PC sur une seule ligne
+   ================================================================ */
+
+@media (min-width: 761px) {
+    .app-menu {
+        display: flex;
+        grid-template-columns: none;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
+        scrollbar-color:
+            rgb(var(--accent-rgb) / 38%)
+            transparent;
+    }
+
+    .app-menu::-webkit-scrollbar {
+        height: 6px;
+    }
+
+    .app-menu::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .app-menu::-webkit-scrollbar-thumb {
+        border-radius: 999px;
+        background:
+            rgb(var(--accent-rgb) / 38%);
+    }
+
+    .app-menu-button {
+        flex: 1 0 auto;
+        min-width: max-content;
+        white-space: nowrap;
+        word-break: normal;
+        overflow-wrap: normal;
+        hyphens: none;
+        padding-inline:
+            clamp(11px, 1.15vw, 20px);
+    }
+
+    .app-menu-button > span:last-child {
+        min-width: max-content;
+        white-space: nowrap;
+        word-break: normal;
+        overflow-wrap: normal;
+        hyphens: none;
+    }
+}

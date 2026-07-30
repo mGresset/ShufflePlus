@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+
+- **v6.4.2 — Menu PC sur une seule ligne : terminée**
+  - libellés non coupés ;
+  - aucune mise à la ligne sur ordinateur ;
+  - défilement horizontal de secours ;
+  - correctif iOS et tri récent conservés.
+
 - **v6.4.1 — Correctif iOS : terminée**
   - navigation Pour toi et Statistiques ;
   - cache PWA renforcé ;

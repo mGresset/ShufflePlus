@@ -1,3 +1,7 @@
+## v6.4.2 — Menu PC sur une seule ligne
+
+Sur ordinateur, tous les intitulés de la navigation restent sur une seule ligne. Si l’espace disponible est insuffisant, le menu défile horizontalement sans couper les mots. Le correctif iOS et le tri par défaut « Modifiées récemment » de la v6.4.1 sont conservés.
+
 
 ## v6.4.1 — Correctif iOS
 
