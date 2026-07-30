@@ -1,3 +1,15 @@
+
+## v6.8.0 — Recherche universelle
+
+Le bouton **Rechercher dans Shuffle+** permet de retrouver une rubrique,
+une playlist, un mix, une scène, un profil, une routine ou un réglage.
+Sur ordinateur, la recherche s’ouvre avec `Ctrl + K` ou `⌘ + K`.
+Sur mobile, elle utilise une fenêtre plein écran adaptée à Safari.
+
+Les recherches récentes restent locales. Un résultat ouvre directement la
+rubrique correspondante et met en évidence la carte retrouvée lorsque cela
+est possible.
+
 ## v6.7.0 — Visite guidée et aide contextuelle
 
 Shuffle+ propose maintenant une visite guidée en six étapes et un bouton **?** contextuel dans chaque rubrique. Les conseils restent volontairement courts ; le Guide et le README conservent les explications plus détaillées.

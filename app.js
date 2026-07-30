@@ -85,6 +85,12 @@ import {
     getContextualHelpProgress
 } from "./contextual-help.js";
 
+import {
+    buildUniversalSearchIndex,
+    searchUniversalIndex,
+    getUniversalSearchTypeLabel
+} from "./universal-search.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -104,7 +110,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.7.0";
+const APP_VERSION = "6.8.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -166,6 +172,10 @@ const MUSICAL_GOALS_SETTINGS_KEY =
     "shuffleplus_musical_goals_settings_v1";
 const CONTEXTUAL_HELP_STATE_KEY =
     "shuffleplus_contextual_help_state_v1";
+const UNIVERSAL_SEARCH_HISTORY_KEY =
+    "shuffleplus_universal_search_history_v1";
+const MAX_UNIVERSAL_SEARCH_HISTORY = 8;
+const MAX_UNIVERSAL_SEARCH_RESULTS = 14;
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -1012,6 +1022,11 @@ let listeningStatisticsSettings =
 let musicalDashboardSettings = readMusicalDashboardSettings();
 let musicalGoalsSettings = readMusicalGoalsSettings();
 let contextualHelpState = readContextualHelpState();
+let universalSearchOpen = false;
+let universalSearchQuery = "";
+let universalSearchResults = [];
+let universalSearchSelectedIndex = 0;
+let universalSearchHistory = readUniversalSearchHistory();
 let contextualHelpDialogOpen = false;
 let contextualOnboardingOpen =
     contextualHelpState.tourEnabled &&
@@ -8086,7 +8101,10 @@ function renderAdaptiveDjSceneStudioPanel() {
                 <input type="hidden" name="activeSceneId" value="${escapeHtml(state.activeSceneId)}">
                 <div class="adaptive-scene-grid">
                     ${state.scenes.map((scene) => `
-                        <article class="adaptive-scene-card ${scene.id === state.activeSceneId ? "is-active" : ""}">
+                        <article
+                            class="adaptive-scene-card ${scene.id === state.activeSceneId ? "is-active" : ""}"
+                            data-adaptive-scene-card-id="${escapeHtml(scene.id)}"
+                        >
                             <div class="adaptive-scene-card__top">
                                 <div>
                                     <strong>${escapeHtml(scene.icon)} ${escapeHtml(scene.label)}</strong>
@@ -8750,7 +8768,7 @@ function renderQuickControlPage() {
                             context.profileId
                         );
                         return `
-                            <article class="quick-context-card">
+                            <article class="quick-context-card" data-quick-context-card-id="${escapeHtml(context.id)}">
                                 <span class="quick-context-icon">
                                     ${escapeHtml(context.icon)}
                                 </span>
@@ -11429,6 +11447,830 @@ function revealActiveAppMenuButton(
 }
 
 
+
+function readUniversalSearchHistory() {
+    try {
+        const raw = localStorage.getItem(
+            UNIVERSAL_SEARCH_HISTORY_KEY
+        );
+        const parsed = raw
+            ? JSON.parse(raw)
+            : [];
+
+        return Array.isArray(parsed)
+            ? parsed
+                .map((value) =>
+                    String(value || "")
+                        .trim()
+                        .slice(0, 100)
+                )
+                .filter(Boolean)
+                .slice(0, MAX_UNIVERSAL_SEARCH_HISTORY)
+            : [];
+    } catch (error) {
+        console.warn(
+            "Historique de recherche illisible :",
+            error
+        );
+        return [];
+    }
+}
+
+function saveUniversalSearchHistory() {
+    try {
+        localStorage.setItem(
+            UNIVERSAL_SEARCH_HISTORY_KEY,
+            JSON.stringify(
+                universalSearchHistory
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Historique de recherche non enregistré :",
+            error
+        );
+    }
+}
+
+function addUniversalSearchHistory(query = "") {
+    const normalized = String(query || "")
+        .trim()
+        .slice(0, 100);
+
+    if (!normalized) {
+        return;
+    }
+
+    universalSearchHistory = [
+        normalized,
+        ...universalSearchHistory.filter(
+            (item) =>
+                item.toLocaleLowerCase("fr") !==
+                normalized.toLocaleLowerCase("fr")
+        )
+    ].slice(0, MAX_UNIVERSAL_SEARCH_HISTORY);
+
+    saveUniversalSearchHistory();
+}
+
+function getUniversalSearchSections() {
+    return [
+        {
+            key: "section:dashboard",
+            type: "section",
+            icon: "🏠",
+            title: "Accueil",
+            subtitle: "Vue d’ensemble",
+            description: "Lecture, recommandation, scène, routine et résumé musical.",
+            menu: "dashboard",
+            priority: 100,
+            keywords: ["accueil", "dashboard", "résumé", "vue ensemble"]
+        },
+        {
+            key: "section:music",
+            type: "section",
+            icon: "🎵",
+            title: "Ma musique",
+            subtitle: "Playlists et morceaux aimés",
+            description: "Retrouver les sources Spotify et sélectionner les playlists d’un mix.",
+            menu: "music",
+            priority: 98,
+            keywords: ["bibliothèque", "source", "playlist", "aimés"]
+        },
+        {
+            key: "section:mixes",
+            type: "section",
+            icon: "🔀",
+            title: "Mix & iOS",
+            subtitle: "Mix, raccourcis et routines",
+            description: "Créer un mix, le sauvegarder et préparer une automatisation iPhone.",
+            menu: "mixes",
+            priority: 96,
+            keywords: ["mix", "raccourci", "ios", "routine", "programme"]
+        },
+        {
+            key: "section:adaptive",
+            type: "section",
+            icon: "🤖",
+            title: "Adaptive DJ",
+            subtitle: "Scènes et transitions",
+            description: "Gérer Conduite, Chill, Focus, Sport, Party et les transitions.",
+            menu: "adaptive",
+            priority: 94,
+            keywords: ["scène", "conduite", "chill", "focus", "sport", "party"]
+        },
+        {
+            key: "section:assistant",
+            type: "section",
+            icon: "✨",
+            title: "Assistant",
+            subtitle: "Commandes texte et vocales",
+            description: "Demander une action à Shuffle+ avec une phrase simple.",
+            menu: "assistant",
+            priority: 88,
+            keywords: ["voix", "vocal", "commande", "parler"]
+        },
+        {
+            key: "section:recommendations",
+            type: "section",
+            icon: "💜",
+            title: "Pour toi",
+            subtitle: "Recommandations personnalisées",
+            description: "Voir les mix et scènes conseillés pour le moment.",
+            menu: "recommendations",
+            priority: 90,
+            keywords: ["recommandation", "suggestion", "personnalisé"]
+        },
+        {
+            key: "section:statistics",
+            type: "section",
+            icon: "📊",
+            title: "Statistiques",
+            subtitle: "Habitudes d’écoute",
+            description: "Consulter les sessions, titres, durées et périodes d’activité.",
+            menu: "statistics",
+            priority: 84,
+            keywords: ["bilan", "écoute", "durée", "session"]
+        },
+        {
+            key: "section:goals",
+            type: "section",
+            icon: "🏆",
+            title: "Objectifs",
+            subtitle: "Progression hebdomadaire",
+            description: "Suivre les objectifs et badges de la semaine.",
+            menu: "goals",
+            priority: 80,
+            keywords: ["progression", "semaine", "badge", "objectif"]
+        },
+        {
+            key: "section:intelligence",
+            type: "section",
+            icon: "🧠",
+            title: "Intelligence",
+            subtitle: "Apprentissage local",
+            description: "Comprendre les observations et suggestions automatiques.",
+            menu: "intelligence",
+            priority: 74,
+            keywords: ["apprentissage", "adaptation", "suggestion"]
+        },
+        {
+            key: "section:quick",
+            type: "section",
+            icon: "⚡",
+            title: "Rapide",
+            subtitle: "Commandes essentielles",
+            description: "Pause, reprise, suivant et contextes rapides.",
+            menu: "quick",
+            priority: 86,
+            keywords: ["pause", "suivant", "commande", "raccourci"]
+        },
+        {
+            key: "section:driving",
+            type: "section",
+            icon: "🚗",
+            title: "Conduite",
+            subtitle: "Interface voiture",
+            description: "Ouvrir le mode mobile à gros boutons pour la voiture.",
+            menu: "driving",
+            priority: 92,
+            keywords: ["voiture", "route", "trajet", "écran actif"]
+        },
+        {
+            key: "section:guide",
+            type: "help",
+            icon: "📖",
+            title: "Guide simplifié",
+            subtitle: "Comprendre les rubriques",
+            description: "Lire une explication courte de chaque catégorie.",
+            menu: "guide",
+            priority: 78,
+            keywords: ["manuel", "aide", "explication", "readme"]
+        },
+        {
+            key: "section:settings",
+            type: "section",
+            icon: "⚙️",
+            title: "Réglages",
+            subtitle: "Personnalisation et sauvegarde",
+            description: "Thème, profils, sauvegarde, synchronisation et mise à jour.",
+            menu: "settings",
+            priority: 82,
+            keywords: ["thème", "sauvegarde", "synchronisation", "mise à jour"]
+        },
+        {
+            key: "setting:theme",
+            type: "setting",
+            icon: "🎨",
+            title: "Thème et couleurs",
+            subtitle: "Réglages",
+            description: "Changer l’accent violet, bleu, rose, émeraude ou orange.",
+            menu: "settings",
+            priority: 65,
+            keywords: ["apparence", "couleur", "contraste", "animation"]
+        },
+        {
+            key: "setting:backup",
+            type: "setting",
+            icon: "💾",
+            title: "Sauvegarde et restauration",
+            subtitle: "Réglages",
+            description: "Exporter ou restaurer les données locales de Shuffle+.",
+            menu: "settings",
+            priority: 68,
+            keywords: ["export", "import", "backup", "restaurer"]
+        },
+        {
+            key: "setting:sync",
+            type: "setting",
+            icon: "🔄",
+            title: "Synchronisation",
+            subtitle: "Réglages",
+            description: "Retrouver les outils de synchronisation entre appareils.",
+            menu: "settings",
+            priority: 66,
+            keywords: ["serveur", "appareil", "fusion", "sync"]
+        },
+        {
+            key: "setting:update",
+            type: "setting",
+            icon: "⬆️",
+            title: "Rechercher une mise à jour",
+            subtitle: "Réglages",
+            description: "Actualiser la PWA après un nouveau déploiement.",
+            menu: "settings",
+            priority: 70,
+            keywords: ["version", "pwa", "cache", "actualiser"]
+        }
+    ];
+}
+
+function getUniversalSearchIndex() {
+    const sceneState =
+        normalizeAdaptiveDjScenesState(
+            adaptiveDjScenesState
+        );
+
+    return buildUniversalSearchIndex({
+        sections:
+            getUniversalSearchSections(),
+        playlists: [
+            {
+                id: "liked",
+                name: "Morceaux aimés",
+                owner: "Ta bibliothèque Spotify",
+                liked: true,
+                favorite:
+                    favoriteSourceKeys.has("liked"),
+                icon: "♥"
+            },
+            ...playlistsCache.map(
+                (playlist) => ({
+                    id: playlist.id || "",
+                    name:
+                        playlist.name ||
+                        "Playlist sans nom",
+                    owner:
+                        playlist.owner?.display_name ||
+                        playlist.owner?.id ||
+                        "Spotify",
+                    description:
+                        playlist.description || "",
+                    favorite:
+                        favoriteSourceKeys.has(
+                            getPlaylistSourceKey(
+                                playlist.id
+                            )
+                        ),
+                    icon: "🎵"
+                })
+            )
+        ],
+        savedMixes: savedMixes.map(
+            (mix) => ({
+                ...mix,
+                sourceCount:
+                    mix.sourceKeys?.length || 0,
+                profileName:
+                    getProfileById(
+                        mix.profileId
+                    )?.name || ""
+            })
+        ),
+        scenes: sceneState.scenes.map(
+            (scene) => ({
+                ...scene,
+                active:
+                    scene.id ===
+                    sceneState.activeSceneId,
+                mixName:
+                    scene.mixId
+                        ? getSavedMixName(
+                            scene.mixId
+                        )
+                        : "Aucun mix associé"
+            })
+        ),
+        profiles: mixProfiles.map(
+            (profile) => ({
+                ...profile,
+                active:
+                    profile.id ===
+                    activeProfileId
+            })
+        ),
+        schedules: mixSchedules.map(
+            (schedule) => ({
+                ...schedule,
+                targetLabel:
+                    getScheduleTarget(
+                        schedule
+                    )?.label || "Routine"
+            })
+        ),
+        quickContexts:
+            quickContextsState
+    });
+}
+
+function updateUniversalSearchResults() {
+    universalSearchResults =
+        searchUniversalIndex(
+            getUniversalSearchIndex(),
+            universalSearchQuery,
+            MAX_UNIVERSAL_SEARCH_RESULTS
+        );
+
+    universalSearchSelectedIndex =
+        Math.max(
+            0,
+            Math.min(
+                universalSearchSelectedIndex,
+                Math.max(
+                    0,
+                    universalSearchResults.length - 1
+                )
+            )
+        );
+
+    return universalSearchResults;
+}
+
+function renderUniversalSearchLauncher() {
+    return `
+        <button
+            id="openUniversalSearchButton"
+            class="universal-search-launcher"
+            type="button"
+            aria-haspopup="dialog"
+        >
+            <span
+                class="universal-search-launcher__icon"
+                aria-hidden="true"
+            >
+                🔎
+            </span>
+            <span
+                class="universal-search-launcher__copy"
+            >
+                <strong>Rechercher dans Shuffle+</strong>
+                <small>Rubrique, playlist, mix, scène, profil…</small>
+            </span>
+            <kbd>⌘ K</kbd>
+        </button>
+    `;
+}
+
+function renderUniversalSearchResults() {
+    updateUniversalSearchResults();
+
+    const recent =
+        !universalSearchQuery &&
+        universalSearchHistory.length
+            ? `
+                <section
+                    class="universal-search-recents"
+                    aria-label="Recherches récentes"
+                >
+                    <div>
+                        <strong>Recherches récentes</strong>
+                        <button
+                            type="button"
+                            data-clear-universal-search-history
+                        >
+                            Effacer
+                        </button>
+                    </div>
+                    <div>
+                        ${universalSearchHistory
+                            .map((query) => `
+                                <button
+                                    type="button"
+                                    data-universal-search-recent="${escapeHtml(query)}"
+                                >
+                                    ${escapeHtml(query)}
+                                </button>
+                            `)
+                            .join("")}
+                    </div>
+                </section>
+            `
+            : "";
+
+    if (!universalSearchResults.length) {
+        return `
+            ${recent}
+            <div
+                class="universal-search-empty"
+            >
+                <span aria-hidden="true">🔎</span>
+                <h4>Aucun résultat</h4>
+                <p>
+                    Essaie un nom de rubrique, de playlist,
+                    de mix, de scène ou un mot comme
+                    « sauvegarde ».
+                </p>
+            </div>
+        `;
+    }
+
+    return `
+        ${recent}
+        <div
+            class="universal-search-result-list"
+            role="listbox"
+            aria-label="Résultats de recherche"
+        >
+            ${universalSearchResults
+                .map((item, index) => `
+                    <button
+                        type="button"
+                        class="universal-search-result
+                        ${index === universalSearchSelectedIndex
+                            ? "is-selected"
+                            : ""}"
+                        data-universal-search-result-index="${index}"
+                        role="option"
+                        aria-selected="${index === universalSearchSelectedIndex
+                            ? "true"
+                            : "false"}"
+                    >
+                        <span
+                            class="universal-search-result__icon"
+                            aria-hidden="true"
+                        >
+                            ${escapeHtml(item.icon)}
+                        </span>
+                        <span
+                            class="universal-search-result__copy"
+                        >
+                            <span>
+                                <strong>${escapeHtml(item.title)}</strong>
+                                <small>${escapeHtml(
+                                    getUniversalSearchTypeLabel(
+                                        item.type
+                                    )
+                                )}</small>
+                            </span>
+                            <em>${escapeHtml(item.subtitle)}</em>
+                            <span>${escapeHtml(item.description)}</span>
+                        </span>
+                        <span
+                            class="universal-search-result__arrow"
+                            aria-hidden="true"
+                        >
+                            ›
+                        </span>
+                    </button>
+                `)
+                .join("")}
+        </div>
+    `;
+}
+
+function renderUniversalSearchDialog() {
+    if (!universalSearchOpen) {
+        return "";
+    }
+
+    return `
+        <div
+            class="universal-search-backdrop"
+            data-universal-search-backdrop
+        >
+            <section
+                class="universal-search-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="universalSearchTitle"
+            >
+                <header>
+                    <div>
+                        <span>🔎 Recherche universelle</span>
+                        <h3 id="universalSearchTitle">
+                            Retrouver n’importe quoi
+                        </h3>
+                    </div>
+                    <button
+                        type="button"
+                        class="universal-search-close"
+                        data-close-universal-search
+                        aria-label="Fermer la recherche"
+                    >
+                        ×
+                    </button>
+                </header>
+
+                <label
+                    class="universal-search-field"
+                    for="universalSearchInput"
+                >
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                        id="universalSearchInput"
+                        type="search"
+                        value="${escapeHtml(universalSearchQuery)}"
+                        placeholder="Ex. Conduite, Chill, sauvegarde…"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        enterkeyhint="go"
+                    >
+                    ${universalSearchQuery
+                        ? `
+                            <button
+                                type="button"
+                                data-clear-universal-search-query
+                                aria-label="Effacer la recherche"
+                            >
+                                ×
+                            </button>
+                        `
+                        : ""}
+                </label>
+
+                <div
+                    class="universal-search-results"
+                    data-universal-search-results
+                    aria-live="polite"
+                >
+                    ${renderUniversalSearchResults()}
+                </div>
+
+                <footer>
+                    <span>
+                        <kbd>↑</kbd><kbd>↓</kbd>
+                        naviguer
+                    </span>
+                    <span>
+                        <kbd>Entrée</kbd>
+                        ouvrir
+                    </span>
+                    <span>
+                        <kbd>Échap</kbd>
+                        fermer
+                    </span>
+                </footer>
+            </section>
+        </div>
+    `;
+}
+
+function refreshUniversalSearchLayer({
+    focus = false
+} = {}) {
+    const layer = document.querySelector(
+        "[data-universal-search-layer]"
+    );
+
+    if (!layer) {
+        return;
+    }
+
+    layer.innerHTML =
+        renderUniversalSearchDialog();
+
+    document.body.classList.toggle(
+        "is-universal-search-open",
+        universalSearchOpen
+    );
+
+    if (focus && universalSearchOpen) {
+        window.requestAnimationFrame(() => {
+            const input = document.getElementById(
+                "universalSearchInput"
+            );
+            input?.focus();
+            input?.setSelectionRange(
+                input.value.length,
+                input.value.length
+            );
+        });
+    }
+}
+
+function refreshUniversalSearchResultsDom() {
+    const results = document.querySelector(
+        "[data-universal-search-results]"
+    );
+
+    if (!results) {
+        return;
+    }
+
+    results.innerHTML =
+        renderUniversalSearchResults();
+}
+
+function updateUniversalSearchSelectionDom() {
+    document
+        .querySelectorAll(
+            "[data-universal-search-result-index]"
+        )
+        .forEach((button) => {
+            const index = Number(
+                button.dataset
+                    .universalSearchResultIndex
+            );
+            const selected =
+                index ===
+                universalSearchSelectedIndex;
+
+            button.classList.toggle(
+                "is-selected",
+                selected
+            );
+            button.setAttribute(
+                "aria-selected",
+                selected
+                    ? "true"
+                    : "false"
+            );
+
+            if (selected) {
+                button.scrollIntoView({
+                    block: "nearest"
+                });
+            }
+        });
+}
+
+function openUniversalSearch({
+    query = ""
+} = {}) {
+    if (activeAppMenu === "driving") {
+        return;
+    }
+
+    universalSearchOpen = true;
+    universalSearchQuery =
+        String(query || "").slice(0, 100);
+    universalSearchSelectedIndex = 0;
+    refreshUniversalSearchLayer({
+        focus: true
+    });
+}
+
+function closeUniversalSearch() {
+    universalSearchOpen = false;
+    universalSearchQuery = "";
+    universalSearchResults = [];
+    universalSearchSelectedIndex = 0;
+    refreshUniversalSearchLayer();
+}
+
+function setUniversalSearchQuery(query = "") {
+    universalSearchQuery =
+        String(query || "").slice(0, 100);
+    universalSearchSelectedIndex = 0;
+
+    const input = document.getElementById(
+        "universalSearchInput"
+    );
+    if (input && input.value !== universalSearchQuery) {
+        input.value = universalSearchQuery;
+    }
+
+    refreshUniversalSearchResultsDom();
+    input?.focus();
+}
+
+function getUniversalSearchSelector(
+    attribute,
+    value
+) {
+    const escaped =
+        window.CSS?.escape
+            ? window.CSS.escape(
+                String(value || "")
+            )
+            : String(value || "")
+                .replace(/["\\]/g, "\\$&");
+
+    return `[${attribute}="${escaped}"]`;
+}
+
+function revealUniversalSearchTarget(
+    selector
+) {
+    if (!selector) {
+        return;
+    }
+
+    window.setTimeout(() => {
+        const target =
+            document.querySelector(
+                selector
+            );
+        target?.scrollIntoView({
+            behavior:
+                uiThemeSettings.motionEnabled
+                    ? "smooth"
+                    : "auto",
+            block: "center"
+        });
+        target?.classList.add(
+            "is-universal-search-target"
+        );
+        window.setTimeout(
+            () => target?.classList.remove(
+                "is-universal-search-target"
+            ),
+            1600
+        );
+    }, 90);
+}
+
+async function runUniversalSearchResult(
+    resultIndex
+) {
+    const result =
+        universalSearchResults[
+            Number(resultIndex)
+        ];
+
+    if (!result) {
+        return;
+    }
+
+    if (universalSearchQuery.trim()) {
+        addUniversalSearchHistory(
+            universalSearchQuery
+        );
+    }
+
+    closeUniversalSearch();
+
+    if (
+        result.action === "playlist" ||
+        result.action === "liked"
+    ) {
+        librarySearchTerm =
+            result.action === "liked"
+                ? "morceaux aimés"
+                : result.title;
+        libraryFilter = "all";
+        saveLibraryPreferences();
+        await navigateToAppMenu("music");
+        return;
+    }
+
+    await navigateToAppMenu(
+        result.menu
+    );
+
+    let selector = "";
+    if (result.action === "mix") {
+        selector = getUniversalSearchSelector(
+            "data-saved-mix-card-id",
+            result.targetId
+        );
+    } else if (result.action === "scene") {
+        selector = getUniversalSearchSelector(
+            "data-adaptive-scene-card-id",
+            result.targetId
+        );
+    } else if (result.action === "profile") {
+        selector = getUniversalSearchSelector(
+            "data-mix-profile-card-id",
+            result.targetId
+        );
+    } else if (result.action === "schedule") {
+        selector = getUniversalSearchSelector(
+            "data-mix-schedule-card-id",
+            result.targetId
+        );
+    } else if (result.action === "quick-context") {
+        selector = getUniversalSearchSelector(
+            "data-quick-context-card-id",
+            result.targetId
+        );
+    }
+
+    revealUniversalSearchTarget(
+        selector
+    );
+}
+
 function readVoiceAssistantSettings() {
     try {
         const raw = localStorage.getItem(
@@ -12170,6 +13012,26 @@ async function executeMusicalAssistantPlan() {
     }
 
     try {
+        if (plan.type === "universal-search") {
+            addMusicalAssistantHistory({
+                request: plan.request,
+                plan,
+                status: "success",
+                message: "Recherche universelle ouverte."
+            });
+            setVoiceAssistantMessage(
+                "Recherche ouverte.",
+                "success"
+            );
+            speakVoiceAssistantText(
+                "J’ouvre la recherche universelle."
+            );
+            vibrateVoiceAssistant([25, 35, 25]);
+            displayPlaylists(playlistsCache);
+            openUniversalSearch();
+            return;
+        }
+
         if (plan.type === "goals") {
             activeAppMenu = "goals";
             saveActiveAppMenu();
@@ -12818,6 +13680,26 @@ function renderSimpleManualPage() {
                 </div>
 
                 <div class="simple-guide-grid">
+                    <article class="simple-guide-card simple-guide-card--search">
+                        <div class="simple-guide-card__icon" aria-hidden="true">
+                            🔎
+                        </div>
+                        <div class="simple-guide-card__copy">
+                            <h5>Recherche universelle</h5>
+                            <strong>Retrouver rapidement une fonction ou un contenu.</strong>
+                            <p>
+                                Recherche une rubrique, une playlist, un mix,
+                                une scène, un profil ou un réglage depuis n’importe quelle page.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            data-open-universal-search
+                        >
+                            Ouvrir la recherche
+                        </button>
+                    </article>
+
                     ${sections.map((section) => `
                         <article class="simple-guide-card">
                             <div class="simple-guide-card__icon" aria-hidden="true">
@@ -19501,7 +20383,10 @@ function renderMixProfilesSection() {
     const activeProfile = getActiveProfile();
 
     const cards = mixProfiles.map((profile) => `
-        <article class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""}">
+        <article
+            class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""}"
+            data-mix-profile-card-id="${escapeHtml(profile.id)}"
+        >
             <div class="mix-profile-card-main">
                 <span class="mix-profile-icon">${escapeHtml(profile.icon)}</span>
                 <div>
@@ -22496,7 +23381,10 @@ function renderSavedMixesSection() {
                 : "";
 
         return `
-            <article class="saved-mix-card">
+            <article
+                class="saved-mix-card"
+                data-saved-mix-card-id="${escapeHtml(mix.id)}"
+            >
                 <div class="saved-mix-card-main">
                     <span class="saved-mix-icon" aria-hidden="true">
                         ✨
@@ -30136,6 +31024,7 @@ function displayPlaylists(playlists) {
                 </div>
             </div>
 
+            ${renderUniversalSearchLauncher()}
             ${renderAppMenu()}
 
             <div data-contextual-help-bar-slot>
@@ -30422,6 +31311,10 @@ function displayPlaylists(playlists) {
                 ${renderCoherencePanel()}
                 ${renderIntensityPanel()}
                 ${renderExclusionPanel()}
+            </div>
+
+            <div data-universal-search-layer>
+                ${renderUniversalSearchDialog()}
             </div>
 
             <div data-contextual-help-layers>
@@ -33455,6 +34348,71 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#openUniversalSearchButton, [data-open-universal-search]"
+            )
+        ) {
+            openUniversalSearch();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-close-universal-search]"
+            ) ||
+            event.target.matches(
+                "[data-universal-search-backdrop]"
+            )
+        ) {
+            closeUniversalSearch();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-clear-universal-search-query]"
+            )
+        ) {
+            setUniversalSearchQuery("");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-clear-universal-search-history]"
+            )
+        ) {
+            universalSearchHistory = [];
+            saveUniversalSearchHistory();
+            refreshUniversalSearchResultsDom();
+            return;
+        }
+
+        const recentUniversalSearchButton =
+            event.target.closest(
+                "[data-universal-search-recent]"
+            );
+        if (recentUniversalSearchButton) {
+            setUniversalSearchQuery(
+                recentUniversalSearchButton.dataset
+                    .universalSearchRecent || ""
+            );
+            return;
+        }
+
+        const universalSearchResultButton =
+            event.target.closest(
+                "[data-universal-search-result-index]"
+            );
+        if (universalSearchResultButton) {
+            await runUniversalSearchResult(
+                universalSearchResultButton.dataset
+                    .universalSearchResultIndex || 0
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "[data-open-contextual-help]"
             )
         ) {
@@ -36151,6 +37109,14 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (event.target.id === "universalSearchInput") {
+            universalSearchQuery =
+                event.target.value.slice(0, 100);
+            universalSearchSelectedIndex = 0;
+            refreshUniversalSearchResultsDom();
+            return;
+        }
+
         if (event.target.matches("[data-personalized-discovery]")) {
             const output = document.getElementById("personalizedDiscoveryValue");
             if (output) output.textContent = `${event.target.value} %`;
@@ -36420,6 +37386,79 @@ contentElement.addEventListener(
 );
 
 }
+
+
+document.addEventListener(
+    "keydown",
+    async (event) => {
+        const target = event.target;
+        const typing = Boolean(
+            target?.closest?.(
+                "input, textarea, select, [contenteditable='true']"
+            )
+        );
+        const openShortcut =
+            (event.metaKey || event.ctrlKey) &&
+            event.key.toLowerCase() === "k";
+
+        if (openShortcut) {
+            event.preventDefault();
+            openUniversalSearch();
+            return;
+        }
+
+        if (
+            !universalSearchOpen &&
+            event.key === "/" &&
+            !typing &&
+            activeAppMenu !== "driving"
+        ) {
+            event.preventDefault();
+            openUniversalSearch();
+            return;
+        }
+
+        if (!universalSearchOpen) {
+            return;
+        }
+
+        if (event.key === "Escape") {
+            event.preventDefault();
+            closeUniversalSearch();
+            return;
+        }
+
+        if (event.key === "ArrowDown") {
+            event.preventDefault();
+            if (universalSearchResults.length) {
+                universalSearchSelectedIndex =
+                    (universalSearchSelectedIndex + 1) %
+                    universalSearchResults.length;
+                updateUniversalSearchSelectionDom();
+            }
+            return;
+        }
+
+        if (event.key === "ArrowUp") {
+            event.preventDefault();
+            if (universalSearchResults.length) {
+                universalSearchSelectedIndex =
+                    (universalSearchSelectedIndex - 1 +
+                    universalSearchResults.length) %
+                    universalSearchResults.length;
+                updateUniversalSearchSelectionDom();
+            }
+            return;
+        }
+
+        if (event.key === "Enter") {
+            event.preventDefault();
+            await runUniversalSearchResult(
+                universalSearchSelectedIndex
+            );
+        }
+    }
+);
 
 document.addEventListener(
     "visibilitychange",

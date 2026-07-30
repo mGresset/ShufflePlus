@@ -40,6 +40,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Montre mes statistiques d’écoute",
     "Ouvre mon tableau de bord musical",
     "Montre mes objectifs musicaux",
+    "Ouvre la recherche universelle",
     "Quel est le programme musical actuel ?"
 ];
 
@@ -284,6 +285,11 @@ export function parseMusicalAssistantRequest(
         "mes habitudes d ecoute", "mes habitudes écoute"
     ]);
     const isDashboard = includesAny(text, ["tableau de bord", "dashboard", "accueil musical", "vue d ensemble"]);
+    const isUniversalSearch = includesAny(text, [
+        "recherche universelle", "ouvre la recherche",
+        "ouvrir la recherche", "barre de recherche",
+        "chercher dans shuffle"
+    ]);
     const isGoals = includesAny(text, ["objectif", "objectifs", "bilan hebdomadaire", "badges musicaux", "progression de la semaine"]);
     let points = 1;
     if (scene || mix) points += 2;
@@ -292,6 +298,23 @@ export function parseMusicalAssistantRequest(
 
     if (isGoals) {
         return {type:"goals",request:originalRequest,ready:true,confidence:getConfidence(points+2),title:"Objectifs musicaux",summary:"Ouvrir les objectifs et le bilan hebdomadaire.",details:["Sessions","Jours actifs","Découvertes","Badges"],actionLabel:"Ouvrir les objectifs"};
+    }
+
+    if (isUniversalSearch) {
+        return {
+            type: "universal-search",
+            request: originalRequest,
+            ready: true,
+            confidence: getConfidence(points + 2),
+            title: "Recherche universelle",
+            summary: "Ouvrir la recherche globale de Shuffle+.",
+            details: [
+                "Rubriques et réglages",
+                "Playlists et mix",
+                "Scènes et profils"
+            ],
+            actionLabel: "Ouvrir la recherche"
+        };
     }
 
     if (isDashboard) {

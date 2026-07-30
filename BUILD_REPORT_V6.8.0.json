@@ -1,0 +1,28 @@
+{
+  "version": "6.8.0",
+  "name": "Universal Search",
+  "source": "ShufflePlus-v6.7.0-Contextual-Onboarding.zip",
+  "generatedAt": "2026-07-30T14:42:48.392371+00:00",
+  "javascriptFilesChecked": 20,
+  "serverChangesRequired": false,
+  "features": [
+    "global search launcher on every standard page",
+    "search sections settings playlists mixes scenes profiles schedules and quick contexts",
+    "keyboard shortcuts Ctrl K Command K slash arrows Enter Escape",
+    "mobile full screen Safari search dialog",
+    "local recent search history",
+    "precise navigation and result highlighting",
+    "assistant and voice search command",
+    "simple guide integration"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "searchEngineSmokeTest": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "browserDeviceRendering": "not tested on a physical device",
+  "zipFileCount": 111
+}

@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v6.8.0 — Recherche universelle : terminée**
+  - recherche des rubriques et réglages ;
+  - recherche des playlists, mix, scènes et profils ;
+  - navigation précise et mise en évidence ;
+  - historique local et raccourcis clavier ;
+  - interface mobile plein écran.
+
 - **v6.7.0 — Visite guidée et aide contextuelle : terminée**
   - parcours en six étapes ;
   - aide « ? » par rubrique ;
