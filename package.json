@@ -1,17 +1,19 @@
 {
   "name": "shuffleplus",
-  "version": "7.1.1",
+  "version": "7.3.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ — application Spotify statique avec déploiement GitHub Pages.",
+  "description": "Shuffle+ — lancement Spotify iOS en une action, appareil préféré et file de lecture en mode conduite.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
-    "validate": "npm test && npm run build"
+    "check:dist": "node scripts/check-dist.mjs",
+    "validate": "npm test && npm run build && npm run check:dist && npm run smoke",
+    "smoke": "node scripts/smoke-local.mjs"
   }
 }

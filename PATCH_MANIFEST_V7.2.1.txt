@@ -1,0 +1,17 @@
+Shuffle+ v7.2.1 — Correctif depuis v7.2.0
+
+BUILD_REPORT_V7.2.1.json
+DEPLOIEMENT-V7.2.1.md
+INSTALLATION-V7.2.1.txt
+PATCH_MANIFEST_V7.2.1.txt
+README.md
+ROADMAP.md
+V7.2.1_NOTES.md
+VERSION
+app.js
+config.js
+index.html
+package.json
+scripts/smoke-local.mjs
+service-worker.js
+tests/navigation-regression.test.mjs

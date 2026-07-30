@@ -14295,3 +14295,303 @@ body.is-offline .source-card {
         width: 100%;
     }
 }
+
+/* Shuffle+ v7.3.0 — iPhone prioritaire et file de lecture conduite */
+.ios-preferred-device-panel {
+    margin: 1rem 0 1.25rem;
+    padding: 1rem;
+    border: 1px solid rgb(var(--accent-rgb, 139 92 246) / 0.28);
+    border-radius: 1.1rem;
+    background: linear-gradient(
+        145deg,
+        rgb(var(--accent-rgb, 139 92 246) / 0.12),
+        rgba(10, 10, 24, 0.72)
+    );
+}
+
+.ios-preferred-device-heading,
+.ios-preferred-device-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.ios-preferred-device-heading > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.25rem;
+}
+
+.ios-preferred-device-heading span,
+.ios-preferred-device-grid span {
+    color: var(--muted-text, #b6b3c8);
+    font-size: 0.78rem;
+}
+
+.ios-preferred-device-heading strong {
+    font-size: 1.02rem;
+}
+
+.ios-preferred-device-heading small {
+    overflow-wrap: anywhere;
+    color: var(--muted-text, #b6b3c8);
+}
+
+.ios-preferred-device-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+
+.ios-preferred-device-grid label {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.ios-preferred-device-grid input,
+.ios-preferred-device-grid select {
+    width: 100%;
+    min-width: 0;
+}
+
+.ios-preferred-device-actions {
+    justify-content: flex-end;
+    margin-top: 0.8rem;
+}
+
+.ios-preferred-device-panel > p {
+    margin: 0.75rem 0 0;
+    color: var(--muted-text, #b6b3c8);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.driving-queue-control.is-active {
+    border-color: rgb(var(--accent-rgb, 139 92 246) / 0.78);
+    background: rgb(var(--accent-rgb, 139 92 246) / 0.18);
+}
+
+.driving-queue-sheet {
+    position: fixed;
+    z-index: 90;
+    left: max(0.75rem, env(safe-area-inset-left));
+    right: max(0.75rem, env(safe-area-inset-right));
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    max-height: min(74vh, 680px);
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 1.35rem;
+    background: rgba(9, 9, 20, 0.97);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(22px);
+}
+
+.driving-queue-sheet > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.driving-queue-sheet > header > div:first-child {
+    min-width: 0;
+    display: grid;
+    gap: 0.12rem;
+}
+
+.driving-queue-sheet > header span,
+.driving-queue-sheet > header small {
+    color: #b8b5cb;
+    font-size: 0.76rem;
+}
+
+.driving-queue-sheet > header > div:last-child {
+    display: flex;
+    gap: 0.45rem;
+}
+
+.driving-queue-sheet > header button {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    font-size: 1.2rem;
+}
+
+.driving-queue-status,
+.driving-queue-hint {
+    margin: 0;
+    padding: 0.65rem 1rem;
+    color: #b8b5cb;
+    font-size: 0.76rem;
+}
+
+.driving-queue-status.error {
+    color: #ffb4b4;
+}
+
+.driving-queue-current {
+    display: grid;
+    grid-template-columns: auto 3rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.75rem 1rem;
+    background: rgb(var(--accent-rgb, 139 92 246) / 0.13);
+}
+
+.driving-queue-current > span:first-child {
+    color: #d7c8ff;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.driving-queue-current img,
+.driving-queue-placeholder {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.7rem;
+    object-fit: cover;
+}
+
+.driving-queue-placeholder {
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.driving-queue-current > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.15rem;
+}
+
+.driving-queue-current strong,
+.driving-queue-current small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.driving-queue-list {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin: 0;
+    padding: 0.35rem 0.65rem 0.55rem;
+    list-style: none;
+}
+
+.driving-queue-item {
+    display: grid;
+    grid-template-columns: 1.7rem 3rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 4rem;
+    padding: 0.45rem 0.35rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.driving-queue-index {
+    color: #918da8;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.driving-queue-item img {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.65rem;
+    object-fit: cover;
+}
+
+.driving-queue-item > div {
+    min-width: 0;
+    display: grid;
+    gap: 0.15rem;
+}
+
+.driving-queue-item strong,
+.driving-queue-item > div span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.driving-queue-item > div span,
+.driving-queue-item > small {
+    color: #aaa6bd;
+    font-size: 0.78rem;
+}
+
+.driving-queue-empty {
+    padding: 1.4rem 0.8rem;
+    color: #aaa6bd;
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .ios-preferred-device-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ios-preferred-device-heading {
+        align-items: flex-start;
+    }
+
+    .driving-queue-sheet {
+        left: max(0.45rem, env(safe-area-inset-left));
+        right: max(0.45rem, env(safe-area-inset-right));
+        bottom: max(0.45rem, env(safe-area-inset-bottom));
+        max-height: 79vh;
+        border-radius: 1.15rem;
+    }
+
+    .driving-queue-item {
+        grid-template-columns: 1.35rem 2.75rem minmax(0, 1fr) auto;
+        gap: 0.5rem;
+    }
+
+    .driving-queue-item img,
+    .driving-queue-item .driving-queue-placeholder {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+}
+
+@media (max-width: 600px) {
+    body.is-driving-mode .driving-secondary-controls {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.ios-shortcut-setup {
+    margin: 0 0 1rem;
+    padding: 0.8rem 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.ios-shortcut-setup summary {
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.ios-shortcut-setup ol {
+    margin: 0.75rem 0 0;
+    padding-left: 1.35rem;
+    line-height: 1.55;
+}
+
+.ios-shortcut-setup p {
+    margin: 0.65rem 0 0;
+    color: var(--muted-text, #b6b3c8);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}

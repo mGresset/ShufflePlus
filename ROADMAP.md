@@ -1,5 +1,42 @@
 # Feuille de route Shuffle+
 
+- **v7.3.0 — Raccourci iOS et conduite : terminée**
+  - iPhone préféré enregistré par `device_id` ;
+  - recherche de secours par nom et type ;
+  - transfert, shuffle, lancement et vérification ;
+  - départ aléatoire pour les nouvelles commandes ;
+  - ouverture automatique facultative du mode conduite ;
+  - liste des prochains morceaux en conduite.
+
+- **v7.3.1 — Stabilisation iPhone : prévue**
+  - retours d’essai sur Safari et PWA installée ;
+  - ajustement des délais Spotify Connect ;
+  - amélioration des messages selon les erreurs réelles ;
+  - tests des files longues et des podcasts.
+
+- **v7.4.0 — Moteur explicable : prévue**
+  - rapport avant/après ;
+  - graine reproductible ;
+  - explication des compromis du mélange.
+
+- **v7.2.1 — Correctif connexion/navigation : terminée**
+  - correction de `groups is not defined` ;
+  - tests de régression du menu et du diagnostic.
+
+- **v7.2.0 — Architecture et performances : terminée**
+  - navigation centralisée dans `core/app-menu.js` ;
+  - échappement HTML partagé ;
+  - rendu limité à la rubrique active ;
+  - graphe d’imports et build GitHub Pages vérifiés ;
+  - cache PWA borné ;
+  - validation des Pull Requests.
+
+- **v7.1.1 — Fiabilité Spotify : terminée**
+  - expiration `invalid_grant` ;
+  - reconnexion assistée ;
+  - renouvellement simultané dédupliqué ;
+  - gestion séparée de `QUOTA_EXCEEDED`.
+
 - **v7.1.0 — Performance et hors connexion : terminée**
   - affichage immédiat de la bibliothèque locale ;
   - cache IndexedDB des playlists ouvertes ;

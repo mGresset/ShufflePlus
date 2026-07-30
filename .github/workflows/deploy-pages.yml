@@ -4,45 +4,49 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: github-pages
+  group: github-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate-and-build:
-    name: Vérification et build
+    name: Vérification complète
     runs-on: ubuntu-latest
 
     steps:
       - name: Récupérer le dépôt
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Installer Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
+          package-manager-cache: false
 
-      - name: Tester Shuffle+
-        run: npm test
-
-      - name: Construire le site statique
-        run: npm run build
+      - name: Tester et construire Shuffle+
+        run: npm run validate
 
       - name: Configurer GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Préparer l’artefact GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./dist
 
   deploy:
     name: Déploiement GitHub Pages
+    if: github.event_name != 'pull_request'
     needs: validate-and-build
     runs-on: ubuntu-latest
 

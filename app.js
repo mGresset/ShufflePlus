@@ -19,6 +19,7 @@ import {
     getMySavedTracks,
     getAvailableDevices,
     getCurrentPlayback,
+    getPlaybackQueue,
     transferPlayback,
     setPlaybackShuffle,
     startPlayback,
@@ -117,6 +118,28 @@ import {
     formatOfflineCacheAge
 } from "./offline-performance.js";
 
+import { escapeHtml } from "./core/html-utils.js";
+
+import {
+    normalizePreferredSpotifyDevice,
+    findStoredPreferredDevice,
+    selectSpotifyDevice
+} from "./core/spotify-device.js";
+
+import {
+    normalizePlaybackQueue,
+    formatQueueDuration
+} from "./core/playback-queue.js";
+
+import {
+    APP_MENU_GROUPS,
+    normalizeAppMenu as normalizeActiveAppMenu,
+    normalizeAppMenuScrollPositions,
+    readStoredAppMenu,
+    resolveAppMenuView,
+    writeStoredAppMenu
+} from "./core/app-menu.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -138,7 +161,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.1.1";
+const APP_VERSION = "7.3.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -258,6 +281,9 @@ const DRIVING_MODE_SETTINGS_KEY =
     "shuffleplus_driving_mode_settings_v1";
 const DRIVING_MODE_REFRESH_MS = 8000;
 const DRIVING_MODE_ACTION_COOLDOWN_MS = 900;
+const DRIVING_QUEUE_LIMIT = 20;
+const PREFERRED_SPOTIFY_DEVICE_KEY =
+    "shuffleplus_preferred_spotify_device_v1";
 const DEFAULT_DRIVING_MODE_SETTINGS = {
     keepScreenAwake: true,
     autoRefresh: true,
@@ -453,12 +479,13 @@ const PENDING_AUTOMATION_KEY =
 const DEFAULT_IOS_QUICKPLAY_SETTINGS = {
     playlistId: "",
     playlistName: "",
-    deviceMode: "iphone",
+    deviceMode: "preferred",
     deviceName: "",
-    shuffle: false,
-    startFromBeginning: true,
-    autoRetryCount: 5,
-    retryDelayMs: 1200
+    shuffle: true,
+    startFromBeginning: false,
+    openDrivingMode: false,
+    autoRetryCount: 6,
+    retryDelayMs: 1100
 };
 const IOS_COMMANDS_KEY =
     "shuffleplus_ios_commands_v1";
@@ -584,7 +611,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.0.0-shell";
+    "shuffleplus-v7.3.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -979,6 +1006,15 @@ let smartQueueSession = readSmartQueueSession();
 let musicFeedbackState = readMusicFeedbackState();
 let drivingModeSettings = readDrivingModeSettings();
 let drivingPlaybackState = null;
+let drivingQueueState = {
+    current: null,
+    queue: [],
+    totalVisible: 0,
+    updatedAt: 0
+};
+let drivingQueueOpen = false;
+let drivingQueueBusy = false;
+let drivingQueueError = "";
 let drivingRefreshTimer = 0;
 let drivingWakeLock = null;
 let drivingWakeLockRetryTimer = 0;
@@ -1039,6 +1075,8 @@ let activeAdaptiveContext = null;
 let currentCleanupSettings = readCleanupSettings();
 let lastCleanupSummary = null;
 let lastCleanupSnapshot = null;
+let preferredSpotifyDevice =
+    readPreferredSpotifyDevice();
 let iosQuickPlaySettings =
     readIosQuickPlaySettings();
 let iosCommands = readIosCommands();
@@ -1129,15 +1167,6 @@ let pwaReloadRequested = false;
 
 applyUiThemeSettings();
 versionElement.textContent = `Version ${APP_VERSION}`;
-
-function escapeHtml(value = "") {
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
 
 function formatDuration(durationMs = 0) {
     const totalSeconds = Math.floor(durationMs / 1000);
@@ -3550,7 +3579,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.1.1",
+                "./service-worker.js?v=7.3.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6542,6 +6571,167 @@ function clearIntelligenceAnalytics() {
 }
 
 
+function readPreferredSpotifyDevice() {
+    try {
+        const raw = localStorage.getItem(
+            PREFERRED_SPOTIFY_DEVICE_KEY
+        );
+        return normalizePreferredSpotifyDevice(
+            raw ? JSON.parse(raw) : {}
+        );
+    } catch (error) {
+        console.warn(
+            "Appareil Spotify préféré illisible :",
+            error
+        );
+        return normalizePreferredSpotifyDevice();
+    }
+}
+
+function savePreferredSpotifyDevice(device = {}) {
+    preferredSpotifyDevice =
+        normalizePreferredSpotifyDevice({
+            ...device,
+            savedAt:
+                device.savedAt ||
+                preferredSpotifyDevice.savedAt ||
+                Date.now(),
+            lastSeenAt:
+                device.lastSeenAt ||
+                Date.now()
+        });
+
+    try {
+        if (preferredSpotifyDevice.id) {
+            localStorage.setItem(
+                PREFERRED_SPOTIFY_DEVICE_KEY,
+                JSON.stringify(preferredSpotifyDevice)
+            );
+        } else {
+            localStorage.removeItem(
+                PREFERRED_SPOTIFY_DEVICE_KEY
+            );
+        }
+    } catch (error) {
+        console.warn(
+            "Appareil Spotify préféré non enregistré :",
+            error
+        );
+    }
+
+    return preferredSpotifyDevice;
+}
+
+function rememberPreferredSpotifyDevice(device) {
+    if (!device?.id) {
+        return preferredSpotifyDevice;
+    }
+
+    return savePreferredSpotifyDevice({
+        id: device.id,
+        name: device.name || preferredSpotifyDevice.name,
+        type: device.type || preferredSpotifyDevice.type,
+        savedAt:
+            preferredSpotifyDevice.savedAt ||
+            Date.now(),
+        lastSeenAt: Date.now()
+    });
+}
+
+function clearPreferredSpotifyDevice() {
+    preferredSpotifyDevice =
+        normalizePreferredSpotifyDevice();
+    try {
+        localStorage.removeItem(
+            PREFERRED_SPOTIFY_DEVICE_KEY
+        );
+    } catch (error) {
+        console.warn(error);
+    }
+}
+
+async function refreshPreferredSpotifyDevices({
+    silent = false
+} = {}) {
+    try {
+        availableDevices = await getAvailableDevices();
+        const matched = findStoredPreferredDevice(
+            availableDevices,
+            preferredSpotifyDevice
+        );
+
+        if (matched) {
+            rememberPreferredSpotifyDevice(matched);
+        }
+
+        if (!silent) {
+            setStatus(
+                availableDevices.length
+                    ? `${availableDevices.length} appareil(s) Spotify détecté(s).`
+                    : "Aucun appareil Spotify détecté. Ouvre Spotify sur l’iPhone puis réessaie.",
+                availableDevices.length ? "" : "warning"
+            );
+        }
+    } catch (error) {
+        console.error(error);
+        if (!silent) {
+            setStatus(
+                getPlaybackErrorMessage(error),
+                "error"
+            );
+        }
+    }
+
+    if (activeAppMenu === "mixes") {
+        displayPlaylists(playlistsCache);
+    }
+
+    return availableDevices;
+}
+
+function savePreferredSpotifyDeviceFromPanel() {
+    const select = document.getElementById(
+        "preferredSpotifyDeviceSelect"
+    );
+    const manualId = document.getElementById(
+        "preferredSpotifyDeviceIdInput"
+    );
+    const manualName = document.getElementById(
+        "preferredSpotifyDeviceNameInput"
+    );
+    const selected = availableDevices.find(
+        (device) => device.id === select?.value
+    );
+    const id = String(
+        selected?.id || manualId?.value || ""
+    ).trim();
+
+    if (!id) {
+        setStatus(
+            "Sélectionne un appareil ou colle son device_id.",
+            "error"
+        );
+        return;
+    }
+
+    const saved = savePreferredSpotifyDevice({
+        id,
+        name:
+            selected?.name ||
+            String(manualName?.value || "iPhone").trim(),
+        type:
+            selected?.type ||
+            "Smartphone",
+        lastSeenAt:
+            selected ? Date.now() : 0
+    });
+
+    displayPlaylists(playlistsCache);
+    setStatus(
+        `« ${saved.name || "iPhone"} » est désormais l’appareil prioritaire.`
+    );
+}
+
 function normalizeDrivingModeSettings(settings = {}) {
     return {
         keepScreenAwake:
@@ -6622,6 +6812,150 @@ function getDrivingCurrentFeedbackAction(track) {
     return getActiveMusicFeedbackAction(
         getMusicFeedbackRecord(track)
     );
+}
+
+function renderDrivingQueueItem(item, index) {
+    return `
+        <li class="driving-queue-item">
+            <span class="driving-queue-index">${index + 1}</span>
+            ${item.imageUrl
+                ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
+                : `<span class="driving-queue-placeholder" aria-hidden="true">🎵</span>`}
+            <div>
+                <strong>${escapeHtml(item.name)}</strong>
+                <span>${escapeHtml(item.artist)}</span>
+            </div>
+            <small>${escapeHtml(formatQueueDuration(item.durationMs))}</small>
+        </li>
+    `;
+}
+
+function renderDrivingQueuePanel() {
+    if (!drivingQueueOpen) {
+        return "";
+    }
+
+    const current = drivingQueueState.current;
+    const queue = drivingQueueState.queue || [];
+    const updatedLabel = drivingQueueState.updatedAt
+        ? new Date(drivingQueueState.updatedAt).toLocaleTimeString(
+            "fr-FR",
+            { hour: "2-digit", minute: "2-digit" }
+        )
+        : "jamais";
+
+    return `
+        <section
+            class="driving-queue-sheet"
+            aria-label="Liste de lecture Spotify"
+            aria-live="polite"
+        >
+            <header>
+                <div>
+                    <span>📋 Liste de lecture</span>
+                    <strong>${queue.length} prochain(s) morceau(x)</strong>
+                    <small>Actualisée à ${escapeHtml(updatedLabel)}</small>
+                </div>
+                <div>
+                    <button
+                        id="refreshDrivingQueueButton"
+                        type="button"
+                        ${drivingQueueBusy ? "disabled" : ""}
+                        aria-label="Actualiser la liste"
+                    >↻</button>
+                    <button
+                        id="closeDrivingQueueButton"
+                        type="button"
+                        aria-label="Fermer la liste"
+                    >×</button>
+                </div>
+            </header>
+            ${drivingQueueBusy
+                ? `<p class="driving-queue-status">Chargement de la liste Spotify…</p>`
+                : drivingQueueError
+                    ? `<p class="driving-queue-status error">${escapeHtml(drivingQueueError)}</p>`
+                    : ""}
+            ${current
+                ? `
+                    <article class="driving-queue-current">
+                        <span>En cours</span>
+                        ${current.imageUrl
+                            ? `<img src="${escapeHtml(current.imageUrl)}" alt="">`
+                            : `<span class="driving-queue-placeholder" aria-hidden="true">🎵</span>`}
+                        <div>
+                            <strong>${escapeHtml(current.name)}</strong>
+                            <small>${escapeHtml(current.artist)}</small>
+                        </div>
+                    </article>
+                `
+                : ""}
+            <ol class="driving-queue-list">
+                ${queue.length
+                    ? queue.map(renderDrivingQueueItem).join("")
+                    : `<li class="driving-queue-empty">Aucun prochain morceau renvoyé par Spotify.</li>`}
+            </ol>
+            <p class="driving-queue-hint">
+                Cette liste provient de la file Spotify active et peut évoluer si le shuffle ou Spotify Connect modifie l’ordre.
+            </p>
+        </section>
+    `;
+}
+
+async function refreshDrivingQueue({
+    silent = false,
+    render = true
+} = {}) {
+    drivingQueueBusy = true;
+    drivingQueueError = "";
+
+    if (render && activeAppMenu === "driving") {
+        renderDrivingModePage();
+    }
+
+    try {
+        const payload = await getPlaybackQueue();
+        drivingQueueState = normalizePlaybackQueue(
+            payload,
+            DRIVING_QUEUE_LIMIT
+        );
+        if (!silent) {
+            setDrivingMessage(
+                `${drivingQueueState.queue.length} prochain(s) morceau(x) chargé(s).`,
+                "success"
+            );
+        }
+    } catch (error) {
+        console.error(error);
+        drivingQueueError =
+            getPlaybackErrorMessage(error) ||
+            "La liste de lecture Spotify est indisponible.";
+        if (!silent) {
+            setDrivingMessage(
+                drivingQueueError,
+                "error"
+            );
+        }
+    } finally {
+        drivingQueueBusy = false;
+        if (render && activeAppMenu === "driving") {
+            renderDrivingModePage();
+        }
+    }
+
+    return drivingQueueState;
+}
+
+async function openDrivingQueue() {
+    drivingQueueOpen = true;
+    renderDrivingModePage();
+    await refreshDrivingQueue({
+        silent: true
+    });
+}
+
+function closeDrivingQueue() {
+    drivingQueueOpen = false;
+    renderDrivingModePage();
 }
 
 function syncDrivingViewportHeight() {
@@ -6833,6 +7167,8 @@ function renderDrivingModePage() {
         wakeLockState.supported;
     const voiceSupported =
         isVoiceAssistantSupported();
+    const queueCount =
+        drivingQueueState.queue?.length || 0;
 
     contentElement.innerHTML = `
         <section class="driving-mode-page" aria-label="Mode conduite">
@@ -6927,6 +7263,8 @@ function renderDrivingModePage() {
                 </button>
             </div>
 
+            ${renderDrivingQueuePanel()}
+
             ${drivingModeSettings.showFeedback ? `
                 <section class="driving-feedback-controls">
                     <button
@@ -6950,6 +7288,18 @@ function renderDrivingModePage() {
             ` : ""}
 
             <div class="driving-secondary-controls">
+                <button
+                    id="drivingQueueButton"
+                    class="driving-queue-control ${drivingQueueOpen ? "is-active" : ""}"
+                    type="button"
+                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
+                    aria-label="Afficher la liste de lecture"
+                    title="Afficher la liste de lecture"
+                >
+                    <span aria-hidden="true">📋</span>
+                    <small>${queueCount ? `${queueCount} à venir` : "Liste"}</small>
+                </button>
+
                 <button
                     id="drivingRefreshButton"
                     type="button"
@@ -7038,6 +7388,12 @@ function startDrivingRefreshTimer() {
                 refreshDrivingPlayback({
                     silent: true
                 });
+                if (drivingQueueOpen) {
+                    refreshDrivingQueue({
+                        silent: true,
+                        render: false
+                    });
+                }
             }
         },
         DRIVING_MODE_REFRESH_MS
@@ -7435,6 +7791,12 @@ async function skipDrivingTrack() {
         );
         drivingPlaybackState =
             await getCurrentPlayback();
+        if (drivingQueueOpen) {
+            await refreshDrivingQueue({
+                silent: true,
+                render: false
+            });
+        }
     });
 }
 
@@ -9812,7 +10174,7 @@ function renderQuickControlPage() {
                     <span class="quick-control-kicker">
                         📱 Assistant Raccourcis iOS
                     </span>
-                    <h4>Créer un déclencheur en trois étapes</h4>
+                    <h4>Réveiller Spotify puis lancer Shuffle+ automatiquement</h4>
                 </div>
                 <div class="quick-shortcut-wizard-grid">
                     <label>
@@ -9844,9 +10206,9 @@ function renderQuickControlPage() {
                     <div>
                         <span>3. Dans Raccourcis</span>
                         <ol>
-                            <li>Crée un nouveau raccourci.</li>
-                            <li>Ajoute l’action « Ouvrir les URL ».</li>
-                            <li>Colle l’URL et donne-lui un nom Siri.</li>
+                            <li>Ajoute « Ouvrir l’app » et choisis Spotify.</li>
+                            <li>Ajoute « Attendre » pendant 1 seconde.</li>
+                            <li>Ajoute « Ouvrir les URL », puis colle l’URL Shuffle+.</li>
                         </ol>
                     </div>
                 </div>
@@ -10290,69 +10652,34 @@ function startDrivingVoiceRecognition() {
 }
 
 function applyDrivingViewFromUrl() {
-    const url = new URL(
+    const resolved = resolveAppMenuView(
         window.location.href
     );
 
-    const requestedView = String(
-        url.searchParams.get("view") || ""
-    ).toLowerCase();
-
-    if ([
-        "dashboard",
-        "music",
-        "mixes",
-        "adaptive",
-        "assistant",
-        "recommendations",
-        "statistics",
-        "goals",
-        "intelligence",
-        "quick",
-        "driving",
-        "modes",
-        "guide",
-        "settings"
-    ].includes(requestedView)) {
-        activeAppMenu = requestedView;
-        saveActiveAppMenu();
-        url.searchParams.delete("view");
-        window.history.replaceState(
-            {},
-            document.title,
-            `${url.pathname}${url.search}${url.hash}`
-        );
+    if (!resolved.consumed) {
+        return;
     }
+
+    activeAppMenu = resolved.menuId;
+    saveActiveAppMenu();
+    window.history.replaceState(
+        {},
+        document.title,
+        resolved.cleanPath
+    );
 }
 
 
 function readAppMenuScrollPositions() {
     try {
-        const raw = JSON.parse(
-            localStorage.getItem(
-                APP_MENU_SCROLL_KEY
-            ) || "{}"
+        return normalizeAppMenuScrollPositions(
+            JSON.parse(
+                localStorage.getItem(
+                    APP_MENU_SCROLL_KEY
+                ) || "{}"
+            )
         );
-
-        if (
-            !raw ||
-            typeof raw !== "object" ||
-            Array.isArray(raw)
-        ) {
-            return {};
-        }
-
-        return Object.fromEntries(
-            Object.entries(raw)
-                .filter(([, value]) =>
-                    Number.isFinite(Number(value))
-                )
-                .map(([key, value]) => [
-                    normalizeActiveAppMenu(key),
-                    Math.max(0, Number(value))
-                ])
-        );
-    } catch (error) {
+    } catch {
         return {};
     }
 }
@@ -10429,48 +10756,23 @@ function restoreAppMenuScrollPosition(
     });
 }
 
-function normalizeActiveAppMenu(value = "") {
-    return [
-        "dashboard",
-        "music",
-        "mixes",
-        "adaptive",
-        "assistant",
-        "recommendations",
-        "statistics",
-        "goals",
-        "intelligence",
-        "quick",
-        "driving",
-        "modes",
-        "guide",
-        "settings"
-    ].includes(value)
-        ? value
-        : "dashboard";
-}
-
 function readActiveAppMenu() {
-    try {
-        return normalizeActiveAppMenu(
-            localStorage.getItem(APP_MENU_KEY) ||
-            "dashboard"
-        );
-    } catch (error) {
-        return "dashboard";
-    }
+    return readStoredAppMenu(
+        localStorage,
+        APP_MENU_KEY
+    );
 }
 
 function saveActiveAppMenu() {
-    try {
-        localStorage.setItem(
+    if (
+        !writeStoredAppMenu(
+            localStorage,
             APP_MENU_KEY,
             activeAppMenu
-        );
-    } catch (error) {
+        )
+    ) {
         console.warn(
-            "Menu actif non enregistré :",
-            error
+            "Menu actif non enregistré."
         );
     }
 }
@@ -15124,47 +15426,12 @@ function renderSimpleManualPage() {
 }
 
 function renderAppMenu() {
-    const groups = [
-        {
-            id: "essential",
-            label: "Essentiel",
-            items: [
-                ["dashboard", "🏠", "Accueil"],
-                ["music", "🎵", "Ma musique"],
-                ["mixes", "🔀", "Mix & iOS"],
-                ["quick", "⚡", "Rapide"],
-                ["driving", "🚗", "Conduite"]
-            ]
-        },
-        {
-            id: "smart",
-            label: "Intelligence",
-            items: [
-                ["adaptive", "🤖", "Adaptive DJ"],
-                ["assistant", "✨", "Assistant"],
-                ["recommendations", "💜", "Pour toi"],
-                ["statistics", "📊", "Statistiques"],
-                ["goals", "🏆", "Objectifs"],
-                ["intelligence", "🧠", "Analyses"]
-            ]
-        },
-        {
-            id: "tools",
-            label: "Outils",
-            items: [
-                ["modes", "🎛️", "Modes"],
-                ["guide", "📖", "Guide"],
-                ["settings", "⚙️", "Réglages"]
-            ]
-        }
-    ];
-
     return `
         <nav
             class="app-menu app-menu--grouped"
             aria-label="Navigation Shuffle+"
         >
-            ${groups.map((group) => `
+            ${APP_MENU_GROUPS.map((group) => `
                 <div
                     class="app-menu-group"
                     data-app-menu-group="${group.id}"
@@ -15712,6 +15979,7 @@ function normalizeIosQuickPlaySettings(
     settings = {}
 ) {
     const deviceModes = new Set([
+        "preferred",
         "iphone",
         "active",
         "named",
@@ -15738,27 +16006,29 @@ function normalizeIosQuickPlaySettings(
         deviceMode:
             deviceModes.has(settings.deviceMode)
                 ? settings.deviceMode
-                : "iphone",
+                : "preferred",
         deviceName:
             typeof settings.deviceName === "string"
                 ? settings.deviceName
                     .trim()
                     .slice(0, 120)
                 : "",
-        shuffle: Boolean(settings.shuffle),
+        shuffle: settings.shuffle !== false,
         startFromBeginning:
-            settings.startFromBeginning !== false,
+            settings.startFromBeginning === true,
+        openDrivingMode:
+            settings.openDrivingMode === true,
         autoRetryCount: clampInteger(
             settings.autoRetryCount,
             1,
             10,
-            5
+            6
         ),
         retryDelayMs: clampInteger(
             settings.retryDelayMs,
             500,
             5000,
-            1200
+            1100
         )
     };
 }
@@ -16091,6 +16361,13 @@ function buildIosCommandUrl(command) {
         "1"
     );
 
+    if (normalized.openDrivingMode) {
+        url.searchParams.set(
+            "driving",
+            "1"
+        );
+    }
+
     if (normalized.commandType === "adaptive") {
         const context = getAdaptiveSlot();
         url.searchParams.set(
@@ -16192,14 +16469,16 @@ function saveIosCommandFromForm(form) {
             formData.get(
                 "fallbackDeviceMode"
             ),
+        openDrivingMode:
+            formData.get("openDrivingMode") === "on",
         shuffle:
             formData.get("shuffle") === "on",
         startFromBeginning:
             formData.get(
                 "startFromBeginning"
             ) === "on",
-        autoRetryCount: 5,
-        retryDelayMs: 1200,
+        autoRetryCount: 6,
+        retryDelayMs: 1100,
         updatedAt: Date.now()
     });
 
@@ -16414,10 +16693,11 @@ function renderIosCommandsPanel() {
             profileId: "",
             regenerateOnLaunch: true,
             autoplay: true,
-            deviceMode: "iphone",
-            fallbackDeviceMode: "active",
-            shuffle: false,
-            startFromBeginning: true
+            deviceMode: "preferred",
+            fallbackDeviceMode: "iphone",
+            shuffle: true,
+            startFromBeginning: false,
+            openDrivingMode: false
         });
 
     const mixOptions = savedMixes
@@ -16496,7 +16776,9 @@ function renderIosCommandsPanel() {
                                 ${command.commandType === "smartmix"
                                     ? "Mix intelligent"
                                     : "Playlist fixe"}
-                                · ${command.deviceMode === "iphone"
+                                · ${command.deviceMode === "preferred"
+                                    ? "iPhone enregistré"
+                                    : command.deviceMode === "iphone"
                                     ? "iPhone prioritaire"
                                     : command.deviceMode === "named"
                                         ? `Appareil : ${escapeHtml(command.deviceName || "nom à définir")}`
@@ -16506,6 +16788,9 @@ function renderIosCommandsPanel() {
                                 · ${command.shuffle
                                     ? "shuffle activé"
                                     : "ordre normal"}
+                                ${command.openDrivingMode
+                                    ? " · conduite auto"
+                                    : ""}
                                 ${lastRun
                                     ? ` · dernier : ${escapeHtml(lastRun.deviceName || lastRun.status)}`
                                     : ""}
@@ -16569,8 +16854,101 @@ function renderIosCommandsPanel() {
                         raccourci(s) configuré(s)
                     </p>
                 </div>
-                <span>v3.2</span>
+                <span>v3.3</span>
             </div>
+
+
+            <section class="ios-preferred-device-panel">
+                <div class="ios-preferred-device-heading">
+                    <div>
+                        <span>📱 Appareil Spotify prioritaire</span>
+                        <strong>
+                            ${escapeHtml(
+                                preferredSpotifyDevice.name ||
+                                "Aucun iPhone enregistré"
+                            )}
+                        </strong>
+                        <small>
+                            ${preferredSpotifyDevice.id
+                                ? `device_id : ${escapeHtml(preferredSpotifyDevice.id)}`
+                                : "Ouvre Spotify sur l’iPhone puis actualise la liste."}
+                        </small>
+                    </div>
+                    <button
+                        id="refreshPreferredSpotifyDevicesButton"
+                        type="button"
+                    >
+                        ↻ Détecter
+                    </button>
+                </div>
+                <div class="ios-preferred-device-grid">
+                    <label>
+                        <span>Appareil détecté</span>
+                        <select id="preferredSpotifyDeviceSelect">
+                            <option value="">Choisir un appareil</option>
+                            ${availableDevices.map((device) => `
+                                <option
+                                    value="${escapeHtml(device.id)}"
+                                    ${device.id === preferredSpotifyDevice.id ? "selected" : ""}
+                                >
+                                    ${escapeHtml(device.name || "Appareil Spotify")}
+                                    · ${escapeHtml(device.type || "inconnu")}
+                                    ${device.is_active ? " · actif" : ""}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <label>
+                        <span>device_id manuel</span>
+                        <input
+                            id="preferredSpotifyDeviceIdInput"
+                            type="text"
+                            value="${escapeHtml(preferredSpotifyDevice.id)}"
+                            placeholder="d03a1e…"
+                        >
+                    </label>
+                    <label>
+                        <span>Nom affiché</span>
+                        <input
+                            id="preferredSpotifyDeviceNameInput"
+                            type="text"
+                            value="${escapeHtml(preferredSpotifyDevice.name || "iPhone")}"
+                            placeholder="iPhone"
+                        >
+                    </label>
+                </div>
+                <div class="ios-preferred-device-actions">
+                    <button
+                        id="clearPreferredSpotifyDeviceButton"
+                        type="button"
+                        ${preferredSpotifyDevice.id ? "" : "disabled"}
+                    >
+                        Oublier
+                    </button>
+                    <button
+                        id="savePreferredSpotifyDeviceButton"
+                        type="button"
+                    >
+                        Enregistrer cet iPhone
+                    </button>
+                </div>
+                <p>
+                    Le device_id reste uniquement dans le stockage local de ce navigateur.
+                    Shuffle+ retombe sur le nom et le type si Spotify renouvelle l’identifiant.
+                </p>
+            </section>
+
+            <details class="ios-shortcut-setup" open>
+                <summary>Configuration recommandée dans Raccourcis iOS</summary>
+                <ol>
+                    <li>Action « Ouvrir l’app » : Spotify.</li>
+                    <li>Action « Attendre » : 1 seconde.</li>
+                    <li>Action « Ouvrir les URL » : colle le lien de la commande Shuffle+.</li>
+                </ol>
+                <p>
+                    Cette première ouverture réveille Spotify Connect et augmente fortement les chances que l’iPhone apparaisse dans la liste des appareils.
+                </p>
+            </details>
 
             <form
                 id="iosCommandForm"
@@ -16686,6 +17064,9 @@ function renderIosCommandsPanel() {
                 <label class="ios-command-field">
                     <span>Appareil prioritaire</span>
                     <select name="deviceMode">
+                        <option value="preferred" ${formCommand.deviceMode === "preferred" ? "selected" : ""}>
+                            iPhone préféré enregistré
+                        </option>
                         <option value="iphone" ${formCommand.deviceMode === "iphone" ? "selected" : ""}>
                             iPhone ou smartphone
                         </option>
@@ -16729,6 +17110,15 @@ function renderIosCommandsPanel() {
 
                 <label class="ios-command-check">
                     <input
+                        name="openDrivingMode"
+                        type="checkbox"
+                        ${formCommand.openDrivingMode ? "checked" : ""}
+                    >
+                    <span>Ouvrir le mode conduite après le lancement</span>
+                </label>
+
+                <label class="ios-command-check">
+                    <input
                         name="shuffle"
                         type="checkbox"
                         ${formCommand.shuffle ? "checked" : ""}
@@ -16742,7 +17132,7 @@ function renderIosCommandsPanel() {
                         type="checkbox"
                         ${formCommand.startFromBeginning ? "checked" : ""}
                     >
-                    <span>Recommencer au premier morceau</span>
+                    <span>Forcer le premier morceau de la playlist</span>
                 </label>
 
                 <div class="ios-command-form-actions">
@@ -16837,6 +17227,8 @@ function normalizeAutomationCommand(command = {}) {
                 : "",
         autoplay:
             command.autoplay !== false,
+        openDrivingMode:
+            command.openDrivingMode === true,
         createdAt: Number(
             command.createdAt || Date.now()
         )
@@ -16922,6 +17314,8 @@ function parseAutomationCommandFromUrl() {
             "",
         autoplay:
             params.get("autoplay") !== "0",
+        openDrivingMode:
+            params.get("driving") === "1",
         createdAt: Date.now()
     });
 }
@@ -16943,7 +17337,8 @@ function clearAutomationQueryString() {
         "profileId",
         "context",
         "mood",
-        "autoplay"
+        "autoplay",
+        "driving"
     ]) {
         url.searchParams.delete(key);
     }
@@ -16978,76 +17373,21 @@ function findAutomationDevice(
     devices,
     settings = iosQuickPlaySettings
 ) {
-    const controllableDevices = devices.filter(
-        (device) =>
-            device &&
-            device.id &&
-            device.is_restricted !== true
+    return selectSpotifyDevice(
+        devices,
+        {
+            mode:
+                settings.deviceMode === "iphone" &&
+                preferredSpotifyDevice.id
+                    ? "preferred"
+                    : settings.deviceMode ||
+                        "preferred",
+            preferredDevice:
+                preferredSpotifyDevice,
+            deviceName:
+                settings.deviceName || ""
+        }
     );
-
-    if (!controllableDevices.length) {
-        return null;
-    }
-
-    if (
-        settings.deviceMode === "named" &&
-        settings.deviceName
-    ) {
-        const wanted =
-            normalizeSearchText(
-                settings.deviceName
-            );
-
-        const named = controllableDevices.find(
-            (device) =>
-                normalizeSearchText(
-                    device.name
-                ).includes(wanted)
-        );
-
-        if (named) {
-            return named;
-        }
-    }
-
-    if (settings.deviceMode === "iphone") {
-        const iphone = controllableDevices.find(
-            (device) => {
-                const name =
-                    normalizeSearchText(
-                        device.name
-                    );
-                const type =
-                    normalizeSearchText(
-                        device.type
-                    );
-
-                return (
-                    name.includes("iphone") ||
-                    type === "smartphone"
-                );
-            }
-        );
-
-        if (iphone) {
-            return iphone;
-        }
-    }
-
-    if (
-        settings.deviceMode === "active" ||
-        settings.deviceMode === "iphone"
-    ) {
-        const active = controllableDevices.find(
-            (device) => device.is_active
-        );
-
-        if (active) {
-            return active;
-        }
-    }
-
-    return controllableDevices[0];
 }
 
 async function getAutomationDeviceWithRetry(
@@ -17089,6 +17429,17 @@ async function getAutomationDeviceWithRetry(
                     );
 
             if (device) {
+                if (
+                    ["preferred", "iphone"].includes(
+                        settings.deviceMode
+                    ) ||
+                    findStoredPreferredDevice(
+                        [device],
+                        preferredSpotifyDevice
+                    )
+                ) {
+                    rememberPreferredSpotifyDevice(device);
+                }
                 return device;
             }
         } catch (error) {
@@ -17111,7 +17462,82 @@ async function getAutomationDeviceWithRetry(
         }
     }
 
+    if (
+        ["preferred", "iphone"].includes(
+            settings.deviceMode
+        ) &&
+        preferredSpotifyDevice.id
+    ) {
+        return {
+            ...preferredSpotifyDevice,
+            is_active: false,
+            is_restricted: false,
+            is_cached: true
+        };
+    }
+
     return null;
+}
+
+async function verifyPlaybackOnDevice(
+    deviceId,
+    {
+        expectedPlaylistId = "",
+        attempts = 3,
+        delayMs = 650
+    } = {}
+) {
+    let lastState = null;
+
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+        if (attempt > 0) {
+            await wait(delayMs);
+        }
+
+        lastState = await getCurrentPlayback().catch(
+            () => null
+        );
+
+        const rightDevice =
+            lastState?.device?.id === deviceId;
+        const playing =
+            lastState?.is_playing === true;
+        const contextUri =
+            lastState?.context?.uri || "";
+        const rightContext =
+            !expectedPlaylistId ||
+            contextUri ===
+                `spotify:playlist:${expectedPlaylistId}`;
+
+        if (rightDevice && playing && rightContext) {
+            return lastState;
+        }
+    }
+
+    return lastState;
+}
+
+function getRandomPlaylistStartPosition(playlistId) {
+    const playlist = playlistsCache.find(
+        (item) => item?.id === playlistId
+    );
+    const total = Number(
+        playlist?.items?.total ??
+        playlist?.tracks?.total ??
+        0
+    );
+
+    if (!Number.isFinite(total) || total <= 1) {
+        return null;
+    }
+
+    if (globalThis.crypto?.getRandomValues) {
+        const values = new Uint32Array(1);
+        globalThis.crypto.getRandomValues(values);
+        return values[0] % Math.floor(total);
+    }
+
+    return Math.floor(Math.random() * total);
 }
 
 async function startPlaylistContextPlayback(
@@ -17131,9 +17557,31 @@ async function startPlaylistContextPlayback(
         );
     }
 
-    // Le endpoint de lecture accepte directement device_id.
-    // On évite ici le transfert préalable, qui peut renvoyer 403
-    // alors que la lecture directe sur le même appareil est autorisée.
+    // Le transfert aide Spotify Connect à activer l’iPhone.
+    // Une erreur de transfert n’est pas bloquante : la lecture directe
+    // peut encore fonctionner sur le même device_id.
+    try {
+        await transferPlayback(deviceId, false);
+        await wait(350);
+    } catch (transferError) {
+        console.warn(
+            "Transfert Spotify préalable non appliqué :",
+            transferError
+        );
+    }
+
+    if (shuffle) {
+        try {
+            await setPlaybackShuffle(true, deviceId);
+            await wait(250);
+        } catch (shuffleError) {
+            console.warn(
+                "Activation préalable du shuffle non appliquée :",
+                shuffleError
+            );
+        }
+    }
+
     const url = new URL(
         "https://api.spotify.com/v1/me/player/play"
     );
@@ -17152,6 +17600,17 @@ async function startPlaylistContextPlayback(
             position: 0
         };
         body.position_ms = 0;
+    } else if (shuffle) {
+        const randomPosition =
+            getRandomPlaylistStartPosition(
+                playlistId
+            );
+        if (randomPosition !== null) {
+            body.offset = {
+                position: randomPosition
+            };
+            body.position_ms = 0;
+        }
     }
 
     const response = await fetch(
@@ -17195,7 +17654,7 @@ async function startPlaylistContextPlayback(
         throw new Error(message);
     }
 
-    await wait(500);
+    await wait(550);
 
     try {
         await setPlaybackShuffle(
@@ -17208,11 +17667,83 @@ async function startPlaylistContextPlayback(
             error
         );
     }
+
+    let playback = await verifyPlaybackOnDevice(
+        deviceId,
+        {
+            expectedPlaylistId: playlistId,
+            attempts: 2,
+            delayMs: 650
+        }
+    );
+
+    if (
+        playback?.device?.id !== deviceId ||
+        playback?.is_playing !== true
+    ) {
+        try {
+            await transferPlayback(deviceId, true);
+            await wait(450);
+        } catch (transferError) {
+            console.warn(
+                "Second transfert Spotify non appliqué :",
+                transferError
+            );
+        }
+
+        const retryResponse = await fetch(
+            url.toString(),
+            {
+                method: "PUT",
+                headers: {
+                    Authorization:
+                        `Bearer ${accessToken}`,
+                    "Content-Type":
+                        "application/json"
+                },
+                body: JSON.stringify(body)
+            }
+        );
+
+        if (!retryResponse.ok) {
+            throw new Error(
+                `Spotify n’a pas pu relancer la playlist sur l’iPhone (${retryResponse.status}).`
+            );
+        }
+
+        await wait(600);
+        await setPlaybackShuffle(
+            shuffle,
+            deviceId
+        ).catch(() => {});
+        playback = await verifyPlaybackOnDevice(
+            deviceId,
+            {
+                expectedPlaylistId: playlistId,
+                attempts: 3,
+                delayMs: 700
+            }
+        );
+    }
+
+    if (
+        playback?.device?.id !== deviceId ||
+        playback?.is_playing !== true
+    ) {
+        throw new Error(
+            "Spotify a reçu la commande, mais l’iPhone n’a pas démarré la lecture. Ouvre Spotify sur l’iPhone puis relance le raccourci."
+        );
+    }
+
+    return playback;
 }
 
 async function runIosQuickPlay(
     playlistId = "",
-    commandId = ""
+    commandId = "",
+    {
+        openDrivingMode = false
+    } = {}
 ) {
     if (automationRunInProgress) {
         return;
@@ -17260,17 +17791,22 @@ async function runIosQuickPlay(
             `Lancement sur ${device.name}…`
         );
 
-        await startPlaylistContextPlayback(
-            resolvedPlaylistId,
-            device.id,
-            {
-                shuffle:
-                    command.shuffle,
-                startFromBeginning:
-                    command
-                        .startFromBeginning
-            }
-        );
+        drivingPlaybackState =
+            await startPlaylistContextPlayback(
+                resolvedPlaylistId,
+                device.id,
+                {
+                    shuffle:
+                        command.shuffle,
+                    startFromBeginning:
+                        command
+                            .startFromBeginning
+                }
+            );
+        rememberPreferredSpotifyDevice({
+            ...device,
+            ...drivingPlaybackState?.device
+        });
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
@@ -17308,6 +17844,15 @@ async function runIosQuickPlay(
         setStatus(
             `Playlist lancée sur ${device.name}.`
         );
+
+        if (
+            command.openDrivingMode ||
+            openDrivingMode
+        ) {
+            await enterDrivingMode({
+                refresh: false
+            });
+        }
     } catch (error) {
         console.error(error);
         savePendingAutomationCommand(null);
@@ -17326,6 +17871,9 @@ async function runIosQuickPlay(
                     id="retryIosQuickPlayButton"
                     class="primary-button"
                     type="button"
+                    data-playlist-id="${escapeHtml(resolvedPlaylistId)}"
+                    data-command-id="${escapeHtml(command.id)}"
+                    data-open-driving="${command.openDrivingMode || openDrivingMode ? "1" : "0"}"
                 >
                     Réessayer
                 </button>
@@ -17381,7 +17929,11 @@ async function executeAutomationCommand(
     ) {
         await runIosQuickPlay(
             normalized.playlistId,
-            normalized.commandId
+            normalized.commandId,
+            {
+                openDrivingMode:
+                    normalized.openDrivingMode
+            }
         );
         return;
     }
@@ -17621,6 +18173,15 @@ async function executeAutomationCommand(
             setStatus(
                 `Mix « ${command.name} » généré.`
             );
+        }
+
+        if (
+            command.openDrivingMode ||
+            normalized.openDrivingMode
+        ) {
+            await enterDrivingMode({
+                refresh: true
+            });
         }
 
         savePendingAutomationCommand(null);
@@ -32439,6 +33000,8 @@ function displayPlaylists(playlists) {
                 ${renderContextualHelpBar()}
             </div>
 
+            ${activeAppMenu === "dashboard"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "dashboard"
@@ -32448,7 +33011,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderMusicalDashboardPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "music"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "music"
@@ -32605,7 +33172,11 @@ function displayPlaylists(playlists) {
 
             ${emptyState}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "mixes"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "mixes"
@@ -32619,7 +33190,11 @@ function displayPlaylists(playlists) {
                 ${renderMixSchedulesSection()}
                 ${renderMixHistorySection()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "adaptive"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "adaptive"
@@ -32630,7 +33205,11 @@ function displayPlaylists(playlists) {
                 ${renderAdaptiveDjMenu()}
                 ${renderAdaptivePanel()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "assistant"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "assistant"
@@ -32640,7 +33219,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderMusicalAssistantPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "recommendations"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "recommendations"
@@ -32650,7 +33233,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderPersonalizedRecommendationsPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "statistics"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "statistics"
@@ -32660,7 +33247,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderAdvancedListeningStatisticsPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "goals"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "goals"
@@ -32670,7 +33261,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderMusicalGoalsPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "intelligence"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "intelligence"
@@ -32680,7 +33275,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderIntelligenceDashboard()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "quick"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "quick"
@@ -32690,7 +33289,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderQuickControlPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "modes"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "modes"
@@ -32700,7 +33303,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderUsageProfilesPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "guide"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "guide"
@@ -32710,7 +33317,11 @@ function displayPlaylists(playlists) {
             >
                 ${renderSimpleManualPage()}
             </div>
+                `
+                : ""}
 
+            ${activeAppMenu === "settings"
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "settings"
@@ -32732,6 +33343,8 @@ function displayPlaylists(playlists) {
                 ${renderIntensityPanel()}
                 ${renderExclusionPanel()}
             </div>
+                `
+                : ""}
 
             <div data-universal-search-layer>
                 ${renderUniversalSearchDialog()}
@@ -36364,6 +36977,33 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#drivingQueueButton"
+            )
+        ) {
+            await openDrivingQueue();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#closeDrivingQueueButton"
+            )
+        ) {
+            closeDrivingQueue();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshDrivingQueueButton"
+            )
+        ) {
+            await refreshDrivingQueue();
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#drivingRefreshButton"
             )
         ) {
@@ -36721,6 +37361,35 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "#refreshPreferredSpotifyDevicesButton"
+            )
+        ) {
+            await refreshPreferredSpotifyDevices();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#savePreferredSpotifyDeviceButton"
+            )
+        ) {
+            savePreferredSpotifyDeviceFromPanel();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearPreferredSpotifyDeviceButton"
+            )
+        ) {
+            clearPreferredSpotifyDevice();
+            displayPlaylists(playlistsCache);
+            setStatus("Appareil Spotify préféré oublié.");
+            return;
+        }
+
         const iosCommandActionButton =
             event.target.closest(
                 "[data-ios-command-action]"
@@ -36737,10 +37406,20 @@ contentElement.addEventListener(
             if (action === "run") {
                 const command =
                     getIosCommandById(commandId);
-                await runIosQuickPlay(
-                    command?.playlistId || "",
-                    commandId
-                );
+                if (command?.commandType === "smartmix") {
+                    await executeAutomationCommand({
+                        action: "smartmix",
+                        commandId,
+                        autoplay: command.autoplay,
+                        openDrivingMode:
+                            command.openDrivingMode
+                    });
+                } else {
+                    await runIosQuickPlay(
+                        command?.playlistId || "",
+                        commandId
+                    );
+                }
             } else if (action === "copy") {
                 await copyIosCommandUrl(
                     commandId
@@ -36790,12 +37469,20 @@ contentElement.addEventListener(
             return;
         }
 
-        if (
+        const retryIosButton =
             event.target.closest(
                 "#retryIosQuickPlayButton"
-            )
-        ) {
-            await runIosQuickPlay();
+            );
+
+        if (retryIosButton) {
+            await runIosQuickPlay(
+                retryIosButton.dataset.playlistId || "",
+                retryIosButton.dataset.commandId || "",
+                {
+                    openDrivingMode:
+                        retryIosButton.dataset.openDriving === "1"
+                }
+            );
             return;
         }
 
@@ -39090,6 +39777,11 @@ document.addEventListener(
             refreshDrivingPlayback({
                 silent: true
             });
+            if (drivingQueueOpen) {
+                refreshDrivingQueue({
+                    silent: true
+                });
+            }
         }
     }
 );

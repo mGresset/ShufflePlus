@@ -1,16 +1,22 @@
-const CACHE_VERSION = "shuffleplus-v7.1.1";
+const CACHE_VERSION = "shuffleplus-v7.3.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const APP_SHELL = [
+const MAX_RUNTIME_ENTRIES = 120;
+
+const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=7.1.1",
-    "./app.js?v=7.1.1",
+    "./style.css?v=7.3.0",
+    "./app.js?v=7.3.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
     "./shuffle-engine.js",
+    "./core/app-menu.js",
+    "./core/html-utils.js",
+    "./core/spotify-device.js",
+    "./core/playback-queue.js",
     "./adaptive-dj.js",
     "./musical-assistant.js",
     "./voice-assistant.js",
@@ -23,7 +29,10 @@ const APP_SHELL = [
     "./usage-profiles.js",
     "./app-health.js",
     "./offline-performance.js",
-    "./manifest.webmanifest",
+    "./manifest.webmanifest"
+];
+
+const OPTIONAL_APP_SHELL = [
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",
@@ -31,14 +40,44 @@ const APP_SHELL = [
     "./icons/apple-touch-icon-180.png"
 ];
 
-async function warmShell() {
-    const cache = await caches.open(SHELL_CACHE);
+async function cacheOptionalShell(cache) {
     await Promise.allSettled(
-        APP_SHELL.map(async (url) => {
+        OPTIONAL_APP_SHELL.map(async (url) => {
             const response = await fetch(url, { cache: "reload" });
-            if (response.ok) await cache.put(url, response);
+            if (response.ok) {
+                await cache.put(url, response);
+            }
         })
     );
+}
+
+async function warmShell() {
+    const cache = await caches.open(SHELL_CACHE);
+
+    // Les fichiers indispensables doivent tous être disponibles avant que la
+    // nouvelle version ne remplace le Service Worker actuellement actif.
+    await cache.addAll(CORE_APP_SHELL);
+    await cacheOptionalShell(cache);
+}
+
+async function trimRuntimeCache(cache) {
+    const keys = await cache.keys();
+    const overflow = keys.length - MAX_RUNTIME_ENTRIES;
+
+    if (overflow <= 0) {
+        return;
+    }
+
+    await Promise.all(
+        keys
+            .slice(0, overflow)
+            .map((request) => cache.delete(request))
+    );
+}
+
+async function putInRuntimeCache(cache, request, response) {
+    await cache.put(request, response);
+    await trimRuntimeCache(cache);
 }
 
 self.addEventListener("install", (event) => {
@@ -86,7 +125,9 @@ async function navigationNetworkFirst(request) {
     const cache = await caches.open(SHELL_CACHE);
     try {
         const response = await fetchWithTimeout(request, 4500);
-        if (response?.ok) await cache.put("./index.html", response.clone());
+        if (response?.ok) {
+            await cache.put("./index.html", response.clone());
+        }
         return response;
     } catch {
         return await cache.match("./index.html") ||
@@ -105,7 +146,13 @@ async function staleWhileRevalidate(request) {
         await runtime.match(request, { ignoreSearch: true });
     const update = fetch(request)
         .then(async (response) => {
-            if (response?.ok) await runtime.put(request, response.clone());
+            if (response?.ok) {
+                await putInRuntimeCache(
+                    runtime,
+                    request,
+                    response.clone()
+                );
+            }
             return response;
         })
         .catch(() => null);
@@ -116,17 +163,31 @@ async function cacheFirst(request) {
     const runtime = await caches.open(RUNTIME_CACHE);
     const shell = await caches.open(SHELL_CACHE);
     const cached = await runtime.match(request) || await shell.match(request);
-    if (cached) return cached;
+    if (cached) {
+        return cached;
+    }
+
     const response = await fetch(request);
-    if (response?.ok) await runtime.put(request, response.clone());
+    if (response?.ok) {
+        await putInRuntimeCache(
+            runtime,
+            request,
+            response.clone()
+        );
+    }
     return response;
 }
 
 self.addEventListener("fetch", (event) => {
     const request = event.request;
-    if (request.method !== "GET") return;
+    if (request.method !== "GET") {
+        return;
+    }
+
     const url = new URL(request.url);
-    if (url.origin !== self.location.origin) return;
+    if (url.origin !== self.location.origin) {
+        return;
+    }
 
     if (request.mode === "navigate") {
         event.respondWith(navigationNetworkFirst(request));
