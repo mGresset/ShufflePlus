@@ -1,3 +1,10 @@
+
+## v7.0.0 — Stabilisation et navigation organisée
+
+La navigation est regroupée en **Essentiel**, **Intelligence** et **Outils**, tout en conservant chaque rubrique. Les intitulés restent sur une seule ligne et la position de lecture de chaque page est mémorisée.
+
+Un **Centre de diagnostic** dans Réglages vérifie le navigateur, le cache PWA, le maintien de l’écran et les fonctions vocales. Il permet aussi d’exporter un rapport technique ou de réparer le cache sans supprimer les données utilisateur.
+
 ## v6.9.0 — Modes d’utilisation
 
 La rubrique **Modes** propose cinq configurations prêtes à l’emploi : Quotidien, Conduite, Sport, Soirée et Découverte. Un mode peut adapter la page, la scène, la couleur, le niveau de découverte et certains réglages du mode voiture, sans supprimer les réglages existants.

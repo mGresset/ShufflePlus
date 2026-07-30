@@ -99,6 +99,11 @@ import {
     buildUsageProfileApplication
 } from "./usage-profiles.js";
 
+import {
+    buildAppHealthSnapshot,
+    buildAppHealthExport
+} from "./app-health.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -118,7 +123,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.9.0";
+const APP_VERSION = "7.0.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -559,6 +564,10 @@ const ADAPTIVE_TRANSITION_CURVES = {
 };
 const APP_MENU_KEY =
     "shuffleplus_active_menu_v1";
+const APP_MENU_SCROLL_KEY =
+    "shuffleplus_menu_scroll_v1";
+const CURRENT_PWA_CACHE =
+    "shuffleplus-v7.0.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1033,6 +1042,10 @@ let musicalDashboardSettings = readMusicalDashboardSettings();
 let musicalGoalsSettings = readMusicalGoalsSettings();
 let contextualHelpState = readContextualHelpState();
 let usageProfileState = readUsageProfileState();
+let appMenuScrollPositions = readAppMenuScrollPositions();
+let appMenuScrollSaveTimer = 0;
+let appHealthSnapshot = null;
+let appHealthRunning = false;
 let universalSearchOpen = false;
 let universalSearchQuery = "";
 let universalSearchResults = [];
@@ -3294,6 +3307,503 @@ function initializePwa() {
             }
         }
     );
+}
+
+
+function testLocalStorageAvailability() {
+    const key =
+        "__shuffleplus_health_test__";
+
+    try {
+        localStorage.setItem(key, "1");
+        localStorage.removeItem(key);
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+function getSpeechRecognitionSupport() {
+    return Boolean(
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition
+    );
+}
+
+function getBasicAppHealthFacts() {
+    return {
+        appVersion: APP_VERSION,
+        online: navigator.onLine,
+        secureContext:
+            window.isSecureContext === true,
+        localStorageAvailable:
+            testLocalStorageAvailability(),
+        serviceWorkerSupported:
+            "serviceWorker" in navigator,
+        serviceWorkerControlled:
+            Boolean(
+                navigator.serviceWorker
+                    ?.controller
+            ),
+        serviceWorkerState:
+            navigator.serviceWorker
+                ?.controller
+                ?.state || "",
+        cacheSupported:
+            "caches" in window,
+        cacheCount: 0,
+        staleCacheCount: 0,
+        wakeLockSupported:
+            "wakeLock" in navigator,
+        speechRecognitionSupported:
+            getSpeechRecognitionSupport(),
+        clipboardSupported:
+            Boolean(
+                navigator.clipboard
+                    ?.writeText
+            ),
+        shareSupported:
+            typeof navigator.share ===
+            "function",
+        standalone:
+            isStandalonePwa(),
+        spotifyConnected:
+            Boolean(currentUserId),
+        viewportWidth:
+            Math.round(
+                window.visualViewport
+                    ?.width ||
+                window.innerWidth ||
+                0
+            ),
+        viewportHeight:
+            Math.round(
+                window.visualViewport
+                    ?.height ||
+                window.innerHeight ||
+                0
+            ),
+        currentMenu:
+            activeAppMenu,
+        userAgent:
+            navigator.userAgent || "",
+        generatedAt:
+            Date.now()
+    };
+}
+
+async function collectAppHealthSnapshot({
+    render = true,
+    notify = false
+} = {}) {
+    if (appHealthRunning) {
+        return appHealthSnapshot;
+    }
+
+    appHealthRunning = true;
+
+    try {
+        const facts =
+            getBasicAppHealthFacts();
+
+        if (
+            "serviceWorker" in navigator
+        ) {
+            try {
+                const registration =
+                    await navigator
+                        .serviceWorker
+                        .getRegistration();
+                facts.serviceWorkerControlled =
+                    Boolean(
+                        navigator.serviceWorker
+                            .controller
+                    );
+                facts.serviceWorkerState =
+                    registration?.active?.state ||
+                    registration?.waiting?.state ||
+                    registration?.installing?.state ||
+                    facts.serviceWorkerState;
+            } catch (error) {
+                console.warn(
+                    "Diagnostic Service Worker incomplet :",
+                    error
+                );
+            }
+        }
+
+        if ("caches" in window) {
+            try {
+                const names =
+                    await caches.keys();
+                const appCaches =
+                    names.filter(
+                        (name) =>
+                            name.startsWith(
+                                "shuffleplus-"
+                            )
+                    );
+                facts.cacheCount =
+                    appCaches.length;
+                facts.staleCacheCount =
+                    appCaches.filter(
+                        (name) =>
+                            name !==
+                            CURRENT_PWA_CACHE
+                    ).length;
+            } catch (error) {
+                console.warn(
+                    "Diagnostic du cache incomplet :",
+                    error
+                );
+            }
+        }
+
+        appHealthSnapshot =
+            buildAppHealthSnapshot(
+                facts
+            );
+
+        if (notify) {
+            setStatus(
+                appHealthSnapshot.overall.id ===
+                "healthy"
+                    ? "Diagnostic terminé : Shuffle+ est opérationnel."
+                    : "Diagnostic terminé : certains points sont à vérifier."
+            );
+        }
+    } finally {
+        appHealthRunning = false;
+    }
+
+    if (
+        render &&
+        activeAppMenu === "settings"
+    ) {
+        displayPlaylists(
+            playlistsCache
+        );
+    }
+
+    return appHealthSnapshot;
+}
+
+function getCurrentAppHealthSnapshot() {
+    return appHealthSnapshot ||
+        buildAppHealthSnapshot(
+            getBasicAppHealthFacts()
+        );
+}
+
+function renderAppHealthPanel() {
+    const snapshot =
+        getCurrentAppHealthSnapshot();
+    const groups = [
+        {
+            id: "core",
+            label: "Fonctions essentielles"
+        },
+        {
+            id: "pwa",
+            label: "Installation et cache"
+        },
+        {
+            id: "optional",
+            label: "Fonctions selon le navigateur"
+        }
+    ];
+    const generatedLabel =
+        new Intl.DateTimeFormat(
+            "fr-FR",
+            {
+                dateStyle: "short",
+                timeStyle: "medium"
+            }
+        ).format(
+            new Date(
+                snapshot.generatedAt
+            )
+        );
+
+    return `
+        <section
+            id="appHealthPanel"
+            class="settings-panel app-health-panel"
+        >
+            <div class="panel-heading">
+                <div>
+                    <span
+                        class="app-health-kicker"
+                    >
+                        🛠️ Shuffle+ v7
+                    </span>
+                    <h3>
+                        Centre de diagnostic
+                    </h3>
+                    <p>
+                        Vérifie rapidement le navigateur,
+                        la PWA et les fonctions utilisées
+                        par Shuffle+.
+                    </p>
+                </div>
+
+                <span
+                    class="app-health-status
+                    app-health-status--${escapeHtml(
+                        snapshot.overall.id
+                    )}"
+                >
+                    ${escapeHtml(
+                        snapshot.overall.icon
+                    )}
+                    ${escapeHtml(
+                        snapshot.overall.label
+                    )}
+                </span>
+            </div>
+
+            <div
+                class="app-health-summary"
+            >
+                <article>
+                    <strong>
+                        ${snapshot.coreScore} %
+                    </strong>
+                    <span>
+                        fonctions essentielles
+                    </span>
+                </article>
+                <article>
+                    <strong>
+                        ${snapshot.warningCount}
+                    </strong>
+                    <span>
+                        point(s) à vérifier
+                    </span>
+                </article>
+                <article>
+                    <strong>
+                        ${escapeHtml(
+                            snapshot.appVersion
+                        )}
+                    </strong>
+                    <span>
+                        version active
+                    </span>
+                </article>
+                <article>
+                    <strong>
+                        ${snapshot.runtime.viewportWidth}
+                        ×
+                        ${snapshot.runtime.viewportHeight}
+                    </strong>
+                    <span>
+                        zone visible
+                    </span>
+                </article>
+            </div>
+
+            <div
+                class="app-health-groups"
+            >
+                ${groups.map((group) => `
+                    <section
+                        class="app-health-group"
+                    >
+                        <h4>
+                            ${escapeHtml(
+                                group.label
+                            )}
+                        </h4>
+
+                        <div
+                            class="app-health-checks"
+                        >
+                            ${snapshot.checks
+                                .filter(
+                                    (check) =>
+                                        check.category ===
+                                        group.id
+                                )
+                                .map((check) => `
+                                    <article
+                                        class="app-health-check
+                                        app-health-check--${escapeHtml(
+                                            check.level
+                                        )}"
+                                    >
+                                        <span
+                                            aria-hidden="true"
+                                        >
+                                            ${check.available
+                                                ? "✓"
+                                                : check.level === "critical"
+                                                    ? "×"
+                                                    : "!"}
+                                        </span>
+                                        <div>
+                                            <strong>
+                                                ${escapeHtml(
+                                                    check.label
+                                                )}
+                                            </strong>
+                                            <small>
+                                                ${escapeHtml(
+                                                    check.value
+                                                )}
+                                            </small>
+                                            <p>
+                                                ${escapeHtml(
+                                                    check.description
+                                                )}
+                                            </p>
+                                        </div>
+                                    </article>
+                                `)
+                                .join("")}
+                        </div>
+                    </section>
+                `).join("")}
+            </div>
+
+            <div
+                class="app-health-actions"
+            >
+                <button
+                    id="runAppHealthCheckButton"
+                    type="button"
+                    ${appHealthRunning
+                        ? "disabled"
+                        : ""}
+                >
+                    ${appHealthRunning
+                        ? "Analyse en cours…"
+                        : "↻ Relancer le diagnostic"}
+                </button>
+
+                <button
+                    id="exportAppHealthButton"
+                    type="button"
+                >
+                    ⬇ Exporter le rapport
+                </button>
+
+                <button
+                    id="repairPwaCacheButton"
+                    type="button"
+                    ${navigator.onLine
+                        ? ""
+                        : "disabled"}
+                >
+                    🧹 Réparer le cache PWA
+                </button>
+            </div>
+
+            <p
+                class="app-health-note"
+            >
+                Dernière vérification :
+                ${escapeHtml(generatedLabel)}.
+                Le rapport n’inclut aucun titre,
+                aucune playlist, aucun jeton Spotify
+                et aucun identifiant personnel.
+            </p>
+        </section>
+    `;
+}
+
+async function exportAppHealthReport() {
+    const snapshot =
+        await collectAppHealthSnapshot({
+            render: false
+        });
+    const date =
+        new Date()
+            .toISOString()
+            .slice(0, 10);
+
+    downloadJsonPayload(
+        buildAppHealthExport(
+            snapshot
+        ),
+        `shuffleplus-diagnostic-${date}.json`
+    );
+
+    setStatus(
+        "Rapport de diagnostic exporté."
+    );
+}
+
+async function repairPwaCache() {
+    if (!navigator.onLine) {
+        setStatus(
+            "Reconnecte l’appareil avant de réparer le cache.",
+            "error"
+        );
+        return;
+    }
+
+    const confirmed = window.confirm(
+        "Réparer le cache de Shuffle+ ? Les réglages, mix et connexions ne seront pas supprimés. L’application va ensuite se recharger."
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    setStatus(
+        "Réparation du cache en cours…"
+    );
+
+    try {
+        if ("serviceWorker" in navigator) {
+            const registrations =
+                await navigator
+                    .serviceWorker
+                    .getRegistrations();
+
+            await Promise.all(
+                registrations
+                    .filter(
+                        (registration) =>
+                            registration.scope
+                                .startsWith(
+                                    window.location.origin
+                                )
+                    )
+                    .map(
+                        (registration) =>
+                            registration.unregister()
+                    )
+            );
+        }
+
+        if ("caches" in window) {
+            const names =
+                await caches.keys();
+            await Promise.all(
+                names
+                    .filter(
+                        (name) =>
+                            name.startsWith(
+                                "shuffleplus-"
+                            )
+                    )
+                    .map(
+                        (name) =>
+                            caches.delete(name)
+                    )
+            );
+        }
+
+        window.location.reload();
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            "La réparation automatique a échoué. Ferme complètement Shuffle+ puis relance-la.",
+            "error"
+        );
+    }
 }
 
 function renderPwaSettingsPanel() {
@@ -9466,6 +9976,7 @@ function applyDrivingViewFromUrl() {
     ).toLowerCase();
 
     if ([
+        "dashboard",
         "music",
         "mixes",
         "adaptive",
@@ -9489,6 +10000,110 @@ function applyDrivingViewFromUrl() {
             `${url.pathname}${url.search}${url.hash}`
         );
     }
+}
+
+
+function readAppMenuScrollPositions() {
+    try {
+        const raw = JSON.parse(
+            localStorage.getItem(
+                APP_MENU_SCROLL_KEY
+            ) || "{}"
+        );
+
+        if (
+            !raw ||
+            typeof raw !== "object" ||
+            Array.isArray(raw)
+        ) {
+            return {};
+        }
+
+        return Object.fromEntries(
+            Object.entries(raw)
+                .filter(([, value]) =>
+                    Number.isFinite(Number(value))
+                )
+                .map(([key, value]) => [
+                    normalizeActiveAppMenu(key),
+                    Math.max(0, Number(value))
+                ])
+        );
+    } catch (error) {
+        return {};
+    }
+}
+
+function saveAppMenuScrollPositions() {
+    try {
+        localStorage.setItem(
+            APP_MENU_SCROLL_KEY,
+            JSON.stringify(
+                appMenuScrollPositions
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Positions de navigation non enregistrées :",
+            error
+        );
+    }
+}
+
+function rememberCurrentAppMenuScroll() {
+    if (
+        activeAppMenu === "driving" ||
+        !Number.isFinite(window.scrollY)
+    ) {
+        return;
+    }
+
+    appMenuScrollPositions = {
+        ...appMenuScrollPositions,
+        [activeAppMenu]: Math.max(
+            0,
+            Math.round(window.scrollY)
+        )
+    };
+}
+
+function scheduleAppMenuScrollSave() {
+    if (appMenuScrollSaveTimer) {
+        window.clearTimeout(
+            appMenuScrollSaveTimer
+        );
+    }
+
+    appMenuScrollSaveTimer =
+        window.setTimeout(() => {
+            rememberCurrentAppMenuScroll();
+            saveAppMenuScrollPositions();
+            appMenuScrollSaveTimer = 0;
+        }, 180);
+}
+
+function restoreAppMenuScrollPosition(
+    menuId,
+    behavior = "auto"
+) {
+    const normalizedMenu =
+        normalizeActiveAppMenu(menuId);
+    const target = Math.max(
+        0,
+        Number(
+            appMenuScrollPositions[
+                normalizedMenu
+            ] || 0
+        )
+    );
+
+    window.requestAnimationFrame(() => {
+        window.scrollTo({
+            top: target,
+            left: 0,
+            behavior
+        });
+    });
 }
 
 function normalizeActiveAppMenu(value = "") {
@@ -11365,6 +11980,8 @@ function refreshTargetAppMenuPage(
     } else if (normalizedMenu === "modes") {
         page.innerHTML =
             renderUsageProfilesPage();
+    } else if (normalizedMenu === "settings") {
+        return false;
     }
 
     return true;
@@ -11373,6 +11990,9 @@ function refreshTargetAppMenuPage(
 async function navigateToAppMenu(
     requestedMenu
 ) {
+    rememberCurrentAppMenuScroll();
+    saveAppMenuScrollPositions();
+
     const normalizedMenu =
         normalizeActiveAppMenu(
             requestedMenu
@@ -11418,6 +12038,10 @@ async function navigateToAppMenu(
     } else {
         stopMusicalDashboardRefreshTimer();
     }
+
+    restoreAppMenuScrollPosition(
+        normalizedMenu
+    );
 
     if (normalizedMenu === "quick") {
         await refreshQuickControlPlayback({
@@ -14160,50 +14784,85 @@ function renderSimpleManualPage() {
 }
 
 function renderAppMenu() {
-    const items = [
-        ["dashboard", "🏠", "Accueil"],
-        ["music", "🎵", "Ma musique"],
-        ["mixes", "🔀", "Mix & iOS"],
-        ["adaptive", "🤖", "Adaptive DJ"],
-        ["assistant", "✨", "Assistant"],
-        ["recommendations", "💜", "Pour toi"],
-        ["statistics", "📊", "Statistiques"],
-        ["goals", "🏆", "Objectifs"],
-        ["intelligence", "🧠", "Intelligence"],
-        ["quick", "⚡", "Rapide"],
-        ["driving", "🚗", "Conduite"],
-        ["modes", "🎛️", "Modes"],
-        ["guide", "📖", "Guide"],
-        ["settings", "⚙️", "Réglages"]
+    const groups = [
+        {
+            id: "essential",
+            label: "Essentiel",
+            items: [
+                ["dashboard", "🏠", "Accueil"],
+                ["music", "🎵", "Ma musique"],
+                ["mixes", "🔀", "Mix & iOS"],
+                ["quick", "⚡", "Rapide"],
+                ["driving", "🚗", "Conduite"]
+            ]
+        },
+        {
+            id: "smart",
+            label: "Intelligence",
+            items: [
+                ["adaptive", "🤖", "Adaptive DJ"],
+                ["assistant", "✨", "Assistant"],
+                ["recommendations", "💜", "Pour toi"],
+                ["statistics", "📊", "Statistiques"],
+                ["goals", "🏆", "Objectifs"],
+                ["intelligence", "🧠", "Analyses"]
+            ]
+        },
+        {
+            id: "tools",
+            label: "Outils",
+            items: [
+                ["modes", "🎛️", "Modes"],
+                ["guide", "📖", "Guide"],
+                ["settings", "⚙️", "Réglages"]
+            ]
+        }
     ];
 
     return `
         <nav
-            class="app-menu"
+            class="app-menu app-menu--grouped"
             aria-label="Navigation Shuffle+"
         >
-            ${items.map(
-                ([id, icon, label]) => `
-                    <button
-                        type="button"
-                        class="app-menu-button
-                        ${activeAppMenu === id
-                            ? "is-active"
-                            : ""}"
-                        data-app-menu="${id}"
-                        aria-label="${escapeHtml(label)}"
-                        title="${escapeHtml(label)}"
-                        aria-current="${activeAppMenu === id
-                            ? "page"
-                            : "false"}"
+            ${groups.map((group) => `
+                <div
+                    class="app-menu-group"
+                    data-app-menu-group="${group.id}"
+                >
+                    <span
+                        class="app-menu-group__label"
                     >
-                        <span aria-hidden="true">
-                            ${icon}
-                        </span>
-                        <span>${label}</span>
-                    </button>
-                `
-            ).join("")}
+                        ${escapeHtml(group.label)}
+                    </span>
+
+                    <div
+                        class="app-menu-group__buttons"
+                    >
+                        ${group.items.map(
+                            ([id, icon, label]) => `
+                                <button
+                                    type="button"
+                                    class="app-menu-button
+                                    ${activeAppMenu === id
+                                        ? "is-active"
+                                        : ""}"
+                                    data-app-menu="${id}"
+                                    aria-label="${escapeHtml(label)}"
+                                    title="${escapeHtml(label)}"
+                                    aria-current="${activeAppMenu === id
+                                        ? "page"
+                                        : "false"}"
+                                >
+                                    <span aria-hidden="true">
+                                        ${icon}
+                                    </span>
+                                    <span>${label}</span>
+                                </button>
+                            `
+                        ).join("")}
+                    </div>
+                </div>
+            `).join("")}
         </nav>
     `;
 }
@@ -31707,6 +32366,7 @@ function displayPlaylists(playlists) {
                 data-app-menu-page="settings"
             >
                 ${renderContextualHelpSettingsPanel()}
+                ${renderAppHealthPanel()}
                 ${renderUiThemeSettingsPanel()}
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
@@ -31737,6 +32397,10 @@ function displayPlaylists(playlists) {
     );
     if (activeAppMenu === "dashboard") startMusicalDashboardRefreshTimer();
     else stopMusicalDashboardRefreshTimer();
+
+    restoreAppMenuScrollPosition(
+        activeAppMenu
+    );
 }
 
 
@@ -34739,6 +35403,35 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        if (
+            event.target.closest(
+                "#runAppHealthCheckButton"
+            )
+        ) {
+            await collectAppHealthSnapshot({
+                notify: true
+            });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportAppHealthButton"
+            )
+        ) {
+            await exportAppHealthReport();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#repairPwaCacheButton"
+            )
+        ) {
+            await repairPwaCache();
+            return;
+        }
+
         const uiAccentButton =
             event.target.closest(
                 "[data-ui-accent]"
@@ -37996,6 +38689,20 @@ window.addEventListener(
                 source: "pageshow"
             });
         }
+    }
+);
+
+window.addEventListener(
+    "scroll",
+    scheduleAppMenuScrollSave,
+    { passive: true }
+);
+
+window.addEventListener(
+    "beforeunload",
+    () => {
+        rememberCurrentAppMenuScroll();
+        saveAppMenuScrollPositions();
     }
 );
 

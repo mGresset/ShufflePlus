@@ -1,0 +1,30 @@
+{
+  "version": "7.0.0",
+  "name": "Stability and Organized Navigation",
+  "source": "ShufflePlus-v6.9.0-Usage-Profiles.zip",
+  "generatedAt": "2026-07-30T15:16:13.256183+00:00",
+  "javascriptFilesChecked": 22,
+  "serverChangesRequired": false,
+  "features": [
+    "grouped navigation: Essential, Intelligence, Tools",
+    "single-line navigation labels with horizontal overflow",
+    "per-section scroll position memory",
+    "built-in app health diagnostic center",
+    "PWA cache and service worker checks",
+    "wake lock and voice capability checks",
+    "privacy-safe JSON diagnostic export",
+    "PWA cache repair action without clearing user data",
+    "dashboard URL routing support",
+    "PWA cache version 7.0.0"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "appHealthSmokeTest": "ok",
+    "serverTests": "ok",
+    "versionAndCache": "ok",
+    "zipIntegrity": "ok"
+  },
+  "deviceRenderingTested": false,
+  "zipFileCount": 119
+}

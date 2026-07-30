@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v7.0.0 — Stabilisation et navigation organisée : terminée**
+  - navigation regroupée ;
+  - mémoire de position par rubrique ;
+  - centre de diagnostic ;
+  - réparation du cache PWA ;
+  - consolidation PC, Safari et PWA.
+
 - **v6.9.0 — Modes d’utilisation : terminée**
   - Quotidien, Conduite, Sport, Soirée et Découverte ;
   - application coordonnée de la page, de la scène et du thème ;
