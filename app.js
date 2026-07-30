@@ -162,7 +162,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.3.1";
+const APP_VERSION = "7.3.2";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -3580,7 +3580,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.3.1",
+                "./service-worker.js?v=7.3.2",
                 {
                     scope: "./",
                     updateViaCache: "none"

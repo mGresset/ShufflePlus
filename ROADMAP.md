@@ -16,11 +16,12 @@
   - nettoyage des états PKCE incomplets ou expirés ;
   - stratégie réseau prioritaire pour les scripts versionnés.
 
-- **v7.3.2 — Stabilisation iPhone : prévue**
-  - retours d’essai sur Safari et PWA installée ;
-  - ajustement des délais Spotify Connect ;
-  - amélioration des messages selon les erreurs réelles ;
-  - tests des files longues et des podcasts.
+- **v7.3.2 — Interface iPhone stabilisée : terminée**
+  - bandeau de mise à jour placé au-dessus de la navigation fixe ;
+  - boutons de mise à jour accessibles avec la safe area iOS ;
+  - en-tête connecté maintenu sur une seule ligne ;
+  - message de bienvenue tronqué sans déplacer la déconnexion ;
+  - contrôles renforcés pour les écrans iPhone étroits.
 
 - **v7.4.0 — Moteur explicable : prévue**
   - rapport avant/après ;

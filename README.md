@@ -1,5 +1,11 @@
 # Shuffle+
 
+## v7.3.2 — Interface iPhone stabilisée
+
+La v7.3.2 corrige deux problèmes d’ergonomie sur Safari iOS et dans la PWA installée. Le bandeau de mise à jour est maintenant placé au-dessus de la navigation mobile et ses boutons restent accessibles, y compris avec la zone de sécurité de l’iPhone.
+
+L’en-tête connecté conserve désormais le logo, l’état réseau, le message de bienvenue et le bouton de déconnexion sur une seule ligne. Le nom utilisateur est tronqué proprement lorsque l’espace manque, sans déplacer le bouton de sortie.
+
 ## v7.3.1 — Démarrage et connexion sécurisés
 
 La v7.3.1 sécurise le cas où Shuffle+ reste bloquée sur l’écran de connexion à cause d’un ancien cache, d’un Service Worker obsolète ou d’un état Spotify incomplet.
