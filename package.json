@@ -1,0 +1,17 @@
+{
+  "name": "shuffleplus",
+  "version": "7.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Shuffle+ — application Spotify statique avec déploiement GitHub Pages.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node scripts/serve-local.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs",
+    "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
+    "build": "node scripts/build.mjs",
+    "validate": "npm test && npm run build"
+  }
+}

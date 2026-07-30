@@ -1,0 +1,39 @@
+{
+  "version": "7.1.1",
+  "name": "Spotify Reliability and GitHub Pages Deployment",
+  "generatedAt": "2026-07-30T16:26:34.210936+00:00",
+  "javascriptFilesChecked": 28,
+  "serverChangesRequired": false,
+  "features": [
+    "Spotify invalid_grant reauthorization flow",
+    "refresh token request deduplication",
+    "authorization timestamp storage",
+    "QUOTA_EXCEEDED detection without retry",
+    "Retry-After support for classical rate limiting",
+    "local PKCE redirect on 127.0.0.1:5500",
+    "automated GitHub Pages validation and deployment",
+    "VS Code tasks for local development"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "versionConsistency": "ok",
+    "spotifyReliabilityTests": "5/5 ok",
+    "serverTests": "ok",
+    "staticBuild": "ok",
+    "localHttpServer": "ok",
+    "workflowYaml": "ok"
+  },
+  "sourceFileCount": 137,
+  "sha256": {
+    "app.js": "03eff2d8606b0dfc1cbb36170170dd15c13cde6afa429b02302cfd54884664de",
+    "auth.js": "57391f1ba13615256bb7e65236356b19da7164bb26bfb26c93ef69065d3dc027",
+    "config.js": "d66e9a629f1bb8328c9298ad6925a90bedfb44160d23cdc951b7d2ebce307242",
+    "index.html": "6f80d5111efd471a17e200f784c995dc191b9bb4b573b4bd8d6e3731e27b7cdf",
+    "service-worker.js": "bc77102b199f1272fdb82541a60cc537c52e687a5fa2fdd277ab2da4d3c3cf41",
+    "spotify-api.js": "58a489b4a6769733e3b8c58257b1270203076e43df936d979b7f497179f29a8a",
+    "storage.js": "a548222a60443b7bd5801f22e0d54602a6cfaeea75269489dfb485a345c27fc4",
+    "style.css": "d306b1156889e683f83db751f09c5c10fb5010450c30eb78f21a409f28de2cc7",
+    ".github/workflows/deploy-pages.yml": "8292b904a4ef8d5371ecd494836e0674e08350338279f4832821f06a63bb21d1",
+    "package.json": "9835e16ecf599c391ead56f57d999f21bcd5ef00b347b77e0f80b4b8cd0c7762"
+  }
+}

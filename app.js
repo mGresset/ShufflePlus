@@ -8,7 +8,8 @@ import {
     loginWithSpotify,
     handleSpotifyCallback,
     getValidAccessToken,
-    logoutSpotify
+    logoutSpotify,
+    isSpotifyReauthorizationRequired
 } from "./auth.js";
 
 import {
@@ -137,7 +138,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.1.0";
+const APP_VERSION = "7.1.1";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -3176,7 +3177,14 @@ async function refreshLiveLibrary({ force = false, silent = false } = {}) {
             : null;
         if (fallback) {
             applyOfflineLibraryCache(fallback);
-            if (!silent) setStatus("Spotify est indisponible · données locales affichées.", "error");
+            if (!silent) {
+                setStatus(
+                    error?.reason === "QUOTA_EXCEEDED"
+                        ? "Quota Spotify temporairement épuisé · données locales affichées."
+                        : "Spotify est indisponible · données locales affichées.",
+                    "error"
+                );
+            }
             return true;
         }
         throw error;
@@ -3542,7 +3550,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.1.0",
+                "./service-worker.js?v=7.1.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -35712,7 +35720,9 @@ async function initializeApp() {
         if (loginButton) {
             loginButton.disabled = false;
             loginButton.textContent =
-                "Se connecter à Spotify";
+                isSpotifyReauthorizationRequired(error)
+                    ? "Se reconnecter à Spotify"
+                    : "Se connecter à Spotify";
         }
 
         setStatus(

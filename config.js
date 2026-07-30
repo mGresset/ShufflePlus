@@ -1,10 +1,30 @@
+const APP_VERSION = "7.1.1";
+const PRODUCTION_REDIRECT_URI =
+    "https://mgresset.github.io/ShufflePlus/";
+const LOCAL_REDIRECT_URI =
+    "http://127.0.0.1:5500/";
+
+function getRedirectUri() {
+    const hostname = globalThis.location?.hostname || "";
+    const isLoopback =
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname === "[::1]";
+
+    return isLoopback
+        ? LOCAL_REDIRECT_URI
+        : PRODUCTION_REDIRECT_URI;
+}
+
 export const CONFIG = {
     appName: "Shuffle+",
-    version: "7.1.0",
+    version: APP_VERSION,
 
     clientId: "efcbf6e43e6346678cfceb44d0dc2422",
 
-    redirectUri: "https://mgresset.github.io/ShufflePlus/",
+    redirectUri: getRedirectUri(),
+    productionRedirectUri: PRODUCTION_REDIRECT_URI,
+    localRedirectUri: LOCAL_REDIRECT_URI,
 
     scopes: [
         "playlist-read-private",

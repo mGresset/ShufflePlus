@@ -1,3 +1,15 @@
+# Shuffle+
+
+## v7.1.1 — Fiabilité Spotify et déploiement automatique
+
+Cette version gère l’expiration des refresh tokens Spotify, distingue les quotas des rate limits, empêche les renouvellements simultanés et ajoute un déploiement GitHub Pages contrôlé par tests.
+
+- Guide : `DEPLOIEMENT-V7.1.1.md`
+- Notes : `V7.1.1_NOTES.md`
+- Test local : `npm start`
+- Validation complète : `npm test`
+- Build : `npm run build`
+
 
 ## v7.1.0 — Performance et hors connexion
 

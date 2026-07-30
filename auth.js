@@ -12,6 +12,21 @@ import {
 const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 
+let refreshPromise = null;
+
+export class SpotifyAuthError extends Error {
+    constructor(message, code, details = null) {
+        super(message);
+        this.name = "SpotifyAuthError";
+        this.code = code;
+        this.details = details;
+    }
+}
+
+export function isSpotifyReauthorizationRequired(error) {
+    return error?.code === "SPOTIFY_REAUTH_REQUIRED";
+}
+
 function generateRandomString(length = 64) {
     const characters =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -47,6 +62,20 @@ async function createCodeChallenge(codeVerifier) {
     );
 
     return base64UrlEncode(digest);
+}
+
+async function readJsonResponse(response) {
+    const text = await response.text();
+
+    if (!text) {
+        return {};
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        return { error_description: text };
+    }
 }
 
 export async function loginWithSpotify() {
@@ -87,8 +116,10 @@ export async function handleSpotifyCallback() {
     if (error) {
         clearTemporaryAuth();
 
-        throw new Error(
-            `Spotify a refusé la connexion : ${error}`
+        throw new SpotifyAuthError(
+            `Spotify a refusé la connexion : ${error}`,
+            "SPOTIFY_AUTH_DENIED",
+            { error }
         );
     }
 
@@ -99,16 +130,18 @@ export async function handleSpotifyCallback() {
     const { codeVerifier, state } = getTemporaryAuth();
 
     if (!codeVerifier) {
-        throw new Error(
-            "Le code PKCE est introuvable. Recommence la connexion."
+        throw new SpotifyAuthError(
+            "Le code PKCE est introuvable. Recommence la connexion.",
+            "SPOTIFY_PKCE_MISSING"
         );
     }
 
     if (!state || returnedState !== state) {
         clearTemporaryAuth();
 
-        throw new Error(
-            "La vérification de sécurité OAuth a échoué."
+        throw new SpotifyAuthError(
+            "La vérification de sécurité OAuth a échoué.",
+            "SPOTIFY_STATE_MISMATCH"
         );
     }
 
@@ -128,19 +161,21 @@ export async function handleSpotifyCallback() {
         body
     });
 
-    const tokenData = await response.json();
+    const tokenData = await readJsonResponse(response);
 
     if (!response.ok) {
         console.error("Erreur token Spotify :", tokenData);
 
-        throw new Error(
+        throw new SpotifyAuthError(
             tokenData.error_description ||
             tokenData.error ||
-            "Impossible de terminer la connexion Spotify."
+            "Impossible de terminer la connexion Spotify.",
+            "SPOTIFY_TOKEN_EXCHANGE_FAILED",
+            tokenData
         );
     }
 
-    saveTokens(tokenData);
+    saveTokens(tokenData, { markAuthorization: true });
     clearTemporaryAuth();
 
     window.history.replaceState(
@@ -159,29 +194,62 @@ async function refreshAccessToken(refreshToken) {
         refresh_token: refreshToken
     });
 
-    const response = await fetch(TOKEN_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body
-    });
+    let response;
 
-    const tokenData = await response.json();
+    try {
+        response = await fetch(TOKEN_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body
+        });
+    } catch (error) {
+        throw new SpotifyAuthError(
+            "Impossible de joindre Spotify pour renouveler la session.",
+            "SPOTIFY_REFRESH_NETWORK_ERROR",
+            error
+        );
+    }
+
+    const tokenData = await readJsonResponse(response);
 
     if (!response.ok) {
         console.error("Erreur de renouvellement Spotify :", tokenData);
 
-        clearTokens();
+        if (tokenData.error === "invalid_grant") {
+            clearTokens();
 
-        throw new Error(
-            "La session Spotify a expiré. Reconnecte-toi."
+            throw new SpotifyAuthError(
+                "Spotify demande une nouvelle autorisation. Appuie sur « Se reconnecter à Spotify ».",
+                "SPOTIFY_REAUTH_REQUIRED",
+                tokenData
+            );
+        }
+
+        throw new SpotifyAuthError(
+            tokenData.error_description ||
+            tokenData.error ||
+            "Le renouvellement de la session Spotify a échoué.",
+            "SPOTIFY_REFRESH_FAILED",
+            tokenData
         );
     }
 
     saveTokens(tokenData);
 
     return tokenData.access_token;
+}
+
+async function refreshAccessTokenOnce(refreshToken) {
+    if (!refreshPromise) {
+        refreshPromise = refreshAccessToken(refreshToken)
+            .finally(() => {
+                refreshPromise = null;
+            });
+    }
+
+    return refreshPromise;
 }
 
 export async function getValidAccessToken() {
@@ -199,7 +267,7 @@ export async function getValidAccessToken() {
         return null;
     }
 
-    return refreshAccessToken(tokens.refreshToken);
+    return refreshAccessTokenOnce(tokens.refreshToken);
 }
 
 export function logoutSpotify() {

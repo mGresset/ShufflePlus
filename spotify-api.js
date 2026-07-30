@@ -22,17 +22,29 @@ async function spotifyFetch(endpoint, options = {}) {
         const errorBody = await response.text();
 
         let spotifyMessage = "";
+        let spotifyReason = "";
+        let parsedError = null;
 
         try {
-            const parsedError = JSON.parse(errorBody);
+            parsedError = JSON.parse(errorBody);
 
             spotifyMessage =
                 parsedError?.error?.message ||
                 parsedError?.error_description ||
                 parsedError?.message ||
                 "";
+
+            spotifyReason =
+                parsedError?.error?.reason ||
+                parsedError?.reason ||
+                "";
         } catch {
             spotifyMessage = errorBody;
+        }
+
+        if (spotifyReason === "QUOTA_EXCEEDED") {
+            spotifyMessage =
+                "Le quota Spotify de l’application est temporairement épuisé. Réessaie plus tard.";
         }
 
         console.error(
@@ -49,6 +61,8 @@ async function spotifyFetch(endpoint, options = {}) {
         error.status = response.status;
         error.details = errorBody;
         error.spotifyMessage = spotifyMessage;
+        error.reason = spotifyReason;
+        error.payload = parsedError;
         error.retryAfter = response.headers.get("Retry-After");
 
         throw error;
@@ -375,6 +389,7 @@ async function spotifyFetchWithRetry(
 
             if (
                 error.status !== 429 ||
+                error.reason === "QUOTA_EXCEEDED" ||
                 attempt >= maxAttempts
             ) {
                 throw error;
