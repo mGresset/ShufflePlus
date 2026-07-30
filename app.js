@@ -96,7 +96,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.5.2";
+const APP_VERSION = "6.6.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -1401,7 +1401,7 @@ ${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><head
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
 ${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
-</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${[["music","🎵","Ma musique"],["mixes","🔀","Mix & iOS"],["adaptive","🤖","Adaptive DJ"],["assistant","✨","Assistant"],["recommendations","💜","Pour toi"],["statistics","📊","Statistiques"],["quick","⚡","Rapide"],["settings","⚙️","Réglages"]].map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
+</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${[["music","🎵","Ma musique"],["mixes","🔀","Mix & iOS"],["adaptive","🤖","Adaptive DJ"],["assistant","✨","Assistant"],["recommendations","💜","Pour toi"],["statistics","📊","Statistiques"],["quick","⚡","Rapide"],["guide","📖","Guide"],["settings","⚙️","Réglages"]].map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
 
 function readPersonalizedRecommendationsState() {
     try {
@@ -8838,6 +8838,7 @@ function applyDrivingViewFromUrl() {
         "intelligence",
         "quick",
         "driving",
+        "guide",
         "settings"
     ].includes(requestedView)) {
         activeAppMenu = requestedView;
@@ -8864,6 +8865,7 @@ function normalizeActiveAppMenu(value = "") {
         "intelligence",
         "quick",
         "driving",
+        "guide",
         "settings"
     ].includes(value)
         ? value
@@ -12043,6 +12045,237 @@ function renderMusicalAssistantPage() {
     `;
 }
 
+
+function renderSimpleManualPage() {
+    const sections = [
+        {
+            id: "dashboard",
+            icon: "🏠",
+            title: "Accueil",
+            summary: "Le résumé de Shuffle+ sur une seule page.",
+            details: "Tu y retrouves la musique en cours, la scène active, la prochaine routine, une recommandation et quelques statistiques."
+        },
+        {
+            id: "music",
+            icon: "🎵",
+            title: "Ma musique",
+            summary: "Choisir les sources de tes futurs mix.",
+            details: "Parcours tes playlists et tes morceaux aimés, puis utilise la recherche, les filtres et le tri par modification récente."
+        },
+        {
+            id: "mixes",
+            icon: "🔀",
+            title: "Mix & iOS",
+            summary: "Créer, enregistrer et automatiser tes mix.",
+            details: "Sélectionne plusieurs sources, sauvegarde le résultat, prépare des raccourcis iOS et programme des routines."
+        },
+        {
+            id: "adaptive",
+            icon: "🤖",
+            title: "Adaptive DJ",
+            summary: "Adapter automatiquement la musique au contexte.",
+            details: "Associe tes mix à des scènes comme Conduite, Chill, Sport ou Party, puis laisse Shuffle+ choisir ou préparer la bonne ambiance."
+        },
+        {
+            id: "assistant",
+            icon: "✨",
+            title: "Assistant",
+            summary: "Commander Shuffle+ avec une phrase simple.",
+            details: "Écris ou dicte une demande, par exemple : « Lance Conduite », « Prépare Chill » ou « Montre mes statistiques »."
+        },
+        {
+            id: "recommendations",
+            icon: "💜",
+            title: "Pour toi",
+            summary: "Recevoir des suggestions personnalisées.",
+            details: "Les propositions utilisent l’heure, tes habitudes, tes scènes et tes retours. Tu peux aimer, refuser ou masquer une suggestion."
+        },
+        {
+            id: "statistics",
+            icon: "📊",
+            title: "Statistiques",
+            summary: "Comprendre ton activité musicale.",
+            details: "Consulte tes sessions, tes titres, tes habitudes et tes périodes d’écoute. Shuffle+ distingue les lancements des écoutes confirmées."
+        },
+        {
+            id: "goals",
+            icon: "🏆",
+            title: "Objectifs",
+            summary: "Suivre ta progression chaque semaine.",
+            details: "Choisis quelques objectifs simples, observe les barres de progression et débloque des badges selon ton utilisation."
+        },
+        {
+            id: "intelligence",
+            icon: "🧠",
+            title: "Intelligence",
+            summary: "Voir ce que Shuffle+ apprend.",
+            details: "Cette rubrique montre les habitudes détectées, les propositions automatiques et les corrections que tu peux accepter ou annuler."
+        },
+        {
+            id: "quick",
+            icon: "⚡",
+            title: "Rapide",
+            summary: "Accéder immédiatement aux commandes essentielles.",
+            details: "Pause, reprise, titre suivant, retours musicaux et raccourcis de contexte sont regroupés dans une interface compacte."
+        },
+        {
+            id: "driving",
+            icon: "🚗",
+            title: "Conduite",
+            summary: "Utiliser de gros boutons pendant un trajet.",
+            details: "L’interface est simplifiée pour tenir sur l’écran du téléphone. Le maintien de l’écran dépend toujours de Safari et d’iOS."
+        },
+        {
+            id: "settings",
+            icon: "⚙️",
+            title: "Réglages",
+            summary: "Personnaliser, sauvegarder et synchroniser l’application.",
+            details: "Change le thème, gère les règles de mix, exporte une sauvegarde, configure la synchronisation et recherche les mises à jour."
+        }
+    ];
+
+    return `
+        <section class="simple-guide-page">
+            <div class="simple-guide-hero">
+                <div>
+                    <span class="simple-guide-kicker">📖 Guide rapide</span>
+                    <h3>Comprendre Shuffle+ sans se compliquer</h3>
+                    <p>
+                        Ce manuel explique simplement le rôle de chaque rubrique.
+                        Pour les réglages précis, les détails techniques et le déploiement,
+                        utilise ensuite le README complet.
+                    </p>
+                </div>
+
+                <div class="simple-guide-hero__actions">
+                    <a
+                        class="simple-guide-readme-button"
+                        href="./README.md"
+                        target="_blank"
+                        rel="noopener"
+                    >
+                        Lire le README complet
+                    </a>
+
+                    <a
+                        class="simple-guide-readme-secondary"
+                        href="./README.md"
+                        download
+                    >
+                        Télécharger le README
+                    </a>
+                </div>
+            </div>
+
+            <section class="simple-guide-start">
+                <div class="simple-guide-section-heading">
+                    <div>
+                        <span>🚀 Bien démarrer</span>
+                        <h4>Le parcours le plus simple</h4>
+                    </div>
+                </div>
+
+                <ol class="simple-guide-steps">
+                    <li>
+                        <strong>1. Choisis tes sources</strong>
+                        <span>Dans Ma musique, coche une ou plusieurs playlists.</span>
+                    </li>
+                    <li>
+                        <strong>2. Crée un mix</strong>
+                        <span>Dans Mix & iOS, enregistre une combinaison que tu aimes.</span>
+                    </li>
+                    <li>
+                        <strong>3. Associe une scène</strong>
+                        <span>Dans Adaptive DJ, relie ce mix à Conduite, Chill, Sport ou une autre scène.</span>
+                    </li>
+                    <li>
+                        <strong>4. Lance en un geste</strong>
+                        <span>Utilise Accueil, Rapide, Conduite, l’Assistant ou un raccourci iOS.</span>
+                    </li>
+                </ol>
+            </section>
+
+            <section class="simple-guide-categories">
+                <div class="simple-guide-section-heading">
+                    <div>
+                        <span>🗂️ Toutes les rubriques</span>
+                        <h4>À quoi sert chaque catégorie ?</h4>
+                    </div>
+                </div>
+
+                <div class="simple-guide-grid">
+                    ${sections.map((section) => `
+                        <article class="simple-guide-card">
+                            <div class="simple-guide-card__icon" aria-hidden="true">
+                                ${section.icon}
+                            </div>
+
+                            <div class="simple-guide-card__copy">
+                                <h5>${escapeHtml(section.title)}</h5>
+                                <strong>${escapeHtml(section.summary)}</strong>
+                                <p>${escapeHtml(section.details)}</p>
+                            </div>
+
+                            <button
+                                type="button"
+                                data-app-menu="${escapeHtml(section.id)}"
+                            >
+                                Ouvrir ${escapeHtml(section.title)}
+                            </button>
+                        </article>
+                    `).join("")}
+                </div>
+            </section>
+
+            <section class="simple-guide-vocabulary">
+                <div class="simple-guide-section-heading">
+                    <div>
+                        <span>🧩 Les mots utiles</span>
+                        <h4>Quatre notions à retenir</h4>
+                    </div>
+                </div>
+
+                <div class="simple-guide-vocabulary__grid">
+                    <article>
+                        <strong>Source</strong>
+                        <p>Une playlist Spotify ou tes morceaux aimés.</p>
+                    </article>
+                    <article>
+                        <strong>Mix</strong>
+                        <p>Une sélection Shuffle+ créée à partir d’une ou plusieurs sources.</p>
+                    </article>
+                    <article>
+                        <strong>Profil</strong>
+                        <p>Un ensemble de règles pour le mélange, l’énergie et les exclusions.</p>
+                    </article>
+                    <article>
+                        <strong>Scène</strong>
+                        <p>Un contexte prêt à lancer, comme Conduite, Focus, Chill ou Party.</p>
+                    </article>
+                </div>
+            </section>
+
+            <details class="simple-guide-help">
+                <summary>Quelques réponses utiles</summary>
+                <div>
+                    <p>
+                        <strong>Pourquoi Spotify ne démarre parfois pas ?</strong><br>
+                        Un appareil Spotify disponible et un compte compatible peuvent être nécessaires pour contrôler la lecture.
+                    </p>
+                    <p>
+                        <strong>Pourquoi certaines playlists sont grisées ?</strong><br>
+                        Elles restent visibles, mais Spotify ne permet pas toujours à Shuffle+ de lire leur contenu.
+                    </p>
+                    <p>
+                        <strong>Pourquoi l’écran peut-il encore se verrouiller en mode Conduite ?</strong><br>
+                        Le maintien de l’écran dépend de l’autorisation réellement accordée par Safari et iOS.
+                    </p>
+                </div>
+            </details>
+        </section>
+    `;
+}
+
 function renderAppMenu() {
     const items = [
         ["dashboard", "🏠", "Accueil"],
@@ -12056,6 +12289,7 @@ function renderAppMenu() {
         ["intelligence", "🧠", "Intelligence"],
         ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
+        ["guide", "📖", "Guide"],
         ["settings", "⚙️", "Réglages"]
     ];
 
@@ -29530,6 +29764,16 @@ function displayPlaylists(playlists) {
                 data-app-menu-page="quick"
             >
                 ${renderQuickControlPage()}
+            </div>
+
+            <div
+                class="app-menu-page
+                ${activeAppMenu === "guide"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="guide"
+            >
+                ${renderSimpleManualPage()}
             </div>
 
             <div

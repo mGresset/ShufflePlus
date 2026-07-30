@@ -1,0 +1,16 @@
+Shuffle+ v6.6.0 — Installation
+
+1. Décompresser l’archive.
+2. Remplacer les fichiers du dépôt ShufflePlus.
+3. Publier :
+
+   git add .
+   git commit -m "v6.6.0 - Guide simplifie"
+   git pull --rebase origin main
+   git push origin main
+
+4. Attendre la publication GitHub Pages.
+5. Ouvrir Réglages → Rechercher une mise à jour.
+6. Fermer complètement la PWA ou Safari, puis relancer Shuffle+.
+
+La nouvelle rubrique s’appelle « Guide ».

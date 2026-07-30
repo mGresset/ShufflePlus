@@ -1,0 +1,26 @@
+{
+  "version": "6.6.0",
+  "name": "Simple In-App Guide",
+  "source": "ShufflePlus-v6.5.2-Wake-Lock-Reliability.zip",
+  "generatedAt": "2026-07-30T10:25:59.594540+00:00",
+  "javascriptFilesChecked": 18,
+  "serverChangesRequired": false,
+  "features": [
+    "new Guide navigation category",
+    "simple description for every main category",
+    "four-step getting started path",
+    "essential vocabulary section",
+    "simple frequently asked questions",
+    "direct buttons to each application category",
+    "open and download README actions",
+    "dashboard shortcut to Guide"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 103
+}

@@ -1,3 +1,7 @@
+## v6.6.0 — Guide simplifié
+
+La rubrique **Guide** présente chaque catégorie de Shuffle+ en quelques phrases, propose un parcours de démarrage et explique les notions de source, mix, profil et scène. Elle donne également accès à ce README pour les explications détaillées.
+
 ## v6.5.2 — Maintien de l’écran fiable
 
 Le mode voiture affiche désormais l’état réel du Screen Wake Lock et tente de le réactiver après un retour dans Safari, un changement de visibilité ou une nouvelle interaction utilisateur.

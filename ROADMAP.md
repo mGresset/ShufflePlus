@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v6.6.0 — Guide simplifié : terminée**
+  - manuel intégré ;
+  - explication courte de chaque rubrique ;
+  - parcours de démarrage ;
+  - vocabulaire essentiel ;
+  - accès direct au README.
+
 - **v6.5.0 — Objectifs & bilan hebdomadaire : terminée**
   - objectifs personnalisables ;
   - progression et badges ;
