@@ -1,5 +1,17 @@
 # Feuille de route Shuffle+
 
+- **v7.4.2 — Test OAuth Windows corrigé : terminée**
+  - normalisation préalable des fins de ligne ;
+  - simulation indépendante des formats LF et CRLF ;
+  - prévention des séquences invalides `\r\r\n` ;
+  - aucune modification du fonctionnement Spotify ou Dynamic Lyrics.
+
+- **v7.4.1 — Déploiement Windows fiabilisé : terminée**
+  - tests compatibles avec les fins de ligne LF et CRLF ;
+  - politique `.gitattributes` commune à Windows et GitHub Actions ;
+  - exclusion des anciens bootstrap de récupération lors du build ;
+  - intégration Dynamic Lyrics inchangée.
+
 - **v7.3.0 — Raccourci iOS et conduite : terminée**
   - iPhone préféré enregistré par `device_id` ;
   - recherche de secours par nom et type ;
@@ -23,7 +35,15 @@
   - message de bienvenue tronqué sans déplacer la déconnexion ;
   - contrôles renforcés pour les écrans iPhone étroits.
 
-- **v7.4.0 — Moteur explicable : prévue**
+- **v7.4.0 — Dynamic Lyrics et profils compagnons : terminée**
+  - configuration dans Mix & iOS ;
+  - lancement par un raccourci iOS personnel ;
+  - activation indépendante pour chaque profil ;
+  - délai d’ouverture configurable ;
+  - test et copie du lien compagnon ;
+  - aucune parole ajoutée au mode conduite.
+
+- **v7.5.0 — Moteur explicable : prévue**
   - rapport avant/après ;
   - graine reproductible ;
   - explication des compromis du mélange.

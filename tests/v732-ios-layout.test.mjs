@@ -35,10 +35,10 @@ test("le bandeau de mise à jour passe au-dessus du menu mobile", () => {
     expectText(css, "min-height: 44px;");
 });
 
-test("les ressources v7.3.2 sont versionnées pour renouveler le cache", () => {
-    expectText(html, "style.css?v=7.3.2");
-    expectText(html, "app.js?v=7.3.2");
-    expectText(html, "startup-recovery-7.3.2.js");
-    expectText(sw, "shuffleplus-v7.3.2");
-    expectText(sw, "startup-recovery-7.3.2.js");
+test("les ressources v7.4.2 sont versionnées pour renouveler le cache", () => {
+    expectText(html, "style.css?v=7.4.2");
+    expectText(html, "app.js?v=7.4.2");
+    expectText(html, "startup-recovery-7.4.2.js");
+    expectText(sw, "shuffleplus-v7.4.2");
+    expectText(sw, "startup-recovery-7.4.2.js");
 });

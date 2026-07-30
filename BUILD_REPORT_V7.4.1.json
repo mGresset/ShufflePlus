@@ -1,0 +1,58 @@
+{
+  "version": "7.4.1",
+  "builtAt": "2026-07-30T22:10:00+02:00",
+  "baseVersion": "7.4.0",
+  "feature": "Windows CRLF/LF deployment reliability hotfix",
+  "validation": {
+    "javascriptSyntax": {
+      "status": "passed",
+      "filesInFullArchive": 46,
+      "filesAfterPatchOnBaseWithLegacyBootstrap": 47
+    },
+    "versionConsistency": {
+      "status": "passed",
+      "version": "7.4.1"
+    },
+    "moduleGraph": {
+      "status": "passed",
+      "modulesLinkedToApp": 24
+    },
+    "applicationTests": {
+      "status": "passed",
+      "passed": 43,
+      "failed": 0
+    },
+    "syncServerTests": {
+      "status": "passed"
+    },
+    "githubPagesBuild": {
+      "status": "passed"
+    },
+    "distVerification": {
+      "status": "passed"
+    },
+    "localHttpSmokeTest": {
+      "status": "passed"
+    },
+    "patchAppliedToCleanBase": {
+      "status": "passed",
+      "base": "7.4.0"
+    },
+    "crlfSimulation": {
+      "status": "passed",
+      "description": "OAuth source assertion validated with LF and simulated CRLF"
+    },
+    "legacyRecoveryBuildExclusion": {
+      "status": "passed",
+      "deployedRecoveryFile": "startup-recovery-7.4.1.js",
+      "excludedRecoveryFile": "startup-recovery-7.4.0.js"
+    }
+  },
+  "changes": {
+    "runtimeBehaviorChanged": false,
+    "dynamicLyricsChanged": false,
+    "spotifyPlaybackChanged": false,
+    "userDataMigrationRequired": false,
+    "gitattributesAdded": true
+  }
+}

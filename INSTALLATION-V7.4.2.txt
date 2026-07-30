@@ -1,0 +1,16 @@
+SHUFFLE+ v7.4.2 — INSTALLATION RAPIDE
+
+1. Décompresser ShufflePlus-v7.4.2-patch.zip à la racine du dépôt v7.4.1.
+2. Ouvrir le terminal Visual Studio Code.
+3. Exécuter :
+
+   git switch main
+   git pull origin main
+   git switch -c hotfix/7.4.2
+   npm run validate
+
+4. Publier :
+
+   git add .
+   git commit -m "Hotfix Shuffle+ v7.4.2"
+   git push -u origin hotfix/7.4.2
