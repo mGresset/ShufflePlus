@@ -96,7 +96,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.5.0";
+const APP_VERSION = "6.5.1";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -5151,7 +5151,25 @@ function getDrivingCurrentFeedbackAction(track) {
     );
 }
 
+function syncDrivingViewportHeight() {
+    const visualHeight =
+        window.visualViewport?.height ||
+        window.innerHeight ||
+        document.documentElement.clientHeight;
+
+    if (!Number.isFinite(visualHeight)) {
+        return;
+    }
+
+    document.documentElement.style.setProperty(
+        "--driving-viewport-height",
+        `${Math.max(320, Math.round(visualHeight))}px`
+    );
+}
+
 function renderDrivingModePage() {
+    syncDrivingViewportHeight();
+
     const adaptive = getAdaptiveDjMix();
     const track = getDrivingCurrentTrack();
     const isPlaying = Boolean(
@@ -5174,9 +5192,9 @@ function renderDrivingModePage() {
     contentElement.innerHTML = `
         <section class="driving-mode-page" aria-label="Mode conduite">
             <header class="driving-mode-header">
-                <div>
-                    <span>🚗 Mode conduite</span>
-                    <h2>Commandes essentielles</h2>
+                <div class="driving-mode-header-copy">
+                    <span>🚗 Mode voiture</span>
+                    <h2>Conduite</h2>
                 </div>
 
                 <button
@@ -5189,7 +5207,8 @@ function renderDrivingModePage() {
             </header>
 
             <p class="driving-safety-note">
-                Utilise ces commandes uniquement lorsque la situation permet de le faire sans danger.
+                <span aria-hidden="true">⚠️</span>
+                Priorité à la route · utilise les commandes seulement lorsque c’est sûr.
             </p>
 
             <section class="driving-context-card">
@@ -5289,34 +5308,51 @@ function renderDrivingModePage() {
                 <button
                     id="drivingRefreshButton"
                     type="button"
+                    aria-label="Actualiser le titre"
+                    title="Actualiser le titre"
                     ${drivingActionBusy ? "disabled" : ""}
                 >
-                    ↻ Actualiser le titre
+                    <span aria-hidden="true">↻</span>
+                    <small>Actualiser</small>
                 </button>
 
-                <label>
+                <label
+                    aria-label="Garder l’écran allumé"
+                    title="Garder l’écran allumé"
+                >
                     <input
                         id="drivingWakeLockInput"
                         type="checkbox"
                         ${drivingModeSettings.keepScreenAwake ? "checked" : ""}
                         ${wakeLockAvailable ? "" : "disabled"}
                     >
-                    Garder l’écran allumé
+                    <span aria-hidden="true">☀️</span>
+                    <small>Écran</small>
                 </label>
 
-                <label>
+                <label
+                    aria-label="Actualisation automatique"
+                    title="Actualisation automatique"
+                >
                     <input
                         id="drivingAutoRefreshInput"
                         type="checkbox"
                         ${drivingModeSettings.autoRefresh ? "checked" : ""}
                     >
-                    Actualisation automatique
+                    <span aria-hidden="true">🔄</span>
+                    <small>Auto</small>
                 </label>
             </div>
 
             <p
                 class="driving-message ${escapeHtml(drivingMessage.type)}"
                 aria-live="polite"
+                title="${escapeHtml(
+                    drivingMessage.text ||
+                    (drivingActionBusy
+                        ? "Commande en cours…"
+                        : "Prêt.")
+                )}"
             >
                 ${escapeHtml(
                     drivingMessage.text ||
@@ -35068,6 +35104,33 @@ document.addEventListener(
     () => {
         if (document.visibilityState === "visible") {
             runServerAutoSync("visible");
+
+            if (activeAppMenu === "driving") {
+                syncDrivingViewportHeight();
+                renderDrivingModePage();
+            }
+        }
+    }
+);
+
+window.addEventListener(
+    "orientationchange",
+    () => {
+        window.setTimeout(() => {
+            syncDrivingViewportHeight();
+
+            if (activeAppMenu === "driving") {
+                renderDrivingModePage();
+            }
+        }, 160);
+    }
+);
+
+window.visualViewport?.addEventListener(
+    "resize",
+    () => {
+        if (activeAppMenu === "driving") {
+            syncDrivingViewportHeight();
         }
     }
 );

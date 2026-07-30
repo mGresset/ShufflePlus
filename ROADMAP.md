@@ -99,3 +99,10 @@
 - URL iOS par scène ;
 - scène active ;
 - intégration backup/import-export.
+
+
+## v6.5.1 — Mode voiture iPhone
+
+- interface Safari sur une seule page ;
+- hauteur dynamique et zones sûres ;
+- portrait et paysage compacts.

@@ -1,0 +1,16 @@
+Shuffle+ v6.5.1 — Installation
+
+1. Décompresser l’archive.
+2. Remplacer les fichiers du dépôt ShufflePlus.
+3. Publier :
+
+   git add .
+   git commit -m "v6.5.1 - Mode voiture iPhone une page"
+   git pull --rebase origin main
+   git push origin main
+
+4. Attendre GitHub Pages.
+5. Ouvrir Shuffle+ dans Safari.
+6. Aller dans Réglages → Rechercher une mise à jour.
+7. Fermer puis rouvrir Safari si l’ancien CSS reste en cache.
+8. Tester le mode voiture en portrait avec les barres Safari visibles.

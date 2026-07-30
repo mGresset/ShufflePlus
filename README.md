@@ -1,3 +1,7 @@
+## v6.5.1 — Mode voiture iPhone
+
+Le mode voiture tient désormais dans la hauteur visible de Safari, utilise les zones sûres de l’iPhone et conserve toutes les commandes essentielles sans défilement.
+
 ## v6.5.0 — Objectifs & bilan hebdomadaire
 
 Le nouvel onglet **Objectifs** suit les sessions, jours actifs, découvertes et écoutes confirmées de la semaine. Il affiche la progression, des badges, la comparaison avec la semaine précédente et permet un export JSON.
