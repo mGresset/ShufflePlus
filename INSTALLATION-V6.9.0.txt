@@ -1,0 +1,15 @@
+Shuffle+ v6.9.0 — Installation
+
+1. Remplacer les fichiers du dépôt par ceux du ZIP.
+2. Publier :
+
+   git add .
+   git commit -m "v6.9.0 - Modes utilisation"
+   git pull --rebase origin main
+   git push origin main
+
+3. Attendre GitHub Pages.
+4. Ouvrir Réglages → Rechercher une mise à jour.
+5. Fermer complètement Safari ou la PWA, puis relancer Shuffle+.
+
+La nouvelle rubrique s’appelle « Modes ».

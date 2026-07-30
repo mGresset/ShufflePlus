@@ -41,6 +41,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Ouvre mon tableau de bord musical",
     "Montre mes objectifs musicaux",
     "Ouvre la recherche universelle",
+    "Active le mode Sport",
     "Quel est le programme musical actuel ?"
 ];
 
@@ -291,10 +292,34 @@ export function parseMusicalAssistantRequest(
         "chercher dans shuffle"
     ]);
     const isGoals = includesAny(text, ["objectif", "objectifs", "bilan hebdomadaire", "badges musicaux", "progression de la semaine"]);
+    const usageProfileAliases = {
+        daily: ["mode quotidien", "profil quotidien"],
+        drive: ["mode conduite", "profil conduite", "mode voiture"],
+        sport: ["mode sport", "profil sport"],
+        evening: ["mode soiree", "mode soirée", "profil soiree", "profil soirée"],
+        discovery: ["mode decouverte", "mode découverte", "profil decouverte", "profil découverte"]
+    };
+    const usageProfileId = Object.entries(usageProfileAliases)
+        .find(([, aliases]) => includesAny(text, aliases))?.[0] || "";
     let points = 1;
     if (scene || mix) points += 2;
     if (isSchedule || isTransition || isConfigure || isStatus) points += 2;
     if (time || durationMinutes !== null || energyTarget !== null) points += 1;
+
+    if (usageProfileId) {
+        const labels = {daily:"Quotidien",drive:"Conduite",sport:"Sport",evening:"Soirée",discovery:"Découverte"};
+        return {
+            type: "usage-profile",
+            profileId: usageProfileId,
+            request: originalRequest,
+            ready: true,
+            confidence: getConfidence(points + 2),
+            title: `Mode ${labels[usageProfileId]}`,
+            summary: "Adapter Shuffle+ à cette situation.",
+            details: ["Interface", "Scène conseillée", "Couleur", "Niveau de découverte"],
+            actionLabel: "Activer le mode"
+        };
+    }
 
     if (isGoals) {
         return {type:"goals",request:originalRequest,ready:true,confidence:getConfidence(points+2),title:"Objectifs musicaux",summary:"Ouvrir les objectifs et le bilan hebdomadaire.",details:["Sessions","Jours actifs","Découvertes","Badges"],actionLabel:"Ouvrir les objectifs"};

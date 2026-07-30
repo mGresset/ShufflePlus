@@ -1,3 +1,9 @@
+## v6.9.0 — Modes d’utilisation
+
+La rubrique **Modes** propose cinq configurations prêtes à l’emploi : Quotidien, Conduite, Sport, Soirée et Découverte. Un mode peut adapter la page, la scène, la couleur, le niveau de découverte et certains réglages du mode voiture, sans supprimer les réglages existants.
+
+L’assistant comprend aussi des demandes comme `Active le mode Sport`.
+
 
 ## v6.8.0 — Recherche universelle
 

@@ -91,6 +91,14 @@ import {
     getUniversalSearchTypeLabel
 } from "./universal-search.js";
 
+import {
+    USAGE_PROFILES,
+    DEFAULT_USAGE_PROFILE_STATE,
+    getUsageProfileById,
+    normalizeUsageProfileState,
+    buildUsageProfileApplication
+} from "./usage-profiles.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -110,7 +118,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.8.0";
+const APP_VERSION = "6.9.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -174,6 +182,8 @@ const CONTEXTUAL_HELP_STATE_KEY =
     "shuffleplus_contextual_help_state_v1";
 const UNIVERSAL_SEARCH_HISTORY_KEY =
     "shuffleplus_universal_search_history_v1";
+const USAGE_PROFILE_STATE_KEY =
+    "shuffleplus_usage_profile_state_v1";
 const MAX_UNIVERSAL_SEARCH_HISTORY = 8;
 const MAX_UNIVERSAL_SEARCH_RESULTS = 14;
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
@@ -1022,6 +1032,7 @@ let listeningStatisticsSettings =
 let musicalDashboardSettings = readMusicalDashboardSettings();
 let musicalGoalsSettings = readMusicalGoalsSettings();
 let contextualHelpState = readContextualHelpState();
+let usageProfileState = readUsageProfileState();
 let universalSearchOpen = false;
 let universalSearchQuery = "";
 let universalSearchResults = [];
@@ -9465,6 +9476,7 @@ function applyDrivingViewFromUrl() {
         "intelligence",
         "quick",
         "driving",
+        "modes",
         "guide",
         "settings"
     ].includes(requestedView)) {
@@ -9492,6 +9504,7 @@ function normalizeActiveAppMenu(value = "") {
         "intelligence",
         "quick",
         "driving",
+        "modes",
         "guide",
         "settings"
     ].includes(value)
@@ -11349,6 +11362,9 @@ function refreshTargetAppMenuPage(
     } else if (normalizedMenu === "quick") {
         page.innerHTML =
             renderQuickControlPage();
+    } else if (normalizedMenu === "modes") {
+        page.innerHTML =
+            renderUsageProfilesPage();
     }
 
     return true;
@@ -11447,6 +11463,337 @@ function revealActiveAppMenuButton(
 }
 
 
+
+function readUsageProfileState() {
+    try {
+        const raw = localStorage.getItem(
+            USAGE_PROFILE_STATE_KEY
+        );
+        return normalizeUsageProfileState(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_USAGE_PROFILE_STATE
+        );
+    } catch (error) {
+        console.warn(
+            "Profils d’utilisation illisibles :",
+            error
+        );
+        return normalizeUsageProfileState(
+            DEFAULT_USAGE_PROFILE_STATE
+        );
+    }
+}
+
+function saveUsageProfileState() {
+    usageProfileState =
+        normalizeUsageProfileState({
+            ...usageProfileState,
+            updatedAt: Date.now()
+        });
+    try {
+        localStorage.setItem(
+            USAGE_PROFILE_STATE_KEY,
+            JSON.stringify(usageProfileState)
+        );
+    } catch (error) {
+        console.warn(
+            "Profil d’utilisation non enregistré :",
+            error
+        );
+    }
+}
+
+function getUsageProfileSceneStatus(profile) {
+    if (!profile?.sceneId) {
+        return {
+            configured: true,
+            scene: null,
+            message: "Aucune scène obligatoire"
+        };
+    }
+    const scene = getAdaptiveDjSceneById(
+        profile.sceneId
+    );
+    const configured = Boolean(
+        scene?.id === profile.sceneId &&
+        scene?.mixId
+    );
+    return {
+        configured,
+        scene,
+        message: configured
+            ? `${scene.icon} ${scene.label} prête`
+            : `Scène ${profile.label} à configurer`
+    };
+}
+
+async function applyUsageProfile(
+    profileId,
+    { launch = false } = {}
+) {
+    const application =
+        buildUsageProfileApplication(
+            profileId,
+            usageProfileState
+        );
+    const { profile, actions } =
+        application;
+    usageProfileState =
+        application.nextState;
+    saveUsageProfileState();
+
+    if (actions.accent) {
+        uiThemeSettings =
+            normalizeUiThemeSettings({
+                ...uiThemeSettings,
+                accent: actions.accent
+            });
+        saveUiThemeSettings();
+        applyUiThemeSettings();
+    }
+
+    if (
+        actions.discoveryLevel !== null
+    ) {
+        personalizedRecommendationsState =
+            normalizePersonalizedRecommendationState({
+                ...personalizedRecommendationsState,
+                discoveryLevel:
+                    actions.discoveryLevel,
+                autoplay:
+                    actions.autoplay
+            });
+        savePersonalizedRecommendationsState();
+    }
+
+    if (
+        actions.keepScreenAwake !== null
+    ) {
+        drivingModeSettings =
+            normalizeDrivingModeSettings({
+                ...drivingModeSettings,
+                keepScreenAwake:
+                    actions.keepScreenAwake,
+                autoRefresh:
+                    actions.autoRefresh
+            });
+        saveDrivingModeSettings();
+    }
+
+    const sceneStatus =
+        getUsageProfileSceneStatus(profile);
+    if (
+        actions.sceneId &&
+        sceneStatus.scene?.id === actions.sceneId
+    ) {
+        adaptiveDjScenesState =
+            normalizeAdaptiveDjScenesState({
+                ...adaptiveDjScenesState,
+                activeSceneId:
+                    actions.sceneId
+            });
+        saveAdaptiveDjScenesState();
+    }
+
+    if (
+        launch &&
+        actions.sceneId &&
+        sceneStatus.configured &&
+        profile.id !== "drive"
+    ) {
+        await runAdaptiveDjScene(
+            actions.sceneId,
+            { autoplay: actions.autoplay }
+        );
+    }
+
+    await navigateToAppMenu(
+        actions.menu || "dashboard"
+    );
+
+    const suffix =
+        actions.sceneId &&
+        !sceneStatus.configured
+            ? " Configure d’abord la scène associée."
+            : "";
+    setStatus(
+        `Mode ${profile.icon} ${profile.label} activé.${suffix}`,
+        actions.sceneId &&
+        !sceneStatus.configured
+            ? "warning"
+            : ""
+    );
+    showToast(
+        `${profile.icon} Mode ${profile.label} actif`,
+        "success"
+    );
+}
+
+function saveUsageProfileSettingsFromForm(form) {
+    const data = new FormData(form);
+    usageProfileState =
+        normalizeUsageProfileState({
+            ...usageProfileState,
+            applyTheme:
+                data.get("applyTheme") === "on",
+            applyDiscovery:
+                data.get("applyDiscovery") === "on",
+            applyDrivingSettings:
+                data.get("applyDrivingSettings") === "on",
+            selectPreferredScene:
+                data.get("selectPreferredScene") === "on"
+        });
+    saveUsageProfileState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Préférences des modes enregistrées."
+    );
+}
+
+function resetUsageProfileState() {
+    usageProfileState =
+        normalizeUsageProfileState(
+            DEFAULT_USAGE_PROFILE_STATE
+        );
+    saveUsageProfileState();
+    displayPlaylists(playlistsCache);
+    setStatus(
+        "Modes d’utilisation réinitialisés."
+    );
+}
+
+function renderUsageProfilesPage() {
+    const active = getUsageProfileById(
+        usageProfileState.activeProfileId
+    );
+    const cards = USAGE_PROFILES.map(
+        (profile) => {
+            const status =
+                getUsageProfileSceneStatus(profile);
+            const isActive =
+                active.id === profile.id;
+            return `
+                <article class="usage-profile-card
+                    ${isActive ? "is-active" : ""}">
+                    <div class="usage-profile-card__heading">
+                        <span class="usage-profile-card__icon" aria-hidden="true">
+                            ${escapeHtml(profile.icon)}
+                        </span>
+                        <div>
+                            <span class="usage-profile-card__eyebrow">
+                                ${isActive ? "Mode actif" : "Mode prêt"}
+                            </span>
+                            <h4>${escapeHtml(profile.label)}</h4>
+                        </div>
+                        ${isActive
+                            ? '<span class="usage-profile-card__active">Actif</span>'
+                            : ''}
+                    </div>
+                    <p>${escapeHtml(profile.description)}</p>
+                    <ul>
+                        ${profile.highlights.map(
+                            (item) => `<li>${escapeHtml(item)}</li>`
+                        ).join("")}
+                    </ul>
+                    <div class="usage-profile-card__status
+                        ${status.configured ? "is-ready" : "is-warning"}">
+                        ${status.configured ? "✓" : "!"}
+                        ${escapeHtml(status.message)}
+                    </div>
+                    <div class="usage-profile-card__actions">
+                        <button
+                            type="button"
+                            data-apply-usage-profile="${escapeHtml(profile.id)}"
+                        >
+                            ${isActive ? "Réappliquer" : "Activer"}
+                        </button>
+                        <button
+                            type="button"
+                            class="usage-profile-card__launch"
+                            data-launch-usage-profile="${escapeHtml(profile.id)}"
+                        >
+                            ${profile.id === "daily" || profile.id === "discovery"
+                                ? "Ouvrir"
+                                : "Démarrer"}
+                        </button>
+                    </div>
+                </article>
+            `;
+        }
+    ).join("");
+
+    return `
+        <section class="usage-profiles-page">
+            <header class="usage-profiles-hero">
+                <div>
+                    <span class="usage-profiles-kicker">🎛️ Shuffle+ v6.9</span>
+                    <h3>Modes d’utilisation</h3>
+                    <p>
+                        Choisis une situation et Shuffle+ prépare automatiquement
+                        la page, la scène, la couleur et le niveau de découverte adaptés.
+                    </p>
+                </div>
+                <div class="usage-profiles-current">
+                    <span>Mode actuel</span>
+                    <strong>${escapeHtml(active.icon)} ${escapeHtml(active.label)}</strong>
+                    <small>${escapeHtml(active.description)}</small>
+                </div>
+            </header>
+
+            <div class="usage-profiles-grid">
+                ${cards}
+            </div>
+
+            <section class="usage-profiles-explanation">
+                <div>
+                    <span>ℹ️ À retenir</span>
+                    <h4>Un mode ne supprime aucun réglage</h4>
+                    <p>
+                        Il applique seulement une configuration pratique. Tu peux
+                        ensuite modifier chaque option normalement dans Shuffle+.
+                    </p>
+                </div>
+                <button type="button" data-app-menu="guide">
+                    Lire le Guide
+                </button>
+            </section>
+
+            <form id="usageProfileSettingsForm" class="usage-profiles-settings">
+                <div>
+                    <span>⚙️ Préférences</span>
+                    <h4>Ce qu’un mode peut modifier</h4>
+                </div>
+                <label>
+                    <input type="checkbox" name="applyTheme"
+                        ${usageProfileState.applyTheme ? "checked" : ""}>
+                    <span>Adapter la couleur de l’interface</span>
+                </label>
+                <label>
+                    <input type="checkbox" name="applyDiscovery"
+                        ${usageProfileState.applyDiscovery ? "checked" : ""}>
+                    <span>Adapter le niveau de découverte</span>
+                </label>
+                <label>
+                    <input type="checkbox" name="applyDrivingSettings"
+                        ${usageProfileState.applyDrivingSettings ? "checked" : ""}>
+                    <span>Adapter les réglages du mode voiture</span>
+                </label>
+                <label>
+                    <input type="checkbox" name="selectPreferredScene"
+                        ${usageProfileState.selectPreferredScene ? "checked" : ""}>
+                    <span>Sélectionner la scène conseillée</span>
+                </label>
+                <div class="usage-profiles-settings__actions">
+                    <button type="submit">Enregistrer</button>
+                    <button id="resetUsageProfilesButton" type="button">
+                        Réinitialiser
+                    </button>
+                </div>
+            </form>
+        </section>
+    `;
+}
 
 function readUniversalSearchHistory() {
     try {
@@ -11635,6 +11982,17 @@ function getUniversalSearchSections() {
             menu: "driving",
             priority: 92,
             keywords: ["voiture", "route", "trajet", "écran actif"]
+        },
+        {
+            key: "section:modes",
+            type: "section",
+            icon: "🎛️",
+            title: "Modes d’utilisation",
+            subtitle: "Quotidien, Conduite, Sport, Soirée et Découverte",
+            description: "Adapter rapidement Shuffle+ à la situation du moment.",
+            menu: "modes",
+            priority: 89,
+            keywords: ["mode", "profil utilisation", "sport", "soirée", "découverte"]
         },
         {
             key: "section:guide",
@@ -13012,6 +13370,28 @@ async function executeMusicalAssistantPlan() {
     }
 
     try {
+        if (plan.type === "usage-profile") {
+            await applyUsageProfile(
+                plan.profileId,
+                { launch: false }
+            );
+            addMusicalAssistantHistory({
+                request: plan.request,
+                plan,
+                status: "success",
+                message: "Mode d’utilisation activé."
+            });
+            setVoiceAssistantMessage(
+                "Mode activé.",
+                "success"
+            );
+            speakVoiceAssistantText(
+                `Le ${plan.title.toLowerCase()} est activé.`
+            );
+            vibrateVoiceAssistant([30, 40, 30]);
+            return;
+        }
+
         if (plan.type === "universal-search") {
             addMusicalAssistantHistory({
                 request: plan.request,
@@ -13602,6 +13982,13 @@ function renderSimpleManualPage() {
             details: "L’interface est simplifiée pour tenir sur l’écran du téléphone. Le maintien de l’écran dépend toujours de Safari et d’iOS."
         },
         {
+            id: "modes",
+            icon: "🎛️",
+            title: "Modes",
+            summary: "Préparer Shuffle+ selon la situation.",
+            details: "Active Quotidien, Conduite, Sport, Soirée ou Découverte pour adapter rapidement la page, la scène, la couleur et les recommandations."
+        },
+        {
             id: "settings",
             icon: "⚙️",
             title: "Réglages",
@@ -13785,6 +14172,7 @@ function renderAppMenu() {
         ["intelligence", "🧠", "Intelligence"],
         ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
+        ["modes", "🎛️", "Modes"],
         ["guide", "📖", "Guide"],
         ["settings", "⚙️", "Réglages"]
     ];
@@ -24349,6 +24737,7 @@ function buildBackupPayload() {
         musicalDashboardSettings,
         musicalGoalsSettings,
         contextualHelpState,
+        usageProfileState,
         uiThemeSettings,
         mixSchedules
     };
@@ -24576,6 +24965,11 @@ function validateBackupPayload(payload) {
                 payload.data.contextualHelpState ||
                 DEFAULT_CONTEXTUAL_HELP_STATE
             ),
+        usageProfileState:
+            normalizeUsageProfileState(
+                payload.data.usageProfileState ||
+                DEFAULT_USAGE_PROFILE_STATE
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -24716,6 +25110,8 @@ function applyValidatedBackupState(imported) {
     musicalGoalsSettings = imported.musicalGoalsSettings;
     saveMusicalGoalsSettings();
     contextualHelpState = imported.contextualHelpState;
+    usageProfileState = imported.usageProfileState;
+    saveUsageProfileState();
     contextualOnboardingOpen = false;
     contextualHelpDialogOpen = false;
     saveContextualHelpState();
@@ -31285,6 +31681,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "modes"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="modes"
+            >
+                ${renderUsageProfilesPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "guide"
                     ? "is-active"
                     : ""}"
@@ -34505,6 +34911,59 @@ contentElement.addEventListener(
         const drec=event.target.closest("[data-dashboard-recommendation]"); if(drec){try{await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation||"");}catch(error){setStatus(error.message||"Recommandation impossible.","error");}return;}
         const dscene=event.target.closest("[data-dashboard-scene]"); if(dscene){try{await runAdaptiveDjScene(dscene.dataset.dashboardScene||"");}catch(error){setStatus(error.message||"Scène impossible.","error");}return;}
 
+        const applyUsageProfileButton =
+            event.target.closest(
+                "[data-apply-usage-profile]"
+            );
+        if (applyUsageProfileButton) {
+            try {
+                await applyUsageProfile(
+                    applyUsageProfileButton.dataset
+                        .applyUsageProfile || "",
+                    { launch: false }
+                );
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "Le mode n’a pas pu être activé.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        const launchUsageProfileButton =
+            event.target.closest(
+                "[data-launch-usage-profile]"
+            );
+        if (launchUsageProfileButton) {
+            try {
+                await applyUsageProfile(
+                    launchUsageProfileButton.dataset
+                        .launchUsageProfile || "",
+                    { launch: true }
+                );
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "Le mode n’a pas pu démarrer.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetUsageProfilesButton"
+            )
+        ) {
+            resetUsageProfileState();
+            return;
+        }
+
         const assistantExampleButton =
             event.target.closest(
                 "[data-musical-assistant-example]"
@@ -36710,6 +37169,12 @@ contentElement.addEventListener(
         if (event.target.id === "musicalGoalsSettingsForm") {
             event.preventDefault();
             saveMusicalGoalsSettingsFromForm(event.target);
+            return;
+        }
+
+        if (event.target.id === "usageProfileSettingsForm") {
+            event.preventDefault();
+            saveUsageProfileSettingsFromForm(event.target);
             return;
         }
 

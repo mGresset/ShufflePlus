@@ -1,5 +1,10 @@
 # Feuille de route Shuffle+
 
+- **v6.9.0 — Modes d’utilisation : terminée**
+  - Quotidien, Conduite, Sport, Soirée et Découverte ;
+  - application coordonnée de la page, de la scène et du thème ;
+  - intégration Assistant, Guide, recherche, aide et sauvegarde.
+
 - **v6.8.0 — Recherche universelle : terminée**
   - recherche des rubriques et réglages ;
   - recherche des playlists, mix, scènes et profils ;

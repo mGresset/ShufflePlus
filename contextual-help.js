@@ -19,6 +19,7 @@ const SECTION_ORDER = [
     "intelligence",
     "quick",
     "driving",
+    "modes",
     "guide",
     "settings"
 ];
@@ -134,6 +135,16 @@ const SECTION_HELP = {
             "N’utilise les commandes que lorsque les conditions sont sûres."
         ]
     },
+    modes: {
+        icon: "🎛️",
+        title: "Modes",
+        summary: "Adapter Shuffle+ à la situation du moment.",
+        detail: "Active un mode prêt à l’emploi pour ajuster la page de départ, la scène, la couleur, la découverte et certains réglages de conduite.",
+        tips: [
+            "Commence par Quotidien pour une configuration équilibrée.",
+            "Sport, Soirée et Conduite sont plus utiles lorsque leur scène possède déjà un mix."
+        ]
+    },
     guide: {
         icon: "📖",
         title: "Guide",
@@ -221,6 +232,9 @@ function buildDynamicTip(menuId, context = {}) {
     }
     if (menuId === "recommendations" && !mixCount) {
         return "Enregistre d’abord un mix pour obtenir des suggestions utiles.";
+    }
+    if (menuId === "modes") {
+        return "Choisis le mode qui correspond à ce que tu vas faire maintenant.";
     }
     if (menuId === "settings") {
         return "Retrouve ici la visite guidée, les sauvegardes et les réglages avancés.";

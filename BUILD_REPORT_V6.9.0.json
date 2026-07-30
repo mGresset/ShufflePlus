@@ -1,0 +1,27 @@
+{
+  "version": "6.9.0",
+  "name": "Usage Profiles",
+  "source": "ShufflePlus-v6.8.0-Universal-Search.zip",
+  "generatedAt": "2026-07-30T15:05:02.984290+00:00",
+  "javascriptFilesChecked": 21,
+  "serverChangesRequired": false,
+  "features": [
+    "five usage profiles",
+    "profile coordinated theme and discovery",
+    "preferred Adaptive DJ scene",
+    "driving settings integration",
+    "assistant commands",
+    "guide contextual help and universal search",
+    "backup and full sync"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "usageProfileSmokeTest": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "deviceRenderingTested": false,
+  "zipFileCount": 115
+}
