@@ -1,0 +1,43 @@
+{
+  "project": "Shuffle+",
+  "version": "7.3.1",
+  "base_version": "7.3.0",
+  "generated_at": "2026-07-30T20:32:00+02:00",
+  "status": "validated",
+  "validation": {
+    "javascript_files_checked": 42,
+    "module_graph_files": 23,
+    "application_tests_passed": 30,
+    "application_tests_failed": 0,
+    "sync_server_tests_passed": true,
+    "github_pages_build_passed": true,
+    "dist_check_passed": true,
+    "local_http_smoke_test_passed": true,
+    "manual_browser_recovery_test_performed": false,
+    "patch_applied_to_clean_v7_3_0_passed": true
+  },
+  "features": [
+    "Independent startup recovery layer loaded before app.js",
+    "Targeted PWA cache and Service Worker repair that preserves user data",
+    "Spotify-only authentication reset that preserves preferences and preferred device",
+    "One-shot automatic recovery on missing startup signal, script load failure or version mismatch",
+    "PKCE timestamping and cleanup of incomplete or expired OAuth state",
+    "Safe localStorage and sessionStorage access for authentication data",
+    "Network-first loading for versioned scripts, styles and manifest"
+  ],
+  "data_preserved_by_normal_repair": [
+    "Spotify authentication tokens",
+    "Saved mixes and profiles",
+    "Preferred Spotify iPhone/device",
+    "Interface and driving settings",
+    "Statistics, goals and offline library",
+    "Server synchronization settings"
+  ],
+  "known_limits": [
+    "A real browser is required to validate a deliberately corrupted Service Worker end-to-end",
+    "The automatic recovery is intentionally limited to one attempt per browser session",
+    "Resetting Spotify authentication requires a new Spotify authorization"
+  ],
+  "recommended_release_branch": "hotfix/7.3.1",
+  "recommended_tag": "v7.3.1"
+}

@@ -14595,3 +14595,109 @@ body.is-offline .source-card {
     font-size: 0.82rem;
     line-height: 1.45;
 }
+
+/* Shuffle+ v7.3.1 — récupération de démarrage et session Spotify */
+.startup-recovery-entry {
+    display: flex;
+    justify-content: center;
+    margin-top: 0.8rem;
+}
+
+.startup-recovery-toggle {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary, #b8b7c9);
+    cursor: pointer;
+    font: inherit;
+    font-size: 0.88rem;
+    padding: 0.35rem 0.65rem;
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
+}
+
+.startup-recovery-toggle:hover,
+.startup-recovery-toggle:focus-visible {
+    color: #ffffff;
+}
+
+.startup-recovery-panel {
+    width: min(100%, 640px);
+    margin: 1rem auto 0;
+    padding: 1rem;
+    border: 1px solid rgb(139 92 246 / 45%);
+    border-radius: 18px;
+    background: rgb(18 17 38 / 94%);
+    box-shadow: 0 18px 45px rgb(0 0 0 / 28%);
+    text-align: left;
+}
+
+.startup-recovery-panel[hidden] {
+    display: none;
+}
+
+.startup-recovery-panel h3 {
+    margin: 0 0 0.45rem;
+    color: #ffffff;
+}
+
+.startup-recovery-panel p,
+.startup-recovery-panel small {
+    color: var(--text-secondary, #c4c3d4);
+}
+
+.startup-recovery-panel p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.startup-recovery-panel small {
+    display: block;
+    margin-top: 0.75rem;
+    line-height: 1.45;
+}
+
+.startup-recovery-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin-top: 0.9rem;
+}
+
+.startup-recovery-actions button {
+    min-height: 46px;
+    border: 1px solid rgb(139 92 246 / 55%);
+    border-radius: 13px;
+    background: rgb(139 92 246 / 18%);
+    color: #ffffff;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    padding: 0.7rem 0.85rem;
+}
+
+.startup-recovery-actions button:hover,
+.startup-recovery-actions button:focus-visible {
+    background: rgb(139 92 246 / 30%);
+}
+
+.startup-recovery-actions button:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+.startup-recovery-actions .startup-recovery-danger {
+    border-color: rgb(248 113 113 / 52%);
+    background: rgb(127 29 29 / 24%);
+}
+
+@media (max-width: 620px) {
+    .startup-recovery-actions {
+        grid-template-columns: 1fr;
+    }
+}
+
+body.is-connected .startup-recovery-entry,
+body.is-connected .startup-recovery-panel {
+    display: none;
+}

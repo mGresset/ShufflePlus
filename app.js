@@ -9,7 +9,8 @@ import {
     handleSpotifyCallback,
     getValidAccessToken,
     logoutSpotify,
-    isSpotifyReauthorizationRequired
+    isSpotifyReauthorizationRequired,
+    repairSpotifyAuthState
 } from "./auth.js";
 
 import {
@@ -161,7 +162,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.3.0";
+const APP_VERSION = "7.3.1";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -611,7 +612,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.3.0-shell";
+    "shuffleplus-v7.3.1-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3579,7 +3580,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.3.0",
+                "./service-worker.js?v=7.3.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -36199,6 +36200,24 @@ async function initializeApp() {
     setStatus("Initialisation de Shuffle+…");
 
     try {
+        const callbackParameters = new URLSearchParams(
+            window.location.search
+        );
+        const hasOAuthCallback = Boolean(
+            callbackParameters.get("code") ||
+            callbackParameters.get("error")
+        );
+        const authRepair = repairSpotifyAuthState({
+            hasOAuthCallback
+        });
+
+        if (authRepair.repaired) {
+            console.warn(
+                "État de connexion Spotify réparé :",
+                authRepair.repairedKeys
+            );
+        }
+
         await handleSpotifyCallback();
 
         const cachedLibrary = offlinePerformanceSettings.enabled
@@ -36338,10 +36357,20 @@ async function initializeApp() {
                     : "Se connecter à Spotify";
         }
 
-        setStatus(
+        const startupMessage =
             error?.message ||
-            "Une erreur est survenue pendant l'initialisation.",
-            "error"
+            "Une erreur est survenue pendant l'initialisation.";
+
+        setStatus(startupMessage, "error");
+
+        window.dispatchEvent(
+            new CustomEvent("shuffleplus:startup-error", {
+                detail: {
+                    version: APP_VERSION,
+                    message: startupMessage,
+                    code: error?.code || ""
+                }
+            })
         );
     }
 }
@@ -39854,6 +39883,12 @@ window.addEventListener(
         rememberCurrentAppMenuScroll();
         saveAppMenuScrollPositions();
     }
+);
+
+window.dispatchEvent(
+    new CustomEvent("shuffleplus:app-ready", {
+        detail: { version: APP_VERSION }
+    })
 );
 
 initializePwa();

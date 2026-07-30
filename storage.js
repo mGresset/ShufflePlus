@@ -1,27 +1,66 @@
-const STORAGE_KEYS = {
-    accessToken: "shuffleplus_access_token",
-    refreshToken: "shuffleplus_refresh_token",
-    expiresAt: "shuffleplus_expires_at",
-    authorizedAt: "shuffleplus_authorized_at",
-    codeVerifier: "shuffleplus_code_verifier",
-    oauthState: "shuffleplus_oauth_state"
-};
+import {
+    AUTH_STORAGE_KEYS,
+    clearSpotifyAuthentication,
+    repairSpotifyAuthState,
+    safeStorageGet,
+    safeStorageRemove,
+    safeStorageSet
+} from "./core/session-recovery.js";
 
 export function saveTemporaryAuth(codeVerifier, state) {
-    sessionStorage.setItem(STORAGE_KEYS.codeVerifier, codeVerifier);
-    sessionStorage.setItem(STORAGE_KEYS.oauthState, state);
+    const saved = [
+        safeStorageSet(
+            sessionStorage,
+            AUTH_STORAGE_KEYS.codeVerifier,
+            codeVerifier
+        ),
+        safeStorageSet(
+            sessionStorage,
+            AUTH_STORAGE_KEYS.oauthState,
+            state
+        ),
+        safeStorageSet(
+            sessionStorage,
+            AUTH_STORAGE_KEYS.authStartedAt,
+            Date.now()
+        )
+    ];
+
+    return saved.every(Boolean);
 }
 
 export function getTemporaryAuth() {
     return {
-        codeVerifier: sessionStorage.getItem(STORAGE_KEYS.codeVerifier),
-        state: sessionStorage.getItem(STORAGE_KEYS.oauthState)
+        codeVerifier: safeStorageGet(
+            sessionStorage,
+            AUTH_STORAGE_KEYS.codeVerifier
+        ),
+        state: safeStorageGet(
+            sessionStorage,
+            AUTH_STORAGE_KEYS.oauthState
+        ),
+        startedAt: Number(
+            safeStorageGet(
+                sessionStorage,
+                AUTH_STORAGE_KEYS.authStartedAt
+            ) || 0
+        )
     };
 }
 
 export function clearTemporaryAuth() {
-    sessionStorage.removeItem(STORAGE_KEYS.codeVerifier);
-    sessionStorage.removeItem(STORAGE_KEYS.oauthState);
+    safeStorageRemove(
+        sessionStorage,
+        AUTH_STORAGE_KEYS.codeVerifier
+    );
+    safeStorageRemove(
+        sessionStorage,
+        AUTH_STORAGE_KEYS.oauthState
+    );
+    safeStorageRemove(
+        sessionStorage,
+        AUTH_STORAGE_KEYS.authStartedAt
+    );
 }
 
 export function saveTokens(
@@ -29,15 +68,17 @@ export function saveTokens(
     { markAuthorization = false } = {}
 ) {
     if (tokenData.access_token) {
-        localStorage.setItem(
-            STORAGE_KEYS.accessToken,
+        safeStorageSet(
+            localStorage,
+            AUTH_STORAGE_KEYS.accessToken,
             tokenData.access_token
         );
     }
 
     if (tokenData.refresh_token) {
-        localStorage.setItem(
-            STORAGE_KEYS.refreshToken,
+        safeStorageSet(
+            localStorage,
+            AUTH_STORAGE_KEYS.refreshToken,
             tokenData.refresh_token
         );
     }
@@ -45,36 +86,77 @@ export function saveTokens(
     if (tokenData.expires_in) {
         const expiresAt = Date.now() + tokenData.expires_in * 1000;
 
-        localStorage.setItem(
-            STORAGE_KEYS.expiresAt,
-            String(expiresAt)
+        safeStorageSet(
+            localStorage,
+            AUTH_STORAGE_KEYS.expiresAt,
+            expiresAt
         );
     }
 
     if (markAuthorization) {
-        localStorage.setItem(
-            STORAGE_KEYS.authorizedAt,
-            String(Date.now())
+        safeStorageSet(
+            localStorage,
+            AUTH_STORAGE_KEYS.authorizedAt,
+            Date.now()
         );
     }
 }
 
 export function getStoredTokens() {
     return {
-        accessToken: localStorage.getItem(STORAGE_KEYS.accessToken),
-        refreshToken: localStorage.getItem(STORAGE_KEYS.refreshToken),
+        accessToken: safeStorageGet(
+            localStorage,
+            AUTH_STORAGE_KEYS.accessToken
+        ),
+        refreshToken: safeStorageGet(
+            localStorage,
+            AUTH_STORAGE_KEYS.refreshToken
+        ),
         expiresAt: Number(
-            localStorage.getItem(STORAGE_KEYS.expiresAt) || 0
+            safeStorageGet(
+                localStorage,
+                AUTH_STORAGE_KEYS.expiresAt
+            ) || 0
         ),
         authorizedAt: Number(
-            localStorage.getItem(STORAGE_KEYS.authorizedAt) || 0
+            safeStorageGet(
+                localStorage,
+                AUTH_STORAGE_KEYS.authorizedAt
+            ) || 0
         )
     };
 }
 
+export function repairStoredSpotifySession(options = {}) {
+    return repairSpotifyAuthState({
+        local: globalThis.localStorage,
+        session: globalThis.sessionStorage,
+        ...options
+    });
+}
+
 export function clearTokens() {
-    localStorage.removeItem(STORAGE_KEYS.accessToken);
-    localStorage.removeItem(STORAGE_KEYS.refreshToken);
-    localStorage.removeItem(STORAGE_KEYS.expiresAt);
-    localStorage.removeItem(STORAGE_KEYS.authorizedAt);
+    safeStorageRemove(
+        localStorage,
+        AUTH_STORAGE_KEYS.accessToken
+    );
+    safeStorageRemove(
+        localStorage,
+        AUTH_STORAGE_KEYS.refreshToken
+    );
+    safeStorageRemove(
+        localStorage,
+        AUTH_STORAGE_KEYS.expiresAt
+    );
+    safeStorageRemove(
+        localStorage,
+        AUTH_STORAGE_KEYS.authorizedAt
+    );
+}
+
+export function clearAllSpotifyAuthentication() {
+    return clearSpotifyAuthentication({
+        local: globalThis.localStorage,
+        session: globalThis.sessionStorage
+    });
 }

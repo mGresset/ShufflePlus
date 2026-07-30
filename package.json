@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "7.3.0",
+  "version": "7.3.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ — lancement Spotify iOS en une action, appareil préféré et file de lecture en mode conduite.",
+  "description": "Shuffle+ — lancement Spotify iOS sécurisé, récupération automatique et mode conduite.",
   "engines": {
     "node": ">=20"
   },
