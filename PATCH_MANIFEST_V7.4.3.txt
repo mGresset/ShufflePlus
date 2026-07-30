@@ -1,0 +1,26 @@
+Shuffle+ v7.4.3 — fichiers du patch
+
+VERSION
+package.json
+config.js
+app-health.js
+app.js
+index.html
+service-worker.js
+spotify-api.js
+startup-recovery-7.4.3.js
+core/spotify-request-manager.js
+scripts/smoke-local.mjs
+tests/spotify-reliability.test.mjs
+tests/v731-recovery.test.mjs
+tests/v732-ios-layout.test.mjs
+tests/v743-quota-optimization.test.mjs
+README.md
+ROADMAP.md
+DEPLOIEMENT-V7.4.3.md
+INSTALLATION-V7.4.3.txt
+V7.4.3_NOTES.md
+PATCH_MANIFEST_V7.4.3.txt
+BUILD_REPORT_V7.4.3.json
+
+Remarque : startup-recovery-7.4.2.js peut rester dans le dossier local. Le build v7.4.3 l’exclut automatiquement et ne publie que le fichier correspondant à la version active.

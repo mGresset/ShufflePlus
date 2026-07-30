@@ -81,7 +81,14 @@ try {
     await checkResource("/core/app-menu.js", "APP_MENU_GROUPS");
     await checkResource("/core/html-utils.js", "escapeHtml");
     await checkResource("/core/session-recovery.js", "repairSpotifyAuthState");
-    await checkResource("/startup-recovery-7.4.2.js", "ShufflePlusRecovery");
+    await checkResource(
+        "/core/spotify-request-manager.js",
+        "createSpotifyRequestManager"
+    );
+    await checkResource(
+        `/startup-recovery-${version}.js`,
+        "ShufflePlusRecovery"
+    );
     await checkResource("/service-worker.js", `shuffleplus-v${version}`);
 
     console.log("Test serveur local : OK.");

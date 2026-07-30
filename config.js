@@ -1,4 +1,4 @@
-const APP_VERSION = "7.4.2";
+const APP_VERSION = "7.4.3";
 const PRODUCTION_REDIRECT_URI =
     "https://mgresset.github.io/ShufflePlus/";
 const LOCAL_REDIRECT_URI =

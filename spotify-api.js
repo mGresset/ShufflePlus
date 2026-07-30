@@ -1,78 +1,131 @@
 import { getValidAccessToken } from "./auth.js";
+import {
+    spotifyRequestManager
+} from "./core/spotify-request-manager.js";
 
 const API_BASE_URL = "https://api.spotify.com/v1";
 
-async function spotifyFetch(endpoint, options = {}) {
-    const token = await getValidAccessToken();
+function getSpotifyCacheTtl(endpoint, method = "GET") {
+    if (String(method).toUpperCase() !== "GET") return 0;
 
-    if (!token) {
-        throw new Error("Utilisateur non connecté à Spotify.");
+    if (endpoint === "/me") return 5 * 60 * 1000;
+    if (endpoint === "/me/player") return 4 * 1000;
+    if (endpoint === "/me/player/devices") return 12 * 1000;
+    if (endpoint === "/me/player/queue") return 8 * 1000;
+    if (endpoint.startsWith("/me/playlists")) return 30 * 1000;
+    if (endpoint.startsWith("/me/player/recently-played")) {
+        return 60 * 1000;
+    }
+    if (endpoint.startsWith("/me/tracks")) return 30 * 1000;
+    if (/^\/playlists\/[^/]+\/items/.test(endpoint)) {
+        return 20 * 1000;
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            ...options.headers
+    return 0;
+}
+
+function buildSpotifyRequestKey(endpoint, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    const body = typeof options.body === "string"
+        ? options.body
+        : "";
+    return `${method}:${endpoint}:${body}`;
+}
+
+async function spotifyFetch(endpoint, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    const cacheTtlMs = getSpotifyCacheTtl(endpoint, method);
+
+    return spotifyRequestManager.execute({
+        key: buildSpotifyRequestKey(endpoint, options),
+        method,
+        cacheTtlMs,
+        request: async () => {
+            const token = await getValidAccessToken();
+
+            if (!token) {
+                throw new Error("Utilisateur non connecté à Spotify.");
+            }
+
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                ...options,
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+
+                let spotifyMessage = "";
+                let spotifyReason = "";
+                let parsedError = null;
+
+                try {
+                    parsedError = JSON.parse(errorBody);
+
+                    spotifyMessage =
+                        parsedError?.error?.message ||
+                        parsedError?.error_description ||
+                        parsedError?.message ||
+                        "";
+
+                    spotifyReason =
+                        parsedError?.error?.reason ||
+                        parsedError?.reason ||
+                        "";
+                } catch {
+                    spotifyMessage = errorBody;
+                }
+
+                if (spotifyReason === "QUOTA_EXCEEDED") {
+                    spotifyMessage =
+                        "Le quota Spotify de l’application est temporairement épuisé. " +
+                        "Shuffle+ suspend automatiquement les appels pour éviter de l’aggraver.";
+                }
+
+                console.error(
+                    "Erreur Spotify API :",
+                    response.status,
+                    spotifyMessage || errorBody
+                );
+
+                const error = new Error(
+                    spotifyMessage ||
+                    `Erreur Spotify ${response.status}.`
+                );
+
+                error.status = response.status;
+                error.details = errorBody;
+                error.spotifyMessage = spotifyMessage;
+                error.reason = spotifyReason;
+                error.payload = parsedError;
+                error.retryAfter = response.headers.get("Retry-After");
+
+                throw error;
+            }
+
+            if (response.status === 204) {
+                return null;
+            }
+
+            return response.json();
         }
     });
+}
 
-    if (!response.ok) {
-        const errorBody = await response.text();
+export function getSpotifyApiDiagnostics() {
+    return spotifyRequestManager.getDiagnostics();
+}
 
-        let spotifyMessage = "";
-        let spotifyReason = "";
-        let parsedError = null;
+export function clearSpotifyApiMemoryCache() {
+    spotifyRequestManager.clearCache();
+}
 
-        try {
-            parsedError = JSON.parse(errorBody);
-
-            spotifyMessage =
-                parsedError?.error?.message ||
-                parsedError?.error_description ||
-                parsedError?.message ||
-                "";
-
-            spotifyReason =
-                parsedError?.error?.reason ||
-                parsedError?.reason ||
-                "";
-        } catch {
-            spotifyMessage = errorBody;
-        }
-
-        if (spotifyReason === "QUOTA_EXCEEDED") {
-            spotifyMessage =
-                "Le quota Spotify de l’application est temporairement épuisé. Réessaie plus tard.";
-        }
-
-        console.error(
-            "Erreur Spotify API :",
-            response.status,
-            spotifyMessage || errorBody
-        );
-
-        const error = new Error(
-            spotifyMessage ||
-            `Erreur Spotify ${response.status}.`
-        );
-
-        error.status = response.status;
-        error.details = errorBody;
-        error.spotifyMessage = spotifyMessage;
-        error.reason = spotifyReason;
-        error.payload = parsedError;
-        error.retryAfter = response.headers.get("Retry-After");
-
-        throw error;
-    }
-
-    if (response.status === 204) {
-        return null;
-    }
-
-    return response.json();
+export function resetSpotifyApiDiagnostics(options = {}) {
+    spotifyRequestManager.resetDiagnostics(options);
 }
 
 export async function getMyProfile() {
@@ -403,7 +456,7 @@ async function spotifyFetchWithRetry(
                 Number(error.retryAfter) ||
                 (2 ** (attempt - 1));
 
-            await wait(retryAfterSeconds * 1000);
+            await wait(retryAfterSeconds * 1000 + 25);
         }
     }
 

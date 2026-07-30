@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
+const appVersion = (await readFile("VERSION", "utf8")).trim();
 const css = await readFile("style.css", "utf8");
 const html = await readFile("index.html", "utf8");
 const sw = await readFile("service-worker.js", "utf8");
@@ -35,10 +36,10 @@ test("le bandeau de mise à jour passe au-dessus du menu mobile", () => {
     expectText(css, "min-height: 44px;");
 });
 
-test("les ressources v7.4.2 sont versionnées pour renouveler le cache", () => {
-    expectText(html, "style.css?v=7.4.2");
-    expectText(html, "app.js?v=7.4.2");
-    expectText(html, "startup-recovery-7.4.2.js");
-    expectText(sw, "shuffleplus-v7.4.2");
-    expectText(sw, "startup-recovery-7.4.2.js");
+test("les ressources de la version active renouvellent le cache", () => {
+    expectText(html, `style.css?v=${appVersion}`);
+    expectText(html, `app.js?v=${appVersion}`);
+    expectText(html, `startup-recovery-${appVersion}.js`);
+    expectText(sw, `shuffleplus-v${appVersion}`);
+    expectText(sw, `startup-recovery-${appVersion}.js`);
 });
