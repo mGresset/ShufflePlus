@@ -14701,3 +14701,151 @@ body.is-connected .startup-recovery-entry,
 body.is-connected .startup-recovery-panel {
     display: none;
 }
+
+/* ================================================================
+   Shuffle+ v7.3.2 — Correctifs d’interface iOS
+   ================================================================ */
+
+/* Le bandeau doit toujours passer au-dessus de la navigation fixe. */
+.pwa-update-banner {
+    z-index: 10050;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    pointer-events: auto;
+}
+
+.pwa-update-actions button {
+    min-height: 44px;
+    touch-action: manipulation;
+}
+
+@media (max-width: 760px) {
+    /* Quatre zones sur une seule ligne : marque, état, bienvenue, sortie. */
+    body.is-connected .hero {
+        grid-template-columns:
+            auto auto minmax(0, 1fr) auto;
+        grid-auto-flow: row;
+        column-gap: 7px;
+        row-gap: 6px;
+    }
+
+    body.is-connected .brand,
+    body.is-connected .version-line,
+    body.is-connected .actions {
+        min-width: 0;
+        flex-wrap: nowrap;
+    }
+
+    body.is-connected .brand {
+        gap: 7px;
+        white-space: nowrap;
+    }
+
+    body.is-connected .brand-icon {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+    }
+
+    body.is-connected .brand h1 {
+        font-size: 22px;
+        white-space: nowrap;
+    }
+
+    body.is-connected .version-line {
+        justify-content: flex-start;
+    }
+
+    body.is-connected .connection-state-badge {
+        min-height: 26px;
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+
+    body.is-connected #welcome {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    body.is-connected .actions {
+        align-self: center;
+    }
+
+    body.is-connected #logoutButton {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 7px 9px;
+    }
+
+    body.is-connected .status,
+    body.is-connected .startup-recovery-entry,
+    body.is-connected .startup-recovery-panel {
+        grid-column: 1 / -1;
+    }
+
+    /* La bannière se place au-dessus du menu mobile et de la safe area. */
+    body.is-connected .pwa-update-banner {
+        right: max(12px, env(safe-area-inset-right));
+        bottom: calc(84px + env(safe-area-inset-bottom));
+        left: max(12px, env(safe-area-inset-left));
+        max-height: calc(100vh - 126px - env(safe-area-inset-top));
+        max-height: calc(100dvh - 126px - env(safe-area-inset-top));
+        padding: 14px;
+    }
+
+    .pwa-update-actions {
+        display: grid;
+        width: 100%;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .pwa-update-actions button {
+        width: auto;
+        min-width: 0;
+        padding: 9px 10px;
+    }
+}
+
+@media (max-width: 390px) {
+    body.is-connected .hero {
+        column-gap: 5px;
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    body.is-connected .brand {
+        gap: 5px;
+    }
+
+    body.is-connected .brand-icon {
+        width: 36px;
+        height: 36px;
+        flex-basis: 36px;
+    }
+
+    body.is-connected .brand h1 {
+        font-size: 20px;
+    }
+
+    body.is-connected .connection-state-badge {
+        padding-right: 6px;
+        padding-left: 6px;
+        font-size: 9px;
+    }
+
+    body.is-connected #welcome {
+        font-size: 11px;
+    }
+
+    body.is-connected #logoutButton {
+        min-height: 36px;
+        padding: 6px 8px;
+    }
+}

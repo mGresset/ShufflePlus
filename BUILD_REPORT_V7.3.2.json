@@ -1,0 +1,28 @@
+{
+  "version": "7.3.2",
+  "status": "validated",
+  "baseVersion": "7.3.1",
+  "scope": [
+    "Bandeau de mise à jour accessible au-dessus de la navigation iOS",
+    "En-tête connecté maintenu sur une seule ligne",
+    "Gestion de la safe area et du viewport dynamique",
+    "Renouvellement du cache PWA"
+  ],
+  "validation": {
+    "javascriptFiles": 43,
+    "connectedModules": 23,
+    "applicationTestsPassed": 33,
+    "applicationTestsFailed": 0,
+    "syncServerTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmokeTest": "passed",
+    "patchVerification": "passed",
+    "patchJavascriptFiles": 44
+  },
+  "manualChecksRequired": [
+    "Safari iOS avec barre d’adresse visible",
+    "PWA installée en mode standalone",
+    "Activation réelle d’une mise à jour de Service Worker"
+  ]
+}
