@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Lancement Spotify iOS, mélange intelligent, mode conduite et récupération sécurisée de la connexion.",
+  "description": "Lancement Spotify iOS, mélange intelligent, profils de raccourcis et intégration compagnon Dynamic Lyrics.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

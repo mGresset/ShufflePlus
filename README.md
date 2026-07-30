@@ -1,5 +1,23 @@
 # Shuffle+
 
+## v7.4.2 — Validation OAuth Windows corrigée
+
+La v7.4.2 corrige le dernier cas d’échec du test OAuth sur Windows. Le test normalise désormais le contenu source avant de simuler séparément les formats `LF` et `CRLF`, ce qui évite de créer accidentellement des séquences invalides `\r\r\n` lorsqu’un fichier est déjà enregistré en `CRLF`.
+
+Le comportement de l’application, Spotify et Dynamic Lyrics reste inchangé. Cette version concerne uniquement la fiabilité des tests et du déploiement.
+
+## v7.4.1 — Déploiement Windows fiabilisé
+
+La v7.4.1 corrige un échec de validation pouvant apparaître après une modification du projet sous Windows. Le test de récupération Spotify accepte désormais les fins de ligne `LF` et `CRLF`, tandis qu’un fichier `.gitattributes` stabilise les sources lors des prochains commits et checkouts.
+
+Le build GitHub Pages ignore aussi les anciens fichiers `startup-recovery-x.y.z.js` laissés localement par l’application successive de patchs, afin de ne publier que le bootstrap correspondant à la version courante. Les fonctions Dynamic Lyrics de la v7.4.0 restent inchangées.
+
+## v7.4.0 — Dynamic Lyrics et profils compagnons
+
+La v7.4.0 ajoute une intégration optionnelle de **Dynamic Lyrics** dans la rubrique **Mix & iOS**, sans afficher les paroles dans le mode conduite. Shuffle+ ne partage aucun jeton Spotify avec l’application compagnon et ne dépend pas d’un schéma privé non documenté.
+
+L’utilisateur crée un raccourci iOS personnel qui ouvre Dynamic Lyrics ou exécute l’action proposée par l’application. Shuffle+ peut ensuite appeler ce raccourci après le lancement réussi de Spotify. L’intégration possède un réglage global, un délai configurable, un bouton de test et une option indépendante pour chaque profil de lancement.
+
 ## v7.3.2 — Interface iPhone stabilisée
 
 La v7.3.2 corrige deux problèmes d’ergonomie sur Safari iOS et dans la PWA installée. Le bandeau de mise à jour est maintenant placé au-dessus de la navigation mobile et ses boutons restent accessibles, y compris avec la zone de sécurité de l’iPhone.

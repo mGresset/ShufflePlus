@@ -2,6 +2,7 @@ import {
     cp,
     mkdir,
     readdir,
+    readFile,
     rm,
     writeFile
 } from "node:fs/promises";
@@ -10,6 +11,8 @@ import process from "node:process";
 
 const root = process.cwd();
 const destination = path.join(root, "dist");
+const appVersion = (await readFile(path.join(root, "VERSION"), "utf8")).trim();
+const currentRecoveryFile = `startup-recovery-${appVersion}.js`;
 const runtimeDirectories = ["core", "icons"];
 const staticFiles = new Set([
     "index.html",
@@ -25,6 +28,13 @@ const rootFiles = await readdir(root, { withFileTypes: true });
 
 for (const entry of rootFiles) {
     if (!entry.isFile()) {
+        continue;
+    }
+
+    if (
+        /^startup-recovery-\d+\.\d+\.\d+\.js$/.test(entry.name) &&
+        entry.name !== currentRecoveryFile
+    ) {
         continue;
     }
 
