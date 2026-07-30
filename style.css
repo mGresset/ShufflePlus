@@ -11954,3 +11954,185 @@ html.high-contrast textarea {
         hyphens: none;
     }
 }
+
+
+/* ================================================================
+   Shuffle+ v6.5.0 — Objectifs et bilan hebdomadaire
+   ================================================================ */
+
+@media (min-width: 761px) {
+    .app-menu {
+        grid-template-columns: none;
+        display: flex;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+    }
+}
+
+.musical-goals-page {
+    display: grid;
+    gap: 20px;
+}
+
+.musical-goals-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    padding: 25px;
+    border: 1px solid var(--border-active);
+    border-radius: 25px;
+    background:
+        radial-gradient(circle at 84% 12%, rgb(var(--accent-rgb) / 28%), transparent 38%),
+        linear-gradient(135deg, rgb(var(--accent-rgb) / 20%), rgb(8 8 20 / 97%) 68%);
+    box-shadow: var(--shadow-accent);
+}
+
+.musical-goals-kicker {
+    color: color-mix(in srgb, var(--accent) 72%, white);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .075em;
+    text-transform: uppercase;
+}
+
+.musical-goals-hero h3 {
+    margin: 7px 0 8px;
+    font-size: clamp(31px, 5vw, 50px);
+    line-height: 1.03;
+    letter-spacing: -.05em;
+}
+
+.musical-goals-hero p,
+.musical-goals-settings p,
+.musical-goals-next p,
+.musical-achievement p {
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.musical-goals-score {
+    --goals-angle: calc(var(--goals-score) * 3.6deg);
+    display: grid;
+    width: 118px;
+    height: 118px;
+    flex: 0 0 auto;
+    place-items: center;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, rgb(8 8 20) 57%, transparent 59%),
+        conic-gradient(var(--accent) var(--goals-angle), rgb(255 255 255 / 8%) 0);
+    box-shadow: 0 0 40px rgb(var(--accent-rgb) / 24%);
+    text-align: center;
+}
+
+.musical-goals-score strong { font-size: 25px; }
+.musical-goals-score span { display:block; color:var(--text-muted); font-size:10px; }
+
+.musical-goals-toolbar {
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+    gap:9px;
+}
+
+.musical-goals-toolbar button,
+.musical-goals-next button {
+    padding:10px 14px;
+    border:1px solid var(--border-soft);
+    border-radius:13px;
+    background:rgb(255 255 255 / 3%);
+    color:var(--text-main);
+}
+
+.musical-goals-summary {
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:10px;
+}
+
+.musical-goals-summary article {
+    display:grid;
+    gap:4px;
+    padding:15px;
+    border:1px solid var(--border-soft);
+    border-radius:16px;
+    background:linear-gradient(145deg,rgb(var(--accent-rgb)/9%),rgb(9 9 20/92%));
+}
+
+.musical-goals-summary strong { font-size:24px; }
+.musical-goals-summary span { color:var(--text-muted); font-size:12px; }
+.musical-goals-comparison { margin:0; color:var(--text-muted); text-align:right; }
+
+.musical-goals-grid {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:14px;
+}
+
+.musical-goal-card,
+.musical-goals-next,
+.musical-goals-achievements,
+.musical-goals-settings {
+    border:1px solid var(--border-soft);
+    border-radius:21px;
+    background:linear-gradient(148deg,rgb(var(--accent-rgb)/8%),rgb(10 10 23/95%) 56%);
+    box-shadow:inset 0 1px 0 rgb(255 255 255/3%),0 16px 40px rgb(0 0 0/22%);
+}
+
+.musical-goal-card { display:grid; gap:14px; padding:18px; }
+.musical-goal-card.is-complete { border-color:var(--border-active); box-shadow:var(--shadow-accent); }
+
+.musical-goal-card__heading {
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    gap:12px;
+    align-items:center;
+}
+
+.musical-goal-card__heading > span { font-size:27px; }
+.musical-goal-card h4 { margin:0; font-size:20px; }
+.musical-goal-card p { margin:3px 0 0; color:var(--text-muted); font-size:13px; }
+.musical-goal-card__heading > strong { font-size:18px; }
+
+.musical-goal-progress { height:8px; overflow:hidden; border-radius:999px; background:rgb(255 255 255/7%); }
+.musical-goal-progress i { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,var(--accent-secondary),var(--accent)); }
+.musical-goal-card small { color:var(--text-muted); }
+
+.musical-goals-next {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    padding:20px;
+}
+.musical-goals-next h4,.musical-goals-section-heading h4,.musical-goals-settings h4 { margin:5px 0 6px; font-size:22px; }
+
+.musical-goals-achievements { display:grid; gap:16px; padding:20px; }
+.musical-achievements-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.musical-achievement { display:grid; grid-template-columns:auto minmax(0,1fr); gap:11px; padding:14px; border:1px solid var(--border-soft); border-radius:15px; opacity:.55; background:rgb(255 255 255/2.5%); }
+.musical-achievement.is-unlocked { opacity:1; border-color:var(--border-active); background:rgb(var(--accent-rgb)/9%); }
+.musical-achievement > span { font-size:27px; }
+.musical-achievement strong { display:block; margin-bottom:3px; }
+.musical-achievement small { grid-column:2; color:var(--text-muted); }
+
+.musical-goals-settings { display:grid; grid-template-columns:1.4fr repeat(4,minmax(130px,.6fr)); gap:14px; align-items:end; padding:20px; }
+.musical-goals-settings label { display:grid; gap:7px; }
+.musical-goals-settings input[type="number"] { width:100%; }
+.musical-goals-settings__check { grid-column:1/-1; display:flex !important; align-items:center; gap:9px; }
+.musical-goals-settings button { grid-column:1/-1; justify-self:end; padding:11px 17px; border:0; border-radius:13px; background:linear-gradient(120deg,var(--accent),var(--accent-secondary)); color:#fff; font-weight:850; }
+
+@media (max-width: 900px) {
+    .musical-goals-summary,.musical-achievements-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .musical-goals-settings { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .musical-goals-settings > div:first-child { grid-column:1/-1; }
+}
+
+@media (max-width: 640px) {
+    .musical-goals-hero { align-items:flex-start; flex-direction:column; padding:20px; }
+    .musical-goals-score { width:96px; height:96px; align-self:flex-end; margin-top:-76px; }
+    .musical-goals-summary,.musical-goals-grid,.musical-achievements-grid,.musical-goals-settings { grid-template-columns:1fr; }
+    .musical-goals-settings > div:first-child,.musical-goals-settings__check,.musical-goals-settings button { grid-column:auto; }
+    .musical-goals-next { align-items:flex-start; flex-direction:column; }
+}

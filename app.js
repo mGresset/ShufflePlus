@@ -70,6 +70,13 @@ import {
     buildMusicalDashboardExport
 } from "./musical-dashboard.js";
 
+import {
+    DEFAULT_MUSICAL_GOALS_SETTINGS,
+    normalizeMusicalGoalsSettings,
+    buildMusicalGoalsSummary,
+    buildMusicalGoalsExport
+} from "./musical-goals.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -89,7 +96,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.4.2";
+const APP_VERSION = "6.5.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -147,6 +154,8 @@ const LISTENING_STATISTICS_SETTINGS_KEY =
     "shuffleplus_listening_statistics_settings_v1";
 const MUSICAL_DASHBOARD_SETTINGS_KEY =
     "shuffleplus_musical_dashboard_settings_v1";
+const MUSICAL_GOALS_SETTINGS_KEY =
+    "shuffleplus_musical_goals_settings_v1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -983,6 +992,7 @@ let personalizedRecommendationsState =
 let listeningStatisticsSettings =
     readListeningStatisticsSettings();
 let musicalDashboardSettings = readMusicalDashboardSettings();
+let musicalGoalsSettings = readMusicalGoalsSettings();
 let musicalDashboardRefreshTimer = 0;
 let musicalDashboardRefreshing = false;
 let voiceAssistantRecognition = null;
@@ -1169,6 +1179,204 @@ async function copyTextToClipboard(
 
 
 
+
+
+function readMusicalGoalsSettings() {
+    try {
+        const raw = localStorage.getItem(
+            MUSICAL_GOALS_SETTINGS_KEY
+        );
+        return normalizeMusicalGoalsSettings(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_MUSICAL_GOALS_SETTINGS
+        );
+    } catch (error) {
+        console.warn(
+            "Objectifs musicaux illisibles :",
+            error
+        );
+        return normalizeMusicalGoalsSettings(
+            DEFAULT_MUSICAL_GOALS_SETTINGS
+        );
+    }
+}
+
+function saveMusicalGoalsSettings() {
+    musicalGoalsSettings = normalizeMusicalGoalsSettings({
+        ...musicalGoalsSettings,
+        updatedAt: Date.now()
+    });
+    try {
+        localStorage.setItem(
+            MUSICAL_GOALS_SETTINGS_KEY,
+            JSON.stringify(musicalGoalsSettings)
+        );
+    } catch (error) {
+        console.warn(
+            "Objectifs musicaux non enregistrés :",
+            error
+        );
+    }
+}
+
+function getMusicalGoalsSummary() {
+    return buildMusicalGoalsSummary({
+        events: intelligenceAnalytics.events,
+        settings: musicalGoalsSettings,
+        now: Date.now()
+    });
+}
+
+function formatMusicalGoalsDuration(durationMs = 0) {
+    const totalMinutes = Math.round(
+        Math.max(0, Number(durationMs) || 0) /
+        60000
+    );
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    if (!hours) return `${minutes} min`;
+    if (!minutes) return `${hours} h`;
+    return `${hours} h ${String(minutes).padStart(2, "0")}`;
+}
+
+function saveMusicalGoalsSettingsFromForm(form) {
+    const data = new FormData(form);
+    musicalGoalsSettings = normalizeMusicalGoalsSettings({
+        weeklySessions: Number(data.get("weeklySessions") || 5),
+        weeklyActiveDays: Number(data.get("weeklyActiveDays") || 4),
+        weeklyDiscoveries: Number(data.get("weeklyDiscoveries") || 2),
+        weeklyConfirmedSessions: Number(data.get("weeklyConfirmedSessions") || 3),
+        celebrationsEnabled: data.get("celebrationsEnabled") === "on",
+        updatedAt: Date.now()
+    });
+    saveMusicalGoalsSettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Objectifs hebdomadaires enregistrés.");
+}
+
+function resetMusicalGoalsSettings() {
+    musicalGoalsSettings = normalizeMusicalGoalsSettings(
+        DEFAULT_MUSICAL_GOALS_SETTINGS
+    );
+    saveMusicalGoalsSettings();
+    displayPlaylists(playlistsCache);
+    setStatus("Objectifs hebdomadaires réinitialisés.");
+}
+
+function exportMusicalGoalsSummary() {
+    const date = new Date().toISOString().slice(0, 10);
+    downloadJsonPayload(
+        buildMusicalGoalsExport(
+            getMusicalGoalsSummary()
+        ),
+        `shuffleplus-objectifs-${date}.json`
+    );
+    setStatus("Bilan hebdomadaire exporté.");
+}
+
+function renderMusicalGoalsPage() {
+    const summary = getMusicalGoalsSummary();
+    const settings = summary.settings;
+    const deltaLabel = summary.sessionDelta === 0
+        ? "Même rythme que la semaine précédente"
+        : summary.sessionDelta > 0
+            ? `+${summary.sessionDelta} session${summary.sessionDelta > 1 ? "s" : ""} par rapport à la semaine précédente`
+            : `${summary.sessionDelta} session${Math.abs(summary.sessionDelta) > 1 ? "s" : ""} par rapport à la semaine précédente`;
+
+    return `
+        <section class="musical-goals-page">
+            <header class="musical-goals-hero">
+                <div>
+                    <span class="musical-goals-kicker">🏆 Shuffle+ v6.5</span>
+                    <h3>Objectifs & bilan hebdomadaire</h3>
+                    <p>${escapeHtml(summary.weekLabel)} · ${summary.daysLeft} jour${summary.daysLeft > 1 ? "s" : ""} restant${summary.daysLeft > 1 ? "s" : ""}</p>
+                </div>
+                <div class="musical-goals-score" style="--goals-score:${summary.overallPercent}">
+                    <strong>${summary.overallPercent}%</strong>
+                    <span>${summary.completeGoalCount}/${summary.goals.length} atteints</span>
+                </div>
+            </header>
+
+            <div class="musical-goals-toolbar">
+                <button id="exportMusicalGoalsButton" type="button">⬇ Exporter le bilan</button>
+                <button id="resetMusicalGoalsButton" type="button">Réinitialiser les objectifs</button>
+            </div>
+
+            <div class="musical-goals-summary">
+                <article><strong>${summary.sessionCount}</strong><span>sessions cette semaine</span></article>
+                <article><strong>${summary.totalTracks}</strong><span>titres observés</span></article>
+                <article><strong>${escapeHtml(formatMusicalGoalsDuration(summary.totalDurationMs))}</strong><span>durée potentielle</span></article>
+                <article><strong>${summary.unlockedAchievementCount}</strong><span>badges débloqués</span></article>
+            </div>
+
+            <p class="musical-goals-comparison">${escapeHtml(deltaLabel)}</p>
+
+            <div class="musical-goals-grid">
+                ${summary.goals.map((goal) => `
+                    <article class="musical-goal-card ${goal.complete ? "is-complete" : ""}">
+                        <div class="musical-goal-card__heading">
+                            <span aria-hidden="true">${goal.icon}</span>
+                            <div>
+                                <h4>${escapeHtml(goal.label)}</h4>
+                                <p>${goal.value} / ${goal.target} ${escapeHtml(goal.unit)}${goal.target > 1 ? "s" : ""}</p>
+                            </div>
+                            <strong>${goal.percent}%</strong>
+                        </div>
+                        <div class="musical-goal-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${goal.percent}">
+                            <i style="width:${goal.percent}%"></i>
+                        </div>
+                        <small>${goal.complete ? "Objectif atteint 🎉" : `Encore ${goal.remaining} à réaliser`}</small>
+                    </article>
+                `).join("")}
+            </div>
+
+            <section class="musical-goals-next">
+                <div>
+                    <span class="musical-goals-kicker">🎯 Prochaine étape</span>
+                    <h4>${summary.nextGoal ? escapeHtml(summary.nextGoal.label) : "Semaine accomplie"}</h4>
+                    <p>${escapeHtml(summary.message)}</p>
+                </div>
+                <button type="button" data-goals-navigation="dashboard">Ouvrir l’accueil</button>
+            </section>
+
+            <section class="musical-goals-achievements">
+                <div class="musical-goals-section-heading">
+                    <div>
+                        <span class="musical-goals-kicker">✨ Badges de la semaine</span>
+                        <h4>Ta progression</h4>
+                    </div>
+                </div>
+                <div class="musical-achievements-grid">
+                    ${summary.achievements.map((achievement) => `
+                        <article class="musical-achievement ${achievement.unlocked ? "is-unlocked" : ""}">
+                            <span aria-hidden="true">${achievement.icon}</span>
+                            <div>
+                                <strong>${escapeHtml(achievement.label)}</strong>
+                                <p>${escapeHtml(achievement.description)}</p>
+                            </div>
+                            <small>${achievement.unlocked ? "Débloqué" : "À débloquer"}</small>
+                        </article>
+                    `).join("")}
+                </div>
+            </section>
+
+            <form id="musicalGoalsSettingsForm" class="musical-goals-settings">
+                <div>
+                    <span class="musical-goals-kicker">⚙️ Personnalisation</span>
+                    <h4>Mes objectifs hebdomadaires</h4>
+                    <p>Les compteurs se recalculent automatiquement chaque lundi.</p>
+                </div>
+                <label><span>Sessions</span><input name="weeklySessions" type="number" min="1" max="50" value="${settings.weeklySessions}"></label>
+                <label><span>Jours actifs</span><input name="weeklyActiveDays" type="number" min="1" max="7" value="${settings.weeklyActiveDays}"></label>
+                <label><span>Découvertes</span><input name="weeklyDiscoveries" type="number" min="0" max="20" value="${settings.weeklyDiscoveries}"></label>
+                <label><span>Écoutes confirmées</span><input name="weeklyConfirmedSessions" type="number" min="0" max="50" value="${settings.weeklyConfirmedSessions}"></label>
+                <label class="musical-goals-settings__check"><input name="celebrationsEnabled" type="checkbox" ${settings.celebrationsEnabled ? "checked" : ""}><span>Activer les célébrations visuelles</span></label>
+                <button type="submit">Enregistrer mes objectifs</button>
+            </form>
+        </section>
+    `;
+}
 
 function readMusicalDashboardSettings(){try{const raw=localStorage.getItem(MUSICAL_DASHBOARD_SETTINGS_KEY);return normalizeMusicalDashboardSettings(raw?JSON.parse(raw):DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}catch(error){console.warn("Dashboard illisible",error);return normalizeMusicalDashboardSettings(DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}}
 function saveMusicalDashboardSettings(){musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,updatedAt:Date.now()});localStorage.setItem(MUSICAL_DASHBOARD_SETTINGS_KEY,JSON.stringify(musicalDashboardSettings));}
@@ -8280,6 +8488,7 @@ function normalizeActiveAppMenu(value = "") {
         "assistant",
         "recommendations",
         "statistics",
+        "goals",
         "intelligence",
         "quick",
         "driving",
@@ -10973,6 +11182,17 @@ async function executeMusicalAssistantPlan() {
     }
 
     try {
+        if (plan.type === "goals") {
+            activeAppMenu = "goals";
+            saveActiveAppMenu();
+            addMusicalAssistantHistory({request:plan.request,plan,status:"success",message:"Objectifs musicaux ouverts."});
+            setVoiceAssistantMessage("Objectifs ouverts.","success");
+            speakVoiceAssistantText("J’ouvre tes objectifs musicaux de la semaine.");
+            vibrateVoiceAssistant([30,40,30]);
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
         if (plan.type === "dashboard") {
             activeAppMenu="dashboard";saveActiveAppMenu();addMusicalAssistantHistory({request:plan.request,plan,status:"success",message:"Tableau de bord musical ouvert."});setVoiceAssistantMessage("Tableau de bord ouvert.","success");speakVoiceAssistantText("J’ouvre ton tableau de bord musical.");vibrateVoiceAssistant([30,40,30]);displayPlaylists(playlistsCache);await refreshMusicalDashboardPlayback({silent:true});return;
         }
@@ -11460,6 +11680,7 @@ function renderAppMenu() {
         ["assistant", "✨", "Assistant"],
         ["recommendations", "💜", "Pour toi"],
         ["statistics", "📊", "Statistiques"],
+        ["goals", "🏆", "Objectifs"],
         ["intelligence", "🧠", "Intelligence"],
         ["quick", "⚡", "Rapide"],
         ["driving", "🚗", "Conduite"],
@@ -22018,6 +22239,7 @@ function buildBackupPayload() {
         personalizedRecommendationsState,
         listeningStatisticsSettings,
         musicalDashboardSettings,
+        musicalGoalsSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -22235,6 +22457,11 @@ function validateBackupPayload(payload) {
                 payload.data.musicalDashboardSettings ||
                 DEFAULT_MUSICAL_DASHBOARD_SETTINGS
             ),
+        musicalGoalsSettings:
+            normalizeMusicalGoalsSettings(
+                payload.data.musicalGoalsSettings ||
+                DEFAULT_MUSICAL_GOALS_SETTINGS
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -22372,6 +22599,8 @@ function applyValidatedBackupState(imported) {
     saveListeningStatisticsSettings();
     musicalDashboardSettings = imported.musicalDashboardSettings;
     saveMusicalDashboardSettings();
+    musicalGoalsSettings = imported.musicalGoalsSettings;
+    saveMusicalGoalsSettings();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -28903,6 +29132,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "goals"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="goals"
+            >
+                ${renderMusicalGoalsPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "intelligence"
                     ? "is-active"
                     : ""}"
@@ -31967,6 +32206,15 @@ contentElement.addEventListener(
 
         if (event.target.closest("#refreshMusicalDashboardButton")) { await refreshMusicalDashboardPlayback(); return; }
         if (event.target.closest("#exportMusicalDashboardButton")) { exportMusicalDashboardSnapshot(); return; }
+        if (event.target.closest("#exportMusicalGoalsButton")) { exportMusicalGoalsSummary(); return; }
+        if (event.target.closest("#resetMusicalGoalsButton")) { resetMusicalGoalsSettings(); return; }
+        const goalsNavigationButton = event.target.closest("[data-goals-navigation]");
+        if (goalsNavigationButton) {
+            activeAppMenu = normalizeActiveAppMenu(goalsNavigationButton.dataset.goalsNavigation || "dashboard");
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+            return;
+        }
         const dnav=event.target.closest("[data-dashboard-nav]"); if(dnav){await openDashboardSection(dnav.dataset.dashboardNav||"");return;}
         const dplay=event.target.closest("[data-dashboard-playback]"); if(dplay){try{await runQuickControlAction(dplay.dataset.dashboardPlayback||"");await refreshMusicalDashboardPlayback({silent:true});}catch(error){setStatus(error.message||"Commande Spotify impossible.","error");}return;}
         const drec=event.target.closest("[data-dashboard-recommendation]"); if(drec){try{await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation||"");}catch(error){setStatus(error.message||"Recommandation impossible.","error");}return;}
@@ -34120,6 +34368,12 @@ contentElement.addEventListener(
         }
 
         if (event.target.id === "musicalDashboardSettingsForm") { event.preventDefault(); saveMusicalDashboardSettingsFromForm(event.target); return; }
+
+        if (event.target.id === "musicalGoalsSettingsForm") {
+            event.preventDefault();
+            saveMusicalGoalsSettingsFromForm(event.target);
+            return;
+        }
 
         if (
             event.target.id === "adaptiveDjSceneStudioForm"

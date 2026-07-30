@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v6.5.0 — Objectifs & bilan hebdomadaire : terminée**
+  - objectifs personnalisables ;
+  - progression et badges ;
+  - comparaison hebdomadaire ;
+  - export JSON ;
+  - commande assistant et sauvegarde.
 
 - **v6.4.2 — Menu PC sur une seule ligne : terminée**
   - libellés non coupés ;

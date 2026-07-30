@@ -1,0 +1,29 @@
+{
+  "version": "6.5.0",
+  "name": "Weekly Goals and Recap",
+  "source": "ShufflePlus-v6.4.2-PC-Menu-Hotfix.zip",
+  "generatedAt": "2026-07-30T06:40:39.059926+00:00",
+  "javascriptFilesChecked": 18,
+  "serverChangesRequired": false,
+  "features": [
+    "weekly sessions goal",
+    "weekly active days goal",
+    "weekly discoveries goal",
+    "weekly confirmed listening goal",
+    "progress cards",
+    "six achievements",
+    "previous week comparison",
+    "JSON recap export",
+    "assistant voice command",
+    "backup and full sync settings"
+  ],
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "goalsSmokeTest": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 94
+}

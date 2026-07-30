@@ -39,6 +39,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Recommande-moi quelque chose maintenant",
     "Montre mes statistiques d’écoute",
     "Ouvre mon tableau de bord musical",
+    "Montre mes objectifs musicaux",
     "Quel est le programme musical actuel ?"
 ];
 
@@ -283,10 +284,15 @@ export function parseMusicalAssistantRequest(
         "mes habitudes d ecoute", "mes habitudes écoute"
     ]);
     const isDashboard = includesAny(text, ["tableau de bord", "dashboard", "accueil musical", "vue d ensemble"]);
+    const isGoals = includesAny(text, ["objectif", "objectifs", "bilan hebdomadaire", "badges musicaux", "progression de la semaine"]);
     let points = 1;
     if (scene || mix) points += 2;
     if (isSchedule || isTransition || isConfigure || isStatus) points += 2;
     if (time || durationMinutes !== null || energyTarget !== null) points += 1;
+
+    if (isGoals) {
+        return {type:"goals",request:originalRequest,ready:true,confidence:getConfidence(points+2),title:"Objectifs musicaux",summary:"Ouvrir les objectifs et le bilan hebdomadaire.",details:["Sessions","Jours actifs","Découvertes","Badges"],actionLabel:"Ouvrir les objectifs"};
+    }
 
     if (isDashboard) {
         return {type:"dashboard",request:originalRequest,ready:true,confidence:getConfidence(points+2),title:"Tableau de bord musical",summary:"Ouvrir la vue d’ensemble de Shuffle+.",details:["Lecture en cours","Recommandation","Scène et routine","Statistiques"],actionLabel:"Ouvrir le tableau de bord"};
