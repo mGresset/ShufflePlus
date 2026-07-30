@@ -1,0 +1,164 @@
+{
+  "application": "Shuffle+",
+  "version": "7.4.3",
+  "generatedAt": "2026-07-30T20:32:41.368034+00:00",
+  "baseVersion": "7.4.2",
+  "purpose": "Réduction des appels Spotify et protection après les erreurs HTTP 429.",
+  "validation": {
+    "javascriptSyntax": {
+      "status": "passed",
+      "files": 48
+    },
+    "versionConsistency": {
+      "status": "passed",
+      "version": "7.4.3"
+    },
+    "moduleGraph": {
+      "status": "passed",
+      "filesLinkedToApp": 25
+    },
+    "applicationTests": {
+      "status": "passed",
+      "passed": 49,
+      "failed": 0
+    },
+    "syncServerTests": {
+      "status": "passed",
+      "message": "Tests serveur Shuffle+ v5.0 : OK"
+    },
+    "githubPagesBuild": {
+      "status": "passed"
+    },
+    "distCheck": {
+      "status": "passed"
+    },
+    "localHttpSmokeTest": {
+      "status": "passed"
+    },
+    "patchAppliedToCleanBase": {
+      "status": "passed",
+      "base": "7.4.2"
+    }
+  },
+  "features": [
+    "Gestionnaire central des requêtes Spotify",
+    "Déduplication des lectures identiques simultanées",
+    "Cache mémoire court avec invalidation après les commandes",
+    "Pause globale après QUOTA_EXCEEDED ou Retry-After",
+    "Actualisation Conduite espacée à 12 secondes",
+    "Actualisation de la file limitée à 30 secondes",
+    "Arrêt des minuteurs Spotify en arrière-plan",
+    "Analyse des dates de playlists séquentielle et temporisée",
+    "Diagnostic du quota, des appels réseau et du cache"
+  ],
+  "dataMigration": false,
+  "spotifyScopesChanged": false,
+  "dynamicLyricsChanged": false,
+  "files": [
+    {
+      "path": "VERSION",
+      "bytes": 6,
+      "sha256": "767773ab4218ac1b37ecb5092ae134dfbc6a7aebaaa6b613a151c7c886749648"
+    },
+    {
+      "path": "package.json",
+      "bytes": 728,
+      "sha256": "d334e5841092bbc0c628fe50f90fbaa523088c15b49db2c559b4d28f4c863756"
+    },
+    {
+      "path": "config.js",
+      "bytes": 1016,
+      "sha256": "7becfb456ddd09675df79b328e92e7466b32315e76ddaf332682d2c44aa64454"
+    },
+    {
+      "path": "app-health.js",
+      "bytes": 9269,
+      "sha256": "0f7af14edc5474c8362b44b0af60dae32d9639b70dd8299114288cf4a0e9d0c6"
+    },
+    {
+      "path": "app.js",
+      "bytes": 1207109,
+      "sha256": "361b9ad6ef37177100b8f8cd0cedd80edac988cc5d080811dbfc14261521e18b"
+    },
+    {
+      "path": "index.html",
+      "bytes": 5642,
+      "sha256": "b8bdb8f7bf0a720c9c40b2ca5636c5fb26c87d23190464c8661fbe4886affbd6"
+    },
+    {
+      "path": "service-worker.js",
+      "bytes": 6442,
+      "sha256": "288cbe9fb776b343f02168dc67b1a01bd92069deccc9a4a8805cc725d48b8b28"
+    },
+    {
+      "path": "spotify-api.js",
+      "bytes": 13875,
+      "sha256": "3a8b531887ce92cbf7c8819cebbb2282f722148f9b8fd4a111a690a2c1793d3e"
+    },
+    {
+      "path": "startup-recovery-7.4.3.js",
+      "bytes": 7801,
+      "sha256": "1882d181487a6c20898842d78c4f51186687746a203ef1b14c95b16cd47dec0a"
+    },
+    {
+      "path": "core/spotify-request-manager.js",
+      "bytes": 7354,
+      "sha256": "eae33788583084e905e69cccf5b072cd8f48d206398cf6cfe3187eb4c707fc82"
+    },
+    {
+      "path": "scripts/smoke-local.mjs",
+      "bytes": 2845,
+      "sha256": "4667c610ab4b215ccc2a943b52d7687a9ae6fde18438723ffb52936f45528f44"
+    },
+    {
+      "path": "tests/spotify-reliability.test.mjs",
+      "bytes": 5640,
+      "sha256": "821e9e66b05eb88246b93012054dbf13f95e05195a95d4faafd50a4b919efcf9"
+    },
+    {
+      "path": "tests/v731-recovery.test.mjs",
+      "bytes": 5406,
+      "sha256": "763e4521923262613d25ba93e3fc6d1ed6c5fb88a1601132e18f3bdcf10663a6"
+    },
+    {
+      "path": "tests/v732-ios-layout.test.mjs",
+      "bytes": 1669,
+      "sha256": "711a72497a19c68b15ce040a745bca96011ada75bdce1c5ae57fab01863a1dbe"
+    },
+    {
+      "path": "tests/v743-quota-optimization.test.mjs",
+      "bytes": 5935,
+      "sha256": "ebaf65a5c84969375ebdf1eaa523d50673f00a54cf53d2dbc3c9d6024f93c242"
+    },
+    {
+      "path": "README.md",
+      "bytes": 59253,
+      "sha256": "72836a4a34320020581a351e882f07c8b9743c1e579c65411da083d17a1a3322"
+    },
+    {
+      "path": "ROADMAP.md",
+      "bytes": 8454,
+      "sha256": "7bbc38e7fa0a5d71fd78bf07b3070e18f0cf967e179607690730c7dedfbbf680"
+    },
+    {
+      "path": "DEPLOIEMENT-V7.4.3.md",
+      "bytes": 1816,
+      "sha256": "8f814ea1b55f586221a75fc4c294e0445fd631d9feff4692f2aa6d8be829297a"
+    },
+    {
+      "path": "INSTALLATION-V7.4.3.txt",
+      "bytes": 694,
+      "sha256": "9d90d142c7400d23f29947b5409b59ec6ddc01891a196951a722a3319ad350ad"
+    },
+    {
+      "path": "V7.4.3_NOTES.md",
+      "bytes": 2485,
+      "sha256": "6e68ef41ac59e4024cfad8aab02bbe5f0ff4ab54831ae2c2e198740ba033418d"
+    },
+    {
+      "path": "PATCH_MANIFEST_V7.4.3.txt",
+      "bytes": 665,
+      "sha256": "f6a8f0bb4fbe3bf3a9553957878fe587a86efe6b947650ed482779fbbeaa75f2"
+    }
+  ]
+}

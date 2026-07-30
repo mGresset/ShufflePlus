@@ -75,12 +75,32 @@ export function buildAppHealthSnapshot({
     shareSupported = false,
     standalone = false,
     spotifyConnected = false,
+    spotifyApiDiagnostics = {},
     viewportWidth = 0,
     viewportHeight = 0,
     currentMenu = "",
     userAgent = "",
     generatedAt = Date.now()
 } = {}) {
+    const spotifyApi = {
+        logicalRequests: Math.max(0, normalizeNumber(spotifyApiDiagnostics.logicalRequests)),
+        networkRequests: Math.max(0, normalizeNumber(spotifyApiDiagnostics.networkRequests)),
+        cacheHits: Math.max(0, normalizeNumber(spotifyApiDiagnostics.cacheHits)),
+        deduplicatedRequests: Math.max(0, normalizeNumber(spotifyApiDiagnostics.deduplicatedRequests)),
+        blockedByCooldown: Math.max(0, normalizeNumber(spotifyApiDiagnostics.blockedByCooldown)),
+        quotaEvents: Math.max(0, normalizeNumber(spotifyApiDiagnostics.quotaEvents)),
+        rateLimitEvents: Math.max(0, normalizeNumber(spotifyApiDiagnostics.rateLimitEvents)),
+        cacheEntries: Math.max(0, normalizeNumber(spotifyApiDiagnostics.cacheEntries)),
+        pendingRequests: Math.max(0, normalizeNumber(spotifyApiDiagnostics.pendingRequests)),
+        cooldownActive: normalizeBoolean(spotifyApiDiagnostics.cooldownActive),
+        cooldownReason: String(spotifyApiDiagnostics.cooldownReason || ""),
+        cooldownUntil: Math.max(0, normalizeNumber(spotifyApiDiagnostics.cooldownUntil)),
+        cooldownRemainingMs: Math.max(0, normalizeNumber(spotifyApiDiagnostics.cooldownRemainingMs))
+    };
+    const spotifyCooldownLabel = spotifyApi.cooldownActive
+        ? `${spotifyApi.cooldownReason || "PAUSE"} · ${Math.max(1, Math.ceil(spotifyApi.cooldownRemainingMs / 1000))} s restantes`
+        : `${spotifyApi.networkRequests} appel(s) réseau · ${spotifyApi.cacheHits} cache`;
+
     const checks = [
         buildCheck({
             id: "secure-context",
@@ -129,6 +149,15 @@ export function buildAppHealthSnapshot({
             value: cacheSupported
                 ? `${normalizeNumber(cacheCount)} cache(s) · ${normalizeNumber(staleCacheCount)} ancien(s)`
                 : "API Cache indisponible"
+        }),
+        buildCheck({
+            id: "spotify-api",
+            label: "Quota et cache Spotify",
+            description: "Centralise les appels, réutilise les réponses récentes et met l’API en pause après une erreur 429.",
+            category: "spotify",
+            available: !spotifyApi.cooldownActive,
+            warningWhenMissing: true,
+            value: spotifyCooldownLabel
         }),
         buildCheck({
             id: "standalone",
@@ -201,7 +230,8 @@ export function buildAppHealthSnapshot({
             viewportWidth: Math.max(0, normalizeNumber(viewportWidth)),
             viewportHeight: Math.max(0, normalizeNumber(viewportHeight)),
             currentMenu: String(currentMenu || ""),
-            userAgent: String(userAgent || "")
+            userAgent: String(userAgent || ""),
+            spotifyApi
         }
     };
 }

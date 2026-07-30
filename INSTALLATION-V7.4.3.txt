@@ -1,0 +1,26 @@
+SHUFFLE+ v7.4.3 — INSTALLATION RAPIDE
+
+1. Décompresser ShufflePlus-v7.4.3-patch.zip à la racine du dépôt v7.4.2.
+2. Ouvrir le terminal Visual Studio Code.
+3. Exécuter :
+
+   git switch main
+   git pull origin main
+   git switch -c hotfix/7.4.3
+   npm run validate
+   npm start
+
+4. Tester localement sur :
+
+   http://127.0.0.1:5500/
+
+5. Publier :
+
+   git add .
+   git commit -m "Hotfix Shuffle+ v7.4.3"
+   git push -u origin hotfix/7.4.3
+
+6. Créer et fusionner la Pull Request :
+
+   gh pr create --base main --head hotfix/7.4.3 --title "Shuffle+ v7.4.3" --body "Optimisation du quota Spotify, cache mémoire et réduction des appels automatiques."
+   gh pr merge --squash --delete-branch

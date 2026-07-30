@@ -25,11 +25,15 @@ class MemoryStorage {
     }
 }
 
+const appVersion = (await readFile("VERSION", "utf8")).trim();
 const indexSource = await readFile("index.html", "utf8");
 const appSource = await readFile("app.js", "utf8");
 const authSource = await readFile("auth.js", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
-const bootstrapSource = await readFile("startup-recovery-7.4.2.js", "utf8");
+const bootstrapSource = await readFile(
+    `startup-recovery-${appVersion}.js`,
+    "utf8"
+);
 
 test("un état PKCE partiel est nettoyé hors retour OAuth", () => {
     const local = new MemoryStorage();
@@ -103,10 +107,10 @@ test("l’inspection tolère un stockage navigateur indisponible", () => {
 
 test("la page de connexion dispose d’un secours indépendant de app.js", () => {
     const bootstrapIndex = indexSource.indexOf(
-        'src="./startup-recovery-7.4.2.js"'
+        `src="./startup-recovery-${appVersion}.js"`
     );
     const appIndex = indexSource.indexOf(
-        'type="module" src="./app.js?v=7.4.2"'
+        `type="module" src="./app.js?v=${appVersion}"`
     );
 
     assert.match(indexSource, /id="showStartupRecoveryButton"/);
@@ -135,6 +139,8 @@ test("le Service Worker privilégie le réseau pour les scripts versionnés", ()
     assert.match(workerSource, /staticNetworkFirst/);
     assert.doesNotMatch(workerSource, /staleWhileRevalidate/);
     assert.match(workerSource, /cache: "no-store"/);
-    assert.match(workerSource, /startup-recovery-7\.4\.2\.js/);
+    assert.ok(
+        workerSource.includes(`startup-recovery-${appVersion}.js`)
+    );
     assert.match(workerSource, /core\/session-recovery\.js/);
 });

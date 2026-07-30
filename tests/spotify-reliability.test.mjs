@@ -39,6 +39,10 @@ const spotifyApi = await import("../spotify-api.js");
 function resetStorage() {
     localStorage.clear();
     sessionStorage.clear();
+    spotifyApi.clearSpotifyApiMemoryCache();
+    spotifyApi.resetSpotifyApiDiagnostics({
+        keepCooldown: false
+    });
 }
 
 test("l’autorisation initiale conserve sa date", () => {

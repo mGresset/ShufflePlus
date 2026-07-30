@@ -1,5 +1,13 @@
 # Feuille de route Shuffle+
 
+- **v7.4.3 — Optimisation du quota Spotify : terminée**
+  - gestionnaire central des requêtes ;
+  - cache mémoire court et déduplication ;
+  - pause globale après `QUOTA_EXCEEDED` ;
+  - actualisations Conduite et file espacées ;
+  - arrêt des minuteurs en arrière-plan ;
+  - diagnostic des appels Spotify.
+
 - **v7.4.2 — Test OAuth Windows corrigé : terminée**
   - normalisation préalable des fins de ligne ;
   - simulation indépendante des formats LF et CRLF ;

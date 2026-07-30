@@ -30,7 +30,8 @@ import {
     createPrivatePlaylist,
     addItemsToPlaylist,
     getPlaylistLastAddedAt,
-    getRecentlyPlayedPlaylistActivity
+    getRecentlyPlayedPlaylistActivity,
+    getSpotifyApiDiagnostics
 } from "./spotify-api.js";
 
 import {
@@ -170,7 +171,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.4.2";
+const APP_VERSION = "7.4.3";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -245,7 +246,8 @@ const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
     "shuffleplus_playlist_modification_dates_v1";
 const MODIFICATION_CACHE_TTL = 24 * 60 * 60 * 1000;
-const MODIFICATION_REQUEST_CONCURRENCY = 4;
+const MODIFICATION_REQUEST_CONCURRENCY = 1;
+const MODIFICATION_REQUEST_DELAY_MS = 900;
 const RECENT_ACTIVITY_CACHE_KEY =
     "shuffleplus_recent_playlist_activity_v1";
 const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
@@ -288,9 +290,10 @@ const DEFAULT_MUSIC_FEEDBACK_STATE = {
 };
 const DRIVING_MODE_SETTINGS_KEY =
     "shuffleplus_driving_mode_settings_v1";
-const DRIVING_MODE_REFRESH_MS = 8000;
+const DRIVING_MODE_REFRESH_MS = 12000;
 const DRIVING_MODE_ACTION_COOLDOWN_MS = 900;
 const DRIVING_QUEUE_LIMIT = 20;
+const DRIVING_QUEUE_REFRESH_MS = 30000;
 const PREFERRED_SPOTIFY_DEVICE_KEY =
     "shuffleplus_preferred_spotify_device_v1";
 const DEFAULT_DRIVING_MODE_SETTINGS = {
@@ -3592,7 +3595,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.4.2",
+                "./service-worker.js?v=7.4.3",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -3734,6 +3737,8 @@ function getBasicAppHealthFacts() {
             isStandalonePwa(),
         spotifyConnected:
             Boolean(currentUserId),
+        spotifyApiDiagnostics:
+            getSpotifyApiDiagnostics(),
         viewportWidth:
             Math.round(
                 window.visualViewport
@@ -3871,6 +3876,10 @@ function renderAppHealthPanel() {
         {
             id: "pwa",
             label: "Installation et cache"
+        },
+        {
+            id: "spotify",
+            label: "Utilisation de l’API Spotify"
         },
         {
             id: "optional",
@@ -7401,7 +7410,11 @@ function startDrivingRefreshTimer() {
                 refreshDrivingPlayback({
                     silent: true
                 });
-                if (drivingQueueOpen) {
+                if (
+                    drivingQueueOpen &&
+                    Date.now() - Number(drivingQueueState.updatedAt || 0) >=
+                        DRIVING_QUEUE_REFRESH_MS
+                ) {
                     refreshDrivingQueue({
                         silent: true,
                         render: false
@@ -32859,6 +32872,10 @@ async function ensureModificationDatesLoaded() {
                         playlist.id
                     );
             } catch (error) {
+                if (error?.status === 429) {
+                    throw error;
+                }
+
                 console.warn(
                     `Date indisponible pour « ${playlist.name} » :`,
                     error
@@ -32879,6 +32896,15 @@ async function ensureModificationDatesLoaded() {
 
             modificationDatesProgress.completed += 1;
             updateModificationProgressUI();
+
+            if (MODIFICATION_REQUEST_DELAY_MS > 0) {
+                await new Promise((resolve) => {
+                    window.setTimeout(
+                        resolve,
+                        MODIFICATION_REQUEST_DELAY_MS
+                    );
+                });
+            }
         }
     );
 
@@ -32887,14 +32913,25 @@ async function ensureModificationDatesLoaded() {
             tasks,
             MODIFICATION_REQUEST_CONCURRENCY
         );
-
+    } catch (error) {
+        if (error?.status === 429) {
+            setStatus(
+                "Analyse des dates mise en pause pour préserver le quota Spotify.",
+                "warning"
+            );
+        } else {
+            throw error;
+        }
+    } finally {
         writeModificationDateCache(
             updatedCacheEntries
         );
-    } finally {
         modificationDatesLoading = false;
         updateModificationProgressUI();
-        setStatus("");
+
+        if (getSpotifyApiDiagnostics().cooldownActive === false) {
+            setStatus("");
+        }
     }
 }
 
@@ -36019,10 +36056,25 @@ function getPlaybackErrorMessage(error) {
     }
 
     if (error.status === 429) {
-        return (
-            "Trop de demandes ont été envoyées à Spotify. " +
-            "Patiente quelques secondes puis recommence."
+        if (
+            error.reason === "QUOTA_EXCEEDED" ||
+            error.code === "SPOTIFY_API_COOLDOWN"
+        ) {
+            return spotifyMessage ||
+                "Le quota Spotify est temporairement indisponible. Shuffle+ a mis les appels en pause.";
+        }
+
+        const retryAfterSeconds = Math.max(
+            0,
+            Math.ceil(Number(error.retryAfter || 0))
         );
+
+        return retryAfterSeconds
+            ? `Spotify limite temporairement les demandes. Réessaie dans environ ${retryAfterSeconds} s.`
+            : (
+                "Trop de demandes ont été envoyées à Spotify. " +
+                "Patiente quelques secondes puis recommence."
+            );
     }
 
     return spotifyMessage
@@ -40386,13 +40438,22 @@ window.addEventListener(
 document.addEventListener(
     "visibilitychange",
     () => {
-        if (document.visibilityState === "visible") {
-            runServerAutoSync("visible");
+        if (document.visibilityState !== "visible") {
+            stopDrivingRefreshTimer();
+            stopMusicalDashboardRefreshTimer();
+            return;
+        }
 
-            if (activeAppMenu === "driving") {
-                syncDrivingViewportHeight();
-                renderDrivingModePage();
-            }
+        runServerAutoSync("visible");
+
+        if (activeAppMenu === "driving") {
+            syncDrivingViewportHeight();
+            renderDrivingModePage();
+            startDrivingRefreshTimer();
+        }
+
+        if (activeAppMenu === "dashboard") {
+            startMusicalDashboardRefreshTimer();
         }
     }
 );
