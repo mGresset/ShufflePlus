@@ -336,6 +336,10 @@ export async function getCurrentPlayback() {
     return spotifyFetch("/me/player");
 }
 
+export async function getPlaybackQueue() {
+    return spotifyFetch("/me/player/queue");
+}
+
 function buildPlaybackDeviceQuery(deviceId = "") {
     const parameters = new URLSearchParams();
 

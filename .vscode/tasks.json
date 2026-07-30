@@ -16,10 +16,19 @@
       "problemMatcher": []
     },
     {
-      "label": "Shuffle+ : construire",
+      "label": "Shuffle+ : vérifier les modules",
       "type": "shell",
-      "command": "npm run build",
-      "group": "build",
+      "command": "npm run check",
+      "problemMatcher": []
+    },
+    {
+      "label": "Shuffle+ : valider la version",
+      "type": "shell",
+      "command": "npm run validate",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": []
     }
   ]

@@ -10,17 +10,18 @@ import process from "node:process";
 
 const root = process.cwd();
 const destination = path.join(root, "dist");
-
-await rm(destination, { recursive: true, force: true });
-await mkdir(destination, { recursive: true });
-
-const rootFiles = await readdir(root, { withFileTypes: true });
+const runtimeDirectories = ["core", "icons"];
 const staticFiles = new Set([
     "index.html",
     "style.css",
     "manifest.webmanifest",
     "favicon.ico"
 ]);
+
+await rm(destination, { recursive: true, force: true });
+await mkdir(destination, { recursive: true });
+
+const rootFiles = await readdir(root, { withFileTypes: true });
 
 for (const entry of rootFiles) {
     if (!entry.isFile()) {
@@ -35,11 +36,13 @@ for (const entry of rootFiles) {
     }
 }
 
-await cp(
-    path.join(root, "icons"),
-    path.join(destination, "icons"),
-    { recursive: true }
-);
+for (const directory of runtimeDirectories) {
+    await cp(
+        path.join(root, directory),
+        path.join(destination, directory),
+        { recursive: true }
+    );
+}
 
 await writeFile(path.join(destination, ".nojekyll"), "");
 

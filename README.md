@@ -1,15 +1,28 @@
 # Shuffle+
 
-## v7.1.1 — Fiabilité Spotify et déploiement automatique
+## v7.3.0 — iPhone prioritaire et liste de lecture
 
-Cette version gère l’expiration des refresh tokens Spotify, distingue les quotas des rate limits, empêche les renouvellements simultanés et ajoute un déploiement GitHub Pages contrôlé par tests.
+La v7.3.0 recentre Shuffle+ sur son objectif initial : lancer une playlist personnelle en mode aléatoire depuis un raccourci iOS. Un iPhone peut être enregistré localement comme appareil Spotify prioritaire grâce à son `device_id`, avec une recherche de secours par nom et type.
 
-- Guide : `DEPLOIEMENT-V7.1.1.md`
-- Notes : `V7.1.1_NOTES.md`
-- Test local : `npm start`
-- Validation complète : `npm test`
-- Build : `npm run build`
+Le lancement effectue désormais un transfert contrôlé, active le shuffle, démarre la playlist, vérifie que la lecture se déroule réellement sur l’appareil ciblé et retente automatiquement si nécessaire. Une commande peut ouvrir directement le mode conduite.
 
+Le mode conduite reçoit aussi un bouton **Liste de lecture** qui affiche le morceau actif et jusqu’à 20 prochains titres de la file Spotify.
+
+## v7.2.1 — Correctif de connexion et de navigation
+
+La v7.2.1 corrige l’erreur `groups is not defined` pouvant survenir juste après la connexion Spotify dans la v7.2.0. Elle ajoute également des tests de régression et force le renouvellement du cache PWA.
+
+## v7.2.0 — Architecture, navigation et performances
+
+La v7.2.0 commence le découpage du cœur historique de Shuffle+ sans supprimer de fonction ni modifier les données enregistrées. La navigation et l’échappement HTML sont maintenant isolés dans des modules testables.
+
+L’interface ne génère plus toutes les rubriques cachées à chaque affichage : seule la page active est construite, tandis que le mode Conduite conserve son rendu spécialisé. Le build vérifie aussi le graphe des imports et la présence des modules dans l’artefact GitHub Pages.
+
+Le Service Worker distingue les fichiers indispensables des ressources facultatives et limite le cache d’exécution à 120 entrées. La CI valide désormais les Pull Requests et utilise les actions GitHub actuelles.
+
+## v7.1.1 — Fiabilité Spotify
+
+La v7.1.1 gère l’expiration des autorisations Spotify, déduplique les renouvellements simultanés et distingue le quota applicatif d’un rate limit classique.
 
 ## v7.1.0 — Performance et hors connexion
 
@@ -117,8 +130,6 @@ prévisualiser, appliquer ou annuler le résultat.
 
 L’énergie affichée est une estimation construite à partir des métadonnées
 accessibles à Shuffle+ ; elle ne remplace pas une analyse audio Spotify.
-
-# Shuffle+
 
 ## Nouveautés v5.4.0 — Adaptive DJ 2.0
 
