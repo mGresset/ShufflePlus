@@ -1,6 +1,6 @@
 # Feuille de route Shuffle+
 
-- **v7.4.3 — Optimisation du quota Spotify : terminée**
+- **v7.5.0 — Optimisation du quota Spotify : terminée**
   - gestionnaire central des requêtes ;
   - cache mémoire court et déduplication ;
   - pause globale après `QUOTA_EXCEEDED` ;

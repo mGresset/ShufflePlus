@@ -150,6 +150,13 @@ import {
     writeStoredAppMenu
 } from "./core/app-menu.js";
 
+import {
+    buildShortcutProfileDiagnostic,
+    claimShortcutLaunch,
+    formatShortcutRunDuration,
+    normalizeShortcutHistorySteps
+} from "./core/shortcut-profiles.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -171,7 +178,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "7.4.3";
+const APP_VERSION = "7.5.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -503,6 +510,8 @@ const IOS_COMMANDS_KEY =
     "shuffleplus_ios_commands_v1";
 const IOS_COMMAND_HISTORY_KEY =
     "shuffleplus_ios_command_history_v1";
+const SHORTCUT_LAUNCH_GUARD_KEY =
+    "shuffleplus_shortcut_launch_guard_v1";
 const DYNAMIC_LYRICS_SETTINGS_KEY =
     "shuffleplus_dynamic_lyrics_settings_v1";
 const MAX_IOS_COMMANDS = 20;
@@ -625,7 +634,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.3.1-shell";
+    "shuffleplus-v7.5.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3595,7 +3604,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.4.3",
+                "./service-worker.js?v=7.5.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -9902,6 +9911,239 @@ async function copyQuickControlUrl(action) {
     }
 }
 
+function getShortcutProfileSourceLabel(command = {}) {
+    if (command.commandType === "smartmix") {
+        return savedMixes.find(
+            (mix) => mix.id === command.mixId
+        )?.name || "Mix indisponible";
+    }
+
+    if (command.commandType === "adaptive") {
+        return "Adaptive DJ";
+    }
+
+    return command.playlistName ||
+        playlistsCache.find(
+            (playlist) => playlist.id === command.playlistId
+        )?.name ||
+        "Playlist indisponible";
+}
+
+function getShortcutProfileDeviceLabel(command = {}) {
+    if (command.deviceMode === "preferred") {
+        return preferredSpotifyDevice?.name || "iPhone préféré";
+    }
+    if (command.deviceMode === "iphone") {
+        return "iPhone disponible";
+    }
+    if (command.deviceMode === "named") {
+        return command.deviceName || "Appareil nommé";
+    }
+    if (command.deviceMode === "first") {
+        return "Premier appareil disponible";
+    }
+    return "Appareil Spotify actif";
+}
+
+function renderShortcutProfileDiagnosticSteps(lastRun) {
+    const steps = normalizeShortcutHistorySteps(
+        lastRun?.steps
+    );
+
+    if (!steps.length) {
+        return `
+            <p class="shortcut-profile-diagnostic-empty">
+                Aucun diagnostic détaillé pour ce lancement.
+            </p>
+        `;
+    }
+
+    return `
+        <ol class="shortcut-profile-diagnostic-steps">
+            ${steps.map((step) => `
+                <li class="${escapeHtml(step.status)}">
+                    <span aria-hidden="true">
+                        ${step.status === "success" ? "✓" : step.status === "error" ? "!" : step.status === "skipped" ? "−" : "…"}
+                    </span>
+                    <div>
+                        <strong>${escapeHtml(step.label)}</strong>
+                        ${step.message
+                            ? `<small>${escapeHtml(step.message)}</small>`
+                            : ""}
+                    </div>
+                </li>
+            `).join("")}
+        </ol>
+    `;
+}
+
+function renderShortcutProfilesDashboard() {
+    const playlistIds = playlistsCache
+        .map((playlist) => playlist?.id)
+        .filter(Boolean);
+    const mixIds = savedMixes
+        .map((mix) => mix?.id)
+        .filter(Boolean);
+    const diagnostics = iosCommands.map((command) => ({
+        command,
+        diagnostic: buildShortcutProfileDiagnostic(
+            command,
+            iosCommandHistory,
+            {
+                playlistIds,
+                mixIds,
+                preferredDevice: preferredSpotifyDevice
+            }
+        )
+    }));
+    const readyCount = diagnostics.filter(
+        ({ diagnostic }) => diagnostic.readiness.ready
+    ).length;
+    const successCount = diagnostics.filter(
+        ({ diagnostic }) => diagnostic.lastRun?.status === "success"
+    ).length;
+
+    return `
+        <section class="shortcut-profiles-dashboard" aria-label="Mes raccourcis iOS">
+            <div class="shortcut-profiles-hero">
+                <div>
+                    <span class="quick-control-kicker">📱 Mes raccourcis</span>
+                    <h3>Lance la bonne musique en une seule action</h3>
+                    <p>
+                        Chaque profil mémorise sa playlist ou son mix, l’appareil Spotify,
+                        le shuffle, le mode conduite et Dynamic Lyrics.
+                    </p>
+                </div>
+                <div class="shortcut-profiles-hero-actions">
+                    <button id="createShortcutProfileButton" type="button">
+                        ＋ Nouveau profil
+                    </button>
+                    <button id="openShortcutProfilesConfigButton" type="button">
+                        Gérer dans Mix & iOS
+                    </button>
+                </div>
+            </div>
+
+            <div class="shortcut-profiles-summary">
+                <span><strong>${iosCommands.length}</strong> profils</span>
+                <span><strong>${readyCount}</strong> prêts</span>
+                <span><strong>${successCount}</strong> déjà testés</span>
+                <span><strong>${iosCommandHistory.length}</strong> lancements mémorisés</span>
+            </div>
+
+            ${iosCommands.length
+                ? `
+                    <div class="shortcut-profile-grid">
+                        ${diagnostics.map(({ command, diagnostic }) => {
+                            const lastRun = diagnostic.lastRun;
+                            const statusClass = diagnostic.status;
+                            const sourceLabel = getShortcutProfileSourceLabel(command);
+                            const url = buildIosCommandUrl(command);
+                            return `
+                                <article class="shortcut-profile-card ${escapeHtml(statusClass)}">
+                                    <header>
+                                        <span class="shortcut-profile-icon">${escapeHtml(command.icon || "▶️")}</span>
+                                        <div>
+                                            <h4>${escapeHtml(command.name)}</h4>
+                                            <p>${escapeHtml(sourceLabel)}</p>
+                                        </div>
+                                        <span class="shortcut-profile-status ${escapeHtml(statusClass)}">
+                                            ${escapeHtml(diagnostic.label)}
+                                        </span>
+                                    </header>
+
+                                    <div class="shortcut-profile-options">
+                                        <span>📲 ${escapeHtml(getShortcutProfileDeviceLabel(command))}</span>
+                                        <span>${command.shuffle ? "🔀 Shuffle" : "↕️ Ordre normal"}</span>
+                                        <span>${command.startFromBeginning ? "⏮ Début" : "🎲 Départ aléatoire"}</span>
+                                        ${command.openDrivingMode ? "<span>🚗 Conduite</span>" : ""}
+                                        ${command.openDynamicLyrics ? "<span>🎤 Dynamic Lyrics</span>" : ""}
+                                    </div>
+
+                                    <div class="shortcut-profile-readiness">
+                                        ${diagnostic.readiness.checks.map((check) => `
+                                            <span class="${check.ready ? "ready" : "missing"}">
+                                                ${check.ready ? "✓" : "!"}
+                                                ${escapeHtml(check.label)}
+                                            </span>
+                                        `).join("")}
+                                    </div>
+
+                                    <div class="shortcut-profile-actions">
+                                        <button
+                                            type="button"
+                                            class="shortcut-profile-run"
+                                            data-ios-command-action="run"
+                                            data-ios-command-id="${escapeHtml(command.id)}"
+                                            ${diagnostic.readiness.ready ? "" : "disabled"}
+                                        >
+                                            ▶ Lancer maintenant
+                                        </button>
+                                        <button type="button" data-ios-command-action="copy" data-ios-command-id="${escapeHtml(command.id)}">🔗 Copier</button>
+                                        <button type="button" data-ios-command-action="edit" data-ios-command-id="${escapeHtml(command.id)}">✏️ Modifier</button>
+                                        <button type="button" data-ios-command-action="duplicate" data-ios-command-id="${escapeHtml(command.id)}">📄 Dupliquer</button>
+                                        <button type="button" data-ios-command-action="delete" data-ios-command-id="${escapeHtml(command.id)}">🗑️</button>
+                                    </div>
+
+                                    <details class="shortcut-profile-diagnostic">
+                                        <summary>
+                                            Diagnostic
+                                            ${lastRun
+                                                ? `· ${lastRun.status === "success" ? "réussi" : "en erreur"} · ${escapeHtml(formatShortcutRunDuration(lastRun.durationMs))}`
+                                                : "· aucun lancement"}
+                                        </summary>
+                                        ${lastRun
+                                            ? `
+                                                <div class="shortcut-profile-last-run ${escapeHtml(lastRun.status)}">
+                                                    <strong>${lastRun.status === "success" ? "Dernier lancement réussi" : "Dernier lancement en erreur"}</strong>
+                                                    <span>${escapeHtml(new Date(lastRun.createdAt).toLocaleString("fr-FR"))}</span>
+                                                    <small>${escapeHtml(lastRun.message || "Aucun détail")}</small>
+                                                </div>
+                                                ${renderShortcutProfileDiagnosticSteps(lastRun)}
+                                            `
+                                            : `<p class="shortcut-profile-diagnostic-empty">Teste ce profil pour obtenir un diagnostic étape par étape.</p>`}
+                                        <code>${escapeHtml(url)}</code>
+                                    </details>
+                                </article>
+                            `;
+                        }).join("")}
+                    </div>
+                `
+                : `
+                    <div class="shortcut-profiles-empty">
+                        <span>📱</span>
+                        <h4>Aucun profil de raccourci</h4>
+                        <p>Crée ton premier profil pour lancer une playlist en une action depuis l’iPhone.</p>
+                        <button id="createFirstShortcutProfileButton" type="button">Créer mon premier profil</button>
+                    </div>
+                `}
+
+            ${iosCommandHistory.length
+                ? `
+                    <details class="shortcut-profile-history">
+                        <summary>Historique récent des raccourcis</summary>
+                        <div>
+                            ${iosCommandHistory.slice(0, 10).map((entry) => `
+                                <article class="${escapeHtml(entry.status)}">
+                                    <span>${entry.status === "success" ? "✓" : "!"}</span>
+                                    <div>
+                                        <strong>${escapeHtml(entry.commandName)}</strong>
+                                        <small>
+                                            ${escapeHtml(entry.deviceName || "Aucun appareil")}
+                                            · ${escapeHtml(formatShortcutRunDuration(entry.durationMs))}
+                                            · ${escapeHtml(new Date(entry.createdAt).toLocaleString("fr-FR"))}
+                                        </small>
+                                    </div>
+                                </article>
+                            `).join("")}
+                        </div>
+                    </details>
+                `
+                : ""}
+        </section>
+    `;
+}
+
 function renderQuickControlPage() {
     const track = getQuickCurrentTrack();
     const isPlaying = Boolean(
@@ -9953,6 +10195,11 @@ function renderQuickControlPage() {
             class="quick-control-page"
             aria-label="Commandes rapides"
         >
+            ${renderShortcutProfilesDashboard()}
+
+            <details class="quick-control-legacy-panel">
+                <summary>Commandes rapides et profils historiques</summary>
+                <div class="quick-control-legacy-content">
             <div class="quick-control-hero">
                 <div>
                     <span class="quick-control-kicker">
@@ -10267,6 +10514,8 @@ function renderQuickControlPage() {
                             </div>
                         `
                     ).join("")}
+                </div>
+            </details>
                 </div>
             </details>
         </section>
@@ -16395,6 +16644,26 @@ function normalizeIosCommandHistory(values) {
                 typeof item.message === "string"
                     ? item.message.slice(0, 240)
                     : "",
+            source:
+                typeof item.source === "string"
+                    ? item.source.slice(0, 80)
+                    : "",
+            playlistId:
+                typeof item.playlistId === "string"
+                    ? item.playlistId.slice(0, 120)
+                    : "",
+            deviceId:
+                typeof item.deviceId === "string"
+                    ? item.deviceId.slice(0, 160)
+                    : "",
+            shuffle: item.shuffle === true,
+            durationMs: Math.max(
+                0,
+                Number(item.durationMs || 0)
+            ),
+            steps: normalizeShortcutHistorySteps(
+                item.steps
+            ),
             createdAt: Number(
                 item.createdAt || Date.now()
             )
@@ -16675,20 +16944,28 @@ function saveIosCommandFromForm(form) {
     );
 }
 
-function editIosCommand(commandId) {
-    if (!getIosCommandById(commandId)) {
+function openShortcutProfileEditor(commandId = "") {
+    if (commandId && !getIosCommandById(commandId)) {
         return;
     }
 
     editingIosCommandId = commandId;
+    activeAppMenu = "mixes";
+    saveActiveAppMenu();
     displayPlaylists(playlistsCache);
 
-    document
-        .getElementById("iosCommandForm")
-        ?.scrollIntoView({
-            behavior: "smooth",
-            block: "center"
-        });
+    window.setTimeout(() => {
+        document
+            .getElementById("iosCommandForm")
+            ?.scrollIntoView({
+                behavior: "smooth",
+                block: "center"
+            });
+    }, 0);
+}
+
+function editIosCommand(commandId) {
+    openShortcutProfileEditor(commandId);
 }
 
 function cancelIosCommandEdit() {
@@ -18119,7 +18396,8 @@ async function runIosQuickPlay(
     {
         openDrivingMode = false,
         openDynamicLyrics = false,
-        dynamicLyricsShortcutName = ""
+        dynamicLyricsShortcutName = "",
+        source = "manual"
     } = {}
 ) {
     if (automationRunInProgress) {
@@ -18139,6 +18417,25 @@ async function runIosQuickPlay(
     const resolvedPlaylistId =
         playlistId ||
         command.playlistId;
+    const launchStartedAt = performance.now();
+    const launchSteps = [];
+    let activeLaunchStep = "configuration";
+
+    if (source === "automation-url") {
+        const launchClaim = claimShortcutLaunch(
+            window.sessionStorage,
+            SHORTCUT_LAUNCH_GUARD_KEY,
+            command.id
+        );
+
+        if (!launchClaim.accepted) {
+            setStatus(
+                "Ce raccourci vient déjà d’être lancé. La seconde ouverture a été ignorée.",
+                "info"
+            );
+            return;
+        }
+    }
 
     if (!resolvedPlaylistId) {
         setStatus(
@@ -18148,6 +18445,14 @@ async function runIosQuickPlay(
         displayPlaylists(playlistsCache);
         return;
     }
+
+    launchSteps.push({
+        id: "configuration",
+        label: "Configuration",
+        status: "success",
+        message: command.playlistName || resolvedPlaylistId
+    });
+    activeLaunchStep = "device";
 
     automationRunInProgress = true;
     setStatus(
@@ -18172,6 +18477,14 @@ async function runIosQuickPlay(
             );
         }
 
+        launchSteps.push({
+            id: "device",
+            label: "Appareil Spotify",
+            status: "success",
+            message: device.name || "Appareil détecté"
+        });
+        activeLaunchStep = "playback";
+
         setStatus(
             `Lancement sur ${device.name}…`
         );
@@ -18191,6 +18504,34 @@ async function runIosQuickPlay(
         rememberPreferredSpotifyDevice({
             ...device,
             ...drivingPlaybackState?.device
+        });
+        launchSteps.push({
+            id: "playback",
+            label: "Lecture Spotify",
+            status: "success",
+            message: command.shuffle
+                ? "Lecture démarrée avec shuffle"
+                : "Lecture démarrée dans l’ordre"
+        });
+        launchSteps.push({
+            id: "driving",
+            label: "Mode conduite",
+            status: command.openDrivingMode || openDrivingMode
+                ? "success"
+                : "skipped",
+            message: command.openDrivingMode || openDrivingMode
+                ? "Ouverture demandée"
+                : "Non demandé"
+        });
+        launchSteps.push({
+            id: "lyrics",
+            label: "Dynamic Lyrics",
+            status: dynamicLyricsLaunch.requested
+                ? "success"
+                : "skipped",
+            message: dynamicLyricsLaunch.requested
+                ? `Raccourci « ${dynamicLyricsLaunch.shortcutName} » demandé`
+                : "Non demandé"
         });
 
         savePendingAutomationCommand(null);
@@ -18231,11 +18572,17 @@ async function runIosQuickPlay(
         addIosCommandHistory({
             commandId: command.id,
             commandName: command.name,
+            playlistId: resolvedPlaylistId,
             playlistName:
                 command.playlistName || "",
+            deviceId: device.id || "",
             deviceName: device.name,
+            shuffle: command.shuffle === true,
+            source,
+            durationMs: performance.now() - launchStartedAt,
+            steps: launchSteps,
             status: "success",
-            message: "Lecture démarrée"
+            message: "Lecture démarrée et vérifiée"
         });
 
         setStatus(
@@ -18256,6 +18603,16 @@ async function runIosQuickPlay(
         );
     } catch (error) {
         console.error(error);
+        launchSteps.push({
+            id: activeLaunchStep,
+            label: activeLaunchStep === "device"
+                ? "Appareil Spotify"
+                : activeLaunchStep === "playback"
+                    ? "Lecture Spotify"
+                    : "Configuration",
+            status: "error",
+            message: error.message || "Étape interrompue"
+        });
         savePendingAutomationCommand(null);
 
         contentElement.innerHTML = `
@@ -18293,9 +18650,14 @@ async function runIosQuickPlay(
         addIosCommandHistory({
             commandId: command.id,
             commandName: command.name,
+            playlistId: resolvedPlaylistId,
             playlistName:
                 command.playlistName || "",
             deviceName: "",
+            shuffle: command.shuffle === true,
+            source,
+            durationMs: performance.now() - launchStartedAt,
+            steps: launchSteps,
             status: "error",
             message:
                 error.message ||
@@ -18339,7 +18701,8 @@ async function executeAutomationCommand(
                 openDynamicLyrics:
                     normalized.openDynamicLyrics,
                 dynamicLyricsShortcutName:
-                    normalized.dynamicLyricsShortcutName
+                    normalized.dynamicLyricsShortcutName,
+                source: "automation-url"
             }
         );
         return;
@@ -37321,6 +37684,26 @@ contentElement.addEventListener(
             setStatus(
                 "Historique de l’assistant effacé."
             );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#createShortcutProfileButton, #createFirstShortcutProfileButton"
+            )
+        ) {
+            openShortcutProfileEditor("");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#openShortcutProfilesConfigButton"
+            )
+        ) {
+            activeAppMenu = "mixes";
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
             return;
         }
 

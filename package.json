@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "7.4.3",
+  "version": "7.5.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ — lancement Spotify iOS, profils de raccourcis et intégration compagnon Dynamic Lyrics.",
+  "description": "Shuffle+ — profils de raccourcis iOS, diagnostic de lancement et lecture Spotify en une action.",
   "engines": {
     "node": ">=20"
   },

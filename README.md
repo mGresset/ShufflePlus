@@ -1,8 +1,8 @@
 # Shuffle+
 
-## v7.4.3 — Quota Spotify optimisé
+## v7.5.0 — Quota Spotify optimisé
 
-La v7.4.3 centralise les requêtes à la Web API Spotify afin de limiter les appels inutiles. Les lectures identiques simultanées sont regroupées, les réponses très récentes du lecteur, des appareils et de la file sont réutilisées, et toute commande de lecture invalide automatiquement ces données temporaires.
+La v7.5.0 centralise les requêtes à la Web API Spotify afin de limiter les appels inutiles. Les lectures identiques simultanées sont regroupées, les réponses très récentes du lecteur, des appareils et de la file sont réutilisées, et toute commande de lecture invalide automatiquement ces données temporaires.
 
 Lorsqu’un quota `QUOTA_EXCEEDED` est détecté, Shuffle+ suspend désormais globalement les nouveaux appels au lieu de laisser chaque écran recommencer. Le mode Conduite actualise moins souvent la lecture et la file, les minuteurs s’arrêtent en arrière-plan et l’analyse des dates de playlists est espacée. Le Centre de diagnostic affiche les appels réseau, les réponses mises en cache et l’état de la pause Spotify.
 

@@ -14987,3 +14987,445 @@ body.is-connected .startup-recovery-panel {
         min-height: 44px;
     }
 }
+
+/* Shuffle+ v7.5.0 — Mes raccourcis */
+.shortcut-profiles-dashboard {
+    display: grid;
+    gap: 18px;
+    margin-bottom: 20px;
+}
+
+.shortcut-profiles-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid rgb(var(--accent-rgb) / 0.28);
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at top right, rgb(var(--accent-rgb) / 0.18), transparent 42%),
+        var(--surface-elevated, rgba(17, 24, 39, 0.82));
+}
+
+.shortcut-profiles-hero h3,
+.shortcut-profiles-hero p {
+    margin: 0;
+}
+
+.shortcut-profiles-hero h3 {
+    margin-top: 5px;
+}
+
+.shortcut-profiles-hero p {
+    margin-top: 8px;
+    max-width: 720px;
+    color: var(--text-muted, #aeb5c5);
+}
+
+.shortcut-profiles-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.shortcut-profiles-hero-actions button,
+.shortcut-profiles-empty button {
+    min-height: 44px;
+    padding: 10px 15px;
+    border-radius: 14px;
+}
+
+.shortcut-profiles-hero-actions button:first-child,
+.shortcut-profiles-empty button {
+    border: 0;
+    background: var(--accent, #8b5cf6);
+    color: #fff;
+    font-weight: 800;
+}
+
+.shortcut-profiles-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.shortcut-profiles-summary span {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 13px 15px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 16px;
+    background: var(--surface-elevated, rgba(17, 24, 39, 0.72));
+    color: var(--text-muted, #aeb5c5);
+}
+
+.shortcut-profiles-summary strong {
+    color: var(--text-color, #fff);
+    font-size: 1.3rem;
+}
+
+.shortcut-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.shortcut-profile-card {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+    padding: 17px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 20px;
+    background: var(--surface-elevated, rgba(17, 24, 39, 0.78));
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+}
+
+.shortcut-profile-card.success {
+    border-color: rgba(34, 197, 94, 0.32);
+}
+
+.shortcut-profile-card.error {
+    border-color: rgba(239, 68, 68, 0.36);
+}
+
+.shortcut-profile-card.warning {
+    border-color: rgba(245, 158, 11, 0.42);
+}
+
+.shortcut-profile-card > header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 11px;
+}
+
+.shortcut-profile-card h4,
+.shortcut-profile-card p {
+    margin: 0;
+}
+
+.shortcut-profile-card p {
+    margin-top: 3px;
+    overflow: hidden;
+    color: var(--text-muted, #aeb5c5);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shortcut-profile-icon {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: rgb(var(--accent-rgb) / 0.17);
+    font-size: 1.35rem;
+}
+
+.shortcut-profile-status {
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.14);
+    color: var(--text-muted, #aeb5c5);
+    font-size: 0.76rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.shortcut-profile-status.success {
+    background: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+}
+
+.shortcut-profile-status.error {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+}
+
+.shortcut-profile-status.warning {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fcd34d;
+}
+
+.shortcut-profile-options,
+.shortcut-profile-readiness {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.shortcut-profile-options span,
+.shortcut-profile-readiness span {
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.11);
+    color: var(--text-muted, #aeb5c5);
+    font-size: 0.78rem;
+}
+
+.shortcut-profile-readiness span.ready {
+    color: #86efac;
+}
+
+.shortcut-profile-readiness span.missing {
+    color: #fcd34d;
+}
+
+.shortcut-profile-actions {
+    display: grid;
+    grid-template-columns: minmax(145px, 1fr) repeat(4, auto);
+    gap: 8px;
+}
+
+.shortcut-profile-actions button {
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 12px;
+}
+
+.shortcut-profile-actions .shortcut-profile-run {
+    border: 0;
+    background: var(--accent, #8b5cf6);
+    color: #fff;
+    font-weight: 800;
+}
+
+.shortcut-profile-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
+}
+
+.shortcut-profile-diagnostic {
+    min-width: 0;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    padding-top: 11px;
+}
+
+.shortcut-profile-diagnostic summary {
+    cursor: pointer;
+    color: var(--text-muted, #aeb5c5);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.shortcut-profile-diagnostic code {
+    display: block;
+    max-width: 100%;
+    margin-top: 10px;
+    padding: 9px;
+    overflow-x: auto;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.18);
+    color: var(--text-muted, #cbd5e1);
+    font-size: 0.72rem;
+}
+
+.shortcut-profile-last-run {
+    display: grid;
+    gap: 3px;
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.09);
+}
+
+.shortcut-profile-last-run.success strong {
+    color: #86efac;
+}
+
+.shortcut-profile-last-run.error strong {
+    color: #fca5a5;
+}
+
+.shortcut-profile-last-run span,
+.shortcut-profile-last-run small,
+.shortcut-profile-diagnostic-empty {
+    color: var(--text-muted, #aeb5c5);
+}
+
+.shortcut-profile-diagnostic-steps {
+    display: grid;
+    gap: 7px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.shortcut-profile-diagnostic-steps li {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+}
+
+.shortcut-profile-diagnostic-steps li > span {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(148, 163, 184, 0.13);
+    font-weight: 900;
+}
+
+.shortcut-profile-diagnostic-steps li.success > span {
+    color: #86efac;
+}
+
+.shortcut-profile-diagnostic-steps li.error > span {
+    color: #fca5a5;
+}
+
+.shortcut-profile-diagnostic-steps li div {
+    display: grid;
+    gap: 1px;
+}
+
+.shortcut-profile-diagnostic-steps small {
+    color: var(--text-muted, #aeb5c5);
+}
+
+.shortcut-profile-history {
+    padding: 13px 15px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 17px;
+    background: var(--surface-elevated, rgba(17, 24, 39, 0.7));
+}
+
+.shortcut-profile-history > div {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.shortcut-profile-history article {
+    display: grid;
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    padding: 9px;
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.08);
+}
+
+.shortcut-profile-history article > span {
+    font-weight: 900;
+}
+
+.shortcut-profile-history article.success > span {
+    color: #86efac;
+}
+
+.shortcut-profile-history article.error > span {
+    color: #fca5a5;
+}
+
+.shortcut-profile-history article div {
+    display: grid;
+    min-width: 0;
+}
+
+.shortcut-profile-history small {
+    overflow: hidden;
+    color: var(--text-muted, #aeb5c5);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shortcut-profiles-empty {
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    padding: 34px 20px;
+    border: 1px dashed rgb(var(--accent-rgb) / 0.35);
+    border-radius: 20px;
+    text-align: center;
+}
+
+.shortcut-profiles-empty > span {
+    font-size: 2rem;
+}
+
+.shortcut-profiles-empty h4,
+.shortcut-profiles-empty p {
+    margin: 0;
+}
+
+.quick-control-legacy-panel {
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 18px;
+    background: rgba(148, 163, 184, 0.04);
+}
+
+.quick-control-legacy-panel > summary {
+    cursor: pointer;
+    padding: 14px 16px;
+    font-weight: 800;
+}
+
+.quick-control-legacy-content {
+    display: grid;
+    gap: 16px;
+    padding: 0 14px 14px;
+}
+
+@media (max-width: 800px) {
+    .shortcut-profiles-hero {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .shortcut-profiles-hero-actions {
+        justify-content: stretch;
+    }
+
+    .shortcut-profiles-hero-actions button {
+        flex: 1 1 180px;
+    }
+
+    .shortcut-profiles-summary,
+    .shortcut-profile-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 520px) {
+    .shortcut-profiles-hero {
+        padding: 17px;
+        border-radius: 19px;
+    }
+
+    .shortcut-profiles-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .shortcut-profile-card {
+        padding: 14px;
+    }
+
+    .shortcut-profile-card > header {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .shortcut-profile-status {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+
+    .shortcut-profile-actions {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .shortcut-profile-actions .shortcut-profile-run {
+        grid-column: 1 / -1;
+    }
+
+    .shortcut-profile-actions button {
+        padding-inline: 6px;
+        font-size: 0.82rem;
+    }
+}
