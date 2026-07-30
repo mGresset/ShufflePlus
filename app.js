@@ -63,6 +63,13 @@ import {
     buildListeningStatisticsCsv
 } from "./listening-statistics.js";
 
+import {
+    DEFAULT_MUSICAL_DASHBOARD_SETTINGS,
+    normalizeMusicalDashboardSettings,
+    buildMusicalDashboardSnapshot,
+    buildMusicalDashboardExport
+} from "./musical-dashboard.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -82,7 +89,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.3.0";
+const APP_VERSION = "6.4.0";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -138,6 +145,8 @@ const PERSONALIZED_RECOMMENDATIONS_KEY =
     "shuffleplus_personalized_recommendations_v1";
 const LISTENING_STATISTICS_SETTINGS_KEY =
     "shuffleplus_listening_statistics_settings_v1";
+const MUSICAL_DASHBOARD_SETTINGS_KEY =
+    "shuffleplus_musical_dashboard_settings_v1";
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -961,6 +970,9 @@ let personalizedRecommendationsState =
     readPersonalizedRecommendationsState();
 let listeningStatisticsSettings =
     readListeningStatisticsSettings();
+let musicalDashboardSettings = readMusicalDashboardSettings();
+let musicalDashboardRefreshTimer = 0;
+let musicalDashboardRefreshing = false;
 let voiceAssistantRecognition = null;
 let voiceAssistantListening = false;
 let voiceAssistantSource = "assistant";
@@ -1144,6 +1156,24 @@ async function copyTextToClipboard(
 }
 
 
+
+
+function readMusicalDashboardSettings(){try{const raw=localStorage.getItem(MUSICAL_DASHBOARD_SETTINGS_KEY);return normalizeMusicalDashboardSettings(raw?JSON.parse(raw):DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}catch(error){console.warn("Dashboard illisible",error);return normalizeMusicalDashboardSettings(DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}}
+function saveMusicalDashboardSettings(){musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,updatedAt:Date.now()});localStorage.setItem(MUSICAL_DASHBOARD_SETTINGS_KEY,JSON.stringify(musicalDashboardSettings));}
+function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.enabled).map(schedule=>({schedule,date:getNextScheduleDate(schedule)})).filter(x=>x.date).sort((a,b)=>a.date-b.date)[0];if(!item)return null;const t=getScheduleTarget(item.schedule);return{date:item.date,name:item.schedule.name||"Routine musicale",targetLabel:t.label,targetIcon:t.icon,autoPlay:item.schedule.autoPlay!==false};}
+function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:quickPlaybackState||drivingPlaybackState,activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
+function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
+function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
+async function refreshMusicalDashboardPlayback({silent=false}={}){if(musicalDashboardRefreshing)return quickPlaybackState;musicalDashboardRefreshing=true;try{quickPlaybackState=await getCurrentPlayback();if(!silent)setStatus(quickPlaybackState?.item?"Tableau de bord actualisé.":"Actualisé · aucune lecture active.");}catch(error){if(!silent)setStatus(getPlaybackErrorMessage(error),"error");}finally{musicalDashboardRefreshing=false;}if(activeAppMenu==="dashboard")displayPlaylists(playlistsCache);return quickPlaybackState;}
+function openDashboardSection(id){activeAppMenu=normalizeActiveAppMenu(id);saveActiveAppMenu();displayPlaylists(playlistsCache);requestAnimationFrame(()=>revealActiveAppMenuButton("smooth"));}
+function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
+function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
+function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),set=s.settings,p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ v6.4</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
+${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button><button data-dashboard-nav="driving">🚗 Conduite</button></footer></article>`)}
+${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
+${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
+${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
+</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${[["music","🎵","Ma musique"],["mixes","🔀","Mix & iOS"],["adaptive","🤖","Adaptive DJ"],["assistant","✨","Assistant"],["recommendations","💜","Pour toi"],["statistics","📊","Statistiques"],["quick","⚡","Rapide"],["settings","⚙️","Réglages"]].map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
 
 function readPersonalizedRecommendationsState() {
     try {
@@ -8228,27 +8258,30 @@ function applyDrivingViewFromUrl() {
 
 function normalizeActiveAppMenu(value = "") {
     return [
+        "dashboard",
         "music",
         "mixes",
         "adaptive",
         "assistant",
+        "recommendations",
+        "statistics",
         "intelligence",
         "quick",
         "driving",
         "settings"
     ].includes(value)
         ? value
-        : "music";
+        : "dashboard";
 }
 
 function readActiveAppMenu() {
     try {
         return normalizeActiveAppMenu(
             localStorage.getItem(APP_MENU_KEY) ||
-            "music"
+            "dashboard"
         );
     } catch (error) {
-        return "music";
+        return "dashboard";
     }
 }
 
@@ -10778,6 +10811,10 @@ async function executeMusicalAssistantPlan() {
     }
 
     try {
+        if (plan.type === "dashboard") {
+            activeAppMenu="dashboard";saveActiveAppMenu();addMusicalAssistantHistory({request:plan.request,plan,status:"success",message:"Tableau de bord musical ouvert."});setVoiceAssistantMessage("Tableau de bord ouvert.","success");speakVoiceAssistantText("J’ouvre ton tableau de bord musical.");vibrateVoiceAssistant([30,40,30]);displayPlaylists(playlistsCache);await refreshMusicalDashboardPlayback({silent:true});return;
+        }
+
         if (plan.type === "statistics") {
             activeAppMenu = "statistics";
             saveActiveAppMenu();
@@ -11254,6 +11291,7 @@ function renderMusicalAssistantPage() {
 
 function renderAppMenu() {
     const items = [
+        ["dashboard", "🏠", "Accueil"],
         ["music", "🎵", "Ma musique"],
         ["mixes", "🔀", "Mix & iOS"],
         ["adaptive", "🤖", "Adaptive DJ"],
@@ -21750,6 +21788,7 @@ function buildBackupPayload() {
         voiceAssistantSettings,
         personalizedRecommendationsState,
         listeningStatisticsSettings,
+        musicalDashboardSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -21962,6 +22001,11 @@ function validateBackupPayload(payload) {
                 payload.data.listeningStatisticsSettings ||
                 DEFAULT_LISTENING_STATISTICS_SETTINGS
             ),
+        musicalDashboardSettings:
+            normalizeMusicalDashboardSettings(
+                payload.data.musicalDashboardSettings ||
+                DEFAULT_MUSICAL_DASHBOARD_SETTINGS
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -22096,6 +22140,8 @@ function applyValidatedBackupState(imported) {
     listeningStatisticsSettings =
         imported.listeningStatisticsSettings;
     saveListeningStatisticsSettings();
+    musicalDashboardSettings = imported.musicalDashboardSettings;
+    saveMusicalDashboardSettings();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -28404,6 +28450,16 @@ function displayPlaylists(playlists) {
 
             <div
                 class="app-menu-page
+                ${activeAppMenu === "dashboard"
+                    ? "is-active"
+                    : ""}"
+                data-app-menu-page="dashboard"
+            >
+                ${renderMusicalDashboardPage()}
+            </div>
+
+            <div
+                class="app-menu-page
                 ${activeAppMenu === "music"
                     ? "is-active"
                     : ""}"
@@ -28661,6 +28717,8 @@ function displayPlaylists(playlists) {
             "mixStudioForm"
         )
     );
+    if (activeAppMenu === "dashboard") startMusicalDashboardRefreshTimer();
+    else stopMusicalDashboardRefreshTimer();
 }
 
 
@@ -31512,9 +31570,9 @@ async function initializeApp() {
             });
             await requestDrivingWakeLock();
         } else if (activeAppMenu === "quick") {
-            await refreshQuickControlPlayback({
-                silent: true
-            });
+            await refreshQuickControlPlayback({silent:true});
+        } else if (activeAppMenu === "dashboard") {
+            await refreshMusicalDashboardPlayback({silent:true});
         }
 
         startScheduleWatcher();
@@ -31633,6 +31691,7 @@ loginButton.addEventListener("click", async () => {
 if (logoutButton) {
 logoutButton.addEventListener("click", () => {
     stopServerSyncWatcher();
+    stopMusicalDashboardRefreshTimer();
 
     if (scheduleCheckTimer) {
         window.clearInterval(
@@ -31667,6 +31726,13 @@ contentElement.addEventListener(
             );
             return;
         }
+
+        if (event.target.closest("#refreshMusicalDashboardButton")) { await refreshMusicalDashboardPlayback(); return; }
+        if (event.target.closest("#exportMusicalDashboardButton")) { exportMusicalDashboardSnapshot(); return; }
+        const dnav=event.target.closest("[data-dashboard-nav]"); if(dnav){const id=dnav.dataset.dashboardNav||"";if(id==="driving")await enterDrivingMode();else openDashboardSection(id);return;}
+        const dplay=event.target.closest("[data-dashboard-playback]"); if(dplay){try{await runQuickControlAction(dplay.dataset.dashboardPlayback||"");await refreshMusicalDashboardPlayback({silent:true});}catch(error){setStatus(error.message||"Commande Spotify impossible.","error");}return;}
+        const drec=event.target.closest("[data-dashboard-recommendation]"); if(drec){try{await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation||"");}catch(error){setStatus(error.message||"Recommandation impossible.","error");}return;}
+        const dscene=event.target.closest("[data-dashboard-scene]"); if(dscene){try{await runAdaptiveDjScene(dscene.dataset.dashboardScene||"");}catch(error){setStatus(error.message||"Scène impossible.","error");}return;}
 
         const assistantExampleButton =
             event.target.closest(
@@ -32070,11 +32136,8 @@ contentElement.addEventListener(
                 }
             );
 
-            if (requestedMenu === "quick") {
-                await refreshQuickControlPlayback({
-                    silent: true
-                });
-            }
+            if (requestedMenu === "quick") await refreshQuickControlPlayback({silent:true});
+            else if (requestedMenu === "dashboard") await refreshMusicalDashboardPlayback({silent:true});
             return;
         }
 
@@ -33840,6 +33903,8 @@ contentElement.addEventListener(
             );
             return;
         }
+
+        if (event.target.id === "musicalDashboardSettingsForm") { event.preventDefault(); saveMusicalDashboardSettingsFromForm(event.target); return; }
 
         if (
             event.target.id === "adaptiveDjSceneStudioForm"

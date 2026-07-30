@@ -1,3 +1,7 @@
+## v6.4.0 — Tableau de bord musical
+
+Le nouvel onglet **Accueil** centralise toutes les fonctions essentielles.
+
 
 ## v6.3.0 — Statistiques d’écoute avancées
 

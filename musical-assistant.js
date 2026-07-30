@@ -38,6 +38,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Mets l’énergie de Conduite à 78 et la découverte à 20",
     "Recommande-moi quelque chose maintenant",
     "Montre mes statistiques d’écoute",
+    "Ouvre mon tableau de bord musical",
     "Quel est le programme musical actuel ?"
 ];
 
@@ -281,10 +282,15 @@ export function parseMusicalAssistantRequest(
         "bilan écoute", "temps d ecoute", "temps écoute",
         "mes habitudes d ecoute", "mes habitudes écoute"
     ]);
+    const isDashboard = includesAny(text, ["tableau de bord", "dashboard", "accueil musical", "vue d ensemble"]);
     let points = 1;
     if (scene || mix) points += 2;
     if (isSchedule || isTransition || isConfigure || isStatus) points += 2;
     if (time || durationMinutes !== null || energyTarget !== null) points += 1;
+
+    if (isDashboard) {
+        return {type:"dashboard",request:originalRequest,ready:true,confidence:getConfidence(points+2),title:"Tableau de bord musical",summary:"Ouvrir la vue d’ensemble de Shuffle+.",details:["Lecture en cours","Recommandation","Scène et routine","Statistiques"],actionLabel:"Ouvrir le tableau de bord"};
+    }
 
     if (isStatistics) {
         return {

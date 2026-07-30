@@ -1,0 +1,17 @@
+{
+  "version": "6.4.0",
+  "name": "Complete Musical Dashboard",
+  "source": "ShufflePlus-v6.3.0-Advanced-Listening-Statistics.zip",
+  "generatedAt": "2026-07-29T21:53:31.397710+00:00",
+  "javascriptFilesChecked": 17,
+  "serverChangesRequired": false,
+  "checks": {
+    "javascriptSyntax": "ok",
+    "importsExports": "ok",
+    "dashboardSmokeTest": "ok",
+    "serverTests": "ok",
+    "pwaVersion": "ok",
+    "zipIntegrity": "ok"
+  },
+  "zipFileCount": 84
+}

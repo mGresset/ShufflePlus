@@ -1,5 +1,7 @@
 # Feuille de route Shuffle+
 
+- **v6.4.0 — Tableau de bord musical complet : terminée**
+
 - **v6.3.0 — Statistiques d’écoute avancées : terminée**
   - tableau de bord local ;
   - durées potentielles et confirmées ;
