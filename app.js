@@ -89,7 +89,7 @@ const applyPwaUpdateButton =
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
 
-const APP_VERSION = "6.4.0";
+const APP_VERSION = "6.4.1";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -157,6 +157,13 @@ const RECENT_ACTIVITY_CACHE_KEY =
     "shuffleplus_recent_playlist_activity_v1";
 const RECENT_ACTIVITY_CACHE_TTL = 60 * 60 * 1000;
 const FAVORITE_SOURCES_KEY = "shuffleplus_favorite_sources_v1";
+const LIBRARY_PREFERENCES_KEY =
+    "shuffleplus_library_preferences_v1";
+const DEFAULT_LIBRARY_PREFERENCES = {
+    searchTerm: "",
+    filter: "all",
+    sort: "modified-desc"
+};
 const SAVED_MIXES_KEY = "shuffleplus_saved_mixes_v1";
 const MAX_SAVED_MIXES = 20;
 const MIX_STUDIO_TEMPLATES_KEY =
@@ -869,9 +876,14 @@ let selectedTracks = [];
 let availableDevices = [];
 const selectedSourceKeys = new Set();
 
-let librarySearchTerm = "";
-let libraryFilter = "all";
-let librarySort = "name-asc";
+const initialLibraryPreferences =
+    readLibraryPreferences();
+let librarySearchTerm =
+    initialLibraryPreferences.searchTerm;
+let libraryFilter =
+    initialLibraryPreferences.filter;
+let librarySort =
+    initialLibraryPreferences.sort;
 let modificationDatesLoading = false;
 let modificationDatesProgress = {
     completed: 0,
@@ -1165,7 +1177,7 @@ function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=g
 function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
 function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
 async function refreshMusicalDashboardPlayback({silent=false}={}){if(musicalDashboardRefreshing)return quickPlaybackState;musicalDashboardRefreshing=true;try{quickPlaybackState=await getCurrentPlayback();if(!silent)setStatus(quickPlaybackState?.item?"Tableau de bord actualisé.":"Actualisé · aucune lecture active.");}catch(error){if(!silent)setStatus(getPlaybackErrorMessage(error),"error");}finally{musicalDashboardRefreshing=false;}if(activeAppMenu==="dashboard")displayPlaylists(playlistsCache);return quickPlaybackState;}
-function openDashboardSection(id){activeAppMenu=normalizeActiveAppMenu(id);saveActiveAppMenu();displayPlaylists(playlistsCache);requestAnimationFrame(()=>revealActiveAppMenuButton("smooth"));}
+function openDashboardSection(id){return navigateToAppMenu(id);}
 function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
 function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
 function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),set=s.settings,p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ v6.4</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
@@ -2354,8 +2366,11 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js",
-                { scope: "./" }
+                "./service-worker.js?v=6.4.1",
+                {
+                    scope: "./",
+                    updateViaCache: "none"
+                }
             );
 
         watchPwaRegistration(
@@ -10046,6 +10061,153 @@ function buildAdaptiveDjShortcutUrl() {
     return url.toString();
 }
 
+
+
+function activateAppMenuPageDom(
+    menuId
+) {
+    const normalizedMenu =
+        normalizeActiveAppMenu(menuId);
+    const page = document.querySelector(
+        `[data-app-menu-page="${normalizedMenu}"]`
+    );
+
+    if (!page) {
+        return false;
+    }
+
+    document
+        .querySelectorAll(
+            "[data-app-menu-page]"
+        )
+        .forEach((element) => {
+            element.classList.toggle(
+                "is-active",
+                element === page
+            );
+        });
+
+    document
+        .querySelectorAll(
+            "[data-app-menu]"
+        )
+        .forEach((button) => {
+            const selected =
+                button.dataset.appMenu ===
+                normalizedMenu;
+
+            button.classList.toggle(
+                "is-active",
+                selected
+            );
+            button.setAttribute(
+                "aria-current",
+                selected
+                    ? "page"
+                    : "false"
+            );
+        });
+
+    return true;
+}
+
+function refreshTargetAppMenuPage(
+    menuId
+) {
+    const normalizedMenu =
+        normalizeActiveAppMenu(menuId);
+    const page = document.querySelector(
+        `[data-app-menu-page="${normalizedMenu}"]`
+    );
+
+    if (!page) {
+        return false;
+    }
+
+    if (normalizedMenu === "recommendations") {
+        page.innerHTML =
+            renderPersonalizedRecommendationsPage();
+    } else if (normalizedMenu === "statistics") {
+        page.innerHTML =
+            renderAdvancedListeningStatisticsPage();
+    } else if (normalizedMenu === "dashboard") {
+        page.innerHTML =
+            renderMusicalDashboardPage();
+    } else if (normalizedMenu === "assistant") {
+        page.innerHTML =
+            renderMusicalAssistantPage();
+    } else if (normalizedMenu === "quick") {
+        page.innerHTML =
+            renderQuickControlPage();
+    }
+
+    return true;
+}
+
+async function navigateToAppMenu(
+    requestedMenu
+) {
+    const normalizedMenu =
+        normalizeActiveAppMenu(
+            requestedMenu
+        );
+
+    if (normalizedMenu === "driving") {
+        await enterDrivingMode();
+        return;
+    }
+
+    stopDrivingRefreshTimer();
+    await releaseDrivingWakeLock();
+    document.body.classList.remove(
+        "is-driving-mode"
+    );
+
+    activeAppMenu = normalizedMenu;
+    saveActiveAppMenu();
+
+    const pageExists =
+        refreshTargetAppMenuPage(
+            normalizedMenu
+        );
+
+    if (pageExists) {
+        activateAppMenuPageDom(
+            normalizedMenu
+        );
+    } else {
+        displayPlaylists(
+            playlistsCache
+        );
+    }
+
+    if (normalizedMenu === "dashboard") {
+        startMusicalDashboardRefreshTimer();
+        await refreshMusicalDashboardPlayback({
+            silent: true
+        });
+    } else {
+        stopMusicalDashboardRefreshTimer();
+    }
+
+    if (normalizedMenu === "quick") {
+        await refreshQuickControlPlayback({
+            silent: true
+        });
+    } else if (normalizedMenu === "music") {
+        await ensureLibrarySortDataLoaded({
+            rerender: true
+        });
+    }
+
+    window.requestAnimationFrame(
+        () => {
+            revealActiveAppMenuButton(
+                "smooth"
+            );
+        }
+    );
+}
 
 function revealActiveAppMenuButton(
     behavior = "auto"
@@ -21717,7 +21879,10 @@ function normalizeImportedMixStudioTemplates(values) {
         .slice(0, MAX_MIX_STUDIO_TEMPLATES);
 }
 
-function normalizeImportedPreferences(preferences = {}) {
+
+function normalizeLibraryPreferences(
+    preferences = {}
+) {
     const allowedFilters = new Set([
         "all",
         "favorites",
@@ -21725,7 +21890,6 @@ function normalizeImportedPreferences(preferences = {}) {
         "collaborative",
         "followed"
     ]);
-
     const allowedSorts = new Set([
         "name-asc",
         "name-desc",
@@ -21741,14 +21905,79 @@ function normalizeImportedPreferences(preferences = {}) {
         searchTerm:
             typeof preferences.searchTerm === "string"
                 ? preferences.searchTerm.slice(0, 160)
-                : "",
-        filter: allowedFilters.has(preferences.filter)
-            ? preferences.filter
-            : "all",
-        sort: allowedSorts.has(preferences.sort)
-            ? preferences.sort
-            : "name-asc"
+                : DEFAULT_LIBRARY_PREFERENCES.searchTerm,
+        filter:
+            allowedFilters.has(preferences.filter)
+                ? preferences.filter
+                : DEFAULT_LIBRARY_PREFERENCES.filter,
+        sort:
+            allowedSorts.has(preferences.sort)
+                ? preferences.sort
+                : DEFAULT_LIBRARY_PREFERENCES.sort
     };
+}
+
+function readLibraryPreferences() {
+    try {
+        const raw = localStorage.getItem(
+            LIBRARY_PREFERENCES_KEY
+        );
+
+        return normalizeLibraryPreferences(
+            raw
+                ? JSON.parse(raw)
+                : DEFAULT_LIBRARY_PREFERENCES
+        );
+    } catch (error) {
+        console.warn(
+            "Préférences de la bibliothèque illisibles :",
+            error
+        );
+
+        return normalizeLibraryPreferences(
+            DEFAULT_LIBRARY_PREFERENCES
+        );
+    }
+}
+
+function saveLibraryPreferences() {
+    try {
+        localStorage.setItem(
+            LIBRARY_PREFERENCES_KEY,
+            JSON.stringify(
+                normalizeLibraryPreferences({
+                    searchTerm: librarySearchTerm,
+                    filter: libraryFilter,
+                    sort: librarySort
+                })
+            )
+        );
+    } catch (error) {
+        console.warn(
+            "Préférences de la bibliothèque non enregistrées :",
+            error
+        );
+    }
+}
+
+async function ensureLibrarySortDataLoaded({
+    rerender = true
+} = {}) {
+    if (librarySort.startsWith("modified")) {
+        await ensureModificationDatesLoaded();
+    } else if (librarySort.startsWith("recent")) {
+        await ensureRecentActivityLoaded();
+    }
+
+    if (rerender) {
+        displayPlaylists(playlistsCache);
+    }
+}
+
+function normalizeImportedPreferences(preferences = {}) {
+    return normalizeLibraryPreferences(
+        preferences
+    );
 }
 
 function buildBackupPayload() {
@@ -22043,6 +22272,7 @@ function applyValidatedBackupState(imported) {
     librarySearchTerm = imported.preferences.searchTerm;
     libraryFilter = imported.preferences.filter;
     librarySort = imported.preferences.sort;
+    saveLibraryPreferences();
     editingSavedMixId = "";
     configuringSavedMixId = "";
     selectedSourceKeys.clear();
@@ -24122,6 +24352,7 @@ function applySelectiveLibraryCategory(
             imported.preferences.searchTerm;
         libraryFilter = imported.preferences.filter;
         librarySort = imported.preferences.sort;
+        saveLibraryPreferences();
     }
 
     editingSavedMixId = "";
@@ -28520,7 +28751,7 @@ function displayPlaylists(playlists) {
                     id="resetLibraryFilters"
                     class="library-reset-button"
                     type="button"
-                    ${(librarySearchTerm || libraryFilter !== "all" || librarySort !== "name-asc") ? "" : "disabled"}
+                    ${(librarySearchTerm || libraryFilter !== "all" || librarySort !== "modified-desc") ? "" : "disabled"}
                 >
                     Réinitialiser
                 </button>
@@ -31551,6 +31782,13 @@ async function initializeApp() {
             `Bienvenue ${displayName} 👋`;
 
         displayPlaylists(playlistsCache);
+
+        if (activeAppMenu === "music") {
+            await ensureLibrarySortDataLoaded({
+                rerender: true
+            });
+        }
+
         startServerSyncWatcher();
 
         if (isServerSyncConnected()) {
@@ -31729,7 +31967,7 @@ contentElement.addEventListener(
 
         if (event.target.closest("#refreshMusicalDashboardButton")) { await refreshMusicalDashboardPlayback(); return; }
         if (event.target.closest("#exportMusicalDashboardButton")) { exportMusicalDashboardSnapshot(); return; }
-        const dnav=event.target.closest("[data-dashboard-nav]"); if(dnav){const id=dnav.dataset.dashboardNav||"";if(id==="driving")await enterDrivingMode();else openDashboardSection(id);return;}
+        const dnav=event.target.closest("[data-dashboard-nav]"); if(dnav){await openDashboardSection(dnav.dataset.dashboardNav||"");return;}
         const dplay=event.target.closest("[data-dashboard-playback]"); if(dplay){try{await runQuickControlAction(dplay.dataset.dashboardPlayback||"");await refreshMusicalDashboardPlayback({silent:true});}catch(error){setStatus(error.message||"Commande Spotify impossible.","error");}return;}
         const drec=event.target.closest("[data-dashboard-recommendation]"); if(drec){try{await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation||"");}catch(error){setStatus(error.message||"Recommandation impossible.","error");}return;}
         const dscene=event.target.closest("[data-dashboard-scene]"); if(dscene){try{await runAdaptiveDjScene(dscene.dataset.dashboardScene||"");}catch(error){setStatus(error.message||"Scène impossible.","error");}return;}
@@ -32107,37 +32345,10 @@ contentElement.addEventListener(
             );
 
         if (appMenuButton) {
-            const requestedMenu =
-                normalizeActiveAppMenu(
-                    appMenuButton.dataset.appMenu
-                );
-
-            if (requestedMenu === "driving") {
-                await enterDrivingMode();
-                return;
-            }
-
-            stopDrivingRefreshTimer();
-            await releaseDrivingWakeLock();
-            document.body.classList.remove(
-                "is-driving-mode"
+            await navigateToAppMenu(
+                appMenuButton.dataset.appMenu ||
+                "dashboard"
             );
-            activeAppMenu = requestedMenu;
-            saveActiveAppMenu();
-            displayPlaylists(
-                playlistsCache
-            );
-
-            window.requestAnimationFrame(
-                () => {
-                    revealActiveAppMenuButton(
-                        "smooth"
-                    );
-                }
-            );
-
-            if (requestedMenu === "quick") await refreshQuickControlPlayback({silent:true});
-            else if (requestedMenu === "dashboard") await refreshMusicalDashboardPlayback({silent:true});
             return;
         }
 
@@ -33266,8 +33477,12 @@ contentElement.addEventListener(
         if (resetLibraryFiltersButton) {
             librarySearchTerm = "";
             libraryFilter = "all";
-            librarySort = "name-asc";
+            librarySort = "modified-desc";
+            saveLibraryPreferences();
             displayPlaylists(playlistsCache);
+            await ensureLibrarySortDataLoaded({
+                rerender: true
+            });
             return;
         }
 
@@ -34233,12 +34448,14 @@ contentElement.addEventListener(
 
         if (event.target.id === "libraryFilterSelect") {
             libraryFilter = event.target.value;
+            saveLibraryPreferences();
             displayPlaylists(playlistsCache);
             return;
         }
 
         if (event.target.id === "librarySortSelect") {
             librarySort = event.target.value;
+            saveLibraryPreferences();
             displayPlaylists(playlistsCache);
 
             if (librarySort.startsWith("modified")) {
@@ -34438,6 +34655,7 @@ contentElement.addEventListener(
 
         const cursorPosition = event.target.selectionStart;
         librarySearchTerm = event.target.value;
+        saveLibraryPreferences();
         displayPlaylists(playlistsCache);
 
         const searchInput = document.getElementById(

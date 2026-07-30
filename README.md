@@ -1,3 +1,12 @@
+
+## v6.4.1 — Correctif iOS
+
+- navigation **Pour toi** et **Statistiques** corrigée ;
+- actualisation ciblée des pages du menu ;
+- service worker iOS chargé sans cache HTTP ;
+- tri par défaut **Modifiées récemment** ;
+- préférences de bibliothèque mémorisées localement.
+
 ## v6.4.0 — Tableau de bord musical
 
 Le nouvel onglet **Accueil** centralise toutes les fonctions essentielles.

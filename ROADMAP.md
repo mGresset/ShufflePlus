@@ -1,5 +1,11 @@
 # Feuille de route Shuffle+
 
+- **v6.4.1 — Correctif iOS : terminée**
+  - navigation Pour toi et Statistiques ;
+  - cache PWA renforcé ;
+  - tri Modifiées récemment par défaut ;
+  - préférences de bibliothèque persistantes.
+
 - **v6.4.0 — Tableau de bord musical complet : terminée**
 
 - **v6.3.0 — Statistiques d’écoute avancées : terminée**
