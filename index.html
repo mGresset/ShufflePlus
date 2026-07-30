@@ -14,6 +14,7 @@
     >
 
     <meta name="theme-color" content="#8b5cf6">
+    <meta name="shuffleplus-version" content="7.3.1">
     <meta name="color-scheme" content="dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -41,7 +42,7 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=7.3.0">
+    <link rel="stylesheet" href="./style.css?v=7.3.1">
 </head>
 
 <body>
@@ -114,6 +115,47 @@
                 class="status"
                 aria-live="polite"
             ></p>
+
+            <div class="startup-recovery-entry">
+                <button
+                    id="showStartupRecoveryButton"
+                    class="startup-recovery-toggle"
+                    type="button"
+                    aria-controls="startupRecoveryPanel"
+                    aria-expanded="false"
+                >
+                    Connexion bloquée ?
+                </button>
+            </div>
+
+            <section
+                id="startupRecoveryPanel"
+                class="startup-recovery-panel"
+                aria-live="polite"
+                hidden
+            >
+                <h3>Réparer Shuffle+</h3>
+                <p id="startupRecoveryDetails">
+                    Commence par réparer le cache. Cette opération conserve tes
+                    réglages, tes mix et ta connexion Spotify.
+                </p>
+                <div class="startup-recovery-actions">
+                    <button id="repairStartupButton" type="button">
+                        Réparer Shuffle+
+                    </button>
+                    <button
+                        id="resetSpotifySessionButton"
+                        class="startup-recovery-danger"
+                        type="button"
+                    >
+                        Réinitialiser la connexion Spotify
+                    </button>
+                </div>
+                <small>
+                    La réinitialisation Spotify ne supprime ni tes playlists,
+                    ni ton appareil préféré, ni tes autres réglages.
+                </small>
+            </section>
         </header>
 
         <aside
@@ -146,6 +188,7 @@
         </div>
     </aside>
 
-    <script type="module" src="./app.js?v=7.3.0"></script>
+    <script src="./startup-recovery-7.3.1.js"></script>
+    <script type="module" src="./app.js?v=7.3.1"></script>
 </body>
 </html>

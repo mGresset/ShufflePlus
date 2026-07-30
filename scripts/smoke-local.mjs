@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import process from "node:process";
+import { readFile } from "node:fs/promises";
 
 const baseUrl = "http://127.0.0.1:5500";
+const version = (await readFile("VERSION", "utf8")).trim();
 const server = spawn(
     process.execPath,
     ["scripts/serve-local.mjs"],
@@ -74,11 +76,13 @@ async function checkResource(pathname, expectedText = "") {
 
 try {
     await waitForServer();
-    await checkResource("/", "app.js?v=7.3.0");
+    await checkResource("/", `app.js?v=${version}`);
     await checkResource("/app.js", "./core/app-menu.js");
     await checkResource("/core/app-menu.js", "APP_MENU_GROUPS");
     await checkResource("/core/html-utils.js", "escapeHtml");
-    await checkResource("/service-worker.js", "shuffleplus-v7.3.0");
+    await checkResource("/core/session-recovery.js", "repairSpotifyAuthState");
+    await checkResource("/startup-recovery-7.3.1.js", "ShufflePlusRecovery");
+    await checkResource("/service-worker.js", `shuffleplus-v${version}`);
 
     console.log("Test serveur local : OK.");
 } finally {

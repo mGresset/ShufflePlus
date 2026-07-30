@@ -1,5 +1,13 @@
 # Shuffle+
 
+## v7.3.1 — Démarrage et connexion sécurisés
+
+La v7.3.1 sécurise le cas où Shuffle+ reste bloquée sur l’écran de connexion à cause d’un ancien cache, d’un Service Worker obsolète ou d’un état Spotify incomplet.
+
+La page de connexion possède désormais une couche de secours indépendante de `app.js`. Le bouton **Connexion bloquée ?** permet de réparer le cache sans supprimer les données, ou de réinitialiser uniquement l’authentification Spotify en conservant les playlists, mix, préférences et l’iPhone enregistré. Un contrôle de version peut aussi réparer automatiquement une installation incohérente une seule fois.
+
+Le stockage PKCE est horodaté et les fragments de session invalides sont nettoyés au démarrage. Le Service Worker privilégie maintenant le réseau pour les scripts et styles versionnés afin de réduire le risque de charger un ancien fichier JavaScript après un déploiement.
+
 ## v7.3.0 — iPhone prioritaire et liste de lecture
 
 La v7.3.0 recentre Shuffle+ sur son objectif initial : lancer une playlist personnelle en mode aléatoire depuis un raccourci iOS. Un iPhone peut être enregistré localement comme appareil Spotify prioritaire grâce à son `device_id`, avec une recherche de secours par nom et type.

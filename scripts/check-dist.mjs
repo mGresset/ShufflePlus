@@ -15,6 +15,8 @@ const required = [
     "core/html-utils.js",
     "core/spotify-device.js",
     "core/playback-queue.js",
+    "core/session-recovery.js",
+    `startup-recovery-${version}.js`,
     "icons/icon-192.png",
     ".nojekyll"
 ];
@@ -31,7 +33,8 @@ for (const file of required) {
 const index = await readFile(path.join(dist, "index.html"), "utf8");
 if (
     !index.includes(`app.js?v=${version}`) ||
-    !index.includes(`style.css?v=${version}`)
+    !index.includes(`style.css?v=${version}`) ||
+    !index.includes(`startup-recovery-${version}.js`)
 ) {
     console.error("Le build ne référence pas les ressources de la version courante.");
     process.exit(1);

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "shuffleplus-v7.3.0";
+const CACHE_VERSION = "shuffleplus-v7.3.1";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -6,17 +6,19 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=7.3.0",
-    "./app.js?v=7.3.0",
+    "./style.css?v=7.3.1",
+    "./app.js?v=7.3.1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
+    "./startup-recovery-7.3.1.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/html-utils.js",
     "./core/spotify-device.js",
     "./core/playback-queue.js",
+    "./core/session-recovery.js",
     "./adaptive-dj.js",
     "./musical-assistant.js",
     "./voice-assistant.js",
@@ -109,13 +111,26 @@ self.addEventListener("message", (event) => {
     if (event.data?.type === "CLEAR_RUNTIME_CACHE") {
         event.waitUntil(caches.delete(RUNTIME_CACHE));
     }
+    if (event.data?.type === "CLEAR_ALL_APP_CACHES") {
+        event.waitUntil((async () => {
+            const names = await caches.keys();
+            await Promise.all(
+                names
+                    .filter((name) => name.startsWith("shuffleplus-"))
+                    .map((name) => caches.delete(name))
+            );
+        })());
+    }
 });
 
 async function fetchWithTimeout(request, timeoutMs = 5000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        return await fetch(request, { signal: controller.signal });
+        return await fetch(request, {
+            signal: controller.signal,
+            cache: "no-store"
+        });
     } finally {
         clearTimeout(timer);
     }
@@ -139,24 +154,29 @@ async function navigationNetworkFirst(request) {
     }
 }
 
-async function staleWhileRevalidate(request) {
+async function staticNetworkFirst(request) {
     const shell = await caches.open(SHELL_CACHE);
     const runtime = await caches.open(RUNTIME_CACHE);
-    const cached = await shell.match(request, { ignoreSearch: true }) ||
-        await runtime.match(request, { ignoreSearch: true });
-    const update = fetch(request)
-        .then(async (response) => {
-            if (response?.ok) {
-                await putInRuntimeCache(
-                    runtime,
-                    request,
-                    response.clone()
-                );
-            }
-            return response;
-        })
-        .catch(() => null);
-    return cached || await update || new Response("", { status: 504 });
+
+    try {
+        const response = await fetchWithTimeout(request, 4500);
+        if (response?.ok) {
+            await putInRuntimeCache(
+                runtime,
+                request,
+                response.clone()
+            );
+        }
+        return response;
+    } catch {
+        // On respecte d’abord le paramètre de version. Le secours sans query
+        // n’est utilisé qu’en mode hors connexion.
+        return await runtime.match(request) ||
+            await shell.match(request) ||
+            await runtime.match(request, { ignoreSearch: true }) ||
+            await shell.match(request, { ignoreSearch: true }) ||
+            new Response("", { status: 504 });
+    }
 }
 
 async function cacheFirst(request) {
@@ -195,7 +215,7 @@ self.addEventListener("fetch", (event) => {
     }
 
     if (["script", "style", "manifest"].includes(request.destination)) {
-        event.respondWith(staleWhileRevalidate(request));
+        event.respondWith(staticNetworkFirst(request));
         return;
     }
 

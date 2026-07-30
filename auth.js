@@ -6,7 +6,8 @@ import {
     clearTemporaryAuth,
     saveTokens,
     getStoredTokens,
-    clearTokens
+    clearTokens,
+    repairStoredSpotifySession
 } from "./storage.js";
 
 const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
@@ -89,7 +90,14 @@ export async function loginWithSpotify() {
     const codeChallenge = await createCodeChallenge(codeVerifier);
     const state = generateRandomString(32);
 
-    saveTemporaryAuth(codeVerifier, state);
+    const temporaryAuthSaved = saveTemporaryAuth(codeVerifier, state);
+
+    if (!temporaryAuthSaved) {
+        throw new SpotifyAuthError(
+            "Le navigateur empêche Shuffle+ de préparer la connexion Spotify. Autorise le stockage du site ou utilise « Réparer Shuffle+ ».",
+            "SPOTIFY_AUTH_STORAGE_BLOCKED"
+        );
+    }
 
     const parameters = new URLSearchParams({
         client_id: CONFIG.clientId,
@@ -164,6 +172,7 @@ export async function handleSpotifyCallback() {
     const tokenData = await readJsonResponse(response);
 
     if (!response.ok) {
+        clearTemporaryAuth();
         console.error("Erreur token Spotify :", tokenData);
 
         throw new SpotifyAuthError(
@@ -268,6 +277,10 @@ export async function getValidAccessToken() {
     }
 
     return refreshAccessTokenOnce(tokens.refreshToken);
+}
+
+export function repairSpotifyAuthState(options = {}) {
+    return repairStoredSpotifySession(options);
 }
 
 export function logoutSpotify() {

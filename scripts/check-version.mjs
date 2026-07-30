@@ -13,6 +13,9 @@ const checks = [
     ["service-worker.js", `app.js?v=${expected}`],
     ["index.html", `style.css?v=${expected}`],
     ["index.html", `app.js?v=${expected}`],
+    ["index.html", `shuffleplus-version\" content=\"${expected}`],
+    ["index.html", `startup-recovery-${expected}.js`],
+    ["service-worker.js", `startup-recovery-${expected}.js`],
     ["app.js", `service-worker.js?v=${expected}`]
 ];
 

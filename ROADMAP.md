@@ -8,7 +8,15 @@
   - ouverture automatique facultative du mode conduite ;
   - liste des prochains morceaux en conduite.
 
-- **v7.3.1 — Stabilisation iPhone : prévue**
+- **v7.3.1 — Démarrage et connexion sécurisés : terminée**
+  - secours indépendant lorsque `app.js` ne démarre pas ;
+  - réparation ciblée du cache et du Service Worker ;
+  - réinitialisation de l’authentification sans supprimer les préférences ;
+  - contrôle automatique des versions chargées ;
+  - nettoyage des états PKCE incomplets ou expirés ;
+  - stratégie réseau prioritaire pour les scripts versionnés.
+
+- **v7.3.2 — Stabilisation iPhone : prévue**
   - retours d’essai sur Safari et PWA installée ;
   - ajustement des délais Spotify Connect ;
   - amélioration des messages selon les erreurs réelles ;
