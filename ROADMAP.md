@@ -1,5 +1,14 @@
 # Feuille de route Shuffle+
 
+- **v7.9.0 — Architecture et performances : terminée**
+  - chargeur progressif de fonctionnalités ;
+  - Centre de diagnostic chargé à la demande ;
+  - état d’exécution central pour le cycle de vie, la session et la navigation ;
+  - schéma versionné du stockage local ;
+  - sauvegarde avant réparation des données JSON corrompues ;
+  - diagnostic exportable enrichi et respectueux de la vie privée ;
+  - tests de migration, de chargement et de déploiement renforcés.
+
 - **v7.8.1 — Thèmes étendus et conduite personnalisée : terminée**
   - mode conduite synchronisé avec la couleur active ;
   - treize palettes prédéfinies ;
@@ -15,7 +24,11 @@
   - détection de la version du Service Worker en attente ;
   - rechargement unique après une mise à jour.
 
-- **v7.9.0 — Architecture et performances**
+- **v8.0.0 — Grande version publique simplifiée : prévue**
+  - accueil public encore plus guidé ;
+  - mode Essentiel et fonctions avancées ;
+  - poursuite du découpage des fonctionnalités lourdes ;
+  - expérience d’installation PWA harmonisée.
 
 ---
 

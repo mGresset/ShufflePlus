@@ -1,0 +1,32 @@
+{
+  "application": "Shuffle+",
+  "version": "7.9.0",
+  "baseVersion": "7.8.1",
+  "status": "passed",
+  "validation": {
+    "javascriptFiles": 62,
+    "linkedModules": 33,
+    "applicationTestsPassed": 87,
+    "applicationTestsFailed": 0,
+    "syncServerTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmokeTest": "passed"
+  },
+  "features": [
+    "progressive feature loader with concurrent import deduplication",
+    "app health module loaded on demand",
+    "central runtime state for lifecycle session and navigation",
+    "versioned local storage migration schema",
+    "backup before corrupted JSON repair",
+    "privacy-safe architecture diagnostics export",
+    "service worker coverage for new architecture modules"
+  ],
+  "manualChecksRequired": [
+    "first opening of Settings and lazy diagnostic loading in Safari iOS",
+    "diagnostic JSON export from the installed PWA",
+    "migration behavior with real pre-existing local data",
+    "real v7.8.1 to v7.9.0 service worker update",
+    "Spotify login and iOS shortcut launch after deployment"
+  ]
+}

@@ -1,12 +1,15 @@
 # Shuffle+
 
-## v7.8.1 — Thèmes étendus et conduite personnalisée
+## v7.9.0 — Architecture, performances et migrations sûres
 
-La v7.8.1 synchronise le mode conduite avec la couleur choisie dans Shuffle+. Les commandes principales, états actifs, file de lecture, maintien de l’écran et messages de réussite reprennent désormais l’accent global tout en conservant un fond sombre et lisible.
+La v7.9.0 prépare Shuffle+ à la future version publique sans modifier les habitudes d’utilisation. Le Centre de diagnostic est désormais chargé seulement lorsqu’il est ouvert, grâce à un chargeur de fonctionnalités qui évite les imports répétés et mesure le temps de chargement des modules.
 
-Le panneau Apparence propose treize palettes prédéfinies ainsi qu’une couleur personnalisée avec aperçu, génération automatique d’un accent secondaire et choix automatique d’un texte clair ou sombre. Dans la rubrique **Créer**, la section **Raccourcis iOS** est maintenant affichée avant le studio de mélange afin de remettre la fonction d’origine de Shuffle+ au premier plan.
+Un état d’exécution central suit progressivement le cycle de vie, la session et la navigation. Le stockage local dispose maintenant d’un schéma versionné : les données JSON corrompues sont sauvegardées avant réparation et restent intactes si la sauvegarde de secours ne peut pas être créée. Les jetons Spotify et le Client ID ne sont jamais inclus dans cette migration.
+
+Le rapport de diagnostic passe au schéma 2 et peut indiquer les modules chargés, les migrations locales, l’état de l’application, le Service Worker et le quota Spotify, sans exporter de titres, playlists ou identifiants personnels.
 
 ---
+
 
 ## v7.8.0 — Navigation simplifiée et mise à jour unique
 

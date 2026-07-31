@@ -76,6 +76,9 @@ export function buildAppHealthSnapshot({
     standalone = false,
     spotifyConnected = false,
     spotifyApiDiagnostics = {},
+    featureRuntime = [],
+    runtimeStateDiagnostics = {},
+    storageMigration = {},
     viewportWidth = 0,
     viewportHeight = 0,
     currentMenu = "",
@@ -100,6 +103,30 @@ export function buildAppHealthSnapshot({
     const spotifyCooldownLabel = spotifyApi.cooldownActive
         ? `${spotifyApi.cooldownReason || "PAUSE"} · ${Math.max(1, Math.ceil(spotifyApi.cooldownRemainingMs / 1000))} s restantes`
         : `${spotifyApi.networkRequests} appel(s) réseau · ${spotifyApi.cacheHits} cache`;
+    const featureModules = Array.isArray(featureRuntime)
+        ? featureRuntime.map((item) => ({
+            name: String(item?.name || "module"),
+            status: String(item?.status || "idle"),
+            durationMs: Math.max(0, normalizeNumber(item?.durationMs)),
+            error: String(item?.error || "")
+        }))
+        : [];
+    const loadedFeatureCount = featureModules.filter((item) => item.status === "loaded").length;
+    const failedFeatureCount = featureModules.filter((item) => item.status === "error").length;
+    const storage = {
+        schemaVersion: Math.max(0, normalizeNumber(storageMigration?.schemaVersion)),
+        recoveryCount: Math.max(0, normalizeNumber(storageMigration?.recoveryCount)),
+        repairedKeyCount: Math.max(0, normalizeNumber(storageMigration?.repairedKeyCount)),
+        lastRunAt: Math.max(0, normalizeNumber(storageMigration?.lastRunAt))
+    };
+    const runtimeState = {
+        revision: Math.max(0, normalizeNumber(runtimeStateDiagnostics?.revision)),
+        uptimeMs: Math.max(0, normalizeNumber(runtimeStateDiagnostics?.uptimeMs)),
+        subscriberCount: Math.max(0, normalizeNumber(runtimeStateDiagnostics?.subscriberCount)),
+        snapshot: runtimeStateDiagnostics?.snapshot && typeof runtimeStateDiagnostics.snapshot === "object"
+            ? runtimeStateDiagnostics.snapshot
+            : {}
+    };
 
     const checks = [
         buildCheck({
@@ -158,6 +185,26 @@ export function buildAppHealthSnapshot({
             available: !spotifyApi.cooldownActive,
             warningWhenMissing: true,
             value: spotifyCooldownLabel
+        }),
+        buildCheck({
+            id: "storage-schema",
+            label: "Structure des données locales",
+            description: "Vérifie les données JSON, sauvegarde les entrées corrompues et applique les migrations sans toucher aux jetons Spotify.",
+            category: "storage",
+            available: storage.schemaVersion >= 2,
+            warningWhenMissing: true,
+            value: storage.schemaVersion
+                ? `Schéma ${storage.schemaVersion} · ${storage.repairedKeyCount} réparation(s)`
+                : "Migration non initialisée"
+        }),
+        buildCheck({
+            id: "feature-loader",
+            label: "Chargement progressif",
+            description: "Les fonctions secondaires sont chargées uniquement lorsqu’elles sont nécessaires.",
+            category: "performance",
+            available: failedFeatureCount === 0,
+            warningWhenMissing: true,
+            value: `${loadedFeatureCount} chargé(s) · ${failedFeatureCount} erreur(s)`
         }),
         buildCheck({
             id: "standalone",
@@ -231,17 +278,27 @@ export function buildAppHealthSnapshot({
             viewportHeight: Math.max(0, normalizeNumber(viewportHeight)),
             currentMenu: String(currentMenu || ""),
             userAgent: String(userAgent || ""),
-            spotifyApi
+            spotifyApi,
+            featureModules,
+            runtimeState,
+            storage
         }
     };
 }
 
-export function buildAppHealthExport(snapshot = {}) {
+export function buildAppHealthExport(snapshot = {}, extras = {}) {
     return {
         format: "shuffleplus-app-health",
-        schemaVersion: 1,
+        schemaVersion: 2,
         exportedAt: new Date().toISOString(),
-        privacy: "Aucun titre, playlist, jeton Spotify ou identifiant personnel n’est inclus.",
-        snapshot
+        privacy: "Aucun titre, playlist, jeton Spotify, Client ID complet ou identifiant personnel n’est inclus.",
+        snapshot,
+        architecture: {
+            loadedModules: Array.isArray(extras.loadedModules)
+                ? extras.loadedModules
+                : snapshot?.runtime?.featureModules || [],
+            storageMigration: extras.storageMigration || snapshot?.runtime?.storage || {},
+            runtimeState: extras.runtimeState || snapshot?.runtime?.runtimeState || {}
+        }
     };
 }

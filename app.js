@@ -108,11 +108,6 @@ import {
 } from "./usage-profiles.js";
 
 import {
-    buildAppHealthSnapshot,
-    buildAppHealthExport
-} from "./app-health.js";
-
-import {
     DEFAULT_OFFLINE_PERFORMANCE_SETTINGS,
     normalizeOfflinePerformanceSettings,
     readOfflineLibraryCache,
@@ -163,6 +158,19 @@ import {
     resolveAppMenuView,
     writeStoredAppMenu
 } from "./core/app-menu.js";
+
+import {
+    createFeatureLoader
+} from "./core/feature-loader.js";
+
+import {
+    createRuntimeState
+} from "./core/runtime-state.js";
+
+import {
+    getStorageMigrationDiagnostics,
+    runStorageMigrations
+} from "./core/storage-migrations.js";
 
 import {
     PWA_UPDATE_APPLIED_VERSION_KEY,
@@ -231,7 +239,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "7.8.1";
+const APP_VERSION = "7.9.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -647,7 +655,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.8.1-shell";
+    "shuffleplus-v7.9.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -995,6 +1003,58 @@ const DEFAULT_MIX_STUDIO_SETTINGS = {
     preview: false
 };
 
+const appRuntimeState = createRuntimeState({
+    version: APP_VERSION,
+    lifecycle: {
+        phase: "module",
+        ready: false,
+        startedAt: Date.now()
+    },
+    navigation: {
+        activeMenu: "dashboard",
+        group: "home"
+    },
+    session: {
+        connected: false,
+        hasUserId: false,
+        product: ""
+    },
+    features: {
+        modules: []
+    }
+});
+
+const featureLoader = createFeatureLoader(
+    {
+        appHealth: () => import("./app-health.js")
+    },
+    {
+        onChange(modules) {
+            appRuntimeState.set(
+                "features.modules",
+                modules,
+                { silent: true }
+            );
+        }
+    }
+);
+
+const storageMigrationReport = runStorageMigrations({
+    storage: globalThis.localStorage,
+    appVersion: APP_VERSION
+});
+
+function getStorageDiagnostics() {
+    return getStorageMigrationDiagnostics({
+        storage: globalThis.localStorage,
+        report: storageMigrationReport
+    });
+}
+
+async function getAppHealthFeature() {
+    return featureLoader.load("appHealth");
+}
+
 let currentUserId = "";
 let currentUserProduct = "";
 let playlistsCache = [];
@@ -1125,6 +1185,14 @@ let activeAppMenu = readActiveAppMenu();
 if (!DRIVING_MODE_AVAILABLE && activeAppMenu === "driving") {
     activeAppMenu = "dashboard";
 }
+appRuntimeState.merge(
+    "navigation",
+    {
+        activeMenu: activeAppMenu,
+        group: getAppSectionGroup(activeAppMenu)?.id || "home"
+    },
+    { silent: true }
+);
 let blockedDrivingRequest = false;
 let musicalAssistantHistory =
     readMusicalAssistantHistory();
@@ -1144,6 +1212,7 @@ let appMenuScrollPositions = readAppMenuScrollPositions();
 let appMenuScrollSaveTimer = 0;
 let appHealthSnapshot = null;
 let appHealthRunning = false;
+let appHealthLoadScheduled = false;
 let offlinePerformanceSettings =
     readOfflinePerformanceSettings();
 let offlineCacheSummary = {
@@ -1227,6 +1296,14 @@ function formatDuration(durationMs = 0) {
 function wait(milliseconds) {
     return new Promise((resolve) => {
         window.setTimeout(resolve, milliseconds);
+    });
+}
+
+function markRuntimeReady(phase = "ready") {
+    appRuntimeState.merge("lifecycle", {
+        phase,
+        ready: true,
+        readyAt: Date.now()
     });
 }
 
@@ -3048,7 +3125,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v7.8.1
+                        ✨ Apparence v7.9.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -3405,6 +3482,11 @@ async function testSpotifyApplicationConfiguration() {
 }
 
 function setDisconnectedInterface() {
+    appRuntimeState.merge("session", {
+        connected: false,
+        hasUserId: false,
+        product: ""
+    });
     document.body.classList.remove(
         "is-connected"
     );
@@ -3458,6 +3540,11 @@ function setDisconnectedInterface() {
 }
 
 function setConnectedInterface() {
+    appRuntimeState.merge("session", {
+        connected: true,
+        hasUserId: Boolean(currentUserId),
+        product: currentUserProduct
+    });
     document.body.classList.add(
         "is-connected"
     );
@@ -3588,6 +3675,12 @@ function applyOfflineLibraryCache(cache, { render = true } = {}) {
     const profile = cache.profile || {};
     currentUserId = profile.id || currentUserId || "";
     currentUserProduct = profile.product || "";
+    appRuntimeState.merge("session", {
+        connected: true,
+        hasUserId: Boolean(currentUserId),
+        product: currentUserProduct,
+        source: "cache"
+    });
     playlistsCache = cache.playlists;
     const displayName = profile.display_name || profile.id || "utilisateur";
     welcomeElement.textContent = `Bienvenue ${displayName} 👋`;
@@ -3636,6 +3729,12 @@ async function refreshLiveLibrary({ force = false, silent = false } = {}) {
         ]);
         currentUserId = profile?.id || "";
         currentUserProduct = profile?.product || "";
+        appRuntimeState.merge("session", {
+            connected: true,
+            hasUserId: Boolean(currentUserId),
+            product: currentUserProduct,
+            source: "live"
+        });
         playlistsCache = playlists;
         const displayName = profile?.display_name || profile?.id || "utilisateur";
         welcomeElement.textContent = `Bienvenue ${displayName} 👋`;
@@ -4199,7 +4298,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.8.1",
+                "./service-worker.js?v=7.9.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -4365,6 +4464,12 @@ function getBasicAppHealthFacts() {
             Boolean(currentUserId),
         spotifyApiDiagnostics:
             getSpotifyApiDiagnostics(),
+        featureRuntime:
+            featureLoader.getDiagnostics(),
+        runtimeStateDiagnostics:
+            appRuntimeState.getDiagnostics(),
+        storageMigration:
+            getStorageDiagnostics(),
         viewportWidth:
             Math.round(
                 window.visualViewport
@@ -4399,6 +4504,8 @@ async function collectAppHealthSnapshot({
     appHealthRunning = true;
 
     try {
+        const { buildAppHealthSnapshot } =
+            await getAppHealthFeature();
         const facts =
             getBasicAppHealthFacts();
 
@@ -4485,15 +4592,52 @@ async function collectAppHealthSnapshot({
 }
 
 function getCurrentAppHealthSnapshot() {
-    return appHealthSnapshot ||
-        buildAppHealthSnapshot(
-            getBasicAppHealthFacts()
-        );
+    return appHealthSnapshot;
+}
+
+function scheduleAppHealthLoad() {
+    if (appHealthLoadScheduled || appHealthRunning || appHealthSnapshot) {
+        return;
+    }
+
+    appHealthLoadScheduled = true;
+    queueMicrotask(() => {
+        collectAppHealthSnapshot({ render: true })
+            .catch((error) => {
+                console.warn(
+                    "Chargement du diagnostic impossible :",
+                    error
+                );
+            })
+            .finally(() => {
+                appHealthLoadScheduled = false;
+            });
+    });
 }
 
 function renderAppHealthPanel() {
     const snapshot =
         getCurrentAppHealthSnapshot();
+
+    if (!snapshot) {
+        scheduleAppHealthLoad();
+        return `
+            <section
+                id="appHealthPanel"
+                class="settings-panel app-health-panel"
+                aria-busy="true"
+            >
+                <div class="panel-heading">
+                    <div>
+                        <span class="app-health-kicker">🛠️ Shuffle+ v7</span>
+                        <h3>Centre de diagnostic</h3>
+                        <p>Chargement du module de diagnostic à la demande…</p>
+                    </div>
+                    <span class="app-health-status app-health-status--attention">⏳ Chargement</span>
+                </div>
+            </section>
+        `;
+    }
     const groups = [
         {
             id: "core",
@@ -4506,6 +4650,14 @@ function renderAppHealthPanel() {
         {
             id: "spotify",
             label: "Utilisation de l’API Spotify"
+        },
+        {
+            id: "storage",
+            label: "Données et migrations"
+        },
+        {
+            id: "performance",
+            label: "Architecture et performances"
         },
         {
             id: "optional",
@@ -4713,6 +4865,8 @@ function renderAppHealthPanel() {
 }
 
 async function exportAppHealthReport() {
+    const { buildAppHealthExport } =
+        await getAppHealthFeature();
     const snapshot =
         await collectAppHealthSnapshot({
             render: false
@@ -4724,7 +4878,12 @@ async function exportAppHealthReport() {
 
     downloadJsonPayload(
         buildAppHealthExport(
-            snapshot
+            snapshot,
+            {
+                loadedModules: featureLoader.getDiagnostics(),
+                storageMigration: getStorageDiagnostics(),
+                runtimeState: appRuntimeState.getDiagnostics()
+            }
         ),
         `shuffleplus-diagnostic-${date}.json`
     );
@@ -34392,6 +34551,11 @@ function updateMixSelectionControls() {
 }
 
 function displayPlaylists(playlists) {
+    appRuntimeState.merge("navigation", {
+        activeMenu: activeAppMenu,
+        group: getAppSectionGroup(activeAppMenu)?.id || "home"
+    });
+
     if (activeAppMenu === "driving") {
         renderDrivingModePage();
         startDrivingRefreshTimer();
@@ -38048,6 +38212,12 @@ async function openPlaylist(playlist) {
 }
 
 async function initializeApp() {
+    appRuntimeState.merge("lifecycle", {
+        phase: "initializing",
+        ready: false,
+        initializationStartedAt: Date.now()
+    });
+
     applyDrivingViewFromUrl();
 
     const urlAutomationCommand =
@@ -38107,6 +38277,7 @@ async function initializeApp() {
             setStatus(
                 "Configure ton Client ID Spotify personnel pour commencer."
             );
+            markRuntimeReady("spotify-setup");
             return;
         }
 
@@ -38146,6 +38317,7 @@ async function initializeApp() {
                 loginButton.textContent = "Se connecter à Spotify";
             }
             setStatus("");
+            markRuntimeReady("disconnected");
             return;
         }
 
@@ -38254,8 +38426,16 @@ async function initializeApp() {
         } else {
             setStatus("");
         }
+
+        markRuntimeReady("ready");
     } catch (error) {
         console.error("Initialisation échouée :", error);
+        appRuntimeState.merge("lifecycle", {
+            phase: "error",
+            ready: false,
+            error: String(error?.message || error || "Erreur inconnue"),
+            failedAt: Date.now()
+        });
 
         // Une erreur Adaptive DJ ou API ne doit jamais bloquer la connexion Spotify.
         setDisconnectedInterface();
