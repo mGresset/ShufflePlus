@@ -16467,3 +16467,274 @@ body.is-driving-mode .driving-queue-current > span:first-child {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+/* Shuffle+ 8.0 — expérience publique simplifiée */
+.v8-welcome-panel,
+.experience-mode-panel,
+.essential-advanced-callout {
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    background:
+        radial-gradient(circle at top right,
+            color-mix(in srgb, var(--accent) 19%, transparent),
+            transparent 52%),
+        rgba(17, 17, 31, 0.92);
+    border-radius: 24px;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
+}
+
+.v8-welcome-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 24px;
+    align-items: center;
+    margin-bottom: 22px;
+    padding: 24px;
+}
+
+.v8-welcome-kicker,
+.experience-mode-current {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 13%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.v8-welcome-panel h3 {
+    margin: 12px 0 8px;
+    font-size: clamp(1.45rem, 4vw, 2.15rem);
+}
+
+.v8-welcome-panel p {
+    max-width: 720px;
+    margin: 0;
+    color: var(--text-secondary, #b8b8c9);
+    line-height: 1.6;
+}
+
+.v8-welcome-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(145px, 1fr));
+    gap: 10px;
+    min-width: min(100%, 330px);
+}
+
+.v8-welcome-actions button,
+.essential-advanced-callout button {
+    min-height: 46px;
+    padding: 10px 14px;
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--accent) 14%, #11111f);
+    color: var(--text-primary, #fff);
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.v8-welcome-actions button:hover,
+.essential-advanced-callout button:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent);
+}
+
+.v8-welcome-actions .is-secondary {
+    grid-column: 1 / -1;
+    background: transparent;
+}
+
+.experience-mode-panel {
+    padding: 22px;
+}
+
+.experience-mode-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.experience-mode-option {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+        "icon title"
+        "icon description";
+    gap: 5px 12px;
+    align-items: start;
+    min-height: 126px;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.035);
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.experience-mode-option > span {
+    grid-area: icon;
+    font-size: 1.75rem;
+}
+
+.experience-mode-option strong {
+    grid-area: title;
+    font-size: 1rem;
+}
+
+.experience-mode-option small {
+    grid-area: description;
+    color: var(--text-secondary, #b8b8c9);
+    line-height: 1.45;
+}
+
+.experience-mode-option.is-selected {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.experience-mode-note {
+    margin: 14px 0 0;
+    color: var(--text-secondary, #b8b8c9);
+    font-size: 0.88rem;
+}
+
+.essential-advanced-callout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+    padding: 22px;
+}
+
+.essential-advanced-callout h3 {
+    margin: 7px 0;
+}
+
+.essential-advanced-callout p {
+    margin: 0;
+    color: var(--text-secondary, #b8b8c9);
+}
+
+.spotify-setup-public-intro {
+    padding: 18px;
+    border-radius: 18px;
+    background:
+        linear-gradient(145deg,
+            color-mix(in srgb, var(--accent, #8b5cf6) 18%, #11111f),
+            rgba(11, 11, 22, 0.94));
+    border: 1px solid color-mix(in srgb, var(--accent, #8b5cf6) 34%, transparent);
+}
+
+.spotify-setup-public-intro > span {
+    color: var(--accent, #a78bfa);
+    font-size: 0.76rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.spotify-setup-public-intro h4 {
+    margin: 8px 0;
+    font-size: 1.25rem;
+}
+
+.spotify-setup-public-intro p {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.spotify-setup-public-intro > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.spotify-setup-public-intro small {
+    padding: 6px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    font-weight: 700;
+}
+
+.spotify-setup-flow {
+    list-style: none;
+    padding: 0;
+    counter-reset: none;
+}
+
+.spotify-setup-flow li {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    gap: 11px;
+    align-items: center;
+    padding: 10px 0;
+}
+
+.spotify-setup-flow li strong {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: var(--accent-contrast, #fff);
+    background: var(--accent, #8b5cf6);
+}
+
+.server-sync-recovery-note {
+    margin: 12px 0 16px;
+    padding: 11px 13px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-secondary, #c8c8d5);
+    line-height: 1.45;
+}
+
+.server-sync-recovery-note.is-restored,
+.server-sync-recovery-note.is-protected {
+    border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+html[data-experience-mode="essential"] .app-section-more {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    .v8-welcome-panel {
+        grid-template-columns: 1fr;
+        padding: 19px;
+    }
+
+    .v8-welcome-actions {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .experience-mode-options {
+        grid-template-columns: 1fr;
+    }
+
+    .essential-advanced-callout {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 430px) {
+    .v8-welcome-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .v8-welcome-actions .is-secondary {
+        grid-column: auto;
+    }
+}

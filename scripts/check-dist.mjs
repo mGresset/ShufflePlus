@@ -12,6 +12,8 @@ const required = [
     "service-worker.js",
     "manifest.webmanifest",
     "core/app-menu.js",
+    "core/experience-mode.js",
+    "core/server-sync-recovery.js",
     "core/platform.js",
     "core/spotify-app-config.js",
     "core/html-utils.js",

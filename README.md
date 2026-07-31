@@ -1,5 +1,13 @@
 # Shuffle+
 
+## v8.0.0 — Version publique simplifiée
+
+Shuffle+ 8 introduit deux niveaux d’interface. Les nouveaux utilisateurs démarrent en mode Essentiel avec les fonctions principales, tandis que les installations existantes conservent automatiquement le mode Expert. La configuration Spotify publique est mieux guidée et la liaison au serveur Railway dispose désormais d’une copie de récupération locale ainsi que de la dernière adresse connue.
+
+La version conserve les cinq menus principaux, les raccourcis iOS, le mode conduite sur iPhone/iPad, le moteur de mélange explicable, Dynamic Lyrics, les thèmes et toutes les données locales existantes.
+
+Voir `V8.0.0_NOTES.md` et `DEPLOIEMENT-V8.0.0.md`.
+
 ## v7.9.0 — Architecture, performances et migrations sûres
 
 La v7.9.0 prépare Shuffle+ à la future version publique sans modifier les habitudes d’utilisation. Le Centre de diagnostic est désormais chargé seulement lorsqu’il est ouvert, grâce à un chargeur de fonctionnalités qui évite les imports répétés et mesure le temps de chargement des modules.

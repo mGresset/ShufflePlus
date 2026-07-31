@@ -1,10 +1,15 @@
 export const STORAGE_SCHEMA_KEY = "shuffleplus_storage_schema_v1";
 export const STORAGE_RECOVERY_KEY = "shuffleplus_storage_recovery_v1";
-export const CURRENT_STORAGE_SCHEMA_VERSION = 2;
+export const CURRENT_STORAGE_SCHEMA_VERSION = 3;
 
 const DEFAULT_PREFIX = "shuffleplus_";
 const MAX_RECOVERY_RECORDS = 5;
 const MAX_RECOVERY_BYTES = 220000;
+const PROTECTED_JSON_KEYS = new Set([
+    "shuffleplus_server_sync_v1",
+    "shuffleplus_server_sync_recovery_v1",
+    "shuffleplus_spotify_app_config_v1"
+]);
 
 function safeParse(value, fallback = null) {
     try {
@@ -91,6 +96,7 @@ export function runStorageMigrations({
         scannedKeys: 0,
         repairedKeys: [],
         preservedKeys: [],
+        protectedKeys: [],
         skippedKeys: [],
         recoveryCreated: false,
         migrated: false,
@@ -150,6 +156,12 @@ export function runStorageMigrations({
             );
 
             for (const item of corrupted) {
+                if (PROTECTED_JSON_KEYS.has(item.key)) {
+                    report.protectedKeys.push(item.key);
+                    report.preservedKeys.push(item.key);
+                    continue;
+                }
+
                 if (!report.recoveryCreated) {
                     report.preservedKeys.push(item.key);
                     continue;
@@ -211,6 +223,7 @@ export function getStorageMigrationDiagnostics({
                 scannedKeys: Number(report.scannedKeys) || 0,
                 repairedKeys: [...(report.repairedKeys || [])],
                 preservedKeys: [...(report.preservedKeys || [])],
+                protectedKeys: [...(report.protectedKeys || [])],
                 recoveryCreated: report.recoveryCreated === true,
                 migrated: report.migrated === true
             }

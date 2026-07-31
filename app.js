@@ -173,6 +173,20 @@ import {
 } from "./core/storage-migrations.js";
 
 import {
+    ensureExperienceMode,
+    getExperienceModeDefinition,
+    isExpertExperience,
+    saveExperienceMode
+} from "./core/experience-mode.js";
+
+import {
+    clearServerSyncRecovery,
+    getServerSyncRecoveryDiagnostics,
+    recoverServerSyncState,
+    rememberServerSyncState
+} from "./core/server-sync-recovery.js";
+
+import {
     PWA_UPDATE_APPLIED_VERSION_KEY,
     clearAppliedPwaVersion,
     getPwaVersionFromScriptUrl,
@@ -239,7 +253,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "7.9.0";
+const APP_VERSION = "8.0.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -655,7 +669,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.9.0-shell";
+    "shuffleplus-v8.0.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1021,6 +1035,10 @@ const appRuntimeState = createRuntimeState({
     },
     features: {
         modules: []
+    },
+    experience: {
+        mode: "essential",
+        expert: false
     }
 });
 
@@ -1043,6 +1061,22 @@ const storageMigrationReport = runStorageMigrations({
     storage: globalThis.localStorage,
     appVersion: APP_VERSION
 });
+
+const experienceModeInitialization = ensureExperienceMode({
+    storage: globalThis.localStorage
+});
+let experienceMode = experienceModeInitialization.mode;
+document.documentElement.dataset.experienceMode = experienceMode;
+appRuntimeState.merge(
+    "experience",
+    {
+        mode: experienceMode,
+        expert: isExpertExperience(experienceMode),
+        migratedExistingUser:
+            experienceModeInitialization.migratedExistingUser === true
+    },
+    { silent: true }
+);
 
 function getStorageDiagnostics() {
     return getStorageMigrationDiagnostics({
@@ -1148,6 +1182,11 @@ let syncPairingInvites = readSyncPairingInvites();
 let syncSessionHistory = readSyncSessionHistory();
 let syncSimulationResult = null;
 let lastSyncMergeUndo = readLastSyncMergeUndo();
+let serverSyncRecoveryStatus = {
+    recovered: false,
+    source: "none",
+    addressRestored: false
+};
 let serverSyncState = readServerSyncState();
 let serverSyncTimer = 0;
 let serverSyncBusy = false;
@@ -1189,7 +1228,13 @@ appRuntimeState.merge(
     "navigation",
     {
         activeMenu: activeAppMenu,
-        group: getAppSectionGroup(activeAppMenu)?.id || "home"
+        group: getAppSectionGroup(
+            activeAppMenu,
+            {
+                drivingAvailable: DRIVING_MODE_AVAILABLE,
+                expertMode: isExpertExperience(experienceMode)
+            }
+        )?.id || "home"
     },
     { silent: true }
 );
@@ -2233,12 +2278,12 @@ async function refreshMusicalDashboardPlayback({silent=false}={}){if(musicalDash
 function openDashboardSection(id){return navigateToAppMenu(id);}
 function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
 function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
-function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),set=s.settings,p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ v6.4</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
+function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),rawSet=s.settings,set=isExpertExperience(experienceMode)?rawSet:{...rawSet,showScene:false,showStatistics:false},p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ 8</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
 ${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
 ${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
-</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${[["music","🎵","Ma musique"],["mixes","🔀","Mix & iOS"],["adaptive","🤖","Adaptive DJ"],["assistant","✨","Assistant"],["recommendations","💜","Pour toi"],["statistics","📊","Statistiques"],["quick","⚡","Rapide"],["guide","📖","Guide"],["settings","⚙️","Réglages"]].map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
+</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
 
 function readPersonalizedRecommendationsState() {
     try {
@@ -3061,6 +3106,211 @@ function updateUiThemeCustomColor(value = "") {
     );
 }
 
+function applyExperienceMode(
+    mode,
+    { announce = true, rerender = true } = {}
+) {
+    const result = saveExperienceMode(
+        globalThis.localStorage,
+        mode
+    );
+
+    experienceMode = result.mode;
+    document.documentElement.dataset.experienceMode = experienceMode;
+    appRuntimeState.merge("experience", {
+        mode: experienceMode,
+        expert: isExpertExperience(experienceMode),
+        updatedAt: Date.now()
+    });
+
+    if (
+        !isExpertExperience(experienceMode) &&
+        [
+            "statistics",
+            "goals",
+            "intelligence",
+            "adaptive",
+            "modes"
+        ].includes(activeAppMenu)
+    ) {
+        activeAppMenu = getPrimaryAppMenu(activeAppMenu);
+        saveActiveAppMenu();
+    }
+
+    if (rerender) {
+        displayPlaylists(playlistsCache);
+    }
+
+    if (announce) {
+        const definition = getExperienceModeDefinition(
+            experienceMode
+        );
+        showToast(
+            `${definition.icon} Mode ${definition.label} activé.`,
+            "success"
+        );
+    }
+
+    return result.saved;
+}
+
+function renderExperienceModePanel() {
+    const definition = getExperienceModeDefinition(
+        experienceMode
+    );
+    const expert = isExpertExperience(experienceMode);
+
+    return `
+        <section
+            id="experienceModePanel"
+            class="settings-panel experience-mode-panel"
+        >
+            <div class="panel-heading">
+                <div>
+                    <span class="settings-kicker">
+                        ${definition.icon} Expérience Shuffle+ 8
+                    </span>
+                    <h3>Choisir le niveau de simplicité</h3>
+                    <p>
+                        Le mode Essentiel allège les menus. Le mode Expert
+                        conserve toutes les analyses, automatisations et
+                        réglages avancés.
+                    </p>
+                </div>
+                <span class="experience-mode-current">
+                    ${escapeHtml(definition.label)}
+                </span>
+            </div>
+
+            <div class="experience-mode-options">
+                ${["essential", "expert"].map((modeId) => {
+                    const item = getExperienceModeDefinition(modeId);
+                    const selected = experienceMode === modeId;
+                    return `
+                        <button
+                            type="button"
+                            class="experience-mode-option
+                            ${selected ? "is-selected" : ""}"
+                            data-experience-mode="${modeId}"
+                            aria-pressed="${String(selected)}"
+                        >
+                            <span aria-hidden="true">${item.icon}</span>
+                            <strong>Mode ${escapeHtml(item.label)}</strong>
+                            <small>${escapeHtml(item.description)}</small>
+                        </button>
+                    `;
+                }).join("")}
+            </div>
+
+            ${expert
+                ? `
+                    <p class="experience-mode-note">
+                        Toutes les fonctions historiques de Shuffle+ sont visibles.
+                    </p>
+                `
+                : `
+                    <p class="experience-mode-note">
+                        Les fonctions avancées restent enregistrées et réapparaissent
+                        immédiatement en repassant en mode Expert.
+                    </p>
+                `}
+        </section>
+    `;
+}
+
+function renderV8WelcomePanel() {
+    const definition = getExperienceModeDefinition(
+        experienceMode
+    );
+    const expert = isExpertExperience(experienceMode);
+
+    return `
+        <section class="v8-welcome-panel">
+            <div>
+                <span class="v8-welcome-kicker">
+                    ${definition.icon} Shuffle+ 8 · ${escapeHtml(definition.label)}
+                </span>
+                <h3>
+                    ${expert
+                        ? "Toute la puissance de Shuffle+"
+                        : "Ta musique, sans menus inutiles"}
+                </h3>
+                <p>
+                    ${expert
+                        ? "Les outils avancés sont actifs. Tu peux revenir à une interface plus légère à tout moment."
+                        : "Lance un raccourci iPhone, retrouve ta musique ou crée un mix. Les outils avancés restent disponibles dans le mode Expert."}
+                </p>
+            </div>
+            <div class="v8-welcome-actions">
+                <button type="button" data-app-menu="quick">
+                    📱 Mes raccourcis
+                </button>
+                <button type="button" data-app-menu="music">
+                    🎵 Ma musique
+                </button>
+                <button type="button" data-app-menu="mixes">
+                    ✨ Créer
+                </button>
+                <button
+                    type="button"
+                    class="is-secondary"
+                    data-experience-mode="${expert ? "essential" : "expert"}"
+                >
+                    ${expert ? "Passer en mode Essentiel" : "Activer le mode Expert"}
+                </button>
+            </div>
+        </section>
+    `;
+}
+
+function renderEssentialAdvancedSettingsCallout() {
+    if (isExpertExperience(experienceMode)) {
+        return "";
+    }
+
+    return `
+        <section class="settings-panel essential-advanced-callout">
+            <div>
+                <span class="settings-kicker">🧰 Fonctions avancées masquées</span>
+                <h3>Besoin de réglages plus précis ?</h3>
+                <p>
+                    Les diagnostics détaillés, règles de mix, exclusions,
+                    profils et optimisations restent intacts.
+                </p>
+            </div>
+            <button
+                type="button"
+                data-experience-mode="expert"
+            >
+                Activer le mode Expert
+            </button>
+        </section>
+    `;
+}
+
+function getDashboardQuickAccessItems() {
+    const essentialItems = [
+        ["music", "🎵", "Ma musique"],
+        ["mixes", "📱", "Raccourcis iOS"],
+        ["assistant", "✨", "Assistant"],
+        ["quick", "⚡", "Mes raccourcis"],
+        ["guide", "📖", "Guide"],
+        ["settings", "⚙️", "Réglages"]
+    ];
+
+    if (!isExpertExperience(experienceMode)) {
+        return essentialItems;
+    }
+
+    return [
+        ...essentialItems.slice(0, 3),
+        ["adaptive", "🤖", "Adaptive DJ"],
+        ["recommendations", "💜", "Pour toi"],
+        ["statistics", "📊", "Statistiques"],
+        ...essentialItems.slice(3)
+    ];
+}
+
 function renderUiThemeSettingsPanel() {
     const palette = getUiThemePalette(
         uiThemeSettings
@@ -3125,7 +3375,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v7.9.0
+                        ✨ Apparence v8.0.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4298,7 +4548,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.9.0",
+                "./service-worker.js?v=8.0.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -4470,6 +4720,13 @@ function getBasicAppHealthFacts() {
             appRuntimeState.getDiagnostics(),
         storageMigration:
             getStorageDiagnostics(),
+        experienceMode,
+        serverSyncConnected:
+            isServerSyncConnected(),
+        serverSyncRecovery:
+            getServerSyncRecoveryDiagnostics(
+                globalThis.localStorage
+            ),
         viewportWidth:
             Math.round(
                 window.visualViewport
@@ -14435,9 +14692,20 @@ function getUniversalSearchIndex() {
             adaptiveDjScenesState
         );
 
+    const visibleSections = getUniversalSearchSections()
+        .filter((item) =>
+            isExpertExperience(experienceMode) ||
+            ![
+                "adaptive",
+                "statistics",
+                "goals",
+                "intelligence",
+                "modes"
+            ].includes(item.menu)
+        );
+
     return buildUniversalSearchIndex({
-        sections:
-            getUniversalSearchSections(),
+        sections: visibleSections,
         playlists: [
             {
                 id: "liked",
@@ -16603,7 +16871,10 @@ function renderAppMenu() {
 function renderAppSectionMenu() {
     const section = getAppSectionGroup(
         activeAppMenu,
-        { drivingAvailable: DRIVING_MODE_AVAILABLE }
+        {
+            drivingAvailable: DRIVING_MODE_AVAILABLE,
+            expertMode: isExpertExperience(experienceMode)
+        }
     );
 
     if (!section) {
@@ -32288,16 +32559,45 @@ function normalizeServerSyncState(value = {}) {
 }
 
 function readServerSyncState() {
+    let primary = normalizeServerSyncState();
+
     try {
         const raw = localStorage.getItem(
             SERVER_SYNC_STORAGE_KEY
         );
-        return normalizeServerSyncState(
+        primary = normalizeServerSyncState(
             raw ? JSON.parse(raw) : {}
         );
-    } catch (error) {
-        return normalizeServerSyncState();
+    } catch {
+        primary = normalizeServerSyncState();
     }
+
+    const recovery = recoverServerSyncState(
+        globalThis.localStorage,
+        primary
+    );
+    const restored = normalizeServerSyncState(
+        recovery.state
+    );
+
+    serverSyncRecoveryStatus = {
+        recovered: recovery.recovered === true,
+        source: recovery.source || "none",
+        addressRestored: recovery.addressRestored === true
+    };
+
+    if (recovery.recovered) {
+        try {
+            localStorage.setItem(
+                SERVER_SYNC_STORAGE_KEY,
+                JSON.stringify(restored)
+            );
+        } catch {
+            // La récupération reste disponible dans la clé de secours.
+        }
+    }
+
+    return restored;
 }
 
 function saveServerSyncState() {
@@ -32316,6 +32616,18 @@ function saveServerSyncState() {
             error
         );
     }
+
+    const recovery = rememberServerSyncState(
+        globalThis.localStorage,
+        serverSyncState
+    );
+    serverSyncRecoveryStatus = {
+        recovered: false,
+        source: recovery.recoverySaved
+            ? "backup"
+            : serverSyncRecoveryStatus.source,
+        addressRestored: false
+    };
 }
 
 function isServerSyncConnected() {
@@ -33223,6 +33535,10 @@ function disconnectServerSync() {
     serverSyncState = normalizeServerSyncState();
     serverSyncDevices = [];
     pendingSyncPackage = null;
+    clearServerSyncRecovery(
+        globalThis.localStorage,
+        { preserveAddress: true }
+    );
     saveServerSyncState();
     setServerSyncMessage(
         "Cet appareil est déconnecté du serveur.",
@@ -33263,6 +33579,10 @@ async function deleteServerSyncSpace() {
         stopServerSyncWatcher();
         serverSyncState = normalizeServerSyncState();
         serverSyncDevices = [];
+        clearServerSyncRecovery(
+            globalThis.localStorage,
+            { preserveAddress: true }
+        );
         saveServerSyncState();
         setServerSyncMessage(
             "Espace distant supprimé.",
@@ -33379,6 +33699,26 @@ function formatServerSyncDate(timestamp) {
 
 function renderServerSyncPanel() {
     const connected = isServerSyncConnected();
+    const recoveryDiagnostics =
+        getServerSyncRecoveryDiagnostics(
+            globalThis.localStorage
+        );
+    const recoveryNotice =
+        serverSyncRecoveryStatus.addressRestored
+            ? `
+                <p class="server-sync-recovery-note is-restored">
+                    ✓ L’adresse de ton dernier serveur a été restaurée
+                    automatiquement. Teste-la avant de créer un nouvel espace.
+                </p>
+            `
+            : serverSyncState.serverUrl
+                ? `
+                    <p class="server-sync-recovery-note">
+                        Dernière adresse connue préremplie. Clique sur
+                        <strong>Tester le serveur</strong> avant toute création.
+                    </p>
+                `
+                : "";
     const message = serverSyncMessage.text
         ? `
             <p class="server-sync-message ${escapeHtml(serverSyncMessage.type)}">
@@ -33403,6 +33743,8 @@ function renderServerSyncPanel() {
                         Non connecté
                     </span>
                 </div>
+
+                ${recoveryNotice}
 
                 <form id="serverSyncCreateForm" class="server-sync-form">
                     <label>
@@ -33505,6 +33847,12 @@ function renderServerSyncPanel() {
                     Chiffré E2E
                 </span>
             </div>
+
+            <p class="server-sync-recovery-note is-protected">
+                ${recoveryDiagnostics.recoveryAvailable
+                    ? "✓ Liaison sauvegardée localement pour une restauration automatique."
+                    : "⚠ La sauvegarde locale de la liaison sera créée au prochain enregistrement."}
+            </p>
 
             <div class="server-sync-metrics">
                 <div>
@@ -34553,7 +34901,13 @@ function updateMixSelectionControls() {
 function displayPlaylists(playlists) {
     appRuntimeState.merge("navigation", {
         activeMenu: activeAppMenu,
-        group: getAppSectionGroup(activeAppMenu)?.id || "home"
+        group: getAppSectionGroup(
+            activeAppMenu,
+            {
+                drivingAvailable: DRIVING_MODE_AVAILABLE,
+                expertMode: isExpertExperience(experienceMode)
+            }
+        )?.id || "home"
     });
 
     if (activeAppMenu === "driving") {
@@ -34774,6 +35128,7 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="dashboard"
             >
+                ${renderV8WelcomePanel()}
                 ${renderMusicalDashboardPage()}
             </div>
                 `
@@ -35095,19 +35450,24 @@ function displayPlaylists(playlists) {
                 data-app-menu-page="settings"
             >
                 ${renderSpotifyConnectionSettingsPanel()}
-                ${renderContextualHelpSettingsPanel()}
-                ${renderAppHealthPanel()}
+                ${renderExperienceModePanel()}
                 ${renderUiThemeSettingsPanel()}
-                ${renderOfflinePerformancePanel()}
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}
                 ${renderSyncPreparationPanel()}
-                ${renderCleanupPanel()}
-                ${renderMixProfilesSection()}
-                ${renderPriorityPanel()}
-                ${renderCoherencePanel()}
-                ${renderIntensityPanel()}
-                ${renderExclusionPanel()}
+                ${isExpertExperience(experienceMode)
+                    ? `
+                        ${renderContextualHelpSettingsPanel()}
+                        ${renderAppHealthPanel()}
+                        ${renderOfflinePerformancePanel()}
+                        ${renderCleanupPanel()}
+                        ${renderMixProfilesSection()}
+                        ${renderPriorityPanel()}
+                        ${renderCoherencePanel()}
+                        ${renderIntensityPanel()}
+                        ${renderExclusionPanel()}
+                    `
+                    : renderEssentialAdvancedSettingsCallout()}
             </div>
                 `
                 : ""}
@@ -38374,6 +38734,17 @@ async function initializeApp() {
 
         startServerSyncWatcher();
 
+        if (serverSyncRecoveryStatus.recovered) {
+            window.setTimeout(() => {
+                showToast(
+                    serverSyncRecoveryStatus.source === "recovery"
+                        ? "☁ Liaison au serveur restaurée automatiquement."
+                        : "☁ Dernière adresse serveur restaurée.",
+                    "success"
+                );
+            }, 500);
+        }
+
         if (isServerSyncConnected()) {
             window.setTimeout(
                 () => runServerAutoSync("startup"),
@@ -38642,6 +39013,19 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        const experienceModeButton =
+            event.target.closest(
+                "[data-experience-mode]"
+            );
+
+        if (experienceModeButton) {
+            applyExperienceMode(
+                experienceModeButton.dataset.experienceMode ||
+                "essential"
+            );
+            return;
+        }
+
         if (event.target.closest("[data-copy-spotify-redirect]")) {
             await copySpotifyRedirectUri();
             return;

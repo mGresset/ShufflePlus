@@ -1,5 +1,14 @@
 # Feuille de route Shuffle+
 
+- **v8.0.0 — Version publique simplifiée : terminée**
+  - mode Essentiel pour les nouveaux utilisateurs ;
+  - mode Expert conservé pour les installations existantes ;
+  - accueil et première configuration Spotify plus guidés ;
+  - liaison Railway sauvegardée et restaurable ;
+  - dernière adresse serveur mémorisée ;
+  - migrations sensibles protégées ;
+  - diagnostic enrichi.
+
 - **v7.9.0 — Architecture et performances : terminée**
   - chargeur progressif de fonctionnalités ;
   - Centre de diagnostic chargé à la demande ;
@@ -23,12 +32,6 @@
   - anciennes URL toujours compatibles ;
   - détection de la version du Service Worker en attente ;
   - rechargement unique après une mise à jour.
-
-- **v8.0.0 — Grande version publique simplifiée : prévue**
-  - accueil public encore plus guidé ;
-  - mode Essentiel et fonctions avancées ;
-  - poursuite du découpage des fonctionnalités lourdes ;
-  - expérience d’installation PWA harmonisée.
 
 ---
 

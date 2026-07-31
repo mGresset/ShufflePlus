@@ -116,7 +116,10 @@ export function getPrimaryAppMenu(value = "") {
 
 export function getAppSectionGroup(
     value = "",
-    { drivingAvailable = true } = {}
+    {
+        drivingAvailable = true,
+        expertMode = true
+    } = {}
 ) {
     const primaryId = getPrimaryAppMenu(value);
     const section = APP_SECTION_GROUPS[primaryId];
@@ -129,10 +132,34 @@ export function getAppSectionGroup(
         ([id]) => drivingAvailable || id !== "driving"
     );
 
+    const featured = filterItems(section.featured);
+    const more = filterItems(section.more);
+
+    if (expertMode) {
+        return {
+            ...section,
+            featured,
+            more
+        };
+    }
+
+    const essentialFeatured = {
+        music: featured,
+        mixes: featured,
+        quick: [
+            ...featured,
+            ...more.filter(([id]) => id === "driving")
+        ],
+        settings: [
+            ...featured,
+            ...more.filter(([id]) => id === "guide")
+        ]
+    }[primaryId] || featured;
+
     return {
         ...section,
-        featured: filterItems(section.featured),
-        more: filterItems(section.more)
+        featured: essentialFeatured,
+        more: []
     };
 }
 
