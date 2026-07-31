@@ -1,0 +1,47 @@
+{
+  "project": "Shuffle+",
+  "version": "8.0.0",
+  "baseVersion": "7.9.0",
+  "generatedAt": "2026-07-31T22:23:00+02:00",
+  "status": "validated",
+  "summary": "Version publique simplifiée avec modes Essentiel/Expert et récupération locale de la liaison serveur.",
+  "validation": {
+    "javascriptFilesValid": 65,
+    "linkedModules": 35,
+    "applicationTestsPassed": 94,
+    "applicationTestsFailed": 0,
+    "syncServerTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmokeTest": "passed",
+    "patchVerification": "passed"
+  },
+  "features": [
+    "Mode Essentiel par défaut pour une nouvelle installation",
+    "Migration automatique des installations existantes vers le mode Expert",
+    "Sous-menus et recherche adaptés au niveau d’expérience",
+    "Accueil Shuffle+ 8 orienté raccourcis, musique et création",
+    "Première configuration Spotify publique mieux guidée",
+    "Sauvegarde locale de la liaison Railway et de la dernière adresse",
+    "Restauration automatique d’une configuration serveur manquante",
+    "Protection des configurations sensibles pendant les migrations",
+    "Diagnostic du mode d’expérience et de la récupération serveur"
+  ],
+  "dataCompatibility": {
+    "spotifyClientId": true,
+    "spotifyTokens": true,
+    "mixes": true,
+    "iosShortcuts": true,
+    "preferredDevice": true,
+    "dynamicLyrics": true,
+    "themes": true,
+    "serverSync": true,
+    "statistics": true
+  },
+  "manualChecksStillRequired": [
+    "Connexion Spotify réelle avec un nouveau Client ID",
+    "Migration réelle de la PWA v7.9.0 vers v8.0.0 sur Safari iOS",
+    "Restauration réelle de la liaison Railway après suppression volontaire de la clé principale",
+    "Mode conduite sur un iPhone physique"
+  ]
+}

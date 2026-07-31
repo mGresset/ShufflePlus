@@ -10,11 +10,11 @@
 
     <meta
         name="description"
-        content="Shuffle+ — mix intelligent, Adaptive DJ et automatisation Spotify."
+        content="Shuffle+ 8 — lancez vos playlists Spotify, créez des mix intelligents et automatisez vos raccourcis iPhone."
     >
 
     <meta name="theme-color" content="#8b5cf6">
-    <meta name="shuffleplus-version" content="7.9.0">
+    <meta name="shuffleplus-version" content="8.0.0">
     <meta name="color-scheme" content="dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -42,7 +42,7 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=7.9.0">
+    <link rel="stylesheet" href="./style.css?v=8.0.0">
 </head>
 
 <body>
@@ -130,16 +130,39 @@
                     </div>
                 </div>
 
+                <div class="spotify-setup-public-intro">
+                    <span>Shuffle+ 8 · accès public</span>
+                    <h4>Votre playlist Spotify en une seule action</h4>
+                    <p>
+                        Lancez une playlist en mode aléatoire depuis un raccourci
+                        iPhone, créez des mix intelligents et gardez vos réglages
+                        uniquement sur votre appareil.
+                    </p>
+                    <div>
+                        <small>📱 Raccourcis iOS</small>
+                        <small>🔀 Mélange intelligent</small>
+                        <small>🔐 Client ID personnel</small>
+                    </div>
+                </div>
+
                 <p>
-                    Chaque utilisateur de Shuffle+ utilise son propre Client ID
-                    Spotify Developer. Aucun Client Secret n’est demandé.
+                    Chaque utilisateur utilise son propre Client ID Spotify
+                    Developer. Aucun Client Secret n’est demandé ni stocké.
                 </p>
 
-                <ol class="spotify-setup-steps">
-                    <li>Créez une application dans Spotify for Developers.</li>
-                    <li>Activez la Web API.</li>
-                    <li>Ajoutez exactement l’adresse de redirection ci-dessous.</li>
-                    <li>Copiez le Client ID de votre application.</li>
+                <ol class="spotify-setup-steps spotify-setup-flow">
+                    <li>
+                        <strong>1</strong>
+                        <span>Créer une application Spotify et activer la Web API.</span>
+                    </li>
+                    <li>
+                        <strong>2</strong>
+                        <span>Ajouter exactement l’adresse de redirection ci-dessous.</span>
+                    </li>
+                    <li>
+                        <strong>3</strong>
+                        <span>Coller le Client ID puis se connecter à Spotify.</span>
+                    </li>
                 </ol>
 
                 <div class="spotify-redirect-box">
@@ -254,7 +277,7 @@
         </div>
     </aside>
 
-    <script src="./startup-recovery-7.9.0.js"></script>
-    <script type="module" src="./app.js?v=7.9.0"></script>
+    <script src="./startup-recovery-8.0.0.js"></script>
+    <script type="module" src="./app.js?v=8.0.0"></script>
 </body>
 </html>

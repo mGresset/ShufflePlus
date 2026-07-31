@@ -79,6 +79,9 @@ export function buildAppHealthSnapshot({
     featureRuntime = [],
     runtimeStateDiagnostics = {},
     storageMigration = {},
+    experienceMode = "essential",
+    serverSyncConnected = false,
+    serverSyncRecovery = {},
     viewportWidth = 0,
     viewportHeight = 0,
     currentMenu = "",
@@ -119,6 +122,15 @@ export function buildAppHealthSnapshot({
         repairedKeyCount: Math.max(0, normalizeNumber(storageMigration?.repairedKeyCount)),
         lastRunAt: Math.max(0, normalizeNumber(storageMigration?.lastRunAt))
     };
+    const syncRecovery = {
+        connected: normalizeBoolean(serverSyncConnected),
+        recoveryAvailable: normalizeBoolean(serverSyncRecovery?.recoveryAvailable),
+        addressAvailable: normalizeBoolean(serverSyncRecovery?.addressAvailable),
+        serverHost: String(serverSyncRecovery?.serverHost || ""),
+        recoverySavedAt: Math.max(0, normalizeNumber(serverSyncRecovery?.recoverySavedAt))
+    };
+    const normalizedExperienceMode =
+        experienceMode === "expert" ? "expert" : "essential";
     const runtimeState = {
         revision: Math.max(0, normalizeNumber(runtimeStateDiagnostics?.revision)),
         uptimeMs: Math.max(0, normalizeNumber(runtimeStateDiagnostics?.uptimeMs)),
@@ -207,6 +219,31 @@ export function buildAppHealthSnapshot({
             value: `${loadedFeatureCount} chargé(s) · ${failedFeatureCount} erreur(s)`
         }),
         buildCheck({
+            id: "experience-mode",
+            label: "Niveau d’interface",
+            description: "Le mode Essentiel allège les menus, tandis que le mode Expert affiche tous les outils.",
+            category: "experience",
+            available: true,
+            value: normalizedExperienceMode === "expert"
+                ? "Mode Expert"
+                : "Mode Essentiel"
+        }),
+        buildCheck({
+            id: "server-sync-recovery",
+            label: "Sauvegarde de la liaison serveur",
+            description: "Conserve une copie locale de la liaison chiffrée et la dernière adresse connue du serveur.",
+            category: "storage",
+            available: !syncRecovery.connected || syncRecovery.recoveryAvailable,
+            warningWhenMissing: syncRecovery.connected,
+            value: syncRecovery.connected
+                ? syncRecovery.recoveryAvailable
+                    ? `Protégée · ${syncRecovery.serverHost || "serveur enregistré"}`
+                    : "Connexion active sans copie de secours"
+                : syncRecovery.addressAvailable
+                    ? `Adresse mémorisée · ${syncRecovery.serverHost}`
+                    : "Aucun serveur configuré"
+        }),
+        buildCheck({
             id: "standalone",
             label: "Mode application",
             description: "Indique si Shuffle+ est ouvert comme PWA installée.",
@@ -281,7 +318,9 @@ export function buildAppHealthSnapshot({
             spotifyApi,
             featureModules,
             runtimeState,
-            storage
+            storage,
+            experienceMode: normalizedExperienceMode,
+            serverSyncRecovery: syncRecovery
         }
     };
 }

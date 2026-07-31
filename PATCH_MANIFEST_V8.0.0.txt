@@ -1,0 +1,31 @@
+SHUFFLE+ V8.0.0 — MANIFESTE DU PATCH
+
+Base : v7.9.0
+
+FICHIERS MODIFIÉS
+- VERSION
+- package.json
+- config.js
+- index.html
+- manifest.webmanifest
+- service-worker.js
+- app.js
+- app-health.js
+- style.css
+- core/app-menu.js
+- core/storage-migrations.js
+- scripts/check-dist.mjs
+
+NOUVEAUX FICHIERS
+- core/experience-mode.js
+- core/server-sync-recovery.js
+- startup-recovery-8.0.0.js
+- tests/v800-public-experience.test.mjs
+- DEPLOIEMENT-V8.0.0.md
+- INSTALLATION-V8.0.0.txt
+- V8.0.0_NOTES.md
+- BUILD_REPORT_V8.0.0.json
+- PATCH_MANIFEST_V8.0.0.txt
+
+À SUPPRIMER APRÈS EXTRACTION
+- startup-recovery-7.9.0.js

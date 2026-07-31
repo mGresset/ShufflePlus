@@ -1,5 +1,5 @@
-const APP_VERSION = "7.9.0";
-const CACHE_VERSION = "shuffleplus-v7.9.0";
+const APP_VERSION = "8.0.0";
+const CACHE_VERSION = "shuffleplus-v8.0.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,18 +7,20 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=7.9.0",
-    "./app.js?v=7.9.0",
+    "./style.css?v=8.0.0",
+    "./app.js?v=8.0.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-7.9.0.js",
+    "./startup-recovery-8.0.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
     "./core/runtime-state.js",
     "./core/storage-migrations.js",
+    "./core/experience-mode.js",
+    "./core/server-sync-recovery.js",
     "./core/pwa-update.js",
     "./core/platform.js",
     "./core/spotify-app-config.js",

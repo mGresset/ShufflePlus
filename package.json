@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "7.9.0",
+  "version": "8.0.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ — architecture progressive, stockage migré en sécurité, diagnostic exportable et expérience Spotify/iOS simplifiée.",
+  "description": "Shuffle+ 8 — expérience publique simplifiée, mode Essentiel/Expert, synchronisation serveur récupérable et automatisation Spotify/iOS.",
   "engines": {
     "node": ">=20"
   },
