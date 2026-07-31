@@ -15430,7 +15430,7 @@ body.is-connected .startup-recovery-panel {
     }
 }
 
-/* Shuffle+ v7.6.0 — configuration Spotify personnelle */
+/* Shuffle+ v7.7.0 — configuration Spotify personnelle */
 .spotify-setup-panel,
 .spotify-connection-settings {
     margin-top: 18px;
@@ -15591,5 +15591,270 @@ body.is-connected .startup-recovery-panel {
     .spotify-client-id-settings-form button {
         width: 100%;
         min-height: 44px;
+    }
+}
+
+/* Shuffle+ v7.7.0 — moteur de mélange explicable */
+.shuffle-explainability-report {
+    margin: 1.15rem 0;
+    padding: 1.1rem;
+    border: 1px solid rgba(167, 139, 250, 0.34);
+    border-radius: 20px;
+    background:
+        linear-gradient(145deg, rgba(76, 29, 149, 0.2), rgba(15, 23, 42, 0.88));
+    box-shadow: 0 18px 42px rgba(2, 6, 23, 0.24);
+}
+
+.shuffle-report-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.shuffle-report-heading h3 {
+    margin: 0.2rem 0 0.35rem;
+}
+
+.shuffle-report-heading p {
+    max-width: 58ch;
+    margin: 0;
+    color: var(--muted-text, #cbd5e1);
+}
+
+.shuffle-report-kicker {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #c4b5fd;
+}
+
+.shuffle-report-score {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 155px;
+    padding: 0.8rem;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.72);
+    text-align: center;
+}
+
+.shuffle-report-score strong {
+    font-size: 1.35rem;
+    color: #a7f3d0;
+}
+
+.shuffle-report-score small {
+    grid-column: 1 / -1;
+    color: #c4b5fd;
+}
+
+.shuffle-seed-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 1rem 0;
+    padding: 0.85rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.62);
+}
+
+.shuffle-seed-panel > div:first-child {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.shuffle-seed-panel span {
+    color: #cbd5e1;
+    font-size: 0.82rem;
+}
+
+.shuffle-seed-panel code {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #ede9fe;
+    font-size: 0.95rem;
+}
+
+.shuffle-seed-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.55rem;
+}
+
+.shuffle-seed-actions button {
+    min-height: 42px;
+    padding: 0.65rem 0.85rem;
+    border-radius: 12px;
+}
+
+.shuffle-report-comparison {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.shuffle-report-column-labels,
+.shuffle-report-row {
+    display: grid;
+    grid-template-columns: minmax(130px, 1fr) 64px 28px 64px;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.shuffle-report-column-labels {
+    padding: 0 0.7rem;
+    color: #94a3b8;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+}
+
+.shuffle-report-row {
+    padding: 0.7rem;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.48);
+}
+
+.shuffle-report-row strong {
+    text-align: center;
+}
+
+.shuffle-report-row.is-improved strong:last-child {
+    color: #86efac;
+}
+
+.shuffle-report-row.is-worse strong:last-child {
+    color: #fca5a5;
+}
+
+.shuffle-report-details {
+    margin-top: 0.75rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.46);
+}
+
+.shuffle-report-details summary {
+    padding: 0.85rem;
+    cursor: pointer;
+    font-weight: 750;
+}
+
+.shuffle-relaxation-list,
+.shuffle-placement-list {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0;
+    padding: 0 0.85rem 0.9rem;
+    list-style: none;
+}
+
+.shuffle-relaxation-list li {
+    display: grid;
+    gap: 0.2rem;
+    padding: 0.75rem;
+    border-left: 3px solid #fbbf24;
+    border-radius: 10px;
+    background: rgba(30, 41, 59, 0.72);
+}
+
+.shuffle-relaxation-list li.is-success {
+    border-left-color: #34d399;
+}
+
+.shuffle-relaxation-list span,
+.shuffle-placement-list small,
+.shuffle-placement-list p {
+    color: #cbd5e1;
+}
+
+.shuffle-placement-list li {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 0.7rem;
+    align-items: flex-start;
+}
+
+.shuffle-explanation-position {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(139, 92, 246, 0.28);
+    font-weight: 800;
+}
+
+.shuffle-placement-list li > div {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.shuffle-placement-list p {
+    margin: 0.2rem 0 0;
+    font-size: 0.84rem;
+}
+
+.track-placement-explanation {
+    margin-top: 0.4rem;
+    font-size: 0.78rem;
+}
+
+.track-placement-explanation summary {
+    width: fit-content;
+    cursor: pointer;
+    color: #c4b5fd;
+    font-weight: 700;
+}
+
+.track-placement-explanation span {
+    display: block;
+    margin-top: 0.3rem;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+@media (max-width: 720px) {
+    .shuffle-report-heading,
+    .shuffle-seed-panel {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .shuffle-report-score {
+        width: 100%;
+    }
+
+    .shuffle-seed-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .shuffle-report-column-labels,
+    .shuffle-report-row {
+        grid-template-columns: minmax(100px, 1fr) 48px 20px 48px;
+        font-size: 0.82rem;
+    }
+}
+
+@media (max-width: 430px) {
+    .shuffle-explainability-report {
+        padding: 0.85rem;
+        border-radius: 16px;
+    }
+
+    .shuffle-seed-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .shuffle-report-column-labels,
+    .shuffle-report-row {
+        grid-template-columns: minmax(92px, 1fr) 42px 16px 42px;
+        gap: 0.25rem;
     }
 }

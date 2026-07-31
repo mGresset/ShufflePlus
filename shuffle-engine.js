@@ -27,11 +27,11 @@ function sharesArtist(firstTrack, secondTrack) {
     );
 }
 
-function fisherYates(items) {
+function fisherYates(items, random = Math.random) {
     const shuffled = [...items];
 
     for (let index = shuffled.length - 1; index > 0; index -= 1) {
-        const randomIndex = Math.floor(Math.random() * (index + 1));
+        const randomIndex = Math.floor(random() * (index + 1));
 
         [shuffled[index], shuffled[randomIndex]] = [
             shuffled[randomIndex],
@@ -463,8 +463,8 @@ function getIntensityPenalty(
     return penalty;
 }
 
-function scoreCandidate(track, orderedTracks, recentTrackUris, options) {
-    let score = Math.random();
+function scoreCandidate(track, orderedTracks, recentTrackUris, options, random = Math.random) {
+    let score = random();
     const trackKey = getTrackKey(track);
     const albumKey = getAlbumKey(track);
     const position = orderedTracks.length;
@@ -576,8 +576,8 @@ function normalizeNumberOption(
     );
 }
 
-export function smartShuffleTracks(tracks, customOptions = {}) {
-    const options = {
+function normalizeShuffleOptions(tracks, customOptions = {}) {
+    return {
         artistGap: normalizeNumberOption(
             customOptions.artistGap,
             0,
@@ -632,141 +632,465 @@ export function smartShuffleTracks(tracks, customOptions = {}) {
             1000,
             90
         ),
-        totalTracks: Math.max(
-            1,
-            tracks.length
-        ),
+        totalTracks: Math.max(1, tracks.length),
         intensitySettings: {
-            curve:
-                [
-                    "rising",
-                    "falling",
-                    "stable",
-                    "waves",
-                    "central-peak"
-                ].includes(
-                    customOptions.intensitySettings?.curve
-                )
-                    ? customOptions.intensitySettings.curve
-                    : "stable",
-            startIntensity:
-                normalizeNumberOption(
-                    customOptions.intensitySettings
-                        ?.startIntensity,
-                    0,
-                    100,
-                    45
-                ),
-            endIntensity:
-                normalizeNumberOption(
-                    customOptions.intensitySettings
-                        ?.endIntensity,
-                    0,
-                    100,
-                    65
-                ),
-            peakIntensity:
-                normalizeNumberOption(
-                    customOptions.intensitySettings
-                        ?.peakIntensity,
-                    0,
-                    100,
-                    85
-                ),
-            strength:
-                ["light", "normal", "strong"].includes(
-                    customOptions.intensitySettings?.strength
-                )
-                    ? customOptions.intensitySettings.strength
-                    : "normal",
+            curve: [
+                "rising",
+                "falling",
+                "stable",
+                "waves",
+                "central-peak"
+            ].includes(customOptions.intensitySettings?.curve)
+                ? customOptions.intensitySettings.curve
+                : "stable",
+            startIntensity: normalizeNumberOption(
+                customOptions.intensitySettings?.startIntensity,
+                0,
+                100,
+                45
+            ),
+            endIntensity: normalizeNumberOption(
+                customOptions.intensitySettings?.endIntensity,
+                0,
+                100,
+                65
+            ),
+            peakIntensity: normalizeNumberOption(
+                customOptions.intensitySettings?.peakIntensity,
+                0,
+                100,
+                85
+            ),
+            strength: ["light", "normal", "strong"].includes(
+                customOptions.intensitySettings?.strength
+            )
+                ? customOptions.intensitySettings.strength
+                : "normal",
             smoothTransitions:
-                customOptions.intensitySettings
-                    ?.smoothTransitions !== false
+                customOptions.intensitySettings?.smoothTransitions !== false
         },
         coherenceSettings: {
-            level:
-                ["free", "balanced", "fluid"].includes(
-                    customOptions.coherenceSettings?.level
-                )
-                    ? customOptions.coherenceSettings.level
-                    : "balanced",
+            level: ["free", "balanced", "fluid"].includes(
+                customOptions.coherenceSettings?.level
+            )
+                ? customOptions.coherenceSettings.level
+                : "balanced",
             strengthenFirstThirty:
-                customOptions.coherenceSettings
-                    ?.strengthenFirstThirty !== false,
-            durationJumpSeconds:
-                normalizeNumberOption(
-                    customOptions.coherenceSettings
-                        ?.durationJumpSeconds,
-                    60,
-                    600,
-                    150
-                )
+                customOptions.coherenceSettings?.strengthenFirstThirty !== false,
+            durationJumpSeconds: normalizeNumberOption(
+                customOptions.coherenceSettings?.durationJumpSeconds,
+                60,
+                600,
+                150
+            )
         },
         priorityRules: {
-            favoredArtists:
-                Array.isArray(
-                    customOptions.priorityRules?.favoredArtists
-                )
-                    ? customOptions.priorityRules.favoredArtists
-                    : [],
-            favoredAlbums:
-                Array.isArray(
-                    customOptions.priorityRules?.favoredAlbums
-                )
-                    ? customOptions.priorityRules.favoredAlbums
-                    : [],
-            favoredTrackUris:
-                Array.isArray(
-                    customOptions.priorityRules?.favoredTrackUris
-                )
-                    ? customOptions.priorityRules.favoredTrackUris
-                    : [],
-            intensity:
-                ["light", "normal", "strong"].includes(
-                    customOptions.priorityRules?.intensity
-                )
-                    ? customOptions.priorityRules.intensity
-                    : "normal",
+            favoredArtists: Array.isArray(
+                customOptions.priorityRules?.favoredArtists
+            )
+                ? customOptions.priorityRules.favoredArtists
+                : [],
+            favoredAlbums: Array.isArray(
+                customOptions.priorityRules?.favoredAlbums
+            )
+                ? customOptions.priorityRules.favoredAlbums
+                : [],
+            favoredTrackUris: Array.isArray(
+                customOptions.priorityRules?.favoredTrackUris
+            )
+                ? customOptions.priorityRules.favoredTrackUris
+                : [],
+            intensity: ["light", "normal", "strong"].includes(
+                customOptions.priorityRules?.intensity
+            )
+                ? customOptions.priorityRules.intensity
+                : "normal",
             boostFirstTwenty:
                 customOptions.priorityRules?.boostFirstTwenty !== false
         }
     };
+}
 
-    const remainingTracks = fisherYates(
-        tracks.filter((track) => track?.uri)
+function hashShuffleSeed(value = "") {
+    const text = String(value || "shuffleplus");
+    let hash = 2166136261;
+
+    for (let index = 0; index < text.length; index += 1) {
+        hash ^= text.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+
+    return hash >>> 0;
+}
+
+export function normalizeShuffleSeed(value = "") {
+    const normalized = String(value || "")
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]/g, "")
+        .slice(0, 32);
+
+    return normalized || "shuffleplus";
+}
+
+export function createShuffleSeed() {
+    try {
+        const values = new Uint32Array(2);
+        globalThis.crypto?.getRandomValues?.(values);
+
+        if (values.some((value) => value !== 0)) {
+            return `${values[0].toString(36)}${values[1].toString(36)}`;
+        }
+    } catch {
+        // Le secours temporel suffit pour créer un nouveau mélange local.
+    }
+
+    return `${Date.now().toString(36)}${Math.floor(Math.random() * 1e9).toString(36)}`;
+}
+
+export function createSeededRandom(seed = "shuffleplus") {
+    let state = hashShuffleSeed(normalizeShuffleSeed(seed));
+
+    return () => {
+        state += 0x6D2B79F5;
+        let value = state;
+        value = Math.imul(value ^ (value >>> 15), value | 1);
+        value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+        return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function getConstraintViolations(track, orderedTracks, options) {
+    const position = orderedTracks.length;
+    const trackKey = getTrackKey(track);
+    const albumKey = getAlbumKey(track);
+    let artistDistance = 0;
+    let albumDistance = 0;
+    let trackDistance = 0;
+
+    for (let distance = 1; distance <= options.artistGap; distance += 1) {
+        const previousTrack = orderedTracks[position - distance];
+        if (previousTrack && sharesArtist(track, previousTrack)) {
+            artistDistance = distance;
+            break;
+        }
+    }
+
+    for (let distance = 1; distance <= options.albumGap; distance += 1) {
+        const previousTrack = orderedTracks[position - distance];
+        if (
+            previousTrack &&
+            albumKey &&
+            albumKey === getAlbumKey(previousTrack)
+        ) {
+            albumDistance = distance;
+            break;
+        }
+    }
+
+    for (let distance = 1; distance <= options.trackGap; distance += 1) {
+        const previousTrack = orderedTracks[position - distance];
+        if (
+            previousTrack &&
+            trackKey &&
+            trackKey === getTrackKey(previousTrack)
+        ) {
+            trackDistance = distance;
+            break;
+        }
+    }
+
+    return {
+        artist: artistDistance > 0,
+        album: albumDistance > 0,
+        track: trackDistance > 0,
+        immediateArtist: artistDistance === 1,
+        artistDistance,
+        albumDistance,
+        trackDistance
+    };
+}
+
+function chooseCandidateTier(candidates) {
+    const tiers = [
+        {
+            id: "strict",
+            label: "Toutes les contraintes respectées",
+            filter: ({ violations }) =>
+                !violations.artist &&
+                !violations.album &&
+                !violations.track
+        },
+        {
+            id: "album-relaxed",
+            label: "Écart d’album relâché",
+            filter: ({ violations }) =>
+                !violations.artist && !violations.track
+        },
+        {
+            id: "artist-relaxed",
+            label: "Écart d’artiste relâché",
+            filter: ({ violations }) =>
+                !violations.track && !violations.immediateArtist
+        },
+        {
+            id: "immediate-artist-relaxed",
+            label: "Répétition immédiate d’artiste autorisée",
+            filter: ({ violations }) => !violations.track
+        },
+        {
+            id: "fallback",
+            label: "Contraintes relâchées faute d’alternative",
+            filter: () => true
+        }
+    ];
+
+    for (const tier of tiers) {
+        const eligible = candidates.filter(tier.filter);
+        if (eligible.length) {
+            return { ...tier, eligible };
+        }
+    }
+
+    return { ...tiers.at(-1), eligible: candidates };
+}
+
+function getPlacementReasons({
+    track,
+    orderedTracks,
+    options,
+    recentTrackUris,
+    tier,
+    violations
+}) {
+    const position = orderedTracks.length;
+    const reasons = [];
+    const targetIntensity = getTargetIntensity(
+        options.intensitySettings,
+        position,
+        options.totalTracks
+    );
+    const actualIntensity = getTrackIntensityScore(track);
+    const previousTrack = orderedTracks[position - 1];
+    const priorityMatches = getPriorityMatchCount(
+        track,
+        options.priorityRules
     );
 
+    if (position === 0) {
+        reasons.push(
+            `ouvre le mix près de l’intensité cible (${Math.round(targetIntensity)} %)`
+        );
+    }
+
+    if (priorityMatches > 0) {
+        reasons.push(
+            priorityMatches > 1
+                ? "cumule plusieurs priorités définies"
+                : "correspond à une priorité définie"
+        );
+    }
+
+    if (position > 0 && !violations.artist) {
+        reasons.push("garde de la distance avec le même artiste");
+    }
+
+    if (position > 0 && !violations.album && reasons.length < 3) {
+        reasons.push("évite un album trop proche");
+    }
+
+    if (Math.abs(actualIntensity - targetIntensity) <= 12 && reasons.length < 3) {
+        reasons.push("suit la courbe d’intensité demandée");
+    }
+
+    if (
+        previousTrack &&
+        getTransitionPenalty(
+            previousTrack,
+            track,
+            options,
+            position
+        ) < 18 &&
+        reasons.length < 3
+    ) {
+        reasons.push("forme une transition cohérente avec le titre précédent");
+    }
+
+    if (
+        recentTrackUris.has(getTrackKey(track)) &&
+        position >= options.recentStartWindow &&
+        reasons.length < 3
+    ) {
+        reasons.push("repousse un titre récemment lu après le début du mix");
+    }
+
+    if (tier.id !== "strict") {
+        reasons.push(tier.label.toLowerCase());
+    }
+
+    return reasons.slice(0, 4);
+}
+
+function getShuffleQualityScore(stats, trackCount) {
+    if (!stats || trackCount < 2) {
+        return 100;
+    }
+
+    const transitions = Math.max(1, trackCount - 1);
+    const firstTwenty = Math.max(1, Math.min(20, trackCount));
+    const inverse = (value, total) =>
+        Math.max(0, 100 - Math.round((Math.max(0, value) / total) * 100));
+
+    return Math.round((
+        inverse(stats.consecutiveArtistRepeats, transitions) * 1.3 +
+        inverse(stats.consecutiveAlbumRepeats, transitions) * 0.9 +
+        inverse(stats.abruptTransitions, transitions) * 1.1 +
+        inverse(stats.recentTracksInFirstTwenty, firstTwenty) * 0.7 +
+        Math.max(0, Math.min(100, stats.intensityCurveAdherence || 0)) * 1.2
+    ) / 5.2);
+}
+
+function summarizeRelaxations(placements = []) {
+    const grouped = new Map();
+
+    for (const placement of placements) {
+        if (placement.relaxation === "strict") {
+            continue;
+        }
+
+        const existing = grouped.get(placement.relaxation) || {
+            id: placement.relaxation,
+            label: placement.relaxationLabel,
+            count: 0,
+            positions: []
+        };
+        existing.count += 1;
+        if (existing.positions.length < 8) {
+            existing.positions.push(placement.position);
+        }
+        grouped.set(placement.relaxation, existing);
+    }
+
+    return [...grouped.values()];
+}
+
+export function smartShuffleTracksDetailed(tracks, customOptions = {}) {
+    const validTracks = tracks.filter((track) => track?.uri);
+    const options = normalizeShuffleOptions(validTracks, customOptions);
+    const seed = normalizeShuffleSeed(
+        customOptions.seed || createShuffleSeed()
+    );
+    const random = createSeededRandom(seed);
+    const remainingTracks = fisherYates(validTracks, random);
     const orderedTracks = [];
-    const recentTrackUris = new Set(getRecentTrackUris());
+    const placements = [];
+    const recentTrackUris = new Set(
+        Array.isArray(customOptions.recentTrackUris)
+            ? customOptions.recentTrackUris.filter(
+                (uri) => typeof uri === "string"
+            )
+            : getRecentTrackUris()
+    );
+    const analysisOptions = {
+        ...customOptions,
+        recentTrackUris: [...recentTrackUris]
+    };
+    const before = analyzeShuffleOrder(validTracks, analysisOptions);
 
     while (remainingTracks.length) {
         const candidateCount = Math.min(
             remainingTracks.length,
             options.candidatePoolSize
         );
-
-        let bestIndex = 0;
-        let bestScore = Number.POSITIVE_INFINITY;
+        const candidateEntries = [];
 
         for (let index = 0; index < candidateCount; index += 1) {
-            const candidateScore = scoreCandidate(
-                remainingTracks[index],
-                orderedTracks,
-                recentTrackUris,
-                options
-            );
-
-            if (candidateScore < bestScore) {
-                bestScore = candidateScore;
-                bestIndex = index;
-            }
+            const track = remainingTracks[index];
+            candidateEntries.push({
+                index,
+                track,
+                score: scoreCandidate(
+                    track,
+                    orderedTracks,
+                    recentTrackUris,
+                    options,
+                    random
+                ),
+                violations: getConstraintViolations(
+                    track,
+                    orderedTracks,
+                    options
+                )
+            });
         }
 
-        const [selectedTrack] = remainingTracks.splice(bestIndex, 1);
+        const tier = chooseCandidateTier(candidateEntries);
+        tier.eligible.sort((first, second) => first.score - second.score);
+        const selected = tier.eligible[0];
+        const [selectedTrack] = remainingTracks.splice(selected.index, 1);
+        const reasons = getPlacementReasons({
+            track: selectedTrack,
+            orderedTracks,
+            options,
+            recentTrackUris,
+            tier,
+            violations: selected.violations
+        });
+
         orderedTracks.push(selectedTrack);
+        placements.push({
+            position: orderedTracks.length,
+            trackUri: getTrackKey(selectedTrack),
+            trackName: selectedTrack?.name || "Morceau",
+            artists: (selectedTrack?.artists || [])
+                .map((artist) => artist?.name)
+                .filter(Boolean)
+                .join(", "),
+            albumName: selectedTrack?.album?.name || "",
+            reasons,
+            relaxation: tier.id,
+            relaxationLabel: tier.label,
+            targetIntensity: Math.round(
+                getTargetIntensity(
+                    options.intensitySettings,
+                    orderedTracks.length - 1,
+                    options.totalTracks
+                )
+            ),
+            actualIntensity: Math.round(
+                getTrackIntensityScore(selectedTrack)
+            )
+        });
     }
 
-    return orderedTracks;
+    const after = analyzeShuffleOrder(orderedTracks, analysisOptions);
+    const beforeScore = getShuffleQualityScore(before, validTracks.length);
+    const afterScore = getShuffleQualityScore(after, orderedTracks.length);
+
+    return {
+        tracks: orderedTracks,
+        seed,
+        generatedAt: Date.now(),
+        before,
+        after,
+        beforeScore,
+        afterScore,
+        improvement: afterScore - beforeScore,
+        placements,
+        relaxations: summarizeRelaxations(placements),
+        recentTrackUris: [...recentTrackUris],
+        settings: {
+            artistGap: options.artistGap,
+            albumGap: options.albumGap,
+            trackGap: options.trackGap,
+            recentStartWindow: options.recentStartWindow,
+            intensityCurve: options.intensitySettings.curve,
+            coherenceLevel: options.coherenceSettings.level
+        }
+    };
+}
+
+export function smartShuffleTracks(tracks, customOptions = {}) {
+    return smartShuffleTracksDetailed(tracks, customOptions).tracks;
 }
 
 export function analyzeShuffleOrder(tracks, customOptions = {}) {
@@ -900,7 +1224,11 @@ export function analyzeShuffleOrder(tracks, customOptions = {}) {
         )
     );
 
-    const recentTrackUris = new Set(getRecentTrackUris());
+    const recentTrackUris = new Set(
+        Array.isArray(customOptions.recentTrackUris)
+            ? customOptions.recentTrackUris
+            : getRecentTrackUris()
+    );
     const recentTracksInFirstTwenty = tracks
         .slice(0, 20)
         .filter((track) => recentTrackUris.has(getTrackKey(track)))

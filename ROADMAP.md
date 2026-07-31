@@ -1,20 +1,19 @@
 # Feuille de route Shuffle+
 
-- **v7.6.0 — Accès public et expérience iOS : terminée**
-  - Client ID Spotify personnel par navigateur ;
-  - assistant de première configuration ;
-  - migration des installations déjà connectées ;
-  - changement et test du Client ID dans Réglages ;
-  - mode conduite masqué hors iPhone/iPad ;
-  - simulation iOS disponible uniquement sur le serveur local.
+- **v7.7.0 — Moteur de mélange explicable : terminée**
+  - graine reproductible pour chaque ordre ;
+  - comparaison avant/après ;
+  - score global de qualité ;
+  - explication des placements ;
+  - contraintes relâchées signalées ;
+  - reproduction exacte du même mélange.
 
-- **v7.6.1 — Stabilisation publique : prochaine**
-  - retours de connexion de nouveaux utilisateurs ;
-  - messages 403 pour les comptes non autorisés ;
-  - tests Safari/PWA et migrations réelles.
+- **v7.7.1 — Stabilisation du rapport : prochaine**
+  - retours sur les grandes playlists ;
+  - cohérence après modifications manuelles ;
+  - optimisation de l’affichage mobile.
 
-- **v7.7.0 — Liste de lecture avancée et conduite**
-- **v7.8.0 — Moteur de mélange explicable**
+- **v7.8.0 — Liste de lecture avancée et conduite**
 - **v7.9.0 — Architecture et performances**
 
 ---
@@ -70,10 +69,6 @@
   - test et copie du lien compagnon ;
   - aucune parole ajoutée au mode conduite.
 
-- **v7.5.0 — Moteur explicable : prévue**
-  - rapport avant/après ;
-  - graine reproductible ;
-  - explication des compromis du mélange.
 
 - **v7.2.1 — Correctif connexion/navigation : terminée**
   - correction de `groups is not defined` ;

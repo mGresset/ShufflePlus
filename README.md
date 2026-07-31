@@ -1,5 +1,13 @@
 # Shuffle+
 
+## v7.7.0 — Mélange intelligent explicable
+
+La v7.7.0 rend le moteur Shuffle+ compréhensible et reproductible. Chaque nouveau mélange reçoit une graine qui permet de recréer exactement le même ordre. Un rapport compare l’ordre source et le résultat, indique les contraintes qui ont dû être relâchées et explique le placement des premiers morceaux.
+
+Dans l’éditeur de l’ordre, chaque titre conserve aussi un accès **Pourquoi ici ?** tant qu’il se trouve encore à la position choisie par le moteur. Les mélanges classiques restent disponibles et les données de la v7.6.0 sont conservées.
+
+---
+
 ## v7.6.0 — Accès public et expérience iOS
 
 Shuffle+ peut désormais être utilisé par plusieurs personnes sur le même site public. Chaque utilisateur configure localement son propre Client ID Spotify Developer ; aucun Client Secret n’est demandé. Les installations déjà connectées avant la v7.6.0 migrent automatiquement leur configuration historique.
