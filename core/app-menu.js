@@ -139,3 +139,14 @@ export function normalizeAppMenuScrollPositions(value) {
             ])
     );
 }
+
+export function getVisibleAppMenuGroups({
+    drivingAvailable = true
+} = {}) {
+    return APP_MENU_GROUPS.map((group) => ({
+        ...group,
+        items: group.items.filter(
+            ([id]) => drivingAvailable || id !== "driving"
+        )
+    })).filter((group) => group.items.length > 0);
+}

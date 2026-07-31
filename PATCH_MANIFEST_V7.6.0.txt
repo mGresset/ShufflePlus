@@ -1,0 +1,25 @@
+Shuffle+ v7.6.0 — fichiers du patch depuis v7.5.0
+
+VERSION
+package.json
+README.md
+ROADMAP.md
+app.js
+auth.js
+config.js
+index.html
+manifest.webmanifest
+service-worker.js
+style.css
+startup-recovery-7.6.0.js
+core/app-menu.js
+core/platform.js
+core/spotify-app-config.js
+scripts/check-dist.mjs
+tests/navigation-regression.test.mjs
+tests/v760-public-ios.test.mjs
+DEPLOIEMENT-V7.6.0.md
+INSTALLATION-V7.6.0.txt
+V7.6.0_NOTES.md
+BUILD_REPORT_V7.6.0.json
+PATCH_MANIFEST_V7.6.0.txt
