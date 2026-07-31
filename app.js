@@ -253,7 +253,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "8.0.0";
+const APP_VERSION = "8.0.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -669,7 +669,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.0.0-shell";
+    "shuffleplus-v8.0.1-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3191,7 +3191,7 @@ function renderExperienceModePanel() {
                             type="button"
                             class="experience-mode-option
                             ${selected ? "is-selected" : ""}"
-                            data-experience-mode="${modeId}"
+                            data-select-experience-mode="${modeId}"
                             aria-pressed="${String(selected)}"
                         >
                             <span aria-hidden="true">${item.icon}</span>
@@ -3254,7 +3254,7 @@ function renderV8WelcomePanel() {
                 <button
                     type="button"
                     class="is-secondary"
-                    data-experience-mode="${expert ? "essential" : "expert"}"
+                    data-select-experience-mode="${expert ? "essential" : "expert"}"
                 >
                     ${expert ? "Passer en mode Essentiel" : "Activer le mode Expert"}
                 </button>
@@ -3280,7 +3280,7 @@ function renderEssentialAdvancedSettingsCallout() {
             </div>
             <button
                 type="button"
-                data-experience-mode="expert"
+                data-select-experience-mode="expert"
             >
                 Activer le mode Expert
             </button>
@@ -3375,7 +3375,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.0.0
+                        ✨ Apparence v8.0.1
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4548,7 +4548,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.0.0",
+                "./service-worker.js?v=8.0.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -39015,12 +39015,13 @@ contentElement.addEventListener(
     async (event) => {
         const experienceModeButton =
             event.target.closest(
-                "[data-experience-mode]"
+                "button[data-select-experience-mode]"
             );
 
         if (experienceModeButton) {
+            event.preventDefault();
             applyExperienceMode(
-                experienceModeButton.dataset.experienceMode ||
+                experienceModeButton.dataset.selectExperienceMode ||
                 "essential"
             );
             return;
