@@ -19,7 +19,7 @@ const styleSource = await readFile("style.css", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 
 const v781Style = styleSource.split(
-    "Shuffle+ v7.8.1 — thèmes étendus"
+    "— thèmes étendus et conduite synchronisée"
 )[1] || "";
 
 test("le sélecteur propose au moins treize palettes", () => {
