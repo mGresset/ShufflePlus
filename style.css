@@ -16106,3 +16106,364 @@ body.is-connected .startup-recovery-panel {
         grid-template-columns: 1fr;
     }
 }
+
+/* ================================================================
+   Shuffle+ v7.8.1 — thèmes étendus et conduite synchronisée
+   ================================================================ */
+
+:root {
+    --accent-contrast: #ffffff;
+    --accent-soft: rgb(var(--accent-rgb) / 16%);
+    --accent-border: rgb(var(--accent-rgb) / 58%);
+    --accent-glow: rgb(var(--accent-rgb) / 32%);
+}
+
+.ui-theme-swatches {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.ui-theme-custom-picker {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            145deg,
+            color-mix(
+                in srgb,
+                var(--custom-preview-primary) 10%,
+                transparent
+            ),
+            rgb(9 9 21 / 94%)
+        );
+    transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+}
+
+.ui-theme-custom-picker.is-selected {
+    border-color: var(--border-active);
+    box-shadow:
+        0 0 0 1px rgb(var(--accent-rgb) / 18%),
+        0 16px 36px rgb(var(--accent-rgb) / 12%);
+}
+
+.ui-theme-custom-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ui-theme-custom-heading > div {
+    display: grid;
+    gap: 4px;
+}
+
+.ui-theme-custom-heading small,
+.ui-theme-custom-fields label > span {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.ui-theme-custom-preview {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border: 2px solid rgb(255 255 255 / 30%);
+    border-radius: 50%;
+    background:
+        linear-gradient(
+            135deg,
+            var(--custom-preview-primary),
+            var(--custom-preview-secondary)
+        );
+    box-shadow:
+        0 10px 26px
+        color-mix(
+            in srgb,
+            var(--custom-preview-primary) 34%,
+            transparent
+        );
+}
+
+.ui-theme-custom-fields {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.45fr) minmax(180px, 1fr);
+    gap: 12px;
+}
+
+.ui-theme-custom-fields label {
+    display: grid;
+    gap: 7px;
+}
+
+.ui-theme-custom-fields input[type="color"] {
+    width: 100%;
+    min-height: 48px;
+    padding: 4px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 3%);
+}
+
+.ui-theme-custom-fields input[type="text"] {
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 3%);
+    color: var(--text-main);
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    text-transform: uppercase;
+}
+
+.ui-theme-custom-fields input:focus-visible {
+    border-color: var(--border-active);
+    outline: 3px solid rgb(var(--accent-rgb) / 15%);
+}
+
+.ui-theme-custom-fields input:invalid {
+    border-color: #d76c75;
+}
+
+.ui-theme-custom-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.ui-theme-custom-actions button {
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: rgb(255 255 255 / 3%);
+    color: var(--text-main);
+    font-weight: 800;
+}
+
+.ui-theme-custom-actions button:first-child {
+    border-color: transparent;
+    background:
+        linear-gradient(
+            120deg,
+            var(--custom-preview-primary),
+            var(--custom-preview-secondary)
+        );
+    color: var(--custom-preview-contrast, #ffffff);
+}
+
+/* Le mode conduite garde son fond sombre, mais tous ses accents suivent le thème. */
+body.is-driving-mode .driving-mode-page {
+    border-color: rgb(var(--accent-rgb) / 48%);
+    background:
+        radial-gradient(
+            circle at 50% 0%,
+            rgb(var(--accent-rgb) / 18%),
+            transparent 42%
+        ),
+        #0b0b12;
+}
+
+body.is-driving-mode .driving-mode-header span,
+body.is-driving-mode .driving-now-playing span {
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 62%,
+            white
+        );
+}
+
+body.is-driving-mode .driving-context-card {
+    border-color: rgb(var(--accent-rgb) / 34%);
+    background: rgb(var(--accent-rgb) / 10%);
+}
+
+body.is-driving-mode .driving-context-card > span,
+body.is-driving-mode .driving-context-card small {
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 28%,
+            #c7c5d5
+        );
+}
+
+body.is-driving-mode .driving-now-playing {
+    border-color: rgb(var(--accent-rgb) / 27%);
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 8%),
+            #11111a
+        );
+}
+
+body.is-driving-mode .driving-cover-placeholder {
+    background: rgb(var(--accent-rgb) / 16%);
+}
+
+body.is-driving-mode .driving-control {
+    border-color: rgb(var(--accent-rgb) / 27%);
+    background:
+        linear-gradient(
+            150deg,
+            rgb(var(--accent-rgb) / 8%),
+            #15151d
+        );
+}
+
+body.is-driving-mode .driving-control small {
+    color: #bbb9c8;
+}
+
+body.is-driving-mode .driving-control-primary {
+    border-color: rgb(var(--accent-rgb) / 72%);
+    background:
+        linear-gradient(
+            135deg,
+            color-mix(
+                in srgb,
+                var(--accent) 58%,
+                #11111a
+            ),
+            color-mix(
+                in srgb,
+                var(--accent-secondary) 35%,
+                #0c0c14
+            )
+        );
+    box-shadow:
+        0 14px 34px rgb(var(--accent-rgb) / 18%);
+}
+
+body.is-driving-mode .driving-feedback-controls button {
+    border-color: rgb(var(--accent-rgb) / 24%);
+    background: #15151d;
+}
+
+body.is-driving-mode .driving-feedback-controls button.is-active,
+body.is-driving-mode .driving-queue-control.is-active {
+    border-color: rgb(var(--accent-rgb) / 78%);
+    background: rgb(var(--accent-rgb) / 18%);
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 58%,
+            white
+        );
+}
+
+body.is-driving-mode .driving-secondary-controls button,
+body.is-driving-mode .driving-secondary-controls label {
+    border-color: rgb(var(--accent-rgb) / 24%);
+    background: #111119;
+    color: #d8d6e2;
+}
+
+body.is-driving-mode .driving-secondary-controls input {
+    accent-color: var(--accent);
+}
+
+body.is-driving-mode .driving-secondary-controls label:has(input:checked) {
+    border-color: rgb(var(--accent-rgb) / 78%);
+    background: rgb(var(--accent-rgb) / 18%);
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 58%,
+            white
+        );
+}
+
+body.is-driving-mode .driving-message {
+    background: #15151d;
+    color: #cfccd9;
+}
+
+body.is-driving-mode .driving-message.success {
+    background: rgb(var(--accent-rgb) / 17%);
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 52%,
+            white
+        );
+}
+
+body.is-driving-mode .driving-wake-lock-control.is-active {
+    border-color: rgb(var(--accent-rgb) / 78%) !important;
+    background: rgb(var(--accent-rgb) / 18%) !important;
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 58%,
+            white
+        ) !important;
+}
+
+body.is-driving-mode .driving-wake-lock-control.is-active
+.driving-wake-lock-dot {
+    background: var(--accent);
+    box-shadow:
+        0 0 0 3px rgb(var(--accent-rgb) / 16%),
+        0 0 10px rgb(var(--accent-rgb) / 70%);
+}
+
+body.is-driving-mode .driving-queue-sheet {
+    border-color: rgb(var(--accent-rgb) / 28%);
+    background:
+        linear-gradient(
+            180deg,
+            rgb(var(--accent-rgb) / 8%),
+            rgba(9, 9, 20, 0.98) 22%
+        );
+}
+
+body.is-driving-mode .driving-queue-current {
+    background: rgb(var(--accent-rgb) / 13%);
+}
+
+body.is-driving-mode .driving-queue-current > span:first-child {
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 64%,
+            white
+        );
+}
+
+@media (max-width: 1000px) {
+    .ui-theme-swatches {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 760px) {
+    .ui-theme-swatches {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .ui-theme-swatch:last-child {
+        grid-column: auto;
+    }
+
+    .ui-theme-custom-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .ui-theme-custom-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 430px) {
+    .ui-theme-swatches {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

@@ -2,14 +2,14 @@ import {
     getConfiguredSpotifyClientId
 } from "./core/spotify-app-config.js";
 
-const APP_VERSION = "7.8.0";
+const APP_VERSION = "7.8.1";
 const PRODUCTION_REDIRECT_URI =
     "https://mgresset.github.io/ShufflePlus/";
 const LOCAL_REDIRECT_URI =
     "http://127.0.0.1:5500/";
 
 // Utilisé uniquement pour migrer les installations déjà connectées avant
-// la v7.8.0. Les nouveaux utilisateurs doivent saisir leur propre Client ID.
+// la v7.8.1. Les nouveaux utilisateurs doivent saisir leur propre Client ID.
 const LEGACY_CLIENT_ID =
     "efcbf6e43e6346678cfceb44d0dc2422";
 

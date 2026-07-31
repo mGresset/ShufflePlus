@@ -1,0 +1,31 @@
+{
+  "application": "Shuffle+",
+  "version": "7.8.1",
+  "baseVersion": "7.8.0",
+  "status": "passed",
+  "validation": {
+    "javascriptFiles": 58,
+    "linkedModules": 30,
+    "applicationTestsPassed": 80,
+    "applicationTestsFailed": 0,
+    "syncServerTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmokeTest": "passed"
+  },
+  "features": [
+    "thirteen accent presets",
+    "custom hexadecimal accent with live preview",
+    "automatic secondary color generation",
+    "automatic accent text contrast",
+    "driving mode theme synchronization",
+    "iOS shortcuts section rendered first in Create",
+    "backward-compatible theme settings"
+  ],
+  "manualChecksRequired": [
+    "custom color picker behavior on Safari iOS",
+    "driving mode contrast with very light accent colors",
+    "theme persistence after PWA restart",
+    "real v7.8.0 to v7.8.1 service worker update"
+  ]
+}

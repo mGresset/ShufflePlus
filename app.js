@@ -127,6 +127,14 @@ import {
 import { escapeHtml } from "./core/html-utils.js";
 
 import {
+    UI_ACCENT_PRESETS,
+    DEFAULT_UI_THEME_SETTINGS,
+    normalizeUiThemeSettings,
+    getUiThemePalette,
+    normalizeHexColor
+} from "./core/ui-theme.js";
+
+import {
     normalizePreferredSpotifyDevice,
     findStoredPreferredDevice,
     selectSpotifyDevice
@@ -223,56 +231,13 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "7.8.0";
+const APP_VERSION = "7.8.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
-const UI_ACCENT_PRESETS = {
-    violet: {
-        id: "violet",
-        label: "Violet",
-        primary: "#8b5cf6",
-        secondary: "#2563eb",
-        rgb: "139 92 246"
-    },
-    blue: {
-        id: "blue",
-        label: "Bleu",
-        primary: "#3b82f6",
-        secondary: "#06b6d4",
-        rgb: "59 130 246"
-    },
-    pink: {
-        id: "pink",
-        label: "Rose",
-        primary: "#ec4899",
-        secondary: "#8b5cf6",
-        rgb: "236 72 153"
-    },
-    emerald: {
-        id: "emerald",
-        label: "Émeraude",
-        primary: "#10b981",
-        secondary: "#2563eb",
-        rgb: "16 185 129"
-    },
-    orange: {
-        id: "orange",
-        label: "Orange",
-        primary: "#f59e0b",
-        secondary: "#ef4444",
-        rgb: "245 158 11"
-    }
-};
-const DEFAULT_UI_THEME_SETTINGS = {
-    accent: "violet",
-    motionEnabled: true,
-    highContrast: false,
-    updatedAt: 0
-};
 const MUSICAL_ASSISTANT_HISTORY_KEY =
     "shuffleplus_musical_assistant_history_v1";
 const MAX_MUSICAL_ASSISTANT_HISTORY = 40;
@@ -682,7 +647,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.8.0-shell";
+    "shuffleplus-v7.8.1-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -2724,28 +2689,6 @@ function exportListeningStatistics(format = "json") {
     setStatus(`Rapport de statistiques ${format.toUpperCase()} exporté.`);
 }
 
-function normalizeUiThemeSettings(value = {}) {
-    const accent =
-        typeof value.accent === "string" &&
-        Object.hasOwn(
-            UI_ACCENT_PRESETS,
-            value.accent
-        )
-            ? value.accent
-            : DEFAULT_UI_THEME_SETTINGS.accent;
-
-    return {
-        accent,
-        motionEnabled:
-            value.motionEnabled !== false,
-        highContrast:
-            value.highContrast === true,
-        updatedAt: Number(
-            value.updatedAt || 0
-        )
-    };
-}
-
 function readUiThemeSettings() {
     try {
         const raw = localStorage.getItem(
@@ -2790,14 +2733,12 @@ function saveUiThemeSettings() {
 }
 
 function applyUiThemeSettings() {
-    const preset =
-        UI_ACCENT_PRESETS[
-            uiThemeSettings.accent
-        ] ||
-        UI_ACCENT_PRESETS.violet;
+    const palette = getUiThemePalette(
+        uiThemeSettings
+    );
 
     document.documentElement.dataset.accent =
-        preset.id;
+        palette.id;
     document.documentElement.classList.toggle(
         "reduce-motion",
         !uiThemeSettings.motionEnabled
@@ -2807,17 +2748,36 @@ function applyUiThemeSettings() {
         uiThemeSettings.highContrast
     );
 
-    document.documentElement.style.setProperty(
+    const rootStyle =
+        document.documentElement.style;
+
+    rootStyle.setProperty(
         "--accent",
-        preset.primary
+        palette.primary
     );
-    document.documentElement.style.setProperty(
+    rootStyle.setProperty(
         "--accent-secondary",
-        preset.secondary
+        palette.secondary
     );
-    document.documentElement.style.setProperty(
+    rootStyle.setProperty(
         "--accent-rgb",
-        preset.rgb
+        palette.rgb
+    );
+    rootStyle.setProperty(
+        "--accent-contrast",
+        palette.contrast
+    );
+    rootStyle.setProperty(
+        "--accent-soft",
+        `rgb(${palette.rgb} / 0.16)`
+    );
+    rootStyle.setProperty(
+        "--accent-border",
+        `rgb(${palette.rgb} / 0.58)`
+    );
+    rootStyle.setProperty(
+        "--accent-glow",
+        `rgb(${palette.rgb} / 0.32)`
     );
 
     const themeColorMeta =
@@ -2828,8 +2788,97 @@ function applyUiThemeSettings() {
     if (themeColorMeta) {
         themeColorMeta.setAttribute(
             "content",
-            preset.primary
+            palette.primary
         );
+    }
+}
+
+function syncUiThemeControls() {
+    const palette = getUiThemePalette(
+        uiThemeSettings
+    );
+
+    document
+        .querySelectorAll("[data-ui-accent]")
+        .forEach((button) => {
+            const selected =
+                button.dataset.uiAccent ===
+                uiThemeSettings.accent;
+
+            button.classList.toggle(
+                "is-selected",
+                selected
+            );
+            button.setAttribute(
+                "aria-pressed",
+                String(selected)
+            );
+        });
+
+    const activeBadge =
+        document.querySelector(
+            ".ui-theme-active-badge"
+        );
+
+    if (activeBadge) {
+        activeBadge.textContent =
+            palette.id === "custom"
+                ? `Personnalisée · ${palette.primary.toUpperCase()}`
+                : palette.label;
+    }
+
+    const customPanel =
+        document.getElementById(
+            "uiThemeCustomPicker"
+        );
+
+    if (customPanel) {
+        customPanel.classList.toggle(
+            "is-selected",
+            uiThemeSettings.accent === "custom"
+        );
+        customPanel.style.setProperty(
+            "--custom-preview-primary",
+            palette.id === "custom"
+                ? palette.primary
+                : uiThemeSettings.customColor
+        );
+        const savedCustomPalette = getUiThemePalette({
+            accent: "custom",
+            customColor: uiThemeSettings.customColor
+        });
+        customPanel.style.setProperty(
+            "--custom-preview-secondary",
+            palette.id === "custom"
+                ? palette.secondary
+                : savedCustomPalette.secondary
+        );
+        customPanel.style.setProperty(
+            "--custom-preview-contrast",
+            palette.id === "custom"
+                ? palette.contrast
+                : savedCustomPalette.contrast
+        );
+    }
+
+    const customColorInput =
+        document.getElementById(
+            "uiThemeCustomColorInput"
+        );
+    const customHexInput =
+        document.getElementById(
+            "uiThemeCustomHexInput"
+        );
+
+    if (customColorInput) {
+        customColorInput.value =
+            uiThemeSettings.customColor;
+    }
+
+    if (customHexInput) {
+        customHexInput.value =
+            uiThemeSettings.customColor.toUpperCase();
+        customHexInput.setCustomValidity("");
     }
 }
 
@@ -2851,44 +2900,98 @@ function updateUiThemeAccent(accent = "") {
 
     saveUiThemeSettings();
     applyUiThemeSettings();
+    syncUiThemeControls();
 
-    document
-        .querySelectorAll("[data-ui-accent]")
-        .forEach((button) => {
-            const selected =
-                button.dataset.uiAccent ===
-                uiThemeSettings.accent;
-
-            button.classList.toggle(
-                "is-selected",
-                selected
-            );
-            button.setAttribute(
-                "aria-pressed",
-                String(selected)
-            );
-        });
-
-    const preset =
-        UI_ACCENT_PRESETS[accent];
-
-    const activeBadge =
-        document.querySelector(
-            ".ui-theme-active-badge"
-        );
-
-    if (activeBadge) {
-        activeBadge.textContent =
-            preset.label;
-    }
+    const palette = getUiThemePalette(
+        uiThemeSettings
+    );
 
     showToast(
-        `🎨 Couleur ${preset.label} appliquée.`,
+        `🎨 Couleur ${palette.label} appliquée.`,
+        "success"
+    );
+}
+
+function previewUiThemeCustomColor(value = "") {
+    const normalized = normalizeHexColor(value);
+    const customHexInput =
+        document.getElementById(
+            "uiThemeCustomHexInput"
+        );
+
+    if (!normalized) {
+        customHexInput?.setCustomValidity(
+            "Saisis une couleur hexadécimale comme #8B5CF6."
+        );
+        return false;
+    }
+
+    customHexInput?.setCustomValidity("");
+
+    const previewPalette = getUiThemePalette({
+        accent: "custom",
+        customColor: normalized
+    });
+    const customPanel =
+        document.getElementById(
+            "uiThemeCustomPicker"
+        );
+
+    customPanel?.style.setProperty(
+        "--custom-preview-primary",
+        previewPalette.primary
+    );
+    customPanel?.style.setProperty(
+        "--custom-preview-secondary",
+        previewPalette.secondary
+    );
+    customPanel?.style.setProperty(
+        "--custom-preview-contrast",
+        previewPalette.contrast
+    );
+
+    return true;
+}
+
+function updateUiThemeCustomColor(value = "") {
+    const normalized = normalizeHexColor(value);
+
+    if (!normalized) {
+        document
+            .getElementById("uiThemeCustomHexInput")
+            ?.reportValidity();
+        showToast(
+            "La couleur personnalisée est invalide.",
+            "error"
+        );
+        return;
+    }
+
+    uiThemeSettings =
+        normalizeUiThemeSettings({
+            ...uiThemeSettings,
+            accent: "custom",
+            customColor: normalized
+        });
+
+    saveUiThemeSettings();
+    applyUiThemeSettings();
+    syncUiThemeControls();
+
+    showToast(
+        `🎨 Couleur ${normalized.toUpperCase()} appliquée.`,
         "success"
     );
 }
 
 function renderUiThemeSettingsPanel() {
+    const palette = getUiThemePalette(
+        uiThemeSettings
+    );
+    const customPreview = getUiThemePalette({
+        accent: "custom",
+        customColor: uiThemeSettings.customColor
+    });
     const accentButtons =
         Object.values(UI_ACCENT_PRESETS)
             .map((preset) => {
@@ -2945,23 +3048,23 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v5.3
+                        ✨ Apparence v7.8.1
                     </span>
                     <h3>
-                        Dynamique & musicale
+                        Couleur & lisibilité
                     </h3>
                     <p>
-                        Une interface sombre, immersive et
-                        moins flashy, avec le violet comme
-                        couleur par défaut.
+                        Choisis une palette prédéfinie ou crée
+                        ta propre couleur. Le mode conduite suit
+                        maintenant automatiquement ce thème.
                     </p>
                 </div>
 
                 <span class="ui-theme-active-badge">
                     ${escapeHtml(
-                        UI_ACCENT_PRESETS[
-                            uiThemeSettings.accent
-                        ]?.label || "Violet"
+                        palette.id === "custom"
+                            ? `Personnalisée · ${palette.primary.toUpperCase()}`
+                            : palette.label
                     )}
                 </span>
             </div>
@@ -2976,10 +3079,10 @@ function renderUiThemeSettingsPanel() {
                 </article>
 
                 <article>
-                    <span>Mix en cours</span>
-                    <strong>Conduite dynamique</strong>
+                    <span>Mode conduite</span>
+                    <strong>Accent synchronisé</strong>
                     <small>
-                        Fluide · Varié · Personnalisé
+                        Boutons · états actifs · file de lecture
                     </small>
                 </article>
 
@@ -2987,17 +3090,91 @@ function renderUiThemeSettingsPanel() {
                     <span>Ambiance</span>
                     <strong>Couleur personnalisable</strong>
                     <small>
-                        Le contenu reste identique.
+                        Contraste du texte calculé automatiquement.
                     </small>
                 </article>
             </div>
 
             <fieldset class="ui-theme-accent-picker">
-                <legend>Couleur d’accent</legend>
+                <legend>Couleurs prédéfinies</legend>
                 <div class="ui-theme-swatches">
                     ${accentButtons}
                 </div>
             </fieldset>
+
+            <section
+                id="uiThemeCustomPicker"
+                class="ui-theme-custom-picker
+                ${uiThemeSettings.accent === "custom"
+                    ? "is-selected"
+                    : ""}"
+                style="
+                    --custom-preview-primary:
+                        ${escapeHtml(customPreview.primary)};
+                    --custom-preview-secondary:
+                        ${escapeHtml(customPreview.secondary)};
+                    --custom-preview-contrast:
+                        ${escapeHtml(customPreview.contrast)};
+                "
+            >
+                <div class="ui-theme-custom-heading">
+                    <span
+                        class="ui-theme-custom-preview"
+                        aria-hidden="true"
+                    ></span>
+                    <div>
+                        <strong>Couleur personnalisée</strong>
+                        <small>
+                            L’aperçu change avant l’application définitive.
+                        </small>
+                    </div>
+                </div>
+
+                <div class="ui-theme-custom-fields">
+                    <label>
+                        <span>Sélecteur</span>
+                        <input
+                            id="uiThemeCustomColorInput"
+                            type="color"
+                            value="${escapeHtml(
+                                uiThemeSettings.customColor
+                            )}"
+                            aria-label="Choisir une couleur personnalisée"
+                        >
+                    </label>
+
+                    <label>
+                        <span>Code hexadécimal</span>
+                        <input
+                            id="uiThemeCustomHexInput"
+                            type="text"
+                            value="${escapeHtml(
+                                uiThemeSettings.customColor.toUpperCase()
+                            )}"
+                            inputmode="text"
+                            maxlength="7"
+                            pattern="#?[0-9A-Fa-f]{6}"
+                            placeholder="#8B5CF6"
+                            spellcheck="false"
+                        >
+                    </label>
+                </div>
+
+                <div class="ui-theme-custom-actions">
+                    <button
+                        id="applyUiThemeCustomColorButton"
+                        type="button"
+                    >
+                        ✓ Appliquer cette couleur
+                    </button>
+                    <button
+                        id="resetUiThemeButton"
+                        type="button"
+                    >
+                        Revenir au violet
+                    </button>
+                </div>
+            </section>
 
             <div class="ui-theme-accessibility-options">
                 <label class="ui-theme-motion-toggle">
@@ -4022,7 +4199,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.8.0",
+                "./service-worker.js?v=7.8.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -34608,9 +34785,9 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="mixes"
             >
+                ${renderIosCommandsPanel()}
                 ${renderMixStudioSection()}
                 ${renderSavedMixesSection()}
-                ${renderIosCommandsPanel()}
                 ${renderMixSchedulesSection()}
                 ${renderMixHistorySection()}
             </div>
@@ -38375,6 +38552,32 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "#applyUiThemeCustomColorButton"
+            )
+        ) {
+            const value =
+                document.getElementById(
+                    "uiThemeCustomHexInput"
+                )?.value ||
+                document.getElementById(
+                    "uiThemeCustomColorInput"
+                )?.value ||
+                "";
+            updateUiThemeCustomColor(value);
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetUiThemeButton"
+            )
+        ) {
+            updateUiThemeAccent("violet");
+            return;
+        }
+
         const uiAccentButton =
             event.target.closest(
                 "[data-ui-accent]"
@@ -40431,6 +40634,52 @@ contentElement.addEventListener(
                         "🧠 Mélanger à nouveau";
                 }
             }, 1200);
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "input",
+    (event) => {
+        if (
+            event.target.id ===
+            "uiThemeCustomColorInput"
+        ) {
+            const customHexInput =
+                document.getElementById(
+                    "uiThemeCustomHexInput"
+                );
+
+            if (customHexInput) {
+                customHexInput.value =
+                    event.target.value.toUpperCase();
+            }
+
+            previewUiThemeCustomColor(
+                event.target.value
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "uiThemeCustomHexInput"
+        ) {
+            const normalized = normalizeHexColor(
+                event.target.value
+            );
+            const customColorInput =
+                document.getElementById(
+                    "uiThemeCustomColorInput"
+                );
+
+            if (normalized && customColorInput) {
+                customColorInput.value = normalized;
+            }
+
+            previewUiThemeCustomColor(
+                event.target.value
+            );
         }
     }
 );
