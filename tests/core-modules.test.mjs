@@ -5,6 +5,8 @@ import { escapeHtml } from "../core/html-utils.js";
 import {
     APP_MENU_GROUPS,
     APP_MENU_IDS,
+    APP_PRIMARY_MENU_IDS,
+    APP_SECTION_GROUPS,
     normalizeAppMenu,
     normalizeAppMenuScrollPositions,
     readStoredAppMenu,
@@ -19,13 +21,27 @@ test("escapeHtml neutralise les caractères HTML sensibles", () => {
     );
 });
 
-test("la navigation expose chaque écran une seule fois", () => {
-    const groupedIds = APP_MENU_GROUPS.flatMap((group) =>
+test("la navigation principale reste courte et chaque écran demeure accessible", () => {
+    const primaryIds = APP_MENU_GROUPS.flatMap((group) =>
         group.items.map(([id]) => id)
     );
+    const sectionIds = Object.values(APP_SECTION_GROUPS)
+        .flatMap((section) => [
+            ...section.featured,
+            ...section.more
+        ])
+        .map(([id]) => id);
+    const reachableIds = new Set([
+        ...primaryIds,
+        ...sectionIds
+    ]);
 
-    assert.deepEqual(groupedIds, APP_MENU_IDS);
-    assert.equal(new Set(groupedIds).size, APP_MENU_IDS.length);
+    assert.deepEqual(primaryIds, APP_PRIMARY_MENU_IDS);
+    assert.equal(primaryIds.length, 5);
+    assert.deepEqual(
+        [...reachableIds].sort(),
+        [...APP_MENU_IDS].sort()
+    );
 });
 
 test("normalizeAppMenu protège contre les vues inconnues", () => {

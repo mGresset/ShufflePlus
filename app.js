@@ -146,6 +146,8 @@ import {
 } from "./core/dynamic-lyrics.js";
 
 import {
+    getAppSectionGroup,
+    getPrimaryAppMenu,
     getVisibleAppMenuGroups,
     normalizeAppMenu as normalizeActiveAppMenu,
     normalizeAppMenuScrollPositions,
@@ -153,6 +155,15 @@ import {
     resolveAppMenuView,
     writeStoredAppMenu
 } from "./core/app-menu.js";
+
+import {
+    PWA_UPDATE_APPLIED_VERSION_KEY,
+    clearAppliedPwaVersion,
+    getPwaVersionFromScriptUrl,
+    readAppliedPwaVersion,
+    rememberAppliedPwaVersion,
+    shouldDisplayPwaUpdate
+} from "./core/pwa-update.js";
 
 import {
     canUseDrivingMode,
@@ -195,6 +206,10 @@ const applyPwaUpdateButton =
     document.getElementById("applyPwaUpdateButton");
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
+const pwaUpdateTitleElement =
+    document.getElementById("pwaUpdateTitle");
+const pwaUpdateMessageElement =
+    document.getElementById("pwaUpdateMessage");
 const spotifySetupPanel =
     document.getElementById("spotifySetupPanel");
 const spotifySetupForm =
@@ -208,7 +223,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "7.7.0";
+const APP_VERSION = "7.8.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -667,7 +682,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.7.0-shell";
+    "shuffleplus-v7.8.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1227,6 +1242,11 @@ let pendingScheduledPlayback = null;
 let deferredPwaInstallPrompt = null;
 let pwaRegistration = null;
 let pwaReloadRequested = false;
+let pwaUpdateApplying = false;
+let pwaPendingUpdateVersion = "";
+let pwaUpdatePresentationToken = 0;
+let pwaUpdateReloadFallbackTimer = 0;
+const watchedPwaWorkers = new WeakSet();
 
 applyUiThemeSettings();
 versionElement.textContent = `Version ${APP_VERSION}`;
@@ -3746,13 +3766,162 @@ async function requestPwaInstallation() {
     }
 }
 
-function showPwaUpdateBanner() {
-    if (pwaUpdateBannerElement) {
-        pwaUpdateBannerElement.hidden = false;
+function getPwaUpdateStorage() {
+    try {
+        return window.sessionStorage;
+    } catch {
+        return null;
     }
 }
 
+function getFallbackPwaWorkerVersion(worker) {
+    return getPwaVersionFromScriptUrl(
+        worker?.scriptURL || ""
+    );
+}
+
+async function requestPwaWorkerVersion(
+    worker,
+    timeoutMs = 1400
+) {
+    if (!worker) {
+        return "";
+    }
+
+    const fallbackVersion =
+        getFallbackPwaWorkerVersion(worker);
+
+    if (typeof MessageChannel !== "function") {
+        return fallbackVersion;
+    }
+
+    return await new Promise((resolve) => {
+        const channel = new MessageChannel();
+        let settled = false;
+
+        const finish = (version = "") => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            window.clearTimeout(timer);
+            channel.port1.onmessage = null;
+            channel.port1.close?.();
+            channel.port2.close?.();
+            resolve(
+                String(version || "").trim() ||
+                fallbackVersion
+            );
+        };
+
+        const timer = window.setTimeout(
+            () => finish(fallbackVersion),
+            timeoutMs
+        );
+
+        channel.port1.onmessage = (event) => {
+            finish(event.data?.version || "");
+        };
+
+        try {
+            worker.postMessage(
+                { type: "GET_VERSION" },
+                [channel.port2]
+            );
+        } catch {
+            finish(fallbackVersion);
+        }
+    });
+}
+
+function setPwaUpdateBannerState({
+    applying = false,
+    version = ""
+} = {}) {
+    if (!pwaUpdateBannerElement) {
+        return;
+    }
+
+    pwaUpdateBannerElement.classList.toggle(
+        "is-applying",
+        applying
+    );
+    pwaUpdateBannerElement.setAttribute(
+        "aria-busy",
+        applying ? "true" : "false"
+    );
+
+    if (pwaUpdateTitleElement) {
+        pwaUpdateTitleElement.textContent = applying
+            ? "Mise à jour de Shuffle+ en cours…"
+            : version
+                ? `Shuffle+ ${version} est prête.`
+                : "Une mise à jour de Shuffle+ est prête.";
+    }
+
+    if (pwaUpdateMessageElement) {
+        pwaUpdateMessageElement.textContent = applying
+            ? "L’application va se recharger une seule fois."
+            : "Recharge l’application pour l’activer.";
+    }
+
+    if (applyPwaUpdateButton) {
+        applyPwaUpdateButton.disabled = applying;
+        applyPwaUpdateButton.textContent = applying
+            ? "Mise à jour…"
+            : "Mettre à jour";
+    }
+
+    if (dismissPwaUpdateButton) {
+        dismissPwaUpdateButton.disabled = applying;
+        dismissPwaUpdateButton.hidden = applying;
+    }
+}
+
+async function showPwaUpdateBanner(
+    worker = pwaRegistration?.waiting
+) {
+    if (!pwaUpdateBannerElement || !worker) {
+        return;
+    }
+
+    const presentationToken =
+        ++pwaUpdatePresentationToken;
+    const availableVersion =
+        await requestPwaWorkerVersion(worker);
+
+    if (
+        presentationToken !==
+        pwaUpdatePresentationToken
+    ) {
+        return;
+    }
+
+    const appliedVersion = readAppliedPwaVersion(
+        getPwaUpdateStorage(),
+        PWA_UPDATE_APPLIED_VERSION_KEY
+    );
+
+    if (!shouldDisplayPwaUpdate({
+        currentVersion: APP_VERSION,
+        availableVersion,
+        appliedVersion,
+        applying: pwaUpdateApplying
+    })) {
+        hidePwaUpdateBanner();
+        return;
+    }
+
+    pwaPendingUpdateVersion = availableVersion;
+    setPwaUpdateBannerState({
+        applying: false,
+        version: availableVersion
+    });
+    pwaUpdateBannerElement.hidden = false;
+}
+
 function hidePwaUpdateBanner() {
+    pwaUpdatePresentationToken += 1;
     if (pwaUpdateBannerElement) {
         pwaUpdateBannerElement.hidden = true;
     }
@@ -3773,10 +3942,19 @@ async function checkForPwaUpdate() {
         await pwaRegistration.update();
 
         if (pwaRegistration.waiting) {
-            showPwaUpdateBanner();
-            setStatus(
-                "Une mise à jour est prête."
+            await showPwaUpdateBanner(
+                pwaRegistration.waiting
             );
+
+            if (!pwaUpdateBannerElement?.hidden) {
+                setStatus(
+                    "Une mise à jour est prête."
+                );
+            } else {
+                setStatus(
+                    "Shuffle+ est à jour."
+                );
+            }
         } else {
             setStatus(
                 "Shuffle+ est à jour."
@@ -3794,32 +3972,42 @@ async function checkForPwaUpdate() {
     }
 }
 
+function watchPwaWorker(worker) {
+    if (!worker || watchedPwaWorkers.has(worker)) {
+        return;
+    }
+
+    watchedPwaWorkers.add(worker);
+    worker.addEventListener(
+        "statechange",
+        () => {
+            if (
+                worker.state === "installed" &&
+                navigator.serviceWorker.controller
+            ) {
+                showPwaUpdateBanner(worker).catch(
+                    () => {}
+                );
+            }
+        }
+    );
+}
+
 function watchPwaRegistration(registration) {
     if (registration.waiting &&
         navigator.serviceWorker.controller) {
-        showPwaUpdateBanner();
+        showPwaUpdateBanner(
+            registration.waiting
+        ).catch(() => {});
     }
+
+    watchPwaWorker(registration.installing);
 
     registration.addEventListener(
         "updatefound",
         () => {
-            const worker =
-                registration.installing;
-
-            if (!worker) {
-                return;
-            }
-
-            worker.addEventListener(
-                "statechange",
-                () => {
-                    if (
-                        worker.state === "installed" &&
-                        navigator.serviceWorker.controller
-                    ) {
-                        showPwaUpdateBanner();
-                    }
-                }
+            watchPwaWorker(
+                registration.installing
             );
         }
     );
@@ -3834,7 +4022,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.7.0",
+                "./service-worker.js?v=7.8.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -3854,6 +4042,21 @@ async function registerPwa() {
 }
 
 function initializePwa() {
+    const updateStorage =
+        getPwaUpdateStorage();
+    const appliedVersion = readAppliedPwaVersion(
+        updateStorage,
+        PWA_UPDATE_APPLIED_VERSION_KEY
+    );
+
+    if (appliedVersion === APP_VERSION) {
+        clearAppliedPwaVersion(
+            updateStorage,
+            PWA_UPDATE_APPLIED_VERSION_KEY
+        );
+        hidePwaUpdateBanner();
+    }
+
     updateNetworkStatus();
     syncPwaInstallControls();
     registerPwa();
@@ -3892,11 +4095,17 @@ function initializePwa() {
     navigator.serviceWorker?.addEventListener(
         "controllerchange",
         () => {
+            hidePwaUpdateBanner();
+
             if (!pwaReloadRequested) {
                 return;
             }
 
             pwaReloadRequested = false;
+            pwaUpdateApplying = false;
+            window.clearTimeout(
+                pwaUpdateReloadFallbackTimer
+            );
             window.location.reload();
         }
     );
@@ -3906,7 +4115,8 @@ function initializePwa() {
         () => {
             if (
                 document.visibilityState === "visible" &&
-                pwaRegistration
+                pwaRegistration &&
+                !pwaUpdateApplying
             ) {
                 pwaRegistration.update().catch(
                     () => {}
@@ -13087,9 +13297,33 @@ function activateAppMenuPageDom(
             );
         });
 
+    const primaryMenu =
+        getPrimaryAppMenu(normalizedMenu);
+
     document
         .querySelectorAll(
-            "[data-app-menu]"
+            ".app-menu-button[data-app-menu]"
+        )
+        .forEach((button) => {
+            const selected =
+                button.dataset.appMenu ===
+                primaryMenu;
+
+            button.classList.toggle(
+                "is-active",
+                selected
+            );
+            button.setAttribute(
+                "aria-current",
+                selected
+                    ? "page"
+                    : "false"
+            );
+        });
+
+    document
+        .querySelectorAll(
+            ".app-section-button[data-app-menu]"
         )
         .forEach((button) => {
             const selected =
@@ -15975,14 +16209,15 @@ function renderSimpleManualPage() {
 }
 
 function renderAppMenu() {
+    const activePrimaryMenu =
+        getPrimaryAppMenu(activeAppMenu);
+
     return `
         <nav
-            class="app-menu app-menu--grouped"
-            aria-label="Navigation Shuffle+"
+            class="app-menu app-menu--grouped app-menu--primary"
+            aria-label="Navigation principale Shuffle+"
         >
-            ${getVisibleAppMenuGroups({
-                drivingAvailable: DRIVING_MODE_AVAILABLE
-            }).map((group) => `
+            ${getVisibleAppMenuGroups().map((group) => `
                 <div
                     class="app-menu-group"
                     data-app-menu-group="${group.id}"
@@ -15997,17 +16232,20 @@ function renderAppMenu() {
                         class="app-menu-group__buttons"
                     >
                         ${group.items.map(
-                            ([id, icon, label]) => `
+                            ([id, icon, label]) => {
+                                const selected =
+                                    activePrimaryMenu === id;
+                                return `
                                 <button
                                     type="button"
                                     class="app-menu-button
-                                    ${activeAppMenu === id
+                                    ${selected
                                         ? "is-active"
                                         : ""}"
                                     data-app-menu="${id}"
                                     aria-label="${escapeHtml(label)}"
                                     title="${escapeHtml(label)}"
-                                    aria-current="${activeAppMenu === id
+                                    aria-current="${selected
                                         ? "page"
                                         : "false"}"
                                 >
@@ -16016,11 +16254,89 @@ function renderAppMenu() {
                                     </span>
                                     <span>${label}</span>
                                 </button>
-                            `
+                            `;
+                            }
                         ).join("")}
                     </div>
                 </div>
             `).join("")}
+        </nav>
+    `;
+}
+
+function renderAppSectionMenu() {
+    const section = getAppSectionGroup(
+        activeAppMenu,
+        { drivingAvailable: DRIVING_MODE_AVAILABLE }
+    );
+
+    if (!section) {
+        return "";
+    }
+
+    const renderButton = (
+        [id, icon, label],
+        compact = false
+    ) => {
+        const selected = activeAppMenu === id;
+        return `
+            <button
+                type="button"
+                class="app-section-button
+                ${compact ? "is-compact" : ""}
+                ${selected ? "is-active" : ""}"
+                data-app-menu="${id}"
+                aria-current="${selected
+                    ? "page"
+                    : "false"}"
+            >
+                <span aria-hidden="true">${icon}</span>
+                <span>${escapeHtml(label)}</span>
+            </button>
+        `;
+    };
+
+    const activeAdvancedItem =
+        section.more.find(
+            ([id]) => id === activeAppMenu
+        ) || null;
+    const visibleFeaturedItems =
+        activeAdvancedItem
+            ? [
+                ...section.featured,
+                activeAdvancedItem
+            ]
+            : section.featured;
+
+    return `
+        <nav
+            class="app-section-menu"
+            aria-label="Sections de ${escapeHtml(section.label)}"
+        >
+            <div class="app-section-menu__featured">
+                ${visibleFeaturedItems.map(
+                    (item) => renderButton(item)
+                ).join("")}
+            </div>
+
+            ${section.more.length
+                ? `
+                <details class="app-section-more">
+                    <summary>
+                        <span aria-hidden="true">•••</span>
+                        <span>Voir plus</span>
+                    </summary>
+                    <div class="app-section-more__items">
+                        ${section.more.map(
+                            (item) => renderButton(
+                                item,
+                                true
+                            )
+                        ).join("")}
+                    </div>
+                </details>
+                `
+                : ""}
         </nav>
     `;
 }
@@ -34102,6 +34418,7 @@ function displayPlaylists(playlists) {
 
             ${renderUniversalSearchLauncher()}
             ${renderAppMenu()}
+            ${renderAppSectionMenu()}
 
             <div data-contextual-help-bar-slot>
                 ${renderContextualHelpBar()}
@@ -37817,7 +38134,11 @@ pwaInstallGuideElement.addEventListener(
 if (applyPwaUpdateButton) {
 applyPwaUpdateButton.addEventListener(
     "click",
-    () => {
+    async () => {
+        if (pwaUpdateApplying) {
+            return;
+        }
+
         const waitingWorker =
             pwaRegistration?.waiting;
 
@@ -37826,10 +38147,41 @@ applyPwaUpdateButton.addEventListener(
             return;
         }
 
+        const targetVersion =
+            pwaPendingUpdateVersion ||
+            await requestPwaWorkerVersion(
+                waitingWorker
+            );
+
+        pwaUpdateApplying = true;
         pwaReloadRequested = true;
+        pwaPendingUpdateVersion =
+            targetVersion;
+
+        rememberAppliedPwaVersion(
+            getPwaUpdateStorage(),
+            targetVersion,
+            PWA_UPDATE_APPLIED_VERSION_KEY
+        );
+
+        setPwaUpdateBannerState({
+            applying: true,
+            version: targetVersion
+        });
+
         waitingWorker.postMessage({
             type: "SKIP_WAITING"
         });
+
+        window.clearTimeout(
+            pwaUpdateReloadFallbackTimer
+        );
+        pwaUpdateReloadFallbackTimer =
+            window.setTimeout(() => {
+                if (pwaReloadRequested) {
+                    window.location.reload();
+                }
+            }, 12000);
     }
 );
 }

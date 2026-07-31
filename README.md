@@ -1,5 +1,13 @@
 # Shuffle+
 
+## v7.8.0 — Navigation simplifiée et mise à jour unique
+
+La v7.8.0 réduit la navigation principale à cinq entrées : **Accueil**, **Musique**, **Créer**, **Raccourcis** et **Réglages**. Les anciennes rubriques ne sont pas supprimées : elles sont regroupées dans un sous-menu contextuel et les fonctions moins fréquentes restent accessibles avec **Voir plus**. Les anciennes URL `?view=...` continuent de fonctionner et mettent en évidence la rubrique principale correspondante.
+
+Le système de mise à jour PWA identifie maintenant la version du Service Worker en attente. Après un clic sur **Mettre à jour**, Shuffle+ mémorise la version appliquée, attend le changement réel de contrôleur et recharge l’application une seule fois. Le bandeau n’est plus réaffiché lorsque le nouveau numéro de version est déjà chargé.
+
+---
+
 ## v7.7.0 — Mélange intelligent explicable
 
 La v7.7.0 rend le moteur Shuffle+ compréhensible et reproductible. Chaque nouveau mélange reçoit une graine qui permet de recréer exactement le même ordre. Un rapport compare l’ordre source et le résultat, indique les contraintes qui ont dû être relâchées et explique le placement des premiers morceaux.
