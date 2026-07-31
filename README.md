@@ -1,5 +1,13 @@
 # Shuffle+
 
+## v7.8.1 — Thèmes étendus et conduite personnalisée
+
+La v7.8.1 synchronise le mode conduite avec la couleur choisie dans Shuffle+. Les commandes principales, états actifs, file de lecture, maintien de l’écran et messages de réussite reprennent désormais l’accent global tout en conservant un fond sombre et lisible.
+
+Le panneau Apparence propose treize palettes prédéfinies ainsi qu’une couleur personnalisée avec aperçu, génération automatique d’un accent secondaire et choix automatique d’un texte clair ou sombre. Dans la rubrique **Créer**, la section **Raccourcis iOS** est maintenant affichée avant le studio de mélange afin de remettre la fonction d’origine de Shuffle+ au premier plan.
+
+---
+
 ## v7.8.0 — Navigation simplifiée et mise à jour unique
 
 La v7.8.0 réduit la navigation principale à cinq entrées : **Accueil**, **Musique**, **Créer**, **Raccourcis** et **Réglages**. Les anciennes rubriques ne sont pas supprimées : elles sont regroupées dans un sous-menu contextuel et les fonctions moins fréquentes restent accessibles avec **Voir plus**. Les anciennes URL `?view=...` continuent de fonctionner et mettent en évidence la rubrique principale correspondante.

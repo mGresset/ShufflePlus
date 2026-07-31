@@ -1,5 +1,12 @@
 # Feuille de route Shuffle+
 
+- **v7.8.1 — Thèmes étendus et conduite personnalisée : terminée**
+  - mode conduite synchronisé avec la couleur active ;
+  - treize palettes prédéfinies ;
+  - couleur personnalisée avec aperçu et contraste automatique ;
+  - Raccourcis iOS placé en premier dans Créer ;
+  - conservation du thème existant.
+
 - **v7.8.0 — Navigation simplifiée et mise à jour unique : terminée**
   - cinq rubriques principales ;
   - regroupement des anciennes pages par usage ;
@@ -7,11 +14,6 @@
   - anciennes URL toujours compatibles ;
   - détection de la version du Service Worker en attente ;
   - rechargement unique après une mise à jour.
-
-- **v7.8.1 — Stabilisation mobile : prochaine**
-  - retours réels sur la nouvelle navigation iPhone ;
-  - ajustement des sous-menus étroits ;
-  - validation du bandeau de mise à jour sur Safari et PWA.
 
 - **v7.9.0 — Architecture et performances**
 

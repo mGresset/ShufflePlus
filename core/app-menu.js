@@ -72,7 +72,7 @@ export const APP_SECTION_GROUPS = Object.freeze({
         id: "mixes",
         label: "Créer",
         featured: Object.freeze([
-            Object.freeze(["mixes", "🔀", "Mix & iOS"]),
+            Object.freeze(["mixes", "📱", "Raccourcis iOS"]),
             Object.freeze(["assistant", "✨", "Assistant"])
         ]),
         more: Object.freeze([
