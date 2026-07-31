@@ -1,0 +1,24 @@
+{
+  "version": "8.0.1",
+  "baseVersion": "8.0.0",
+  "generatedAt": "2026-07-31T20:55:32.890794+00:00",
+  "summary": "Correctif du gestionnaire global des clics dans Réglages : séparation de l’attribut CSS du mode Essentiel/Expert et de l’attribut des boutons.",
+  "validation": {
+    "javascriptFiles": 65,
+    "linkedModules": 35,
+    "applicationTests": 95,
+    "applicationTestsFailed": 0,
+    "serverTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmoke": "passed",
+    "patchAppliedToCleanV8_0_0": "passed",
+    "patchValidationWithLegacyRecoveryFile": "passed (66 JavaScript files checked, old recovery excluded from build)"
+  },
+  "dataMigration": false,
+  "userDataPreserved": true,
+  "manualChecks": [
+    "Ouvrir Réglages et tester les boutons Spotify, thème, PWA, sauvegarde et synchronisation.",
+    "Vérifier que seuls les boutons Essentiel/Expert affichent le message d’activation du mode."
+  ]
+}

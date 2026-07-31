@@ -1,0 +1,10 @@
+SHUFFLE+ V8.0.1 — INSTALLATION RAPIDE
+
+1. Copier le contenu du patch dans le dépôt v8.0.0.
+2. Supprimer startup-recovery-8.0.0.js s’il existe.
+3. Exécuter : npm run validate
+4. Exécuter : npm start
+5. Vérifier les boutons de la page Réglages.
+6. Publier la branche hotfix/8.0.1 puis fusionner dans main.
+
+Aucune donnée utilisateur n’est supprimée.

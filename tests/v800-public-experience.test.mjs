@@ -186,3 +186,27 @@ test("Shuffle+ 8 relie l’expérience publique et la récupération serveur à 
     assert.match(workerSource, /\.\/core\/experience-mode\.js/);
     assert.match(workerSource, /\.\/core\/server-sync-recovery\.js/);
 });
+
+
+test("les boutons des Réglages ne sont plus confondus avec le mode d’expérience du document", () => {
+    assert.match(
+        appSource,
+        /document\.documentElement\.dataset\.experienceMode = experienceMode/
+    );
+    assert.match(
+        appSource,
+        /button\[data-select-experience-mode\]/
+    );
+    assert.match(
+        appSource,
+        /dataset\.selectExperienceMode/
+    );
+    assert.doesNotMatch(
+        appSource,
+        /event\.target\.closest\(\s*"\[data-experience-mode\]"/
+    );
+    assert.match(
+        styleSource,
+        /html\[data-experience-mode="essential"\]/
+    );
+});

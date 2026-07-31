@@ -1,12 +1,15 @@
 # Shuffle+
 
-## v8.0.0 — Version publique simplifiée
+
+La v8.0.1 corrige une collision entre l’attribut global du mode Essentiel/Expert et les boutons de la page Réglages. Dans la v8.0.0, tout clic pouvait être interprété comme une activation du mode courant.
+
+## v8.0.1 — Correctif des Réglages
 
 Shuffle+ 8 introduit deux niveaux d’interface. Les nouveaux utilisateurs démarrent en mode Essentiel avec les fonctions principales, tandis que les installations existantes conservent automatiquement le mode Expert. La configuration Spotify publique est mieux guidée et la liaison au serveur Railway dispose désormais d’une copie de récupération locale ainsi que de la dernière adresse connue.
 
 La version conserve les cinq menus principaux, les raccourcis iOS, le mode conduite sur iPhone/iPad, le moteur de mélange explicable, Dynamic Lyrics, les thèmes et toutes les données locales existantes.
 
-Voir `V8.0.0_NOTES.md` et `DEPLOIEMENT-V8.0.0.md`.
+Voir `V8.0.1_NOTES.md` et `DEPLOIEMENT-V8.0.1.md`.
 
 ## v7.9.0 — Architecture, performances et migrations sûres
 

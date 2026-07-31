@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v8.0.1 — Correctif des Réglages : terminée**
 - **v8.0.0 — Version publique simplifiée : terminée**
   - mode Essentiel pour les nouveaux utilisateurs ;
   - mode Expert conservé pour les installations existantes ;

@@ -1,0 +1,29 @@
+SHUFFLE+ V8.0.1 — MANIFESTE DU PATCH
+
+Base : v8.0.0
+
+FICHIERS MODIFIÉS
+- VERSION
+- package.json
+- config.js
+- index.html
+- service-worker.js
+- app.js
+- README.md
+- ROADMAP.md
+- tests/v800-public-experience.test.mjs
+
+NOUVEAUX FICHIERS
+- startup-recovery-8.0.1.js
+- DEPLOIEMENT-V8.0.1.md
+- INSTALLATION-V8.0.1.txt
+- V8.0.1_NOTES.md
+- BUILD_REPORT_V8.0.1.json
+- PATCH_MANIFEST_V8.0.1.txt
+
+À SUPPRIMER APRÈS EXTRACTION
+- startup-recovery-8.0.0.js
+
+CAUSE CORRIGÉE
+- L’attribut data-experience-mode du document HTML était intercepté par le gestionnaire de clics de la page Réglages.
+- Les vrais boutons utilisent maintenant data-select-experience-mode.
