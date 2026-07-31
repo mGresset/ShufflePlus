@@ -1,4 +1,5 @@
-const CACHE_VERSION = "shuffleplus-v7.7.0";
+const APP_VERSION = "7.8.0";
+const CACHE_VERSION = "shuffleplus-v7.8.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -6,15 +7,16 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=7.7.0",
-    "./app.js?v=7.7.0",
+    "./style.css?v=7.8.0",
+    "./app.js?v=7.8.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-7.7.0.js",
+    "./startup-recovery-7.8.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
+    "./core/pwa-update.js",
     "./core/platform.js",
     "./core/spotify-app-config.js",
     "./core/html-utils.js",
@@ -107,6 +109,11 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+    if (event.data?.type === "GET_VERSION") {
+        event.ports?.[0]?.postMessage({
+            version: APP_VERSION
+        });
+    }
     if (event.data?.type === "SKIP_WAITING") {
         self.skipWaiting();
     }

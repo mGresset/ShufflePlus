@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "7.7.0",
+  "version": "7.8.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ — moteur de mélange explicable, Client ID Spotify personnel et expérience iOS.",
+  "description": "Shuffle+ — navigation simplifiée, moteur de mélange explicable, Client ID Spotify personnel et expérience iOS.",
   "engines": {
     "node": ">=20"
   },

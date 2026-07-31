@@ -1,5 +1,22 @@
 # Feuille de route Shuffle+
 
+- **v7.8.0 — Navigation simplifiée et mise à jour unique : terminée**
+  - cinq rubriques principales ;
+  - regroupement des anciennes pages par usage ;
+  - fonctions avancées derrière « Voir plus » ;
+  - anciennes URL toujours compatibles ;
+  - détection de la version du Service Worker en attente ;
+  - rechargement unique après une mise à jour.
+
+- **v7.8.1 — Stabilisation mobile : prochaine**
+  - retours réels sur la nouvelle navigation iPhone ;
+  - ajustement des sous-menus étroits ;
+  - validation du bandeau de mise à jour sur Safari et PWA.
+
+- **v7.9.0 — Architecture et performances**
+
+---
+
 - **v7.7.0 — Moteur de mélange explicable : terminée**
   - graine reproductible pour chaque ordre ;
   - comparaison avant/après ;
@@ -8,15 +25,6 @@
   - contraintes relâchées signalées ;
   - reproduction exacte du même mélange.
 
-- **v7.7.1 — Stabilisation du rapport : prochaine**
-  - retours sur les grandes playlists ;
-  - cohérence après modifications manuelles ;
-  - optimisation de l’affichage mobile.
-
-- **v7.8.0 — Liste de lecture avancée et conduite**
-- **v7.9.0 — Architecture et performances**
-
----
 
 - **v7.5.0 — Optimisation du quota Spotify : terminée**
   - gestionnaire central des requêtes ;

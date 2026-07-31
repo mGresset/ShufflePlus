@@ -1,0 +1,33 @@
+SHUFFLE+ V7.8.0 — MANIFESTE DU PATCH
+
+Base : Shuffle+ v7.7.0
+
+Fichiers ajoutés ou remplacés :
+- VERSION
+- app.js
+- config.js
+- core/app-menu.js
+- core/pwa-update.js
+- index.html
+- manifest.webmanifest
+- package.json
+- service-worker.js
+- startup-recovery-7.8.0.js
+- style.css
+- tests/core-modules.test.mjs
+- tests/v780-navigation-update.test.mjs
+- README.md
+- ROADMAP.md
+- DEPLOIEMENT-V7.8.0.md
+- INSTALLATION-V7.8.0.txt
+- V7.8.0_NOTES.md
+- BUILD_REPORT_V7.8.0.json
+
+Ancien fichier devenu inutile :
+- startup-recovery-7.7.0.js
+
+Le ZIP ne peut pas supprimer automatiquement ce fichier. Il peut rester dans le dépôt sans être publié, car scripts/build.mjs exclut les anciens bootstrap. Pour le retirer :
+
+Remove-Item .\startup-recovery-7.7.0.js -ErrorAction SilentlyContinue
+
+Données utilisateur : aucune suppression ni migration destructive.
