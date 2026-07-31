@@ -1,5 +1,24 @@
 # Feuille de route Shuffle+
 
+- **v7.6.0 — Accès public et expérience iOS : terminée**
+  - Client ID Spotify personnel par navigateur ;
+  - assistant de première configuration ;
+  - migration des installations déjà connectées ;
+  - changement et test du Client ID dans Réglages ;
+  - mode conduite masqué hors iPhone/iPad ;
+  - simulation iOS disponible uniquement sur le serveur local.
+
+- **v7.6.1 — Stabilisation publique : prochaine**
+  - retours de connexion de nouveaux utilisateurs ;
+  - messages 403 pour les comptes non autorisés ;
+  - tests Safari/PWA et migrations réelles.
+
+- **v7.7.0 — Liste de lecture avancée et conduite**
+- **v7.8.0 — Moteur de mélange explicable**
+- **v7.9.0 — Architecture et performances**
+
+---
+
 - **v7.5.0 — Optimisation du quota Spotify : terminée**
   - gestionnaire central des requêtes ;
   - cache mémoire court et déduplication ;

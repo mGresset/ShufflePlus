@@ -14,7 +14,7 @@
     >
 
     <meta name="theme-color" content="#8b5cf6">
-    <meta name="shuffleplus-version" content="7.5.0">
+    <meta name="shuffleplus-version" content="7.6.0">
     <meta name="color-scheme" content="dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -42,7 +42,7 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=7.5.0">
+    <link rel="stylesheet" href="./style.css?v=7.6.0">
 </head>
 
 <body>
@@ -116,6 +116,72 @@
                 aria-live="polite"
             ></p>
 
+            <section
+                id="spotifySetupPanel"
+                class="spotify-setup-panel"
+                aria-labelledby="spotifySetupTitle"
+                hidden
+            >
+                <div class="spotify-setup-heading">
+                    <span aria-hidden="true">🔑</span>
+                    <div>
+                        <small>Première configuration</small>
+                        <h3 id="spotifySetupTitle">Connecter votre application Spotify</h3>
+                    </div>
+                </div>
+
+                <p>
+                    Chaque utilisateur de Shuffle+ utilise son propre Client ID
+                    Spotify Developer. Aucun Client Secret n’est demandé.
+                </p>
+
+                <ol class="spotify-setup-steps">
+                    <li>Créez une application dans Spotify for Developers.</li>
+                    <li>Activez la Web API.</li>
+                    <li>Ajoutez exactement l’adresse de redirection ci-dessous.</li>
+                    <li>Copiez le Client ID de votre application.</li>
+                </ol>
+
+                <div class="spotify-redirect-box">
+                    <span>Adresse de redirection</span>
+                    <code id="spotifySetupRedirectUri"></code>
+                    <button id="copySpotifySetupRedirectButton" type="button">
+                        Copier l’adresse
+                    </button>
+                </div>
+
+                <form id="spotifySetupForm" class="spotify-setup-form">
+                    <label for="spotifySetupClientIdInput">
+                        Client ID Spotify
+                    </label>
+                    <input
+                        id="spotifySetupClientIdInput"
+                        name="clientId"
+                        type="text"
+                        inputmode="text"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        spellcheck="false"
+                        minlength="20"
+                        maxlength="64"
+                        placeholder="Ex. 0123456789abcdef…"
+                        required
+                    >
+                    <button type="submit">Enregistrer et continuer</button>
+                </form>
+
+                <div class="spotify-setup-actions">
+                    <button id="openSpotifyDeveloperButton" type="button">
+                        Ouvrir Spotify for Developers
+                    </button>
+                </div>
+
+                <small class="spotify-setup-note">
+                    Le Client ID est enregistré uniquement dans ce navigateur.
+                    Les commandes de lecture nécessitent un compte Spotify compatible.
+                </small>
+            </section>
+
             <div class="startup-recovery-entry">
                 <button
                     id="showStartupRecoveryButton"
@@ -188,7 +254,7 @@
         </div>
     </aside>
 
-    <script src="./startup-recovery-7.5.0.js"></script>
-    <script type="module" src="./app.js?v=7.5.0"></script>
+    <script src="./startup-recovery-7.6.0.js"></script>
+    <script type="module" src="./app.js?v=7.6.0"></script>
 </body>
 </html>

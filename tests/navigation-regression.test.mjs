@@ -17,7 +17,7 @@ function readFunctionSource(name, nextName) {
 test("le menu principal utilise les groupes importés", () => {
     const source = readFunctionSource("renderAppMenu", "renderAdaptiveDjMenu");
 
-    assert.match(source, /APP_MENU_GROUPS\.map\(\(group\) =>/);
+    assert.match(source, /getVisibleAppMenuGroups\([\s\S]*?\)\.map\(\(group\) =>/);
     assert.doesNotMatch(source, /\$\{groups\.map\(\(group\) =>/);
 });
 

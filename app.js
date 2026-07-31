@@ -4,6 +4,8 @@ import {
     rememberPlaybackOrder
 } from "./shuffle-engine.js";
 
+import { CONFIG } from "./config.js";
+
 import {
     loginWithSpotify,
     handleSpotifyCallback,
@@ -142,13 +144,27 @@ import {
 } from "./core/dynamic-lyrics.js";
 
 import {
-    APP_MENU_GROUPS,
+    getVisibleAppMenuGroups,
     normalizeAppMenu as normalizeActiveAppMenu,
     normalizeAppMenuScrollPositions,
     readStoredAppMenu,
     resolveAppMenuView,
     writeStoredAppMenu
 } from "./core/app-menu.js";
+
+import {
+    canUseDrivingMode,
+    isAppleMobileDevice
+} from "./core/platform.js";
+
+import {
+    clearSpotifyAppConfiguration,
+    isValidSpotifyClientId,
+    maskSpotifyClientId,
+    migrateLegacySpotifyClientId,
+    readSpotifyAppConfiguration,
+    saveSpotifyAppConfiguration
+} from "./core/spotify-app-config.js";
 
 import {
     buildShortcutProfileDiagnostic,
@@ -177,8 +193,23 @@ const applyPwaUpdateButton =
     document.getElementById("applyPwaUpdateButton");
 const dismissPwaUpdateButton =
     document.getElementById("dismissPwaUpdateButton");
+const spotifySetupPanel =
+    document.getElementById("spotifySetupPanel");
+const spotifySetupForm =
+    document.getElementById("spotifySetupForm");
+const spotifySetupClientIdInput =
+    document.getElementById("spotifySetupClientIdInput");
+const spotifySetupRedirectUri =
+    document.getElementById("spotifySetupRedirectUri");
+const copySpotifySetupRedirectButton =
+    document.getElementById("copySpotifySetupRedirectButton");
+const openSpotifyDeveloperButton =
+    document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "7.5.0";
+const APP_VERSION = "7.6.0";
+const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
+const SPOTIFY_DEVELOPER_DASHBOARD_URL =
+    "https://developer.spotify.com/dashboard";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
@@ -634,7 +665,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.5.0-shell";
+    "shuffleplus-v7.6.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1108,6 +1139,10 @@ let iosCommandHistory =
 let dynamicLyricsSettings =
     readDynamicLyricsSettings();
 let activeAppMenu = readActiveAppMenu();
+if (!DRIVING_MODE_AVAILABLE && activeAppMenu === "driving") {
+    activeAppMenu = "dashboard";
+}
+let blockedDrivingRequest = false;
 let musicalAssistantHistory =
     readMusicalAssistantHistory();
 let musicalAssistantPlan = null;
@@ -1732,6 +1767,8 @@ function openContextualOnboardingStep(
     const steps =
         getContextualOnboardingSteps(
             getContextualHelpRuntime()
+        ).filter((step) =>
+            DRIVING_MODE_AVAILABLE || step.menuId !== "driving"
         );
     const normalizedIndex =
         Math.max(
@@ -1773,6 +1810,8 @@ function moveContextualOnboarding(
     const steps =
         getContextualOnboardingSteps(
             getContextualHelpRuntime()
+        ).filter((step) =>
+            DRIVING_MODE_AVAILABLE || step.menuId !== "driving"
         );
     const current =
         contextualHelpState
@@ -2130,7 +2169,7 @@ function openDashboardSection(id){return navigateToAppMenu(id);}
 function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
 function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
 function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),set=s.settings,p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ v6.4</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
-${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button><button data-dashboard-nav="driving">🚗 Conduite</button></footer></article>`)}
+${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
 ${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
@@ -2980,13 +3019,203 @@ function renderUiThemeSettingsPanel() {
     `;
 }
 
+function getSpotifyApplicationConfiguration() {
+    return readSpotifyAppConfiguration(localStorage);
+}
+
+function hasConfiguredSpotifyApplication() {
+    return Boolean(
+        getSpotifyApplicationConfiguration().clientId
+    );
+}
+
+function updateSpotifySetupInterface({ focus = false } = {}) {
+    const configuration = getSpotifyApplicationConfiguration();
+    const configured = Boolean(configuration.clientId);
+
+    if (spotifySetupPanel) {
+        spotifySetupPanel.hidden = configured;
+    }
+
+    if (spotifySetupRedirectUri) {
+        spotifySetupRedirectUri.textContent = CONFIG.redirectUri;
+    }
+
+    if (loginButton && !document.body.classList.contains("is-connected")) {
+        loginButton.hidden = !configured;
+        loginButton.disabled = false;
+        loginButton.textContent = "Se connecter à Spotify";
+    }
+
+    if (focus && !configured) {
+        window.requestAnimationFrame(() => {
+            spotifySetupClientIdInput?.focus();
+        });
+    }
+
+    return configuration;
+}
+
+async function copySpotifyRedirectUri() {
+    try {
+        await copyTextToClipboard(CONFIG.redirectUri);
+        showToast("✅ Adresse de redirection copiée.", "success");
+    } catch (error) {
+        console.error(error);
+        window.prompt(
+            "Copie cette adresse de redirection :",
+            CONFIG.redirectUri
+        );
+    }
+}
+
+function openSpotifyDeveloperDashboard() {
+    window.open(
+        SPOTIFY_DEVELOPER_DASHBOARD_URL,
+        "_blank",
+        "noopener,noreferrer"
+    );
+}
+
+function savePersonalSpotifyClientId(value, { source = "user" } = {}) {
+    const clientId = String(value || "").trim();
+
+    if (!isValidSpotifyClientId(clientId)) {
+        throw new Error(
+            "Le Client ID Spotify semble invalide. Copie uniquement l’identifiant affiché dans Spotify for Developers."
+        );
+    }
+
+    const result = saveSpotifyAppConfiguration(
+        localStorage,
+        {
+            clientId,
+            redirectUri: CONFIG.redirectUri,
+            source
+        }
+    );
+
+    if (!result.saved) {
+        throw new Error(
+            "Shuffle+ ne peut pas enregistrer le Client ID dans ce navigateur. Vérifie les autorisations de stockage."
+        );
+    }
+
+    return result.configuration;
+}
+
+function renderSpotifyConnectionSettingsPanel() {
+    const configuration = getSpotifyApplicationConfiguration();
+
+    return `
+        <section class="spotify-connection-settings settings-card">
+            <div class="settings-card-heading">
+                <div>
+                    <span class="settings-kicker">🔑 Connexion Spotify</span>
+                    <h3>Application Spotify personnelle</h3>
+                    <p>
+                        Chaque utilisateur peut connecter son propre Client ID.
+                        Aucun Client Secret n’est demandé ni enregistré.
+                    </p>
+                </div>
+                <span class="spotify-config-badge ${configuration.clientId ? "is-ready" : "is-missing"}">
+                    ${configuration.clientId ? "Configurée" : "À configurer"}
+                </span>
+            </div>
+
+            <dl class="spotify-config-summary">
+                <div>
+                    <dt>Client ID</dt>
+                    <dd>${escapeHtml(maskSpotifyClientId(configuration.clientId))}</dd>
+                </div>
+                <div>
+                    <dt>Adresse de redirection</dt>
+                    <dd><code>${escapeHtml(CONFIG.redirectUri)}</code></dd>
+                </div>
+                <div>
+                    <dt>Mode conduite</dt>
+                    <dd>${DRIVING_MODE_AVAILABLE ? "Disponible sur cet appareil iOS/iPadOS" : "Masqué sur cet appareil"}</dd>
+                </div>
+            </dl>
+
+            <form id="spotifyClientIdSettingsForm" class="spotify-client-id-settings-form">
+                <label>
+                    <span>Nouveau Client ID</span>
+                    <input
+                        name="clientId"
+                        type="text"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        spellcheck="false"
+                        minlength="20"
+                        maxlength="64"
+                        placeholder="Colle un Client ID pour le remplacer"
+                    >
+                </label>
+                <button type="submit">Enregistrer ce Client ID</button>
+            </form>
+
+            <div class="spotify-config-actions">
+                <button type="button" data-copy-spotify-redirect>
+                    Copier l’adresse de redirection
+                </button>
+                <button type="button" data-test-spotify-configuration>
+                    Tester la configuration
+                </button>
+                <button type="button" data-open-spotify-developer>
+                    Spotify for Developers
+                </button>
+                <button type="button" class="danger" data-reset-spotify-configuration>
+                    Réinitialiser la configuration
+                </button>
+            </div>
+
+            <p class="spotify-config-warning">
+                Changer de Client ID déconnecte le compte Spotify actuel, mais conserve les mix, raccourcis, réglages et statistiques locales.
+            </p>
+        </section>
+    `;
+}
+
+async function testSpotifyApplicationConfiguration() {
+    const configuration = getSpotifyApplicationConfiguration();
+
+    if (!configuration.clientId) {
+        setStatus("Aucun Client ID Spotify n’est configuré.", "error");
+        return;
+    }
+
+    setStatus("Test de la configuration Spotify…");
+
+    try {
+        const profile = await getMyProfile();
+        setStatus(
+            `Configuration valide · compte ${profile?.display_name || profile?.id || "Spotify"}.`,
+            "success"
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error?.status === 403
+                ? "Connexion autorisée, mais ce compte n’est peut-être pas ajouté aux utilisateurs de cette application Spotify Developer."
+                : error?.message || "Impossible de tester cette configuration Spotify.",
+            "error"
+        );
+    }
+}
+
 function setDisconnectedInterface() {
     document.body.classList.remove(
         "is-connected"
     );
-    loginButton.hidden = false;
+    const spotifyConfigured = hasConfiguredSpotifyApplication();
+    loginButton.hidden = !spotifyConfigured;
     loginButton.disabled = false;
     loginButton.textContent = "Se connecter à Spotify";
+
+    if (spotifySetupPanel) {
+        spotifySetupPanel.hidden = spotifyConfigured;
+    }
 
     logoutButton.hidden = true;
 
@@ -3034,15 +3263,13 @@ function setConnectedInterface() {
     );
     loginButton.hidden = true;
     logoutButton.hidden = false;
+    if (spotifySetupPanel) {
+        spotifySetupPanel.hidden = true;
+    }
 }
 
 function isIosDevice() {
-    const platform = navigator.userAgent || "";
-    const touchMac =
-        navigator.platform === "MacIntel" &&
-        navigator.maxTouchPoints > 1;
-
-    return /iPad|iPhone|iPod/.test(platform) || touchMac;
+    return isAppleMobileDevice();
 }
 
 function isStandalonePwa() {
@@ -3604,7 +3831,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.5.0",
+                "./service-worker.js?v=7.6.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7668,6 +7895,18 @@ async function refreshDrivingPlayback({
 async function enterDrivingMode({
     refresh = true
 } = {}) {
+    if (!DRIVING_MODE_AVAILABLE) {
+        activeAppMenu = "dashboard";
+        saveActiveAppMenu();
+        document.body.classList.remove("is-driving-mode");
+        displayPlaylists(playlistsCache);
+        setStatus(
+            "Le mode conduite est réservé aux appareils iOS et iPadOS.",
+            "error"
+        );
+        return false;
+    }
+
     activeAppMenu = "driving";
     saveActiveAppMenu();
     drivingExitArmedUntil = 0;
@@ -7687,6 +7926,8 @@ async function enterDrivingMode({
             silent: true
         });
     }
+
+    return true;
 }
 
 async function exitDrivingMode() {
@@ -9870,7 +10111,10 @@ function buildQuickControlUrl(
     }
 
     if (action === "driving") {
-        url.searchParams.set("view", "driving");
+        url.searchParams.set(
+            "view",
+            DRIVING_MODE_AVAILABLE ? "driving" : "quick"
+        );
         return url.toString();
     }
 
@@ -10056,7 +10300,7 @@ function renderShortcutProfilesDashboard() {
                                         <span>📲 ${escapeHtml(getShortcutProfileDeviceLabel(command))}</span>
                                         <span>${command.shuffle ? "🔀 Shuffle" : "↕️ Ordre normal"}</span>
                                         <span>${command.startFromBeginning ? "⏮ Début" : "🎲 Départ aléatoire"}</span>
-                                        ${command.openDrivingMode ? "<span>🚗 Conduite</span>" : ""}
+                                        ${command.openDrivingMode && DRIVING_MODE_AVAILABLE ? "<span>🚗 Conduite</span>" : ""}
                                         ${command.openDynamicLyrics ? "<span>🎤 Dynamic Lyrics</span>" : ""}
                                     </div>
 
@@ -10187,7 +10431,9 @@ function renderQuickControlPage() {
         ["next", "⏭️ Titre suivant"],
         ["like-current", "💚 J’aime le titre actif"],
         ["not-now-current", "⏳ Pas maintenant"],
-        ["driving", "🚗 Ouvrir le mode conduite"]
+        ...(DRIVING_MODE_AVAILABLE
+            ? [["driving", "🚗 Ouvrir le mode conduite"]]
+            : [])
     ];
 
     const html = `
@@ -10308,7 +10554,11 @@ function renderQuickControlPage() {
             </section>
 
             <div class="quick-action-grid">
-                ${QUICK_CONTROL_ACTIONS.map(
+                ${QUICK_CONTROL_ACTIONS
+                    .filter((action) =>
+                        DRIVING_MODE_AVAILABLE || action.id !== "driving"
+                    )
+                    .map(
                     (action) => `
                         <button
                             type="button"
@@ -10343,7 +10593,7 @@ function renderQuickControlPage() {
                     <p>
                         Exemples : « lance le trajet », « pause »,
                         « reprends », « suivant », « j’aime ce titre »,
-                        « pas maintenant » ou « mode conduite ».
+                        « pas maintenant »${DRIVING_MODE_AVAILABLE ? " ou « mode conduite »" : ""}.
                     </p>
                 </div>
 
@@ -10935,7 +11185,15 @@ function applyDrivingViewFromUrl() {
         return;
     }
 
-    activeAppMenu = resolved.menuId;
+    if (
+        resolved.menuId === "driving" &&
+        !DRIVING_MODE_AVAILABLE
+    ) {
+        activeAppMenu = "dashboard";
+        blockedDrivingRequest = true;
+    } else {
+        activeAppMenu = resolved.menuId;
+    }
     saveActiveAppMenu();
     window.history.replaceState(
         {},
@@ -12899,6 +13157,16 @@ async function navigateToAppMenu(
         );
 
     if (normalizedMenu === "driving") {
+        if (!DRIVING_MODE_AVAILABLE) {
+            activeAppMenu = "dashboard";
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Le mode conduite est disponible uniquement sur iPhone et iPad.",
+                "error"
+            );
+            return;
+        }
         await enterDrivingMode();
         return;
     }
@@ -15536,7 +15804,9 @@ function renderSimpleManualPage() {
             summary: "Personnaliser, sauvegarder et synchroniser l’application.",
             details: "Change le thème, gère les règles de mix, exporte une sauvegarde, configure la synchronisation et recherche les mises à jour."
         }
-    ];
+    ].filter((section) =>
+        DRIVING_MODE_AVAILABLE || section.id !== "driving"
+    );
 
     return `
         <section class="simple-guide-page">
@@ -15706,7 +15976,9 @@ function renderAppMenu() {
             class="app-menu app-menu--grouped"
             aria-label="Navigation Shuffle+"
         >
-            ${APP_MENU_GROUPS.map((group) => `
+            ${getVisibleAppMenuGroups({
+                drivingAvailable: DRIVING_MODE_AVAILABLE
+            }).map((group) => `
                 <div
                     class="app-menu-group"
                     data-app-menu-group="${group.id}"
@@ -16773,7 +17045,7 @@ function buildIosCommandUrl(command) {
         "1"
     );
 
-    if (normalized.openDrivingMode) {
+    if (normalized.openDrivingMode && DRIVING_MODE_AVAILABLE) {
         url.searchParams.set(
             "driving",
             "1"
@@ -17645,6 +17917,7 @@ function renderIosCommandsPanel() {
                     </select>
                 </label>
 
+                ${DRIVING_MODE_AVAILABLE ? `
                 <label class="ios-command-check">
                     <input
                         name="openDrivingMode"
@@ -17653,6 +17926,7 @@ function renderIosCommandsPanel() {
                     >
                     <span>Ouvrir le mode conduite après le lancement</span>
                 </label>
+                ` : ""}
 
                 <label class="ios-command-check dynamic-lyrics-command-option">
                     <input
@@ -18590,8 +18864,8 @@ async function runIosQuickPlay(
         );
 
         if (
-            command.openDrivingMode ||
-            openDrivingMode
+            DRIVING_MODE_AVAILABLE &&
+            (command.openDrivingMode || openDrivingMode)
         ) {
             await enterDrivingMode({
                 refresh: false
@@ -18956,8 +19230,8 @@ async function executeAutomationCommand(
         }
 
         if (
-            command.openDrivingMode ||
-            normalized.openDrivingMode
+            DRIVING_MODE_AVAILABLE &&
+            (command.openDrivingMode || normalized.openDrivingMode)
         ) {
             await enterDrivingMode({
                 refresh: true
@@ -34160,6 +34434,7 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="settings"
             >
+                ${renderSpotifyConnectionSettingsPanel()}
                 ${renderContextualHelpSettingsPanel()}
                 ${renderAppHealthPanel()}
                 ${renderUiThemeSettingsPanel()}
@@ -37052,6 +37327,38 @@ async function initializeApp() {
             callbackParameters.get("code") ||
             callbackParameters.get("error")
         );
+
+        const spotifyConfigMigration = migrateLegacySpotifyClientId({
+            local: localStorage,
+            session: sessionStorage,
+            legacyClientId: CONFIG.legacyClientId,
+            redirectUri: CONFIG.redirectUri
+        });
+
+        if (spotifyConfigMigration.migrated) {
+            console.info(
+                "Client ID Spotify historique migré vers la configuration locale."
+            );
+        }
+
+        const spotifyConfiguration = updateSpotifySetupInterface();
+
+        if (!spotifyConfiguration.clientId) {
+            setDisconnectedInterface();
+            updateSpotifySetupInterface({ focus: !hasOAuthCallback });
+
+            if (hasOAuthCallback) {
+                throw new Error(
+                    "Le Client ID utilisé pour cette autorisation est introuvable. Renseigne ton Client ID Spotify puis recommence la connexion."
+                );
+            }
+
+            setStatus(
+                "Configure ton Client ID Spotify personnel pour commencer."
+            );
+            return;
+        }
+
         const authRepair = repairSpotifyAuthState({
             hasOAuthCallback
         });
@@ -37168,6 +37475,14 @@ async function initializeApp() {
 
         startScheduleWatcher();
 
+        if (blockedDrivingRequest) {
+            blockedDrivingRequest = false;
+            showToast(
+                "Le mode conduite est disponible uniquement sur iPhone et iPad.",
+                "error"
+            );
+        }
+
         if (pendingAutomationCommand) {
             try {
                 await executeAutomationCommand(
@@ -37269,8 +37584,52 @@ dismissPwaUpdateButton.addEventListener(
 );
 }
 
+if (spotifySetupForm) {
+spotifySetupForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+
+    try {
+        const configuration = savePersonalSpotifyClientId(
+            new FormData(spotifySetupForm).get("clientId")
+        );
+        spotifySetupClientIdInput.value = "";
+        updateSpotifySetupInterface();
+        setStatus(
+            `Client ID ${maskSpotifyClientId(configuration.clientId)} enregistré. Tu peux maintenant te connecter à Spotify.`,
+            "success"
+        );
+        loginButton?.focus();
+    } catch (error) {
+        console.error(error);
+        setStatus(error.message, "error");
+    }
+});
+}
+
+if (copySpotifySetupRedirectButton) {
+copySpotifySetupRedirectButton.addEventListener(
+    "click",
+    copySpotifyRedirectUri
+);
+}
+
+if (openSpotifyDeveloperButton) {
+openSpotifyDeveloperButton.addEventListener(
+    "click",
+    openSpotifyDeveloperDashboard
+);
+}
+
 if (loginButton) {
 loginButton.addEventListener("click", async () => {
+    if (!hasConfiguredSpotifyApplication()) {
+        updateSpotifySetupInterface({ focus: true });
+        setStatus(
+            "Configure d’abord ton Client ID Spotify personnel.",
+            "error"
+        );
+        return;
+    }
     loginButton.disabled = true;
     loginButton.textContent =
         "Redirection vers Spotify…";
@@ -37317,6 +37676,44 @@ if (contentElement) {
 contentElement.addEventListener(
     "click",
     async (event) => {
+        if (event.target.closest("[data-copy-spotify-redirect]")) {
+            await copySpotifyRedirectUri();
+            return;
+        }
+
+        if (event.target.closest("[data-open-spotify-developer]")) {
+            openSpotifyDeveloperDashboard();
+            return;
+        }
+
+        if (event.target.closest("[data-test-spotify-configuration]")) {
+            await testSpotifyApplicationConfiguration();
+            return;
+        }
+
+        if (event.target.closest("[data-reset-spotify-configuration]")) {
+            const confirmed = window.confirm(
+                "Réinitialiser le Client ID et déconnecter Spotify ? Les mix, raccourcis et réglages locaux seront conservés."
+            );
+
+            if (!confirmed) {
+                return;
+            }
+
+            logoutSpotify();
+            clearSpotifyAppConfiguration(localStorage);
+            currentUserId = "";
+            currentUserProduct = "";
+            welcomeElement.textContent = "Bienvenue 👋";
+            setDisconnectedInterface();
+            updateSpotifySetupInterface({ focus: true });
+            setStatus(
+                "Configuration Spotify réinitialisée. Renseigne un nouveau Client ID.",
+                "success"
+            );
+            return;
+        }
+
         if (
             event.target.closest(
                 "#refreshOfflineLibraryButton"
@@ -39799,6 +40196,38 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (event.target.id === "spotifyClientIdSettingsForm") {
+            event.preventDefault();
+            const nextClientId = String(
+                new FormData(event.target).get("clientId") || ""
+            ).trim();
+
+            try {
+                const current = getSpotifyApplicationConfiguration();
+                const updated = savePersonalSpotifyClientId(nextClientId);
+
+                if (updated.clientId !== current.clientId) {
+                    logoutSpotify();
+                    currentUserId = "";
+                    currentUserProduct = "";
+                    welcomeElement.textContent = "Bienvenue 👋";
+                    setDisconnectedInterface();
+                    updateSpotifySetupInterface();
+                    setStatus(
+                        "Nouveau Client ID enregistré. Reconnecte-toi à Spotify.",
+                        "success"
+                    );
+                } else {
+                    displayPlaylists(playlistsCache);
+                    setStatus("Client ID Spotify confirmé.", "success");
+                }
+            } catch (error) {
+                console.error(error);
+                setStatus(error.message, "error");
+            }
+            return;
+        }
+
         if (
             event.target.id === "offlinePerformanceSettingsForm"
         ) {

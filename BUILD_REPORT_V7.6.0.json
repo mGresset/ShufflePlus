@@ -1,0 +1,29 @@
+{
+  "application": "Shuffle+",
+  "version": "7.6.0",
+  "baseVersion": "7.5.0",
+  "status": "passed",
+  "validation": {
+    "javascriptFiles": 54,
+    "linkedModules": 28,
+    "applicationTestsPassed": 60,
+    "applicationTestsFailed": 0,
+    "syncServerTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmokeTest": "passed"
+  },
+  "features": [
+    "personal Spotify Client ID onboarding",
+    "legacy Client ID migration",
+    "Spotify configuration settings",
+    "iOS and iPadOS driving mode restriction",
+    "local-only iOS debug simulation"
+  ],
+  "manualChecksRequired": [
+    "real Spotify authorization with a new Client ID",
+    "migration on the currently deployed iPhone PWA",
+    "iPhone and iPad driving-mode visibility",
+    "desktop driving-mode hiding"
+  ]
+}

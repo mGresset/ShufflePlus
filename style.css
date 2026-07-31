@@ -15429,3 +15429,167 @@ body.is-connected .startup-recovery-panel {
         font-size: 0.82rem;
     }
 }
+
+/* Shuffle+ v7.6.0 — configuration Spotify personnelle */
+.spotify-setup-panel,
+.spotify-connection-settings {
+    margin-top: 18px;
+    padding: 18px;
+    border: 1px solid rgb(var(--accent-rgb, 139 92 246) / 0.35);
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.78);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+}
+
+.spotify-setup-heading,
+.settings-card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.spotify-setup-heading > span {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    border-radius: 14px;
+    background: rgb(var(--accent-rgb, 139 92 246) / 0.18);
+    font-size: 1.25rem;
+}
+
+.spotify-setup-heading small,
+.settings-kicker {
+    display: block;
+    margin-bottom: 4px;
+    color: rgba(255, 255, 255, 0.68);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.spotify-setup-heading h3,
+.spotify-connection-settings h3 {
+    margin: 0;
+}
+
+.spotify-setup-steps {
+    margin: 16px 0;
+    padding-left: 22px;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.spotify-setup-steps li + li {
+    margin-top: 6px;
+}
+
+.spotify-redirect-box,
+.spotify-config-summary {
+    display: grid;
+    gap: 10px;
+    margin: 16px 0;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.48);
+}
+
+.spotify-redirect-box code,
+.spotify-config-summary code {
+    overflow-wrap: anywhere;
+    color: #c4b5fd;
+}
+
+.spotify-setup-form,
+.spotify-client-id-settings-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.spotify-setup-form label,
+.spotify-client-id-settings-form label {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.spotify-setup-form input,
+.spotify-client-id-settings-form input {
+    width: 100%;
+    min-width: 0;
+}
+
+.spotify-setup-actions,
+.spotify-config-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.spotify-setup-note,
+.spotify-config-warning {
+    display: block;
+    margin-top: 14px;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+.spotify-config-badge {
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.spotify-config-badge.is-ready {
+    background: rgba(16, 185, 129, 0.16);
+    color: #6ee7b7;
+}
+
+.spotify-config-badge.is-missing {
+    background: rgba(245, 158, 11, 0.16);
+    color: #fcd34d;
+}
+
+.spotify-config-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.spotify-config-summary div {
+    min-width: 0;
+}
+
+.spotify-config-summary dt {
+    color: rgba(255, 255, 255, 0.56);
+    font-size: 0.78rem;
+}
+
+.spotify-config-summary dd {
+    margin: 5px 0 0;
+    overflow-wrap: anywhere;
+    font-weight: 700;
+}
+
+.spotify-config-actions .danger {
+    border-color: rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+}
+
+@media (max-width: 700px) {
+    .spotify-setup-form,
+    .spotify-client-id-settings-form,
+    .spotify-config-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .spotify-setup-form button,
+    .spotify-client-id-settings-form button {
+        width: 100%;
+        min-height: 44px;
+    }
+}

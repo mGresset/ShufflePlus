@@ -82,7 +82,7 @@ async function readJsonResponse(response) {
 export async function loginWithSpotify() {
     if (!CONFIG.clientId || CONFIG.clientId === "TON_CLIENT_ID_SPOTIFY") {
         throw new Error(
-            "Le Client ID Spotify n'est pas configuré dans config.js."
+            "Aucun Client ID Spotify personnel n’est configuré. Termine d’abord l’assistant Shuffle+."
         );
     }
 

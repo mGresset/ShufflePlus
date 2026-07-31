@@ -1,5 +1,23 @@
 # Shuffle+
 
+## v7.6.0 — Accès public et expérience iOS
+
+Shuffle+ peut désormais être utilisé par plusieurs personnes sur le même site public. Chaque utilisateur configure localement son propre Client ID Spotify Developer ; aucun Client Secret n’est demandé. Les installations déjà connectées avant la v7.6.0 migrent automatiquement leur configuration historique.
+
+Le mode conduite est affiché uniquement sur iPhone et iPad. Sur ordinateur, ses entrées sont masquées et une ancienne URL `?view=driving` revient vers l’accueil. Pour les tests locaux, `http://127.0.0.1:5500/?debug_ios=1` simule l’interface iOS sans activer ce paramètre sur le site public.
+
+### Première configuration
+
+1. Créer une application dans Spotify for Developers.
+2. Activer la Web API.
+3. Ajouter exactement l’adresse de redirection affichée par Shuffle+.
+4. Coller le Client ID dans l’assistant de première ouverture.
+5. Se connecter à Spotify.
+
+Le Client ID est stocké uniquement dans le navigateur. Les jetons Spotify ne sont pas inclus dans les sauvegardes ou la synchronisation.
+
+---
+
 ## v7.5.0 — Quota Spotify optimisé
 
 La v7.5.0 centralise les requêtes à la Web API Spotify afin de limiter les appels inutiles. Les lectures identiques simultanées sont regroupées, les réponses très récentes du lecteur, des appareils et de la file sont réutilisées, et toute commande de lecture invalide automatiquement ces données temporaires.
