@@ -1,5 +1,7 @@
 import {
     smartShuffleTracks,
+    smartShuffleTracksDetailed,
+    createShuffleSeed,
     analyzeShuffleOrder,
     rememberPlaybackOrder
 } from "./shuffle-engine.js";
@@ -206,7 +208,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "7.6.0";
+const APP_VERSION = "7.7.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -665,7 +667,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v7.6.0-shell";
+    "shuffleplus-v7.7.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1049,6 +1051,7 @@ let currentShuffleSettings = {
     ...DEFAULT_SHUFFLE_SETTINGS
 };
 let originalGeneratedOrder = [];
+let lastShuffleReport = null;
 let trackSearchTerm = "";
 let draggedTrackIndex = -1;
 let playbackQueueCursor = 0;
@@ -3831,7 +3834,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=7.6.0",
+                "./service-worker.js?v=7.7.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -9230,6 +9233,7 @@ async function applyAdaptiveTransition(form) {
         setActiveAdaptiveDjScene(
             plan.targetScene.id
         );
+        lastShuffleReport = null;
         displayPlaylistDetails(
             selectedPlaylist,
             selectedTracks
@@ -21436,11 +21440,8 @@ function restoreLastCleanup() {
     }
 
     sourceTracks = [...lastCleanupSnapshot];
-    selectedTracks = smartShuffleTracks(
-        sourceTracks,
-        getShuffleEngineOptions(
-            currentShuffleSettings
-        )
+    selectedTracks = generateExplainedShuffleOrder(
+        sourceTracks
     );
     selectedTracks = limitTracksToAdaptiveTarget(
         selectedTracks,
@@ -21449,8 +21450,9 @@ function restoreLastCleanup() {
     originalGeneratedOrder = [...selectedTracks];
     lastCleanupSummary = null;
     renderTrackList();
+    refreshShuffleExplainabilityReport();
     renderShuffleStats(
-        analyzeShuffleOrder(
+        lastShuffleReport?.after || analyzeShuffleOrder(
             selectedTracks,
             getShuffleEngineOptions(
                 currentShuffleSettings
@@ -35307,6 +35309,26 @@ function createTrackRow(track, index) {
                         </span>
                     `
                     : ""}
+
+                ${(() => {
+                    const explanation = getShufflePlacementExplanation(
+                        track,
+                        index
+                    );
+
+                    return explanation
+                        ? `
+                            <details class="track-placement-explanation">
+                                <summary>Pourquoi ici ?</summary>
+                                <span>
+                                    ${escapeHtml(
+                                        explanation.reasons.join(" · ")
+                                    )}
+                                </span>
+                            </details>
+                        `
+                        : "";
+                })()}
             </div>
 
             <span class="track-album">
@@ -36027,6 +36049,239 @@ function updateDeviceControls(previousDeviceId = "") {
     updatePlaybackQueueUI();
 }
 
+function generateExplainedShuffleOrder(
+    tracks,
+    { seed = "", recentTrackUris = null } = {}
+) {
+    const report = smartShuffleTracksDetailed(
+        tracks,
+        {
+            ...getShuffleEngineOptions(
+                currentShuffleSettings
+            ),
+            seed: seed || createShuffleSeed(),
+            ...(Array.isArray(recentTrackUris)
+                ? { recentTrackUris }
+                : {})
+        }
+    );
+
+    lastShuffleReport = report;
+    return [...report.tracks];
+}
+
+function getShufflePlacementExplanation(track, index) {
+    const placement = lastShuffleReport?.placements?.[index];
+    const trackKey = track?.uri || track?.id || "";
+
+    if (
+        !placement ||
+        placement.position !== index + 1 ||
+        placement.trackUri !== trackKey
+    ) {
+        return null;
+    }
+
+    return placement;
+}
+
+function renderShuffleMetricValue(value, suffix = "") {
+    const numeric = Math.max(0, Number(value || 0));
+    return `${Math.round(numeric * 10) / 10}${suffix}`;
+}
+
+function renderShuffleExplainabilityReport() {
+    const report = lastShuffleReport;
+
+    if (!report) {
+        return "";
+    }
+
+    const comparisonMetrics = [
+        {
+            label: "Artistes consécutifs",
+            before: report.before?.consecutiveArtistRepeats,
+            after: report.after?.consecutiveArtistRepeats,
+            lowerIsBetter: true
+        },
+        {
+            label: "Albums consécutifs",
+            before: report.before?.consecutiveAlbumRepeats,
+            after: report.after?.consecutiveAlbumRepeats,
+            lowerIsBetter: true
+        },
+        {
+            label: "Transitions brusques",
+            before: report.before?.abruptTransitions,
+            after: report.after?.abruptTransitions,
+            lowerIsBetter: true
+        },
+        {
+            label: "Titres récents au début",
+            before: report.before?.recentTracksInFirstTwenty,
+            after: report.after?.recentTracksInFirstTwenty,
+            lowerIsBetter: true
+        },
+        {
+            label: "Courbe d’intensité",
+            before: report.before?.intensityCurveAdherence,
+            after: report.after?.intensityCurveAdherence,
+            suffix: "%",
+            lowerIsBetter: false
+        }
+    ];
+
+    const comparisonRows = comparisonMetrics
+        .map((metric) => {
+            const before = Number(metric.before || 0);
+            const after = Number(metric.after || 0);
+            const improved = metric.lowerIsBetter
+                ? after < before
+                : after > before;
+            const unchanged = after === before;
+
+            return `
+                <div class="shuffle-report-row ${improved ? "is-improved" : unchanged ? "is-unchanged" : "is-worse"}">
+                    <span>${escapeHtml(metric.label)}</span>
+                    <strong>${renderShuffleMetricValue(before, metric.suffix || "")}</strong>
+                    <span aria-hidden="true">→</span>
+                    <strong>${renderShuffleMetricValue(after, metric.suffix || "")}</strong>
+                </div>
+            `;
+        })
+        .join("");
+
+    const relaxationRows = report.relaxations?.length
+        ? report.relaxations
+            .map((item) => `
+                <li>
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <span>
+                        ${item.count} fois · position${item.positions.length > 1 ? "s" : ""}
+                        ${item.positions.join(", ")}
+                    </span>
+                </li>
+            `)
+            .join("")
+        : `
+            <li class="is-success">
+                <strong>Toutes les contraintes principales ont été respectées</strong>
+                <span>Aucun relâchement nécessaire dans le groupe de candidats analysé.</span>
+            </li>
+        `;
+
+    const explanationRows = (report.placements || [])
+        .slice(0, 15)
+        .map((placement) => `
+            <li>
+                <span class="shuffle-explanation-position">${placement.position}</span>
+                <div>
+                    <strong>${escapeHtml(placement.trackName)}</strong>
+                    <small>${escapeHtml(placement.artists || "Artiste inconnu")}</small>
+                    <p>${escapeHtml(placement.reasons.join(" · "))}</p>
+                </div>
+            </li>
+        `)
+        .join("");
+
+    const improvement = Number(report.improvement || 0);
+    const improvementText = improvement > 0
+        ? `+${improvement} points`
+        : improvement < 0
+            ? `${improvement} points`
+            : "score identique";
+
+    return `
+        <section
+            id="shuffleExplainabilityReport"
+            class="shuffle-explainability-report"
+            aria-label="Rapport explicable du mélange"
+        >
+            <div class="shuffle-report-heading">
+                <div>
+                    <span class="shuffle-report-kicker">Shuffle+ Explainable</span>
+                    <h3>Pourquoi cet ordre ?</h3>
+                    <p>
+                        Compare l’ordre source et le mélange créé, puis explique
+                        les compromis utilisés par le moteur.
+                    </p>
+                </div>
+                <div class="shuffle-report-score">
+                    <span>${report.beforeScore}/100</span>
+                    <span aria-hidden="true">→</span>
+                    <strong>${report.afterScore}/100</strong>
+                    <small>${escapeHtml(improvementText)}</small>
+                </div>
+            </div>
+
+            <div class="shuffle-seed-panel">
+                <div>
+                    <span>Graine reproductible</span>
+                    <code>${escapeHtml(report.seed)}</code>
+                </div>
+                <div class="shuffle-seed-actions">
+                    <button id="copyShuffleSeedButton" type="button">
+                        Copier
+                    </button>
+                    <button id="replayShuffleSeedButton" type="button">
+                        Rejouer exactement
+                    </button>
+                </div>
+            </div>
+
+            <div class="shuffle-report-comparison">
+                <div class="shuffle-report-column-labels" aria-hidden="true">
+                    <span>Critère</span>
+                    <span>Avant</span>
+                    <span></span>
+                    <span>Après</span>
+                </div>
+                ${comparisonRows}
+            </div>
+
+            <details class="shuffle-report-details">
+                <summary>Contraintes relâchées</summary>
+                <ul class="shuffle-relaxation-list">
+                    ${relaxationRows}
+                </ul>
+            </details>
+
+            <details class="shuffle-report-details">
+                <summary>Explication des 15 premiers placements</summary>
+                <ol class="shuffle-placement-list">
+                    ${explanationRows}
+                </ol>
+            </details>
+        </section>
+    `;
+}
+
+function refreshShuffleExplainabilityReport() {
+    const reportElement = document.getElementById(
+        "shuffleExplainabilityReport"
+    );
+    const statsElement = document.getElementById(
+        "shuffleStats"
+    );
+    const html = renderShuffleExplainabilityReport();
+
+    if (reportElement) {
+        if (html) {
+            reportElement.outerHTML = html;
+        } else {
+            reportElement.remove();
+        }
+        return;
+    }
+
+    if (html && statsElement) {
+        statsElement.insertAdjacentHTML(
+            "beforebegin",
+            html
+        );
+    }
+}
+
 function displayPlaylistDetails(playlist, tracks) {
     const isLikedTracks = playlist.sourceType === "liked";
     const isMultiSourceMix = playlist.sourceType === "mix";
@@ -36465,6 +36720,8 @@ function displayPlaylistDetails(playlist, tracks) {
                     ? `Mode adaptatif ${getTimeContext().label.toLowerCase()} actif, durée cible ${getAdaptiveDurationLabel(currentAdaptiveSettings)}.`
                     : ""}
             </p>
+
+            ${renderShuffleExplainabilityReport()}
 
             <div
                 id="shuffleStats"
@@ -37006,9 +37263,8 @@ async function createSelectedMix() {
                 pendingMixStudioRuntime
             )
             : filteredTracks;
-        selectedTracks = smartShuffleTracks(
-            sourceTracks,
-            getShuffleEngineOptions(currentShuffleSettings)
+        selectedTracks = generateExplainedShuffleOrder(
+            sourceTracks
         );
 
         if (pendingMixStudioRuntime?.enabled) {
@@ -37074,12 +37330,12 @@ async function createSelectedMix() {
             selectedTracks
         );
         renderShuffleStats(
-            analyzeShuffleOrder(
-            selectedTracks,
-            getShuffleEngineOptions(
-                currentShuffleSettings
+            lastShuffleReport?.after || analyzeShuffleOrder(
+                selectedTracks,
+                getShuffleEngineOptions(
+                    currentShuffleSettings
+                )
             )
-        )
         );
 
         const shuffleButton = document.getElementById(
@@ -37152,6 +37408,7 @@ async function openPlaylist(playlist) {
     sourceTracks = [];
     selectedTracks = [];
     availableDevices = [];
+    lastShuffleReport = null;
 
     const isLikedTracks = playlist.sourceType === "liked";
     currentShuffleSettings = {
@@ -39721,6 +39978,55 @@ contentElement.addEventListener(
             return;
         }
 
+        const copyShuffleSeedButton =
+            event.target.closest("#copyShuffleSeedButton");
+
+        if (copyShuffleSeedButton && lastShuffleReport?.seed) {
+            await copyTextToClipboard(lastShuffleReport.seed);
+            showToast("Graine du mélange copiée.", "success");
+            return;
+        }
+
+        const replayShuffleSeedButton =
+            event.target.closest("#replayShuffleSeedButton");
+
+        if (
+            replayShuffleSeedButton &&
+            lastShuffleReport?.seed &&
+            sourceTracks.length > 1
+        ) {
+            const seed = lastShuffleReport.seed;
+            selectedTracks = generateExplainedShuffleOrder(
+                sourceTracks,
+                {
+                    seed,
+                    recentTrackUris:
+                        lastShuffleReport.recentTrackUris
+                }
+            );
+            selectedTracks = limitTracksToAdaptiveTarget(
+                selectedTracks,
+                currentAdaptiveSettings
+            );
+            buildPrioritySummary(
+                selectedTracks,
+                currentPriorityRules
+            );
+            originalGeneratedOrder = [...selectedTracks];
+            trackSearchTerm = "";
+            markQueueChanged();
+            renderTrackList();
+            refreshShuffleExplainabilityReport();
+            renderShuffleStats(
+                lastShuffleReport?.after || null
+            );
+            showToast(
+                `Mélange ${seed} reproduit exactement.`,
+                "success"
+            );
+            return;
+        }
+
         const shuffleButton =
             event.target.closest("#shuffleButton");
 
@@ -39728,9 +40034,8 @@ contentElement.addEventListener(
             shuffleButton &&
             selectedTracks.length > 1
         ) {
-            selectedTracks = smartShuffleTracks(
-                sourceTracks,
-                getShuffleEngineOptions(currentShuffleSettings)
+            selectedTracks = generateExplainedShuffleOrder(
+                sourceTracks
             );
             selectedTracks = limitTracksToAdaptiveTarget(
                 selectedTracks,
@@ -39753,13 +40058,14 @@ contentElement.addEventListener(
             }
 
             renderTrackList();
+            refreshShuffleExplainabilityReport();
             renderShuffleStats(
-                analyzeShuffleOrder(
-            selectedTracks,
-            getShuffleEngineOptions(
-                currentShuffleSettings
-            )
-        )
+                lastShuffleReport?.after || analyzeShuffleOrder(
+                    selectedTracks,
+                    getShuffleEngineOptions(
+                        currentShuffleSettings
+                    )
+                )
             );
 
             shuffleButton.textContent =

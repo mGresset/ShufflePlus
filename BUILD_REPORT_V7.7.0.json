@@ -1,0 +1,30 @@
+{
+  "application": "Shuffle+",
+  "version": "7.7.0",
+  "baseVersion": "7.6.0",
+  "status": "passed",
+  "validation": {
+    "javascriptFiles": 55,
+    "linkedModules": 28,
+    "applicationTestsPassed": 67,
+    "applicationTestsFailed": 0,
+    "syncServerTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmokeTest": "passed"
+  },
+  "features": [
+    "deterministic seeded shuffle",
+    "before and after shuffle comparison",
+    "placement explanations",
+    "progressive constraint relaxation",
+    "exact shuffle replay",
+    "per-track why-here details"
+  ],
+  "manualChecksRequired": [
+    "visual validation of the report on iPhone",
+    "large real Spotify playlist performance",
+    "exact replay after a real mix generation",
+    "constraint relaxation display on low-diversity playlists"
+  ]
+}
