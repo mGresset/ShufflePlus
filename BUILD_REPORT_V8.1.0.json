@@ -1,0 +1,27 @@
+{
+  "version": "8.1.0",
+  "baseVersion": "8.0.1",
+  "generatedAt": "2026-07-31T21:11:47.672213+00:00",
+  "summary": "Simplification complète de la synchronisation serveur : assistant Railway, bouton unique, fusion automatique sécurisée et options techniques repliées.",
+  "validation": {
+    "javascriptFiles": 67,
+    "linkedModules": 36,
+    "applicationTests": 101,
+    "applicationTestsFailed": 0,
+    "serverTests": "passed",
+    "githubPagesBuild": "passed",
+    "distCheck": "passed",
+    "localHttpSmoke": "passed",
+    "patchAppliedToCleanV8_0_1": "passed",
+    "patchValidationWithLegacyRecoveryFile": "passed (68 JavaScript files checked; old recovery excluded from dist)"
+  },
+  "dataMigration": false,
+  "userDataPreserved": true,
+  "serverConfigurationPreserved": true,
+  "manualChecks": [
+    "Tester Synchroniser maintenant avec le serveur Railway réel.",
+    "Tester la création et la liaison sur un environnement de test.",
+    "Vérifier le rendu mobile de la page Synchronisation.",
+    "Confirmer qu’un conflit entre deux appareils propose la combinaison recommandée."
+  ]
+}

@@ -1,0 +1,20 @@
+Shuffle+ v8.1.0 — fichiers du patch
+
+.vscode/tasks.json
+BUILD_REPORT_V8.1.0.json
+DEPLOIEMENT-V8.1.0.md
+INSTALLATION-V8.1.0.txt
+PATCH_MANIFEST_V8.1.0.txt
+README.md
+ROADMAP.md
+V8.1.0_NOTES.md
+VERSION
+app.js
+config.js
+core/server-sync-ui.js
+index.html
+package.json
+service-worker.js
+startup-recovery-8.1.0.js
+style.css
+tests/v810-sync-simplification.test.mjs

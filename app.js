@@ -187,6 +187,14 @@ import {
 } from "./core/server-sync-recovery.js";
 
 import {
+    SIMPLE_SYNC_MERGE_CHOICES,
+    buildSimpleSyncSummary,
+    getServerSyncLastActivity,
+    getSimpleServerSyncStatus,
+    normalizeServerSetupStep
+} from "./core/server-sync-ui.js";
+
+import {
     PWA_UPDATE_APPLIED_VERSION_KEY,
     clearAppliedPwaVersion,
     getPwaVersionFromScriptUrl,
@@ -253,7 +261,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "8.0.1";
+const APP_VERSION = "8.1.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -669,7 +677,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.0.1-shell";
+    "shuffleplus-v8.1.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1195,6 +1203,8 @@ let serverSyncMessage = {
     text: "",
     type: ""
 };
+let serverSyncSetupStep = 1;
+let serverSyncLastSimpleResult = "";
 let smartQueueUndoSnapshot = null;
 let mixHistory = readMixHistory();
 let activeHistoryId = "";
@@ -3375,7 +3385,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.0.1
+                        ✨ Apparence v8.1.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4548,7 +4558,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.0.1",
+                "./service-worker.js?v=8.1.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -33077,15 +33087,30 @@ async function copyServerSyncLinkCode() {
     refreshSyncPreparationPanel();
 }
 
-async function testServerSyncConnection() {
-    if (!serverSyncState.serverUrl) {
+async function testServerSyncConnection({
+    continueSetup = false,
+    serverUrl = ""
+} = {}) {
+    const normalizedUrl = normalizeServerSyncUrl(
+        serverUrl || serverSyncState.serverUrl
+    );
+
+    if (!normalizedUrl) {
         setServerSyncMessage(
-            "Renseigne d’abord l’adresse du serveur.",
+            "Renseigne d’abord une adresse HTTPS valide.",
             "error"
         );
         refreshSyncPreparationPanel();
-        return;
+        return false;
     }
+
+    serverSyncState = normalizeServerSyncState({
+        ...serverSyncState,
+        serverUrl: normalizedUrl
+    });
+    saveServerSyncState();
+    setServerSyncMessage("Vérification du serveur…");
+    refreshSyncPreparationPanel();
 
     try {
         const { data } = await serverSyncRequest(
@@ -33094,17 +33119,209 @@ async function testServerSyncConnection() {
                 authenticated: false
             }
         );
+        if (continueSetup) {
+            serverSyncSetupStep = normalizeServerSetupStep(2);
+        }
         setServerSyncMessage(
             `Serveur disponible · ${data?.version || "version inconnue"}.`,
             "success"
         );
+        refreshSyncPreparationPanel();
+        return true;
     } catch (error) {
         setServerSyncMessage(
             error.message ||
             "Serveur inaccessible.",
             "error"
         );
+        refreshSyncPreparationPanel();
+        return false;
     }
+}
+
+function getSimpleSyncSummarySnapshot() {
+    return buildSyncPackage().summary || {};
+}
+
+async function mergePendingServerSyncAutomatically() {
+    if (!pendingSyncPackage) {
+        return false;
+    }
+
+    const accountMismatch = Boolean(
+        pendingSyncPackage.raw?.spotifyUserId &&
+        currentUserId &&
+        pendingSyncPackage.raw.spotifyUserId !== currentUserId
+    );
+
+    if (accountMismatch) {
+        setServerSyncMessage(
+            "La sauvegarde en ligne appartient à un autre compte Spotify. Utilise les options avancées pour vérifier son contenu.",
+            "error"
+        );
+        refreshSyncPreparationPanel();
+        return false;
+    }
+
+    const source = pendingSyncPackage.sourceInstallation;
+    const localBackupBeforeMerge = buildBackupPayload();
+    saveLastSyncMergeUndo(
+        localBackupBeforeMerge,
+        source?.label || "Sauvegarde en ligne",
+        SIMPLE_SYNC_MERGE_CHOICES
+    );
+
+    const localImported = validateBackupPayload(
+        localBackupBeforeMerge
+    );
+    const remoteImported = pendingSyncPackage.importedBackup;
+
+    applySelectiveLibraryCategory(
+        localImported,
+        remoteImported,
+        SIMPLE_SYNC_MERGE_CHOICES.library
+    );
+    applySelectiveProfilesCategory(
+        localImported,
+        remoteImported,
+        SIMPLE_SYNC_MERGE_CHOICES.profiles
+    );
+    applySelectiveAutomationCategory(
+        localImported,
+        remoteImported,
+        SIMPLE_SYNC_MERGE_CHOICES.automation
+    );
+    applySelectiveFeedbackCategory(
+        localImported,
+        remoteImported,
+        SIMPLE_SYNC_MERGE_CHOICES.feedback
+    );
+    applySelectiveLearningCategory(
+        localImported,
+        remoteImported,
+        SIMPLE_SYNC_MERGE_CHOICES.learning
+    );
+    applySelectiveHistoryCategory(
+        localImported,
+        remoteImported,
+        SIMPLE_SYNC_MERGE_CHOICES.history
+    );
+
+    addSyncSessionHistory({
+        type: "server-auto-merge",
+        peerId: serverSyncState.spaceId,
+        peerLabel: source?.label || "Sauvegarde en ligne",
+        status: "success",
+        message: "Les versions locale et en ligne ont été combinées automatiquement."
+    });
+
+    pendingSyncPackage = null;
+    displayPlaylists(playlistsCache);
+    return true;
+}
+
+async function synchronizeServerNow() {
+    if (!isServerSyncConnected()) {
+        setServerSyncMessage(
+            "Connecte d’abord Shuffle+ à ton serveur.",
+            "error"
+        );
+        refreshSyncPreparationPanel();
+        return;
+    }
+
+    if (serverSyncBusy) {
+        return;
+    }
+
+    const before = getSimpleSyncSummarySnapshot();
+    const previousBusy = serverSyncBusy;
+    serverSyncBusy = true;
+    serverSyncLastSimpleResult = "";
+    saveLastSyncMergeUndo(
+        buildBackupPayload(),
+        "Avant la synchronisation en ligne",
+        { automatic: true }
+    );
+    setServerSyncMessage(
+        "Comparaison sécurisée avec la sauvegarde en ligne…"
+    );
+    refreshSyncPreparationPanel();
+
+    try {
+        await pullServerSync({
+            force: true,
+            silent: true
+        });
+
+        if (serverSyncState.lastError) {
+            throw new Error(serverSyncState.lastError);
+        }
+
+        let merged = false;
+        if (pendingSyncPackage) {
+            merged = await mergePendingServerSyncAutomatically();
+            if (pendingSyncPackage) {
+                return;
+            }
+        }
+
+        const local = buildSyncPackage();
+        if (
+            local.fingerprint !==
+                serverSyncState.lastSyncedFingerprint
+        ) {
+            const pushed = await pushServerSync({
+                force: true,
+                silent: true
+            });
+            if (!pushed && serverSyncState.lastError) {
+                throw new Error(serverSyncState.lastError);
+            }
+        }
+
+        await refreshServerSyncDevices({
+            silent: true
+        });
+
+        const after = getSimpleSyncSummarySnapshot();
+        serverSyncLastSimpleResult = buildSimpleSyncSummary({
+            before,
+            after,
+            merged
+        });
+        setServerSyncMessage(
+            serverSyncLastSimpleResult,
+            "success"
+        );
+        setStatus("Synchronisation terminée.");
+    } catch (error) {
+        console.error(error);
+        setServerSyncMessage(
+            error.message ||
+            "La synchronisation n’a pas pu être terminée.",
+            "error"
+        );
+    } finally {
+        serverSyncBusy = previousBusy;
+        refreshSyncPreparationPanel();
+    }
+}
+
+function saveSimpleServerSyncOptions(form) {
+    const data = new FormData(form);
+    serverSyncState = normalizeServerSyncState({
+        ...serverSyncState,
+        autoSync: data.get("autoSync") === "on"
+    });
+    saveServerSyncState();
+    startServerSyncWatcher();
+    setServerSyncMessage(
+        serverSyncState.autoSync
+            ? "Synchronisation automatique activée."
+            : "Synchronisation automatique désactivée.",
+        "success"
+    );
     refreshSyncPreparationPanel();
 }
 
@@ -33697,115 +33914,92 @@ function formatServerSyncDate(timestamp) {
     ).format(new Date(timestamp));
 }
 
-function renderServerSyncPanel() {
-    const connected = isServerSyncConnected();
-    const recoveryDiagnostics =
-        getServerSyncRecoveryDiagnostics(
-            globalThis.localStorage
-        );
-    const recoveryNotice =
-        serverSyncRecoveryStatus.addressRestored
-            ? `
-                <p class="server-sync-recovery-note is-restored">
-                    ✓ L’adresse de ton dernier serveur a été restaurée
-                    automatiquement. Teste-la avant de créer un nouvel espace.
+function renderSimpleServerConflictCard() {
+    if (!pendingSyncPackage) {
+        return "";
+    }
+
+    const local = buildSyncPackage();
+    const remote = pendingSyncPackage;
+
+    return `
+        <section class="simple-sync-conflict" aria-live="polite">
+            <div>
+                <span class="sync-eyebrow">Deux versions ont été trouvées</span>
+                <h4>Comment souhaites-tu continuer ?</h4>
+                <p>
+                    Shuffle+ peut combiner les nouveautés des deux versions sans
+                    supprimer les données locales. Une sauvegarde de sécurité est
+                    conservée avant l’opération.
                 </p>
-            `
-            : serverSyncState.serverUrl
+            </div>
+
+            ${pendingSyncPackage.raw?.spotifyUserId &&
+                currentUserId &&
+                pendingSyncPackage.raw.spotifyUserId !== currentUserId
                 ? `
-                    <p class="server-sync-recovery-note">
-                        Dernière adresse connue préremplie. Clique sur
-                        <strong>Tester le serveur</strong> avant toute création.
+                    <p class="sync-warning">
+                        ⚠ Cette sauvegarde provient d’un autre compte Spotify.
+                        La combinaison automatique est désactivée.
                     </p>
                 `
-                : "";
-    const message = serverSyncMessage.text
-        ? `
-            <p class="server-sync-message ${escapeHtml(serverSyncMessage.type)}">
-                ${escapeHtml(serverSyncMessage.text)}
-            </p>
-        `
-        : "";
+                : ""}
 
-    if (!connected) {
+            <div class="simple-sync-version-grid">
+                <article>
+                    <strong>Cet appareil</strong>
+                    <span>${Number(local.summary?.mixes || 0)} mix</span>
+                    <span>${Number(local.summary?.iosCommands || 0)} raccourcis</span>
+                </article>
+                <article>
+                    <strong>Sauvegarde en ligne</strong>
+                    <span>${Number(remote.summary?.mixes || 0)} mix</span>
+                    <span>${Number(remote.summary?.iosCommands || 0)} raccourcis</span>
+                </article>
+            </div>
+
+            <div class="simple-sync-conflict-actions">
+                <button
+                    id="combineServerSyncButton"
+                    class="sync-primary-button"
+                    type="button"
+                    ${pendingSyncPackage.raw?.spotifyUserId &&
+                        currentUserId &&
+                        pendingSyncPackage.raw.spotifyUserId !== currentUserId
+                        ? "disabled"
+                        : ""}
+                >
+                    Combiner les deux — recommandé
+                </button>
+                <button
+                    id="keepLocalSyncButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Conserver cet appareil
+                </button>
+                <button
+                    id="applyRemoteSyncButton"
+                    class="sync-secondary-button"
+                    type="button"
+                >
+                    Conserver la sauvegarde en ligne
+                </button>
+            </div>
+        </section>
+    `;
+}
+
+function renderServerDeviceList() {
+    if (!serverSyncDevices.length) {
         return `
-            <section class="server-sync-panel">
-                <div class="server-sync-heading">
-                    <div>
-                        <span class="sync-eyebrow">v5.0 · Serveur réel</span>
-                        <h4>Synchronisation automatique chiffrée</h4>
-                        <p>
-                            Shuffle+ chiffre le paquet dans ce navigateur.
-                            Le serveur ne reçoit qu’une enveloppe illisible.
-                        </p>
-                    </div>
-                    <span class="server-sync-badge is-offline">
-                        Non connecté
-                    </span>
-                </div>
-
-                ${recoveryNotice}
-
-                <form id="serverSyncCreateForm" class="server-sync-form">
-                    <label>
-                        <span>Adresse du serveur Shuffle+</span>
-                        <input
-                            name="serverUrl"
-                            type="url"
-                            placeholder="https://sync.exemple.fr"
-                            value="${escapeHtml(serverSyncState.serverUrl)}"
-                            required
-                        >
-                    </label>
-                    <div class="server-sync-inline-actions">
-                        <button
-                            class="sync-primary-button"
-                            type="submit"
-                            ${serverSyncBusy ? "disabled" : ""}
-                        >
-                            ☁ Créer mon espace
-                        </button>
-                        <button
-                            id="testServerSyncButton"
-                            class="sync-secondary-button"
-                            type="button"
-                            ${serverSyncBusy ? "disabled" : ""}
-                        >
-                            Tester le serveur
-                        </button>
-                    </div>
-                </form>
-
-                <form id="serverSyncJoinForm" class="server-sync-form">
-                    <label>
-                        <span>Code de liaison reçu d’un autre appareil</span>
-                        <textarea
-                            name="linkCode"
-                            rows="3"
-                            placeholder="SP5.…"
-                            required
-                        ></textarea>
-                    </label>
-                    <button
-                        class="sync-secondary-button"
-                        type="submit"
-                        ${serverSyncBusy ? "disabled" : ""}
-                    >
-                        Relier cet appareil
-                    </button>
-                </form>
-
-                ${message}
-
-                <p class="server-sync-security-note">
-                    Le code de liaison contient la clé de chiffrement.
-                    Ne le partage qu’avec tes propres appareils.
-                </p>
-            </section>
+            <p class="simple-sync-empty">
+                Les appareils liés apparaîtront après la première actualisation.
+            </p>
         `;
     }
 
-    const devices = serverSyncDevices
+    return serverSyncDevices
         .map((device) => `
             <div class="server-sync-device">
                 <div>
@@ -33824,141 +34018,414 @@ function renderServerSyncPanel() {
                             type="button"
                             data-revoke-server-device="${escapeHtml(device.installationId)}"
                         >
-                            Révoquer
+                            Retirer
                         </button>
                     `
                     : ""}
             </div>
         `)
         .join("");
+}
+
+function renderServerSyncPanel() {
+    const connected = isServerSyncConnected();
+    const recoveryDiagnostics =
+        getServerSyncRecoveryDiagnostics(
+            globalThis.localStorage
+        );
+    const status = getSimpleServerSyncStatus({
+        connected,
+        busy: serverSyncBusy,
+        pendingConflict: Boolean(pendingSyncPackage),
+        lastError: serverSyncState.lastError
+    });
+    const message = serverSyncMessage.text
+        ? `
+            <p class="server-sync-message ${escapeHtml(serverSyncMessage.type)}">
+                ${escapeHtml(serverSyncMessage.text)}
+            </p>
+        `
+        : "";
+
+    if (!connected) {
+        const step = normalizeServerSetupStep(
+            serverSyncSetupStep
+        );
+
+        return `
+            <section class="server-sync-panel simple-server-setup">
+                <div class="simple-sync-status-heading">
+                    <div>
+                        <span class="sync-eyebrow">Configuration guidée</span>
+                        <h4>Connecter la sauvegarde en ligne</h4>
+                        <p>
+                            L’adresse Railway suffit pour commencer. Shuffle+ teste
+                            le serveur avant de proposer la création ou la liaison.
+                        </p>
+                    </div>
+                    <span class="simple-sync-status is-${escapeHtml(status.tone)}">
+                        ${escapeHtml(status.label)}
+                    </span>
+                </div>
+
+                <ol class="simple-sync-steps" aria-label="Étapes de configuration">
+                    <li class="${step === 1 ? "is-active" : "is-done"}">
+                        <span>1</span> Serveur
+                    </li>
+                    <li class="${step === 2 ? "is-active" : ""}">
+                        <span>2</span> Sauvegarde
+                    </li>
+                    <li>
+                        <span>3</span> Terminé
+                    </li>
+                </ol>
+
+                ${step === 1 ? `
+                    <form id="serverSyncSetupUrlForm" class="simple-sync-setup-form">
+                        <label>
+                            <span>Adresse de ton serveur</span>
+                            <input
+                                name="serverUrl"
+                                type="url"
+                                placeholder="https://mon-serveur.up.railway.app"
+                                value="${escapeHtml(serverSyncState.serverUrl)}"
+                                required
+                            >
+                        </label>
+                        <button
+                            class="sync-primary-button"
+                            type="submit"
+                            ${serverSyncBusy ? "disabled" : ""}
+                        >
+                            Tester et continuer
+                        </button>
+                    </form>
+                ` : `
+                    <div class="simple-sync-choice-grid">
+                        <form id="serverSyncCreateForm" class="simple-sync-choice-card">
+                            <input
+                                name="serverUrl"
+                                type="hidden"
+                                value="${escapeHtml(serverSyncState.serverUrl)}"
+                            >
+                            <span class="simple-sync-choice-icon">☁</span>
+                            <h5>Créer une nouvelle sauvegarde</h5>
+                            <p>
+                                Utilise les données présentes sur cet appareil pour
+                                créer ta sauvegarde Shuffle+ en ligne.
+                            </p>
+                            <button
+                                class="sync-primary-button"
+                                type="submit"
+                                ${serverSyncBusy ? "disabled" : ""}
+                            >
+                                Créer ma sauvegarde
+                            </button>
+                        </form>
+
+                        <form id="serverSyncJoinForm" class="simple-sync-choice-card">
+                            <span class="simple-sync-choice-icon">🔗</span>
+                            <h5>Rejoindre une sauvegarde existante</h5>
+                            <p>
+                                Colle le code privé SP5 reçu depuis un autre appareil.
+                            </p>
+                            <label>
+                                <span>Code de liaison</span>
+                                <textarea
+                                    name="linkCode"
+                                    rows="3"
+                                    placeholder="SP5.…"
+                                    required
+                                ></textarea>
+                            </label>
+                            <button
+                                class="sync-secondary-button"
+                                type="submit"
+                                ${serverSyncBusy ? "disabled" : ""}
+                            >
+                                Relier cet appareil
+                            </button>
+                        </form>
+                    </div>
+
+                    <button
+                        id="serverSyncSetupBackButton"
+                        class="sync-text-button"
+                        type="button"
+                    >
+                        ← Modifier l’adresse du serveur
+                    </button>
+                `}
+
+                ${message}
+
+                <p class="server-sync-security-note">
+                    Les données sont chiffrées dans ce navigateur avant leur envoi.
+                    Le serveur ne reçoit pas ta clé Spotify.
+                </p>
+            </section>
+        `;
+    }
+
+    const lastActivity = getServerSyncLastActivity(
+        serverSyncState
+    );
 
     return `
-        <section class="server-sync-panel is-connected">
-            <div class="server-sync-heading">
+        <section class="server-sync-panel is-connected simple-sync-dashboard">
+            <div class="simple-sync-status-heading">
                 <div>
-                    <span class="sync-eyebrow">v5.0 · Synchronisation active</span>
-                    <h4>Serveur Shuffle+</h4>
+                    <span class="sync-eyebrow">Synchronisation en ligne</span>
+                    <h4>${escapeHtml(status.label)}</h4>
                     <p>
-                        Espace <code>${escapeHtml(serverSyncState.spaceId)}</code>
-                        · révision ${serverSyncState.revision}
+                        Dernière synchronisation :
+                        <strong>${escapeHtml(formatServerSyncDate(lastActivity))}</strong>
                     </p>
                 </div>
-                <span class="server-sync-badge is-online">
-                    Chiffré E2E
+                <span class="simple-sync-status is-${escapeHtml(status.tone)}">
+                    ${status.tone === "success" ? "● " : ""}${escapeHtml(status.label)}
                 </span>
             </div>
 
-            <p class="server-sync-recovery-note is-protected">
-                ${recoveryDiagnostics.recoveryAvailable
-                    ? "✓ Liaison sauvegardée localement pour une restauration automatique."
-                    : "⚠ La sauvegarde locale de la liaison sera créée au prochain enregistrement."}
-            </p>
-
-            <div class="server-sync-metrics">
-                <div>
-                    <span>Dernier envoi</span>
-                    <strong>${escapeHtml(formatServerSyncDate(serverSyncState.lastPushAt))}</strong>
-                </div>
-                <div>
-                    <span>Dernière réception</span>
-                    <strong>${escapeHtml(formatServerSyncDate(serverSyncState.lastPullAt))}</strong>
-                </div>
-                <div>
-                    <span>Serveur</span>
-                    <strong>${escapeHtml(serverSyncState.serverUrl)}</strong>
-                </div>
-            </div>
-
-            <form id="serverSyncOptionsForm" class="server-sync-options-form">
-                <label class="server-sync-checkbox">
-                    <input
-                        name="autoSync"
-                        type="checkbox"
-                        ${serverSyncState.autoSync ? "checked" : ""}
-                    >
-                    <span>Synchroniser automatiquement quand l’application est ouverte</span>
-                </label>
-                <label>
-                    <span>Fréquence</span>
-                    <select name="intervalMinutes">
-                        ${[1, 5, 15, 30, 60].map((value) => `
-                            <option
-                                value="${value}"
-                                ${serverSyncState.intervalMinutes === value
-                                    ? "selected"
-                                    : ""}
-                            >
-                                ${value === 1 ? "1 minute" : `${value} minutes`}
-                            </option>
-                        `).join("")}
-                    </select>
-                </label>
-                <button class="sync-secondary-button" type="submit">
-                    Enregistrer
-                </button>
-            </form>
-
-            <div class="server-sync-inline-actions">
-                <button
-                    id="pushServerSyncButton"
-                    class="sync-primary-button"
-                    type="button"
-                    ${serverSyncBusy ? "disabled" : ""}
-                >
-                    ↑ Envoyer maintenant
-                </button>
-                <button
-                    id="pullServerSyncButton"
-                    class="sync-secondary-button"
-                    type="button"
-                    ${serverSyncBusy ? "disabled" : ""}
-                >
-                    ↓ Recevoir maintenant
-                </button>
-                <button
-                    id="copyServerSyncLinkButton"
-                    class="sync-secondary-button"
-                    type="button"
-                >
-                    🔗 Copier le code de liaison
-                </button>
-                <button
-                    id="refreshServerDevicesButton"
-                    class="sync-secondary-button"
-                    type="button"
-                >
-                    Actualiser les appareils
-                </button>
-            </div>
+            <button
+                id="simpleServerSyncButton"
+                class="simple-sync-main-button"
+                type="button"
+                ${serverSyncBusy ? "disabled" : ""}
+            >
+                ${serverSyncBusy
+                    ? "Synchronisation en cours…"
+                    : "Synchroniser maintenant"}
+            </button>
 
             ${message}
+            ${renderSimpleServerConflictCard()}
 
-            <details class="server-sync-devices" ${serverSyncDevices.length ? "" : "open"}>
-                <summary>
-                    Appareils autorisés · ${serverSyncDevices.length}
-                </summary>
-                <div>
-                    ${devices || "Aucun appareil chargé. Clique sur Actualiser."}
-                </div>
+            <div class="simple-sync-core-grid">
+                <form
+                    id="serverSyncSimpleOptionsForm"
+                    class="simple-sync-core-card"
+                >
+                    <div>
+                        <strong>Synchronisation automatique</strong>
+                        <span>
+                            Compare et sauvegarde les changements quand Shuffle+ est ouvert.
+                        </span>
+                    </div>
+                    <label class="simple-sync-switch">
+                        <input
+                            name="autoSync"
+                            type="checkbox"
+                            ${serverSyncState.autoSync ? "checked" : ""}
+                        >
+                        <span aria-hidden="true"></span>
+                        <em>${serverSyncState.autoSync ? "Activée" : "Désactivée"}</em>
+                    </label>
+                </form>
+
+                <section class="simple-sync-core-card">
+                    <div>
+                        <strong>Appareils liés</strong>
+                        <span>
+                            ${serverSyncDevices.length} appareil${serverSyncDevices.length > 1 ? "s" : ""}
+                            actuellement autorisé${serverSyncDevices.length > 1 ? "s" : ""}.
+                        </span>
+                    </div>
+                    <button
+                        id="refreshServerDevicesButton"
+                        class="sync-secondary-button"
+                        type="button"
+                    >
+                        Actualiser
+                    </button>
+                </section>
+            </div>
+
+            <details class="simple-sync-devices">
+                <summary>Voir les appareils liés</summary>
+                <div>${renderServerDeviceList()}</div>
             </details>
 
-            <div class="server-sync-danger-zone">
-                <button
-                    id="disconnectServerSyncButton"
-                    class="sync-secondary-button"
-                    type="button"
-                >
-                    Déconnecter cet appareil
-                </button>
-                <button
-                    id="deleteServerSyncSpaceButton"
-                    class="sync-danger-button"
-                    type="button"
-                >
-                    Supprimer l’espace distant
-                </button>
-            </div>
+            <p class="server-sync-recovery-note is-protected">
+                ${recoveryDiagnostics.recoveryAvailable
+                    ? "✓ La liaison est sauvegardée localement pour une restauration automatique."
+                    : "⚠ La copie de récupération sera créée au prochain enregistrement."}
+            </p>
         </section>
+    `;
+}
+
+function renderServerSyncAdvancedPanel(localPackage) {
+    const connected = isServerSyncConnected();
+
+    return `
+        <details class="sync-advanced-panel">
+            <summary>Options avancées</summary>
+            <div class="sync-advanced-content">
+                <p class="sync-advanced-intro">
+                    Ces outils sont utiles pour le dépannage, les transferts manuels
+                    et la gestion technique de la liaison.
+                </p>
+
+                ${connected ? `
+                    <div class="server-sync-metrics">
+                        <div>
+                            <span>Adresse du serveur</span>
+                            <strong>${escapeHtml(serverSyncState.serverUrl)}</strong>
+                        </div>
+                        <div>
+                            <span>Version enregistrée en ligne</span>
+                            <strong>${serverSyncState.revision}</strong>
+                        </div>
+                        <div>
+                            <span>Identifiant de sauvegarde</span>
+                            <strong>${escapeHtml(serverSyncState.spaceId)}</strong>
+                        </div>
+                    </div>
+
+                    <form id="serverSyncOptionsForm" class="server-sync-options-form">
+                        <label>
+                            <span>Fréquence automatique</span>
+                            <select name="intervalMinutes">
+                                ${[1, 5, 15, 30, 60].map((value) => `
+                                    <option
+                                        value="${value}"
+                                        ${serverSyncState.intervalMinutes === value
+                                            ? "selected"
+                                            : ""}
+                                    >
+                                        ${value === 1 ? "1 minute" : `${value} minutes`}
+                                    </option>
+                                `).join("")}
+                            </select>
+                        </label>
+                        <input
+                            name="autoSync"
+                            type="hidden"
+                            value="${serverSyncState.autoSync ? "on" : ""}"
+                        >
+                        <button class="sync-secondary-button" type="submit">
+                            Enregistrer la fréquence
+                        </button>
+                    </form>
+
+                    <div class="server-sync-inline-actions">
+                        <button id="pushServerSyncButton" class="sync-secondary-button" type="button">
+                            Envoyer uniquement cet appareil
+                        </button>
+                        <button id="pullServerSyncButton" class="sync-secondary-button" type="button">
+                            Récupérer uniquement la sauvegarde en ligne
+                        </button>
+                        <button id="copyServerSyncLinkButton" class="sync-secondary-button" type="button">
+                            Copier le code de liaison
+                        </button>
+                        <button id="testServerSyncButton" class="sync-secondary-button" type="button">
+                            Tester le serveur
+                        </button>
+                    </div>
+                ` : ""}
+
+                <form id="syncPreparationForm" class="sync-settings-form">
+                    <label>
+                        <span>Nom de cet appareil</span>
+                        <input
+                            name="installationLabel"
+                            type="text"
+                            maxlength="80"
+                            value="${escapeHtml(syncInstallation.label)}"
+                            required
+                        >
+                    </label>
+                    <label>
+                        <span>Comportement en cas de différence</span>
+                        <select name="conflictPolicy">
+                            ${[
+                                ["manual", "Toujours demander"],
+                                ["newest", "Conserver la version la plus récente"],
+                                ["prefer-local", "Préférer cet appareil"],
+                                ["prefer-remote", "Préférer la sauvegarde en ligne"]
+                            ].map(([value, label]) => `
+                                <option
+                                    value="${value}"
+                                    ${syncSettings.conflictPolicy === value
+                                        ? "selected"
+                                        : ""}
+                                >
+                                    ${escapeHtml(label)}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+                    <button class="sync-secondary-button" type="submit">
+                        Enregistrer
+                    </button>
+                </form>
+
+                <div class="sync-installation-id">
+                    <div>
+                        <span>Identifiant technique de cet appareil</span>
+                        <code>${escapeHtml(syncInstallation.id)}</code>
+                    </div>
+                    <div class="sync-inline-actions">
+                        <button id="copySyncInstallationIdButton" class="sync-secondary-button" type="button">
+                            Copier
+                        </button>
+                        <button id="resetSyncInstallationIdButton" class="sync-secondary-button" type="button">
+                            Régénérer
+                        </button>
+                    </div>
+                </div>
+
+                ${renderSyncPairingPanel()}
+                ${renderLastSyncMergeUndo()}
+
+                <div class="sync-preview-block">
+                    <div>
+                        <h4>Aperçu des données</h4>
+                        <p>
+                            ${(localPackage.byteSize / 1024).toFixed(1)} Ko
+                            · empreinte <code>${escapeHtml(localPackage.fingerprint)}</code>
+                        </p>
+                    </div>
+                    ${renderSyncSummaryGrid(localPackage.summary)}
+                </div>
+
+                <div class="sync-panel-actions">
+                    <button id="exportSyncPackageButton" class="sync-secondary-button" type="button">
+                        Exporter un paquet
+                    </button>
+                    <button id="exportEncryptedSyncPackageButton" class="sync-secondary-button" type="button">
+                        Exporter un paquet chiffré
+                    </button>
+                    <button id="analyzeSyncPackageButton" class="sync-secondary-button" type="button">
+                        Analyser un paquet
+                    </button>
+                    <button id="exportSyncDiagnosticButton" class="sync-secondary-button" type="button">
+                        Télécharger le diagnostic
+                    </button>
+                    <input
+                        id="syncPackageFileInput"
+                        class="backup-file-input"
+                        type="file"
+                        accept="application/json,.json"
+                        aria-label="Choisir un paquet de synchronisation Shuffle+"
+                    >
+                </div>
+
+                ${renderSyncConflictAnalysis()}
+
+                ${connected ? `
+                    <div class="server-sync-danger-zone">
+                        <button id="disconnectServerSyncButton" class="sync-secondary-button" type="button">
+                            Déconnecter cet appareil
+                        </button>
+                        <button id="deleteServerSyncSpaceButton" class="sync-danger-button" type="button">
+                            Supprimer définitivement la sauvegarde en ligne
+                        </button>
+                    </div>
+                ` : ""}
+            </div>
+        </details>
     `;
 }
 
@@ -33968,151 +34435,23 @@ function renderSyncPreparationPanel() {
     return `
         <section
             id="syncPreparationPanel"
-            class="sync-preparation-panel"
-            aria-label="Préparation à la synchronisation"
+            class="sync-preparation-panel sync-v810"
+            aria-label="Synchronisation Shuffle+"
         >
             <div class="sync-panel-heading">
                 <div>
-                    <span class="sync-eyebrow">v5.0 · Serveur & fusion chiffrée</span>
-                    <h3>Synchronisation multi-appareils</h3>
+                    <span class="sync-eyebrow">Shuffle+ 8.1</span>
+                    <h3>Synchronisation</h3>
                     <p>
-                        Synchronise automatiquement tes appareils, tout en gardant la comparaison,
-                        la fusion sélective et le chiffrement de bout en bout.
+                        Retrouve les mêmes mix, raccourcis et réglages sur tes appareils,
+                        sans avoir à choisir entre des termes techniques.
                     </p>
                 </div>
-                <span class="sync-local-badge">Local + serveur</span>
+                <span class="sync-local-badge">Simple et chiffré</span>
             </div>
 
             ${renderServerSyncPanel()}
-
-            <form id="syncPreparationForm" class="sync-settings-form">
-                <label>
-                    <span>Nom de cette installation</span>
-                    <input
-                        name="installationLabel"
-                        type="text"
-                        maxlength="80"
-                        value="${escapeHtml(syncInstallation.label)}"
-                        required
-                    >
-                </label>
-
-                <label>
-                    <span>Politique de conflit</span>
-                    <select name="conflictPolicy">
-                        ${[
-                            ["manual", "Toujours demander"],
-                            ["newest", "Conserver l’export le plus récent"],
-                            ["prefer-local", "Préférer cet appareil"],
-                            ["prefer-remote", "Préférer le paquet reçu"]
-                        ].map(([value, label]) => `
-                            <option
-                                value="${value}"
-                                ${syncSettings.conflictPolicy === value
-                                    ? "selected"
-                                    : ""}
-                            >
-                                ${escapeHtml(label)}
-                            </option>
-                        `).join("")}
-                    </select>
-                </label>
-
-                <button class="sync-primary-button" type="submit">
-                    Enregistrer
-                </button>
-            </form>
-
-            <div class="sync-installation-id">
-                <div>
-                    <span>Identifiant local d’installation</span>
-                    <code>${escapeHtml(syncInstallation.id)}</code>
-                </div>
-                <div class="sync-inline-actions">
-                    <button
-                        id="copySyncInstallationIdButton"
-                        class="sync-secondary-button"
-                        type="button"
-                    >
-                        Copier
-                    </button>
-                    <button
-                        id="resetSyncInstallationIdButton"
-                        class="sync-secondary-button"
-                        type="button"
-                    >
-                        Régénérer
-                    </button>
-                </div>
-            </div>
-
-            ${renderSyncPairingPanel()}
-
-            ${renderLastSyncMergeUndo()}
-
-            <div class="sync-preview-block">
-                <div>
-                    <h4>Aperçu synchronisable</h4>
-                    <p>
-                        Empreinte : <code>${escapeHtml(localPackage.fingerprint)}</code>
-                        · ${(localPackage.byteSize / 1024).toFixed(1)} Ko
-                    </p>
-                </div>
-                ${renderSyncSummaryGrid(localPackage.summary)}
-            </div>
-
-            <div class="sync-panel-actions">
-                <button
-                    id="exportSyncPackageButton"
-                    class="sync-primary-button"
-                    type="button"
-                >
-                    ⬇ Exporter un paquet
-                </button>
-
-                <button
-                    id="exportEncryptedSyncPackageButton"
-                    class="sync-secondary-button"
-                    type="button"
-                >
-                    🔒 Exporter chiffré
-                </button>
-
-                <button
-                    id="analyzeSyncPackageButton"
-                    class="sync-secondary-button"
-                    type="button"
-                >
-                    🔎 Analyser un paquet
-                </button>
-
-                <button
-                    id="exportSyncDiagnosticButton"
-                    class="sync-secondary-button"
-                    type="button"
-                >
-                    🩺 Exporter le diagnostic
-                </button>
-
-                <a
-                    class="sync-contract-link"
-                    href="./SYNC_API_CONTRACT.md"
-                    target="_blank"
-                    rel="noopener"
-                >
-                    Contrat API v5
-                </a>
-
-                <input
-                    id="syncPackageFileInput"
-                    class="backup-file-input"
-                    type="file"
-                    accept="application/json,.json"
-                    aria-label="Choisir un paquet de synchronisation Shuffle+"
-                >
-            </div>
-
-            ${renderSyncConflictAnalysis()}
+            ${renderServerSyncAdvancedPanel(localPackage)}
         </section>
     `;
 }
@@ -40380,6 +40719,60 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#simpleServerSyncButton"
+            )
+        ) {
+            await synchronizeServerNow();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#combineServerSyncButton"
+            )
+        ) {
+            const before = getSimpleSyncSummarySnapshot();
+            const merged = await mergePendingServerSyncAutomatically();
+            if (merged) {
+                const pushed = await pushServerSync({
+                    force: true,
+                    silent: true
+                });
+                if (!pushed && serverSyncState.lastError) {
+                    setServerSyncMessage(
+                        serverSyncState.lastError,
+                        "error"
+                    );
+                    refreshSyncPreparationPanel();
+                    return;
+                }
+                serverSyncLastSimpleResult = buildSimpleSyncSummary({
+                    before,
+                    after: getSimpleSyncSummarySnapshot(),
+                    merged: true
+                });
+                setServerSyncMessage(
+                    serverSyncLastSimpleResult,
+                    "success"
+                );
+                refreshSyncPreparationPanel();
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#serverSyncSetupBackButton"
+            )
+        ) {
+            serverSyncSetupStep = normalizeServerSetupStep(1);
+            setServerSyncMessage("");
+            refreshSyncPreparationPanel();
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#testServerSyncButton"
             )
         ) {
@@ -41252,6 +41645,12 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     (event) => {
+        if (event.target.name === "autoSync" &&
+            event.target.closest("#serverSyncSimpleOptionsForm")) {
+            saveSimpleServerSyncOptions(event.target.form);
+            return;
+        }
+
         if (
             event.target.id ===
             "contextualTourEnabledInput"
@@ -41731,6 +42130,26 @@ contentElement.addEventListener(
                 event.target,
                 action
             );
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncSetupUrlForm"
+        ) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            await testServerSyncConnection({
+                continueSetup: true,
+                serverUrl: String(data.get("serverUrl") || "")
+            });
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncSimpleOptionsForm"
+        ) {
+            event.preventDefault();
+            saveSimpleServerSyncOptions(event.target);
             return;
         }
 
