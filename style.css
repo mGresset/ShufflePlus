@@ -17150,3 +17150,301 @@ html[data-experience-mode="essential"] .app-section-more {
         grid-template-columns: 1fr;
     }
 }
+
+/* Shuffle+ v8.2.0 — lancement principal et installation guidée */
+.primary-launch-panel,
+.guided-setup-panel {
+    border: 1px solid color-mix(in srgb, var(--accent-color) 34%, transparent);
+    border-radius: 20px;
+    background:
+        linear-gradient(
+            145deg,
+            color-mix(in srgb, var(--accent-color) 14%, rgba(18, 20, 29, 0.96)),
+            rgba(16, 18, 27, 0.96)
+        );
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+}
+
+.primary-launch-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(230px, 0.75fr);
+    gap: 18px;
+    margin: 18px 0;
+    padding: 20px;
+}
+
+.primary-launch-main {
+    min-width: 0;
+}
+
+.primary-launch-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 8px;
+    color: var(--accent-color);
+    font-size: 0.78rem;
+    font-weight: 820;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.primary-launch-main h3 {
+    margin: 0;
+    font-size: clamp(1.35rem, 3vw, 2rem);
+    line-height: 1.12;
+    overflow-wrap: anywhere;
+}
+
+.primary-launch-main p {
+    margin: 9px 0 0;
+    color: var(--muted-text, #aeb5c5);
+}
+
+.primary-launch-actions,
+.primary-launch-links,
+.guided-setup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+}
+
+.primary-launch-actions {
+    margin-top: 18px;
+}
+
+.primary-launch-actions button,
+.primary-launch-links button,
+.primary-launch-settings button,
+.guided-setup-actions button,
+.guided-setup-steps button {
+    min-height: 44px;
+}
+
+.primary-launch-button {
+    border-color: var(--accent-color) !important;
+    background: var(--accent-color) !important;
+    color: var(--accent-contrast, #fff) !important;
+    font-weight: 820;
+}
+
+.primary-launch-settings {
+    display: grid;
+    align-content: center;
+    gap: 9px;
+    padding: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 15px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.primary-launch-settings label {
+    color: var(--muted-text, #aeb5c5);
+    font-size: 0.8rem;
+    font-weight: 730;
+}
+
+.primary-launch-settings select {
+    width: 100%;
+    min-width: 0;
+}
+
+.primary-launch-links {
+    grid-column: 1 / -1;
+    padding-top: 4px;
+}
+
+.primary-launch-links button {
+    flex: 1 1 180px;
+    background: rgba(255, 255, 255, 0.055);
+}
+
+.guided-setup-panel {
+    margin: 18px 0;
+    overflow: hidden;
+}
+
+.guided-setup-panel > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 17px 20px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.guided-setup-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.guided-setup-panel > summary span:first-child {
+    display: grid;
+    gap: 3px;
+}
+
+.guided-setup-panel > summary small {
+    color: var(--accent-color);
+    font-weight: 780;
+}
+
+.guided-setup-panel > summary strong {
+    font-size: 1rem;
+}
+
+.guided-setup-progress-label {
+    flex: 0 0 auto;
+    color: var(--accent-color);
+    font-weight: 850;
+}
+
+.guided-setup-progress {
+    height: 5px;
+    margin: 0 20px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.guided-setup-progress i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent-color);
+    transition: width 220ms ease;
+}
+
+.guided-setup-steps {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 18px 20px 8px;
+    list-style: none;
+}
+
+.guided-setup-steps li {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 11px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 13px;
+    background: rgba(0, 0, 0, 0.13);
+}
+
+.guided-setup-steps li > span {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.09);
+    font-weight: 820;
+}
+
+.guided-setup-steps li.is-ready {
+    border-color: color-mix(in srgb, var(--accent-color) 40%, transparent);
+}
+
+.guided-setup-steps li.is-ready > span {
+    background: var(--accent-color);
+    color: var(--accent-contrast, #fff);
+}
+
+.guided-setup-steps li div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.guided-setup-steps li strong,
+.guided-setup-steps li small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.guided-setup-steps li small {
+    color: var(--muted-text, #aeb5c5);
+    font-size: 0.74rem;
+}
+
+.guided-setup-actions {
+    padding: 12px 20px;
+}
+
+.guided-setup-actions .primary {
+    border-color: var(--accent-color);
+    background: var(--accent-color);
+    color: var(--accent-contrast, #fff);
+}
+
+.guided-setup-success {
+    margin: 0 20px 18px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+    color: var(--accent-color);
+    font-weight: 720;
+}
+
+.guided-setup-dismiss {
+    margin: 0 20px 18px;
+    border: 0;
+    background: transparent;
+    color: var(--muted-text, #aeb5c5);
+    text-decoration: underline;
+}
+
+@media (max-width: 760px) {
+    .primary-launch-panel {
+        grid-template-columns: 1fr;
+        padding: 16px;
+    }
+
+    .primary-launch-links {
+        grid-column: auto;
+    }
+
+    .guided-setup-steps {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 460px) {
+    .primary-launch-actions,
+    .primary-launch-links,
+    .guided-setup-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .primary-launch-actions button,
+    .primary-launch-links button,
+    .guided-setup-actions button {
+        width: 100%;
+    }
+
+    .guided-setup-panel > summary,
+    .guided-setup-steps,
+    .guided-setup-actions {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .guided-setup-progress {
+        margin-inline: 14px;
+    }
+
+    .guided-setup-steps li {
+        grid-template-columns: 30px minmax(0, 1fr);
+    }
+
+    .guided-setup-steps li button {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+}

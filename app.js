@@ -224,6 +224,16 @@ import {
     normalizeShortcutHistorySteps
 } from "./core/shortcut-profiles.js";
 
+import {
+    GUIDED_SETUP_KEY,
+    buildGuidedSetupChecklist,
+    normalizeGuidedSetupState,
+    readGuidedSetupState,
+    resolvePrimaryCommand,
+    saveGuidedSetupState,
+    updateGuidedSetupState
+} from "./core/guided-setup.js";
+
 const versionElement = document.querySelector(".version");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
@@ -261,7 +271,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "8.1.0";
+const APP_VERSION = "8.2.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -677,7 +687,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.1.0-shell";
+    "shuffleplus-v8.2.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1228,6 +1238,8 @@ let iosQuickPlaySettings =
 let iosCommands = readIosCommands();
 let iosCommandHistory =
     readIosCommandHistory();
+let guidedSetupState =
+    readGuidedSetupState(localStorage, GUIDED_SETUP_KEY);
 let dynamicLyricsSettings =
     readDynamicLyricsSettings();
 let activeAppMenu = readActiveAppMenu();
@@ -3228,6 +3240,333 @@ function renderExperienceModePanel() {
     `;
 }
 
+
+function saveGuidedSetupPreferences(patch = {}) {
+    guidedSetupState = updateGuidedSetupState(
+        guidedSetupState,
+        patch
+    );
+
+    const checklist = buildGuidedSetupChecklist({
+        spotifyConfigured: hasConfiguredSpotifyApplication(),
+        spotifyConnected: Boolean(currentUserId),
+        commands: iosCommands,
+        preferredDevice: preferredSpotifyDevice,
+        successfulLaunches: iosCommandHistory,
+        state: guidedSetupState,
+        standalone: isStandalonePwa()
+    });
+
+    if (checklist.complete && !guidedSetupState.completedAt) {
+        guidedSetupState = updateGuidedSetupState(
+            guidedSetupState,
+            { completedAt: Date.now() }
+        );
+    }
+
+    saveGuidedSetupState(
+        localStorage,
+        guidedSetupState,
+        GUIDED_SETUP_KEY
+    );
+
+    return checklist;
+}
+
+function getGuidedSetupSnapshot() {
+    return buildGuidedSetupChecklist({
+        spotifyConfigured: hasConfiguredSpotifyApplication(),
+        spotifyConnected: Boolean(currentUserId),
+        commands: iosCommands,
+        preferredDevice: preferredSpotifyDevice,
+        successfulLaunches: iosCommandHistory,
+        state: guidedSetupState,
+        standalone: isStandalonePwa()
+    });
+}
+
+function getGuidedPrimaryCommand() {
+    return resolvePrimaryCommand(
+        iosCommands,
+        guidedSetupState
+    );
+}
+
+function getGuidedCommandTargetLabel(command) {
+    if (!command) {
+        return "Aucune playlist principale";
+    }
+
+    if (command.commandType === "smartmix") {
+        return (
+            savedMixes.find((mix) => mix.id === command.mixId)?.name ||
+            command.name ||
+            "Mix intelligent"
+        );
+    }
+
+    if (command.commandType === "adaptive") {
+        return command.name || "Adaptive DJ";
+    }
+
+    return (
+        command.playlistName ||
+        playlistsCache.find((playlist) =>
+            playlist.id === command.playlistId
+        )?.name ||
+        command.name ||
+        "Playlist principale"
+    );
+}
+
+function renderPrimaryLaunchPanel() {
+    const snapshot = getGuidedSetupSnapshot();
+    const command = snapshot.primaryCommand;
+    const targetLabel = getGuidedCommandTargetLabel(command);
+    const deviceLabel =
+        preferredSpotifyDevice?.name ||
+        command?.deviceName ||
+        (command?.deviceMode === "active"
+            ? "Appareil Spotify actif"
+            : "Appareil à détecter");
+    const commandReady = Boolean(
+        command &&
+        (
+            command.playlistId ||
+            command.mixId ||
+            command.commandType === "adaptive"
+        )
+    );
+
+    return `
+        <section class="primary-launch-panel">
+            <div class="primary-launch-main">
+                <span class="primary-launch-kicker">▶ Lancement principal</span>
+                <h3>${escapeHtml(targetLabel)}</h3>
+                <p>
+                    ${escapeHtml(deviceLabel)} ·
+                    ${command?.shuffle === false ? "Ordre normal" : "Shuffle activé"}
+                    ${command?.openDrivingMode && DRIVING_MODE_AVAILABLE
+                        ? " · Mode conduite"
+                        : ""}
+                    ${command?.openDynamicLyrics
+                        ? " · Dynamic Lyrics"
+                        : ""}
+                </p>
+
+                <div class="primary-launch-actions">
+                    <button
+                        type="button"
+                        class="primary-launch-button"
+                        data-guided-primary-launch
+                        ${commandReady ? "" : "disabled"}
+                    >
+                        ▶ Lancer maintenant
+                    </button>
+                    <button
+                        type="button"
+                        data-guided-copy-shortcut
+                        ${commandReady ? "" : "disabled"}
+                    >
+                        🔗 Copier l’URL iOS
+                    </button>
+                </div>
+            </div>
+
+            <form id="primaryLaunchSettingsForm" class="primary-launch-settings">
+                <label for="primaryLaunchCommandSelect">
+                    Playlist ou profil principal
+                </label>
+                <select
+                    id="primaryLaunchCommandSelect"
+                    name="commandId"
+                    ${iosCommands.length ? "" : "disabled"}
+                >
+                    ${iosCommands.length
+                        ? iosCommands.map((item) => `
+                            <option
+                                value="${escapeHtml(item.id)}"
+                                ${command?.id === item.id ? "selected" : ""}
+                            >
+                                ${escapeHtml(item.icon || "▶️")} ${escapeHtml(item.name)}
+                            </option>
+                        `).join("")
+                        : `<option value="">Aucun profil enregistré</option>`}
+                </select>
+                <button type="submit" ${iosCommands.length ? "" : "disabled"}>
+                    Utiliser comme principal
+                </button>
+            </form>
+
+            <div class="primary-launch-links">
+                <button type="button" data-guided-nav="mixes">
+                    Changer de playlist
+                </button>
+                <button type="button" data-guided-nav="quick">
+                    Configurer le raccourci iPhone
+                </button>
+                <button type="button" data-guided-nav="music">
+                    Créer un mélange
+                </button>
+            </div>
+        </section>
+    `;
+}
+
+function renderGuidedSetupPanel() {
+    const snapshot = getGuidedSetupSnapshot();
+    const shouldOpen = !snapshot.complete && !guidedSetupState.dismissedAt;
+
+    return `
+        <details class="guided-setup-panel" ${shouldOpen ? "open" : ""}>
+            <summary>
+                <span>
+                    <small>🚀 Installation guidée</small>
+                    <strong>
+                        ${snapshot.complete
+                            ? "Shuffle+ est prêt"
+                            : `${snapshot.readyCount}/${snapshot.totalCount} étapes terminées`}
+                    </strong>
+                </span>
+                <span class="guided-setup-progress-label">
+                    ${snapshot.progress}%
+                </span>
+            </summary>
+
+            <div class="guided-setup-progress" aria-hidden="true">
+                <i style="width:${snapshot.progress}%"></i>
+            </div>
+
+            <ol class="guided-setup-steps">
+                ${snapshot.steps.map((step, index) => `
+                    <li class="${step.ready ? "is-ready" : ""}">
+                        <span>${step.ready ? "✓" : index + 1}</span>
+                        <div>
+                            <strong>${escapeHtml(step.label)}</strong>
+                            <small>${step.ready ? "Terminé" : "À configurer"}</small>
+                        </div>
+                        ${step.ready
+                            ? ""
+                            : `<button type="button" data-guided-step="${escapeHtml(step.id)}" data-guided-nav="${escapeHtml(step.menuId)}">Ouvrir</button>`}
+                    </li>
+                `).join("")}
+            </ol>
+
+            <div class="guided-setup-actions">
+                <button type="button" class="primary" data-guided-test-installation>
+                    Tester mon installation
+                </button>
+                <button
+                    type="button"
+                    data-guided-confirm-shortcut
+                    aria-pressed="${String(guidedSetupState.shortcutConfirmed)}"
+                >
+                    ${guidedSetupState.shortcutConfirmed
+                        ? "✓ Raccourci iPhone confirmé"
+                        : "J’ai créé le raccourci iPhone"}
+                </button>
+                <button
+                    type="button"
+                    data-guided-confirm-installation
+                    aria-pressed="${String(snapshot.installationReady)}"
+                >
+                    ${snapshot.installationReady
+                        ? "✓ Application installée"
+                        : "J’ai installé Shuffle+"}
+                </button>
+            </div>
+
+            ${snapshot.complete
+                ? `<p class="guided-setup-success">Tout est prêt pour lancer ta playlist en une seule action.</p>`
+                : `<button type="button" class="guided-setup-dismiss" data-guided-dismiss>Masquer pour le moment</button>`}
+        </details>
+    `;
+}
+
+async function runGuidedPrimaryLaunch() {
+    const command = getGuidedPrimaryCommand();
+
+    if (!command) {
+        setStatus(
+            "Crée d’abord un profil dans Raccourcis iOS.",
+            "error"
+        );
+        await navigateToAppMenu("mixes");
+        return;
+    }
+
+    const startedAt = Date.now();
+
+    if (command.commandType === "smartmix") {
+        await executeAutomationCommand({
+            action: "smartmix",
+            commandId: command.id,
+            autoplay: command.autoplay,
+            openDrivingMode: command.openDrivingMode
+        });
+    } else if (command.commandType === "adaptive") {
+        await executeAutomationCommand({
+            action: "adaptive",
+            commandId: command.id,
+            autoplay: command.autoplay
+        });
+    } else {
+        await runIosQuickPlay(
+            command.playlistId || "",
+            command.id,
+            {
+                openDrivingMode: command.openDrivingMode,
+                openDynamicLyrics: command.openDynamicLyrics,
+                dynamicLyricsShortcutName:
+                    command.dynamicLyricsShortcutName,
+                source: "guided-setup"
+            }
+        );
+    }
+
+    const succeeded =
+        command.commandType !== "fixed" ||
+        iosCommandHistory.some((entry) =>
+            entry.commandId === command.id &&
+            entry.status === "success" &&
+            entry.createdAt >= startedAt - 1000
+        );
+
+    if (succeeded) {
+        saveGuidedSetupPreferences({
+            primaryCommandId: command.id,
+            lastLaunchTestAt: Date.now(),
+            dismissedAt: 0
+        });
+    }
+}
+
+function testGuidedInstallation() {
+    const snapshot = getGuidedSetupSnapshot();
+    const missing = snapshot.steps.filter((step) => !step.ready);
+
+    if (!missing.length) {
+        saveGuidedSetupPreferences({
+            completedAt: guidedSetupState.completedAt || Date.now(),
+            dismissedAt: 0
+        });
+        showToast("✅ Installation Shuffle+ complète.", "success");
+    } else {
+        setStatus(
+            `Il reste ${missing.length} étape${missing.length > 1 ? "s" : ""} : ${missing.map((step) => step.label).join(", ")}.`,
+            "info"
+        );
+        showToast(
+            `${snapshot.readyCount}/${snapshot.totalCount} étapes prêtes.`,
+            "info"
+        );
+    }
+
+    if (activeAppMenu === "dashboard") {
+        displayPlaylists(playlistsCache);
+    }
+}
+
 function renderV8WelcomePanel() {
     const definition = getExperienceModeDefinition(
         experienceMode
@@ -3270,6 +3609,8 @@ function renderV8WelcomePanel() {
                 </button>
             </div>
         </section>
+        ${renderPrimaryLaunchPanel()}
+        ${renderGuidedSetupPanel()}
     `;
 }
 
@@ -3385,7 +3726,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.1.0
+                        ✨ Apparence v8.2.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4558,7 +4899,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.1.0",
+                "./service-worker.js?v=8.2.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -28279,6 +28620,7 @@ function buildBackupPayload() {
         iosQuickPlaySettings,
         iosCommands,
         iosCommandHistory,
+        guidedSetupState,
         dynamicLyricsSettings,
         adaptiveDjMenuSettings,
         adaptiveDjMenuHistory,
@@ -28447,6 +28789,10 @@ function validateBackupPayload(payload) {
         iosCommandHistory:
             normalizeIosCommandHistory(
                 payload.data.iosCommandHistory
+            ),
+        guidedSetupState:
+            normalizeGuidedSetupState(
+                payload.data.guidedSetupState || {}
             ),
         dynamicLyricsSettings:
             normalizeDynamicLyricsSettings(
@@ -28636,6 +28982,13 @@ function applyValidatedBackupState(imported) {
     iosCommandHistory =
         imported.iosCommandHistory;
     saveIosCommandHistory();
+    guidedSetupState =
+        imported.guidedSetupState;
+    saveGuidedSetupState(
+        localStorage,
+        guidedSetupState,
+        GUIDED_SETUP_KEY
+    );
     dynamicLyricsSettings =
         imported.dynamicLyricsSettings;
     saveDynamicLyricsSettings();
@@ -28984,7 +29337,8 @@ function getSyncDataUpdatedAt(data = {}) {
         Number(data.adaptiveLearningState?.updatedAt || 0),
         Number(data.intelligenceAnalytics?.updatedAt || 0),
         Number(data.musicFeedbackState?.updatedAt || 0),
-        Number(data.dynamicLyricsSettings?.updatedAt || 0)
+        Number(data.dynamicLyricsSettings?.updatedAt || 0),
+        Number(data.guidedSetupState?.updatedAt || 0)
     ];
 
     for (const collection of [
@@ -29830,6 +30184,7 @@ function getSyncCategoryItems(
             ["Adaptive DJ", imported.adaptiveDjMenuSettings],
             ["Réglages Adaptive", imported.adaptiveSettings],
             ["Lecture iOS", imported.iosQuickPlaySettings],
+            ["Installation guidée", imported.guidedSetupState],
             ["Mode conduite", imported.drivingModeSettings]
         ].forEach(([label, value]) => {
             items.push(
@@ -39366,6 +39721,78 @@ contentElement.addEventListener(
             return;
         }
 
+        if (event.target.closest("[data-guided-primary-launch]")) {
+            await runGuidedPrimaryLaunch();
+            return;
+        }
+
+        if (event.target.closest("[data-guided-copy-shortcut]")) {
+            const command = getGuidedPrimaryCommand();
+            if (!command) {
+                setStatus("Aucun raccourci principal n’est configuré.", "error");
+                return;
+            }
+            await copyIosCommandUrl(command.id);
+            return;
+        }
+
+        if (event.target.closest("[data-guided-test-installation]")) {
+            testGuidedInstallation();
+            return;
+        }
+
+        if (event.target.closest("[data-guided-confirm-shortcut]")) {
+            saveGuidedSetupPreferences({
+                shortcutConfirmed: !guidedSetupState.shortcutConfirmed,
+                dismissedAt: 0
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (event.target.closest("[data-guided-confirm-installation]")) {
+            saveGuidedSetupPreferences({
+                installationConfirmed:
+                    !getGuidedSetupSnapshot().installationReady,
+                dismissedAt: 0
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (event.target.closest("[data-guided-dismiss]")) {
+            saveGuidedSetupPreferences({
+                dismissedAt: Date.now()
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const guidedStepButton = event.target.closest("[data-guided-step]");
+        if (guidedStepButton) {
+            const stepId = guidedStepButton.dataset.guidedStep || "";
+            if (stepId === "launch-test") {
+                await runGuidedPrimaryLaunch();
+                return;
+            }
+            if (stepId === "pwa-install") {
+                await requestPwaInstallation();
+                return;
+            }
+            await navigateToAppMenu(
+                guidedStepButton.dataset.guidedNav || "dashboard"
+            );
+            return;
+        }
+
+        const guidedNavigationButton = event.target.closest("[data-guided-nav]");
+        if (guidedNavigationButton) {
+            await navigateToAppMenu(
+                guidedNavigationButton.dataset.guidedNav || "dashboard"
+            );
+            return;
+        }
+
         if (event.target.closest("[data-copy-spotify-redirect]")) {
             await copySpotifyRedirectUri();
             return;
@@ -42067,6 +42494,30 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (event.target.id === "primaryLaunchSettingsForm") {
+            event.preventDefault();
+            const commandId = String(
+                new FormData(event.target).get("commandId") || ""
+            );
+            const command = getIosCommandById(commandId);
+
+            if (!command) {
+                setStatus("Ce profil de lancement est introuvable.", "error");
+                return;
+            }
+
+            saveGuidedSetupPreferences({
+                primaryCommandId: command.id,
+                dismissedAt: 0
+            });
+            displayPlaylists(playlistsCache);
+            showToast(
+                `⭐ « ${command.name} » devient le lancement principal.`,
+                "success"
+            );
+            return;
+        }
+
         if (event.target.id === "spotifyClientIdSettingsForm") {
             event.preventDefault();
             const nextClientId = String(
