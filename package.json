@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.0.1",
+  "version": "8.1.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8 — expérience publique simplifiée, mode Essentiel/Expert, synchronisation serveur récupérable et automatisation Spotify/iOS.",
+  "description": "Shuffle+ 8.1 — synchronisation serveur simplifiée, assistant Railway, fusion automatique sécurisée et automatisation Spotify/iOS.",
   "engines": {
     "node": ">=20"
   },

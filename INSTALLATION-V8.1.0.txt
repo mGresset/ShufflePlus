@@ -1,0 +1,11 @@
+SHUFFLE+ V8.1.0 — INSTALLATION RAPIDE
+
+1. Décompresser ShufflePlus-v8.1.0-patch.zip à la racine du dépôt v8.0.1.
+2. Supprimer startup-recovery-8.0.1.js s’il reste présent.
+3. Exécuter : npm run validate
+4. Exécuter : npm start
+5. Tester Réglages > Synchronisation.
+6. Publier la branche release/8.1.0 puis fusionner la Pull Request dans main.
+7. Fermer complètement la PWA iPhone et la rouvrir après le déploiement.
+
+Les données et la liaison serveur existantes sont conservées.
