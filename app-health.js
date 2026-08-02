@@ -85,6 +85,7 @@ export function buildAppHealthSnapshot({
     experienceMode = "essential",
     serverSyncConnected = false,
     serverSyncRecovery = {},
+    serverSyncHealth = {},
     viewportWidth = 0,
     viewportHeight = 0,
     currentMenu = "",
@@ -158,6 +159,17 @@ export function buildAppHealthSnapshot({
         addressAvailable: normalizeBoolean(serverSyncRecovery?.addressAvailable),
         serverHost: String(serverSyncRecovery?.serverHost || ""),
         recoverySavedAt: Math.max(0, normalizeNumber(serverSyncRecovery?.recoverySavedAt))
+    };
+    const normalizedServerHealth = {
+        status: String(serverSyncHealth?.status || "unknown"),
+        version: String(serverSyncHealth?.version || ""),
+        latencyMs: Math.max(0, normalizeNumber(serverSyncHealth?.latencyMs)),
+        checkedAt: Math.max(0, normalizeNumber(serverSyncHealth?.checkedAt)),
+        configured: normalizeBoolean(
+            serverSyncHealth?.configured ||
+            syncRecovery.connected ||
+            syncRecovery.addressAvailable
+        )
     };
     const normalizedExperienceMode =
         experienceMode === "expert" ? "expert" : "essential";
@@ -289,6 +301,22 @@ export function buildAppHealthSnapshot({
                 : "Mode Essentiel"
         }),
         buildCheck({
+            id: "server-sync-health",
+            label: "Serveur Railway",
+            description: "Vérifie que le serveur de synchronisation répond sans exposer les secrets de liaison.",
+            category: "sync",
+            available: !normalizedServerHealth.configured ||
+                normalizedServerHealth.status === "healthy",
+            warningWhenMissing: normalizedServerHealth.configured,
+            value: !normalizedServerHealth.configured
+                ? "Non configuré"
+                : normalizedServerHealth.status === "healthy"
+                    ? `${normalizedServerHealth.latencyMs} ms · ${normalizedServerHealth.version || "version active"}`
+                    : normalizedServerHealth.status === "checking"
+                        ? "Vérification en cours"
+                        : "Inaccessible"
+        }),
+        buildCheck({
             id: "server-sync-recovery",
             label: "Sauvegarde de la liaison serveur",
             description: "Conserve une copie locale de la liaison chiffrée et la dernière adresse connue du serveur.",
@@ -383,7 +411,9 @@ export function buildAppHealthSnapshot({
             runtimeState,
             storage,
             experienceMode: normalizedExperienceMode,
-            serverSyncRecovery: syncRecovery
+            serverSyncRecovery: syncRecovery,
+            serverSyncHealth: normalizedServerHealth,
+            staleCacheCount: Math.max(0, normalizeNumber(staleCacheCount))
         }
     };
 }
@@ -405,7 +435,8 @@ export function buildAppHealthExport(snapshot = {}, extras = {}) {
             networkProfile: extras.networkProfile || snapshot?.runtime?.networkProfile || {},
             performanceBudget: extras.performanceBudget || snapshot?.runtime?.performanceBudget || {},
             storageMigration: extras.storageMigration || snapshot?.runtime?.storage || {},
-            runtimeState: extras.runtimeState || snapshot?.runtime?.runtimeState || {}
+            runtimeState: extras.runtimeState || snapshot?.runtime?.runtimeState || {},
+            serverSyncHealth: extras.serverSyncHealth || snapshot?.runtime?.serverSyncHealth || {}
         }
     };
 }

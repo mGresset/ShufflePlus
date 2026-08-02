@@ -1,0 +1,9 @@
+SHUFFLE+ V9.5.0
+
+1. Décompresser l'archive source.
+2. Copier son contenu dans le dépôt Git local en conservant le dossier .git.
+3. Exécuter : npm.cmd run validate
+4. Exécuter : git add -A
+5. Exécuter : git commit -m "Release Shuffle+ v9.5.0"
+6. Exécuter : git push origin main
+7. Fermer puis rouvrir complètement la PWA après le déploiement.

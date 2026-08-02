@@ -254,6 +254,16 @@ import {
 } from "./core/performance-budget.js";
 
 import {
+    appendReliabilityEvent,
+    buildReliabilityExport,
+    buildReliabilityRecoveryPlan,
+    buildReliabilityServices,
+    deriveReliabilityEventFromStatus,
+    formatReliabilityAge,
+    normalizeReliabilityEvents
+} from "./core/reliability-center.js";
+
+import {
     canUseDrivingMode,
     isAppleMobileDevice
 } from "./core/platform.js";
@@ -351,7 +361,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.4.1";
+const APP_VERSION = "9.5.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -806,7 +816,9 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.4.1-shell";
+    "shuffleplus-v9.5.0-shell";
+const RELIABILITY_EVENTS_KEY =
+    "shuffleplus_reliability_events_v1";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1627,6 +1639,15 @@ let appMenuScrollSaveTimer = 0;
 let appHealthSnapshot = null;
 let appHealthRunning = false;
 let appHealthLoadScheduled = false;
+let reliabilityEvents = readReliabilityEvents();
+let reliabilityServerHealth = {
+    status: "unknown",
+    version: "",
+    latencyMs: 0,
+    checkedAt: 0,
+    configured: false
+};
+let reliabilityActionRunning = "";
 let offlinePerformanceSettings =
     readOfflinePerformanceSettings();
 let offlineCacheSummary = {
@@ -1722,6 +1743,113 @@ function markRuntimeReady(phase = "ready") {
     });
 }
 
+function readReliabilityEvents() {
+    try {
+        const parsed = JSON.parse(
+            localStorage.getItem(RELIABILITY_EVENTS_KEY) || "[]"
+        );
+        return normalizeReliabilityEvents(parsed);
+    } catch (error) {
+        console.warn("Journal de fiabilité illisible :", error);
+        return [];
+    }
+}
+
+function saveReliabilityEvents() {
+    try {
+        localStorage.setItem(
+            RELIABILITY_EVENTS_KEY,
+            JSON.stringify(reliabilityEvents)
+        );
+    } catch (error) {
+        console.warn("Journal de fiabilité non enregistré :", error);
+    }
+}
+
+function recordReliabilityEvent(event = {}) {
+    reliabilityEvents = appendReliabilityEvent(
+        reliabilityEvents,
+        event
+    );
+    saveReliabilityEvents();
+    return reliabilityEvents[0] || null;
+}
+
+function captureReliabilityStatus(message = "", type = "") {
+    const event = deriveReliabilityEventFromStatus(
+        message,
+        type
+    );
+    if (event) {
+        recordReliabilityEvent(event);
+    }
+}
+
+function getReliabilityQueueState() {
+    const queue = Array.isArray(drivingQueueState?.queue)
+        ? drivingQueueState.queue
+        : [];
+    const updatedAt = Math.max(
+        0,
+        Number(drivingQueueState?.updatedAt) || 0
+    );
+
+    return {
+        count: queue.length,
+        updatedAt,
+        ageMs: updatedAt
+            ? Math.max(0, Date.now() - updatedAt)
+            : Number.POSITIVE_INFINITY
+    };
+}
+
+function getReliabilityActiveDevice() {
+    const activePlaybackDevice =
+        drivingPlaybackState?.device ||
+        quickPlaybackState?.device ||
+        null;
+    const candidate =
+        activePlaybackDevice ||
+        lastWorkingSpotifyDevice ||
+        preferredSpotifyDevice ||
+        {};
+
+    return {
+        name: String(candidate?.name || ""),
+        type: String(candidate?.type || ""),
+        id: String(candidate?.id || "")
+    };
+}
+
+function getReliabilityContext(snapshot = appHealthSnapshot) {
+    const queueState = getReliabilityQueueState();
+    const activeDevice = getReliabilityActiveDevice();
+    const services = buildReliabilityServices(
+        snapshot || {},
+        {
+            serverHealth: reliabilityServerHealth,
+            queueState,
+            activeDevice
+        }
+    );
+    const recovery = buildReliabilityRecoveryPlan(
+        snapshot || {},
+        {
+            serverHealth: reliabilityServerHealth,
+            queueState,
+            activeDevice,
+            pendingLaunch: Boolean(pendingAutomationCommand)
+        }
+    );
+
+    return {
+        queueState,
+        activeDevice,
+        services,
+        recovery
+    };
+}
+
 function setStatus(message = "", type = "") {
     statusElement.setAttribute(
         "role",
@@ -1741,6 +1869,8 @@ function setStatus(message = "", type = "") {
     if (type) {
         statusElement.classList.add(type);
     }
+
+    captureReliabilityStatus(message, type);
 }
 
 
@@ -4265,7 +4395,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.4.1
+                        ✨ Apparence v9.5.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5299,7 +5429,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.4.1",
+                "./service-worker.js?v=9.5.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -5428,6 +5558,85 @@ function getSpeechRecognitionSupport() {
     );
 }
 
+async function checkReliabilityServerHealth({
+    record = true
+} = {}) {
+    const configured = Boolean(
+        normalizeServerSyncUrl(serverSyncState?.serverUrl || "")
+    );
+
+    if (!configured) {
+        reliabilityServerHealth = {
+            status: "unconfigured",
+            version: "",
+            latencyMs: 0,
+            checkedAt: Date.now(),
+            configured: false
+        };
+        return reliabilityServerHealth;
+    }
+
+    if (!navigator.onLine) {
+        reliabilityServerHealth = {
+            ...reliabilityServerHealth,
+            status: "offline",
+            checkedAt: Date.now(),
+            configured: true
+        };
+        return reliabilityServerHealth;
+    }
+
+    reliabilityServerHealth = {
+        ...reliabilityServerHealth,
+        status: "checking",
+        configured: true
+    };
+    const startedAt = performance.now();
+
+    try {
+        const { data } = await serverSyncRequest(
+            "/health",
+            { authenticated: false }
+        );
+        reliabilityServerHealth = {
+            status: "healthy",
+            version: String(data?.version || ""),
+            latencyMs: Math.max(1, Math.round(performance.now() - startedAt)),
+            checkedAt: Date.now(),
+            configured: true
+        };
+        if (record) {
+            recordReliabilityEvent({
+                category: "sync",
+                level: "success",
+                label: "Serveur Railway disponible",
+                detail: `Réponse obtenue en ${reliabilityServerHealth.latencyMs} ms.`,
+                createdAt: Date.now()
+            });
+        }
+    } catch (error) {
+        reliabilityServerHealth = {
+            status: "critical",
+            version: "",
+            latencyMs: Math.max(1, Math.round(performance.now() - startedAt)),
+            checkedAt: Date.now(),
+            configured: true,
+            error: String(error?.message || "Serveur inaccessible")
+        };
+        if (record) {
+            recordReliabilityEvent({
+                category: "sync",
+                level: "error",
+                label: "Serveur Railway inaccessible",
+                detail: "Le test de santé du serveur a échoué.",
+                createdAt: Date.now()
+            });
+        }
+    }
+
+    return reliabilityServerHealth;
+}
+
 function getBasicAppHealthFacts() {
     return {
         appVersion: APP_VERSION,
@@ -5491,6 +5700,8 @@ function getBasicAppHealthFacts() {
             getServerSyncRecoveryDiagnostics(
                 globalThis.localStorage
             ),
+        serverSyncHealth:
+            reliabilityServerHealth,
         viewportWidth:
             Math.round(
                 window.visualViewport
@@ -5583,6 +5794,11 @@ async function collectAppHealthSnapshot({
             }
         }
 
+        facts.serverSyncHealth =
+            await checkReliabilityServerHealth({
+                record: false
+            });
+
         appHealthSnapshot =
             buildAppHealthSnapshot(
                 facts
@@ -5645,50 +5861,36 @@ function renderAppHealthPanel() {
         return `
             <section
                 id="appHealthPanel"
-                class="settings-panel app-health-panel"
+                class="settings-panel app-health-panel reliability-center-panel"
                 aria-busy="true"
             >
                 <div class="panel-heading">
                     <div>
-                        <span class="app-health-kicker">🛠️ Shuffle+ ${escapeHtml(APP_VERSION)}</span>
-                        <h3>Centre de diagnostic</h3>
-                        <p>Chargement du module de diagnostic à la demande…</p>
+                        <span class="app-health-kicker">🛡️ Shuffle+ ${escapeHtml(APP_VERSION)}</span>
+                        <h3>Centre de fiabilité</h3>
+                        <p>Analyse de Spotify, Railway, la PWA et de l’appareil en cours…</p>
                     </div>
                     <span class="app-health-status app-health-status--attention">⏳ Chargement</span>
                 </div>
             </section>
         `;
     }
+
     const groups = [
-        {
-            id: "core",
-            label: "Fonctions essentielles"
-        },
-        {
-            id: "pwa",
-            label: "Installation et cache"
-        },
-        {
-            id: "spotify",
-            label: "Utilisation de l’API Spotify"
-        },
-        {
-            id: "storage",
-            label: "Données et migrations"
-        },
-        {
-            id: "performance",
-            label: "Architecture et performances"
-        },
-        {
-            id: "experience",
-            label: "Niveau d’interface"
-        },
-        {
-            id: "optional",
-            label: "Fonctions selon le navigateur"
-        }
+        { id: "core", label: "Fonctions essentielles" },
+        { id: "pwa", label: "Installation et cache" },
+        { id: "spotify", label: "Utilisation de l’API Spotify" },
+        { id: "sync", label: "Serveur et synchronisation" },
+        { id: "storage", label: "Données et migrations" },
+        { id: "performance", label: "Architecture et performances" },
+        { id: "experience", label: "Niveau d’interface" },
+        { id: "optional", label: "Fonctions selon le navigateur" }
     ];
+    const {
+        services,
+        recovery
+    } = getReliabilityContext(snapshot);
+    const timeline = reliabilityEvents.slice(0, 8);
     const generatedLabel =
         new Intl.DateTimeFormat(
             "fr-FR",
@@ -5696,194 +5898,173 @@ function renderAppHealthPanel() {
                 dateStyle: "short",
                 timeStyle: "medium"
             }
-        ).format(
-            new Date(
-                snapshot.generatedAt
-            )
-        );
+        ).format(new Date(snapshot.generatedAt));
 
     return `
         <section
             id="appHealthPanel"
-            class="settings-panel app-health-panel"
+            class="settings-panel app-health-panel reliability-center-panel"
         >
             <div class="panel-heading">
                 <div>
-                    <span
-                        class="app-health-kicker"
-                    >
-                        🛠️ Shuffle+ ${escapeHtml(APP_VERSION)}
-                    </span>
-                    <h3>
-                        Centre de diagnostic
-                    </h3>
+                    <span class="app-health-kicker">🛡️ Shuffle+ ${escapeHtml(APP_VERSION)}</span>
+                    <h3>Centre de fiabilité</h3>
                     <p>
-                        Vérifie rapidement le navigateur,
-                        la PWA et les fonctions utilisées
-                        par Shuffle+.
+                        Vérifie les services importants, conserve un journal local
+                        et propose les bonnes actions de récupération.
                     </p>
                 </div>
 
                 <span
-                    class="app-health-status
-                    app-health-status--${escapeHtml(
-                        snapshot.overall.id
-                    )}"
+                    class="app-health-status app-health-status--${escapeHtml(snapshot.overall.id)}"
                 >
-                    ${escapeHtml(
-                        snapshot.overall.icon
-                    )}
-                    ${escapeHtml(
-                        snapshot.overall.label
-                    )}
+                    ${escapeHtml(snapshot.overall.icon)}
+                    ${escapeHtml(snapshot.overall.label)}
                 </span>
             </div>
 
-            <div
-                class="app-health-summary"
-            >
-                <article>
-                    <strong>
-                        ${snapshot.coreScore} %
-                    </strong>
-                    <span>
-                        fonctions essentielles
-                    </span>
-                </article>
-                <article>
-                    <strong>
-                        ${snapshot.warningCount}
-                    </strong>
-                    <span>
-                        point(s) à vérifier
-                    </span>
-                </article>
-                <article>
-                    <strong>
-                        ${escapeHtml(
-                            snapshot.appVersion
-                        )}
-                    </strong>
-                    <span>
-                        version active
-                    </span>
-                </article>
-                <article>
-                    <strong>
-                        ${snapshot.runtime.viewportWidth}
-                        ×
-                        ${snapshot.runtime.viewportHeight}
-                    </strong>
-                    <span>
-                        zone visible
-                    </span>
-                </article>
-            </div>
-
-            <div
-                class="app-health-groups"
-            >
-                ${groups.map((group) => `
-                    <section
-                        class="app-health-group"
-                    >
-                        <h4>
-                            ${escapeHtml(
-                                group.label
-                            )}
-                        </h4>
-
-                        <div
-                            class="app-health-checks"
-                        >
-                            ${snapshot.checks
-                                .filter(
-                                    (check) =>
-                                        check.category ===
-                                        group.id
-                                )
-                                .map((check) => `
-                                    <article
-                                        class="app-health-check
-                                        app-health-check--${escapeHtml(
-                                            check.level
-                                        )}"
-                                    >
-                                        <span
-                                            aria-hidden="true"
-                                        >
-                                            ${check.available
-                                                ? "✓"
-                                                : check.level === "critical"
-                                                    ? "×"
-                                                    : "!"}
-                                        </span>
-                                        <div>
-                                            <strong>
-                                                ${escapeHtml(
-                                                    check.label
-                                                )}
-                                            </strong>
-                                            <small>
-                                                ${escapeHtml(
-                                                    check.value
-                                                )}
-                                            </small>
-                                            <p>
-                                                ${escapeHtml(
-                                                    check.description
-                                                )}
-                                            </p>
-                                        </div>
-                                    </article>
-                                `)
-                                .join("")}
+            <div class="reliability-services" aria-label="État des services">
+                ${services.map((service) => `
+                    <article class="reliability-service reliability-service--${escapeHtml(service.level)}">
+                        <span class="reliability-service-icon" aria-hidden="true">${escapeHtml(service.icon)}</span>
+                        <div>
+                            <span>${escapeHtml(service.label)}</span>
+                            <strong>${escapeHtml(service.value)}</strong>
+                            <small>${escapeHtml(service.detail)}</small>
                         </div>
-                    </section>
+                    </article>
                 `).join("")}
             </div>
 
-            <div
-                class="app-health-actions"
-            >
+            <div class="app-health-summary">
+                <article>
+                    <strong>${snapshot.coreScore} %</strong>
+                    <span>fonctions essentielles</span>
+                </article>
+                <article>
+                    <strong>${snapshot.warningCount}</strong>
+                    <span>point(s) à vérifier</span>
+                </article>
+                <article>
+                    <strong>${escapeHtml(snapshot.appVersion)}</strong>
+                    <span>version active</span>
+                </article>
+                <article>
+                    <strong>${snapshot.runtime.viewportWidth} × ${snapshot.runtime.viewportHeight}</strong>
+                    <span>zone visible</span>
+                </article>
+            </div>
+
+            <section class="reliability-recovery" aria-labelledby="reliabilityRecoveryTitle">
+                <div class="reliability-section-heading">
+                    <div>
+                        <span>Récupération guidée</span>
+                        <h4 id="reliabilityRecoveryTitle">Actions recommandées</h4>
+                    </div>
+                    <small>${recovery.length} action(s)</small>
+                </div>
+
+                <div class="reliability-recovery-actions">
+                    ${recovery.map((action, index) => `
+                        <button
+                            type="button"
+                            class="reliability-recovery-action reliability-recovery-action--${escapeHtml(action.level)}"
+                            data-reliability-action="${escapeHtml(action.id)}"
+                            ${reliabilityActionRunning ? "disabled" : ""}
+                        >
+                            <span aria-hidden="true">${index + 1}</span>
+                            <div>
+                                <strong>${escapeHtml(action.label)}</strong>
+                                <small>${escapeHtml(action.description)}</small>
+                            </div>
+                        </button>
+                    `).join("")}
+                </div>
+            </section>
+
+            <section class="reliability-timeline" aria-labelledby="reliabilityTimelineTitle">
+                <div class="reliability-section-heading">
+                    <div>
+                        <span>Journal local</span>
+                        <h4 id="reliabilityTimelineTitle">Derniers événements</h4>
+                    </div>
+                    <button id="clearReliabilityEventsButton" type="button" ${timeline.length ? "" : "disabled"}>
+                        Effacer
+                    </button>
+                </div>
+
+                ${timeline.length
+                    ? `<ol>
+                        ${timeline.map((event) => `
+                            <li class="reliability-event reliability-event--${escapeHtml(event.level)}">
+                                <span aria-hidden="true"></span>
+                                <div>
+                                    <strong>${escapeHtml(event.label)}</strong>
+                                    <small>
+                                        ${escapeHtml(formatReliabilityAge(event.createdAt))}
+                                        ${event.count > 1 ? ` · ×${event.count}` : ""}
+                                    </small>
+                                    ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
+                                </div>
+                            </li>
+                        `).join("")}
+                    </ol>`
+                    : `<p class="reliability-empty">Les prochains événements importants apparaîtront ici.</p>`}
+            </section>
+
+            <details class="reliability-technical-details">
+                <summary>Afficher le diagnostic technique détaillé</summary>
+                <div class="app-health-groups">
+                    ${groups.map((group) => `
+                        <section class="app-health-group">
+                            <h4>${escapeHtml(group.label)}</h4>
+                            <div class="app-health-checks">
+                                ${snapshot.checks
+                                    .filter((check) => check.category === group.id)
+                                    .map((check) => `
+                                        <article class="app-health-check app-health-check--${escapeHtml(check.level)}">
+                                            <span aria-hidden="true">
+                                                ${check.available ? "✓" : check.level === "critical" ? "×" : "!"}
+                                            </span>
+                                            <div>
+                                                <strong>${escapeHtml(check.label)}</strong>
+                                                <small>${escapeHtml(check.value)}</small>
+                                                <p>${escapeHtml(check.description)}</p>
+                                            </div>
+                                        </article>
+                                    `).join("")}
+                            </div>
+                        </section>
+                    `).join("")}
+                </div>
+            </details>
+
+            <div class="app-health-actions">
                 <button
                     id="runAppHealthCheckButton"
                     type="button"
-                    ${appHealthRunning
-                        ? "disabled"
-                        : ""}
+                    ${appHealthRunning ? "disabled" : ""}
                 >
-                    ${appHealthRunning
-                        ? "Analyse en cours…"
-                        : "↻ Relancer le diagnostic"}
+                    ${appHealthRunning ? "Analyse en cours…" : "↻ Relancer le diagnostic"}
                 </button>
 
-                <button
-                    id="exportAppHealthButton"
-                    type="button"
-                >
-                    ⬇ Exporter le rapport
+                <button id="exportAppHealthButton" type="button">
+                    ⬇ Exporter le rapport complet
                 </button>
 
                 <button
                     id="repairPwaCacheButton"
                     type="button"
-                    ${navigator.onLine
-                        ? ""
-                        : "disabled"}
+                    ${navigator.onLine ? "" : "disabled"}
                 >
                     🧹 Réparer le cache PWA
                 </button>
             </div>
 
-            <p
-                class="app-health-note"
-            >
-                Dernière vérification :
-                ${escapeHtml(generatedLabel)}.
-                Le rapport n’inclut aucun titre,
-                aucune playlist, aucun jeton Spotify
-                et aucun identifiant personnel.
+            <p class="app-health-note">
+                Dernière vérification : ${escapeHtml(generatedLabel)}.
+                Le rapport exclut les titres, playlists, jetons Spotify,
+                secrets Railway et identifiants personnels.
             </p>
         </section>
     `;
@@ -5900,28 +6081,156 @@ async function exportAppHealthReport() {
         new Date()
             .toISOString()
             .slice(0, 10);
+    const context = getReliabilityContext(snapshot);
+    const technicalSnapshot = buildAppHealthExport(
+        snapshot,
+        {
+            loadedModules: featureLoader.getDiagnostics(),
+            prefetchRules: adaptivePrefetcher?.diagnostics?.() || [],
+            networkProfile: readNetworkPerformanceProfile(),
+            performanceBudget: evaluatePerformanceBudget(
+                getRuntimePerformanceSnapshot(window.performance),
+                readNetworkPerformanceProfile()
+            ),
+            storageMigration: getStorageDiagnostics(),
+            runtimeState: appRuntimeState.getDiagnostics(),
+            serverSyncHealth: reliabilityServerHealth
+        }
+    );
 
     downloadJsonPayload(
-        buildAppHealthExport(
-            snapshot,
-            {
-                loadedModules: featureLoader.getDiagnostics(),
-                prefetchRules: adaptivePrefetcher?.diagnostics?.() || [],
-                networkProfile: readNetworkPerformanceProfile(),
-                performanceBudget: evaluatePerformanceBudget(
-                    getRuntimePerformanceSnapshot(window.performance),
-                    readNetworkPerformanceProfile()
-                ),
-                storageMigration: getStorageDiagnostics(),
-                runtimeState: appRuntimeState.getDiagnostics()
-            }
-        ),
-        `shuffleplus-diagnostic-${date}.json`
+        buildReliabilityExport({
+            snapshot: technicalSnapshot,
+            events: reliabilityEvents,
+            services: context.services,
+            recovery: context.recovery,
+            serverHealth: reliabilityServerHealth,
+            queueState: context.queueState,
+            activeDevice: context.activeDevice
+        }),
+        `shuffleplus-fiabilite-${date}.json`
     );
 
     setStatus(
-        "Rapport de diagnostic exporté."
+        "Rapport de fiabilité exporté."
     );
+}
+
+function clearReliabilityEvents() {
+    reliabilityEvents = [];
+    saveReliabilityEvents();
+    setStatus(
+        "Journal de fiabilité effacé."
+    );
+    if (activeAppMenu === "settings") {
+        displayPlaylists(playlistsCache);
+    }
+}
+
+async function runReliabilityRecoveryAction(actionId = "") {
+    const action = String(actionId || "").trim();
+    if (!action || reliabilityActionRunning) return false;
+
+    reliabilityActionRunning = action;
+    recordReliabilityEvent({
+        category: "recovery",
+        level: "info",
+        label: "Action de récupération lancée",
+        detail: "Le Centre de fiabilité exécute une action recommandée.",
+        createdAt: Date.now()
+    });
+
+    try {
+        if (action === "network-info") {
+            setStatus(
+                "Rétablis Internet, puis relance le diagnostic. Shuffle+ reprendra automatiquement les opérations en attente.",
+                "warning"
+            );
+            return false;
+        }
+
+        if (action === "reconnect-spotify") {
+            if (!hasConfiguredSpotifyApplication()) {
+                updateSpotifySetupInterface({ focus: true });
+                setStatus(
+                    "Configure d’abord ton Client ID Spotify personnel.",
+                    "error"
+                );
+                return false;
+            }
+            setStatus("Redirection vers Spotify…");
+            await loginWithSpotify();
+            return true;
+        }
+
+        if (action === "refresh-devices") {
+            await refreshPreferredSpotifyDevices({ silent: false });
+        } else if (action === "refresh-queue") {
+            await refreshDrivingQueue({
+                silent: true,
+                render: false
+            });
+            setStatus(
+                `${drivingQueueState.queue.length} titre(s) chargé(s) dans la file d’attente Spotify.`
+            );
+            recordReliabilityEvent({
+                category: "spotify",
+                level: "success",
+                label: "File d’attente Spotify actualisée",
+                detail: `${drivingQueueState.queue.length} prochain(s) titre(s) disponible(s).`,
+                createdAt: Date.now()
+            });
+        } else if (action === "repair-cache") {
+            await repairPwaCache();
+            return true;
+        } else if (action === "retry-server") {
+            await checkReliabilityServerHealth({ record: true });
+            setStatus(
+                reliabilityServerHealth.status === "healthy"
+                    ? `Serveur Railway disponible · ${reliabilityServerHealth.latencyMs} ms.`
+                    : "Le serveur Railway reste inaccessible.",
+                reliabilityServerHealth.status === "healthy" ? "" : "error"
+            );
+        } else if (action === "resume-launch") {
+            const resumed = await resumePendingAutomationLaunch("manual");
+            setStatus(
+                resumed
+                    ? "Reprise du lancement Spotify effectuée."
+                    : "Aucun lancement prêt à reprendre.",
+                resumed ? "" : "warning"
+            );
+        } else {
+            await collectAppHealthSnapshot({
+                render: false,
+                notify: true
+            });
+        }
+
+        appHealthSnapshot = null;
+        await collectAppHealthSnapshot({
+            render: false
+        });
+        return true;
+    } catch (error) {
+        console.error(error);
+        recordReliabilityEvent({
+            category: "recovery",
+            level: "error",
+            label: "Action de récupération incomplète",
+            detail: "Une nouvelle vérification est recommandée.",
+            createdAt: Date.now()
+        });
+        setStatus(
+            error?.message || "L’action de récupération a échoué.",
+            "error"
+        );
+        return false;
+    } finally {
+        reliabilityActionRunning = "";
+        if (activeAppMenu === "settings") {
+            displayPlaylists(playlistsCache);
+        }
+    }
 }
 
 async function repairPwaCache() {
@@ -34549,6 +34858,7 @@ function setServerSyncMessage(
                 ? "success"
                 : ""
     };
+    captureReliabilityStatus(text, type);
 }
 
 function serverSyncBytesToBase64Url(bytes) {
@@ -41487,6 +41797,28 @@ contentElement.addEventListener(
             )
         ) {
             await clearOfflinePerformanceData();
+            return;
+        }
+
+        const reliabilityActionButton =
+            event.target.closest(
+                "[data-reliability-action]"
+            );
+
+        if (reliabilityActionButton) {
+            await runReliabilityRecoveryAction(
+                reliabilityActionButton.dataset
+                    .reliabilityAction || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearReliabilityEventsButton"
+            )
+        ) {
+            clearReliabilityEvents();
             return;
         }
 

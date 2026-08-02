@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.4.1",
+  "version": "9.5.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.4.1 — file d’attente Spotify intelligente, continuité de lecture et détection des doublons.",
+  "description": "Shuffle+ 9.5.0 — Centre de fiabilité, journal local, état Spotify/Railway/PWA et récupération guidée.",
   "engines": {
     "node": ">=20"
   },
