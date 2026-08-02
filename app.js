@@ -215,6 +215,27 @@ import {
 } from "./core/pwa-update.js";
 
 import {
+    buildPwaInstallState,
+    renderPwaInstallGuideMarkup,
+    renderPwaSettingsPanelMarkup
+} from "./core/pwa-install-ui.js";
+
+import {
+    applySpotifySetupView,
+    renderSpotifyConnectionSettingsPanelMarkup
+} from "./core/spotify-setup-ui.js";
+
+import {
+    getSecurityPolicyDiagnostics,
+    openTrustedExternalUrl
+} from "./core/security-policy.js";
+
+import {
+    getRuntimePerformanceSnapshot,
+    installRuntimePerformanceOptimizations
+} from "./core/runtime-performance.js";
+
+import {
     canUseDrivingMode,
     isAppleMobileDevice
 } from "./core/platform.js";
@@ -285,7 +306,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "8.4.1";
+const APP_VERSION = "8.5.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -701,7 +722,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.4.1-shell";
+    "shuffleplus-v8.5.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1068,6 +1089,14 @@ const appRuntimeState = createRuntimeState({
     features: {
         modules: []
     },
+    performance: {
+        available: false,
+        resources: 0,
+        domContentLoadedMs: 0,
+        loadMs: 0,
+        transferBytes: 0
+    },
+    security: getSecurityPolicyDiagnostics(),
     experience: {
         mode: "essential",
         expert: false
@@ -3804,7 +3833,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.4.1
+                        ✨ Apparence v8.5.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -3986,29 +4015,20 @@ function hasConfiguredSpotifyApplication() {
 
 function updateSpotifySetupInterface({ focus = false } = {}) {
     const configuration = getSpotifyApplicationConfiguration();
-    const configured = Boolean(configuration.clientId);
 
-    if (spotifySetupPanel) {
-        spotifySetupPanel.hidden = configured;
-    }
-
-    if (spotifySetupRedirectUri) {
-        spotifySetupRedirectUri.textContent = CONFIG.redirectUri;
-    }
-
-    if (loginButton && !document.body.classList.contains("is-connected")) {
-        loginButton.hidden = !configured;
-        loginButton.disabled = false;
-        loginButton.textContent = "Se connecter à Spotify";
-    }
-
-    if (focus && !configured) {
-        window.requestAnimationFrame(() => {
-            spotifySetupClientIdInput?.focus();
-        });
-    }
-
-    return configuration;
+    return applySpotifySetupView({
+        configuration,
+        redirectUri: CONFIG.redirectUri,
+        connected: document.body.classList.contains("is-connected"),
+        focus,
+        elements: {
+            panel: spotifySetupPanel,
+            redirect: spotifySetupRedirectUri,
+            loginButton,
+            clientIdInput: spotifySetupClientIdInput
+        },
+        requestAnimationFrame: window.requestAnimationFrame.bind(window)
+    });
 }
 
 async function copySpotifyRedirectUri() {
@@ -4025,11 +4045,9 @@ async function copySpotifyRedirectUri() {
 }
 
 function openSpotifyDeveloperDashboard() {
-    window.open(
-        SPOTIFY_DEVELOPER_DASHBOARD_URL,
-        "_blank",
-        "noopener,noreferrer"
-    );
+    if (!openTrustedExternalUrl(SPOTIFY_DEVELOPER_DASHBOARD_URL)) {
+        setStatus("Le lien Spotify for Developers a été bloqué par la politique de sécurité.", "error");
+    }
 }
 
 function savePersonalSpotifyClientId(value, { source = "user" } = {}) {
@@ -4062,74 +4080,12 @@ function savePersonalSpotifyClientId(value, { source = "user" } = {}) {
 function renderSpotifyConnectionSettingsPanel() {
     const configuration = getSpotifyApplicationConfiguration();
 
-    return `
-        <section class="spotify-connection-settings settings-card">
-            <div class="settings-card-heading">
-                <div>
-                    <span class="settings-kicker">🔑 Connexion Spotify</span>
-                    <h3>Application Spotify personnelle</h3>
-                    <p>
-                        Chaque utilisateur peut connecter son propre Client ID.
-                        Aucun Client Secret n’est demandé ni enregistré.
-                    </p>
-                </div>
-                <span class="spotify-config-badge ${configuration.clientId ? "is-ready" : "is-missing"}">
-                    ${configuration.clientId ? "Configurée" : "À configurer"}
-                </span>
-            </div>
-
-            <dl class="spotify-config-summary">
-                <div>
-                    <dt>Client ID</dt>
-                    <dd>${escapeHtml(maskSpotifyClientId(configuration.clientId))}</dd>
-                </div>
-                <div>
-                    <dt>Adresse de redirection</dt>
-                    <dd><code>${escapeHtml(CONFIG.redirectUri)}</code></dd>
-                </div>
-                <div>
-                    <dt>Mode conduite</dt>
-                    <dd>${DRIVING_MODE_AVAILABLE ? "Disponible sur cet appareil iOS/iPadOS" : "Masqué sur cet appareil"}</dd>
-                </div>
-            </dl>
-
-            <form id="spotifyClientIdSettingsForm" class="spotify-client-id-settings-form">
-                <label>
-                    <span>Nouveau Client ID</span>
-                    <input
-                        name="clientId"
-                        type="text"
-                        autocomplete="off"
-                        autocapitalize="none"
-                        spellcheck="false"
-                        minlength="20"
-                        maxlength="64"
-                        placeholder="Colle un Client ID pour le remplacer"
-                    >
-                </label>
-                <button type="submit">Enregistrer ce Client ID</button>
-            </form>
-
-            <div class="spotify-config-actions">
-                <button type="button" data-copy-spotify-redirect>
-                    Copier l’adresse de redirection
-                </button>
-                <button type="button" data-test-spotify-configuration>
-                    Tester la configuration
-                </button>
-                <button type="button" data-open-spotify-developer>
-                    Spotify for Developers
-                </button>
-                <button type="button" class="danger" data-reset-spotify-configuration>
-                    Réinitialiser la configuration
-                </button>
-            </div>
-
-            <p class="spotify-config-warning">
-                Changer de Client ID déconnecte le compte Spotify actuel, mais conserve les mix, raccourcis, réglages et statistiques locales.
-            </p>
-        </section>
-    `;
+    return renderSpotifyConnectionSettingsPanelMarkup({
+        configuration,
+        redirectUri: CONFIG.redirectUri,
+        drivingModeAvailable: DRIVING_MODE_AVAILABLE,
+        maskedClientId: maskSpotifyClientId(configuration.clientId)
+    });
 }
 
 async function testSpotifyApplicationConfiguration() {
@@ -4247,39 +4203,11 @@ function isStandalonePwa() {
 }
 
 function getPwaInstallState() {
-    if (isStandalonePwa()) {
-        return {
-            id: "installed",
-            label: "Installée",
-            description:
-                "Shuffle+ fonctionne déjà comme une application autonome."
-        };
-    }
-
-    if (deferredPwaInstallPrompt) {
-        return {
-            id: "available",
-            label: "Installation disponible",
-            description:
-                "Ce navigateur peut installer Shuffle+ directement."
-        };
-    }
-
-    if (isIosDevice()) {
-        return {
-            id: "ios",
-            label: "Ajout manuel sur iPhone",
-            description:
-                "Dans Safari, utilise Partager puis Sur l’écran d’accueil."
-        };
-    }
-
-    return {
-        id: "browser",
-        label: "Selon le navigateur",
-        description:
-            "Utilise le menu du navigateur pour installer l’application lorsqu’il le propose."
-    };
+    return buildPwaInstallState({
+        standalone: isStandalonePwa(),
+        promptAvailable: Boolean(deferredPwaInstallPrompt),
+        ios: isIosDevice()
+    });
 }
 
 function syncPwaInstallControls() {
@@ -4629,55 +4557,10 @@ function showPwaInstallGuide() {
         return;
     }
 
-    const ios = isIosDevice();
-    const installed = isStandalonePwa();
-
-    pwaInstallGuideElement.innerHTML = installed
-        ? `
-            <div>
-                <strong>Shuffle+ est déjà installée.</strong>
-                <p>
-                    Ouvre-la depuis ton écran d’accueil ou ton menu d’applications.
-                </p>
-            </div>
-            <button
-                type="button"
-                data-close-pwa-guide
-                aria-label="Fermer"
-            >×</button>
-        `
-        : ios
-            ? `
-                <div>
-                    <strong>Installer Shuffle+ sur iPhone ou iPad</strong>
-                    <ol>
-                        <li>Ouvre cette page dans Safari.</li>
-                        <li>Touche le bouton Partager.</li>
-                        <li>Choisis « Sur l’écran d’accueil ».</li>
-                        <li>Valide avec « Ajouter ».</li>
-                    </ol>
-                </div>
-                <button
-                    type="button"
-                    data-close-pwa-guide
-                    aria-label="Fermer"
-                >×</button>
-            `
-            : `
-                <div>
-                    <strong>Installer Shuffle+</strong>
-                    <p>
-                        Ouvre le menu de ton navigateur puis choisis
-                        « Installer l’application » ou
-                        « Ajouter à l’écran d’accueil ».
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    data-close-pwa-guide
-                    aria-label="Fermer"
-                >×</button>
-            `;
+    pwaInstallGuideElement.innerHTML = renderPwaInstallGuideMarkup({
+        ios: isIosDevice(),
+        installed: isStandalonePwa()
+    });
 
     pwaInstallGuideElement.hidden = false;
     pwaInstallGuideElement.scrollIntoView({
@@ -4976,7 +4859,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.4.1",
+                "./service-worker.js?v=8.5.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -5651,99 +5534,12 @@ async function repairPwaCache() {
 }
 
 function renderPwaSettingsPanel() {
-    const state = getPwaInstallState();
-    const serviceWorkerSupported =
-        "serviceWorker" in navigator;
-    const cacheAvailable =
-        "caches" in window;
-
-    return `
-        <section
-            id="pwaSettingsPanel"
-            class="settings-panel pwa-settings-panel"
-        >
-            <div class="panel-heading">
-                <div>
-                    <h3>📲 Application installable</h3>
-                    <p>
-                        Installe Shuffle+ comme une application et garde
-                        l’interface disponible même sans réseau.
-                    </p>
-                </div>
-                <span class="pwa-state-badge pwa-state-${state.id}">
-                    ${escapeHtml(state.label)}
-                </span>
-            </div>
-
-            <p class="pwa-state-description">
-                ${escapeHtml(state.description)}
-            </p>
-
-            <div class="pwa-capabilities" role="list" aria-label="Capacités de l’application">
-                <span
-                    class="pwa-capability ${serviceWorkerSupported ? "is-ready" : "is-unavailable"}"
-                    role="listitem"
-                >
-                    <b aria-hidden="true">${serviceWorkerSupported ? "✓" : "×"}</b>
-                    <span>Cache de l’interface</span>
-                </span>
-                <span
-                    class="pwa-capability ${cacheAvailable ? "is-ready" : "is-unavailable"}"
-                    role="listitem"
-                >
-                    <b aria-hidden="true">${cacheAvailable ? "✓" : "×"}</b>
-                    <span>Ressources hors connexion</span>
-                </span>
-                <span
-                    class="pwa-capability ${isStandalonePwa() ? "is-ready" : "is-info"}"
-                    role="listitem"
-                >
-                    <b aria-hidden="true">${isStandalonePwa() ? "✓" : "i"}</b>
-                    <span>Mode application</span>
-                </span>
-            </div>
-
-            <div class="pwa-settings-actions">
-                <button
-                    id="installPwaSettingsButton"
-                    class="ui-button ${state.id === "installed" ? "ui-button--secondary" : "ui-button--primary"}"
-                    type="button"
-                    ${state.id === "installed"
-                        ? "disabled"
-                        : ""}
-                >
-                    ${state.id === "installed"
-                        ? "Application installée"
-                        : "Installer Shuffle+"}
-                </button>
-
-                <button
-                    id="showPwaInstructionsButton"
-                    class="ui-button ui-button--secondary"
-                    type="button"
-                >
-                    Instructions d’installation
-                </button>
-
-                <button
-                    id="checkPwaUpdateButton"
-                    class="ui-button ui-button--ghost"
-                    type="button"
-                    ${serviceWorkerSupported
-                        ? ""
-                        : "disabled"}
-                >
-                    Rechercher une mise à jour
-                </button>
-            </div>
-
-            <p class="pwa-offline-note">
-                L’interface, la dernière bibliothèque et les playlists déjà
-                ouvertes peuvent rester consultables hors connexion. La lecture
-                et les commandes Spotify exigent toujours Internet.
-            </p>
-        </section>
-    `;
+    return renderPwaSettingsPanelMarkup({
+        state: getPwaInstallState(),
+        serviceWorkerSupported: "serviceWorker" in navigator,
+        cacheAvailable: "caches" in window,
+        standalone: isStandalonePwa()
+    });
 }
 
 function getPlaylistTotal(playlist) {
@@ -40417,11 +40213,7 @@ contentElement.addEventListener(
         }
 
         if (event.target.closest("[data-launch-open-spotify]")) {
-            window.open(
-                "https://open.spotify.com/",
-                "_blank",
-                "noopener,noreferrer"
-            );
+            openTrustedExternalUrl("https://open.spotify.com/");
             return;
         }
 
@@ -44275,6 +44067,22 @@ window.addEventListener(
         saveAppMenuScrollPositions();
     }
 );
+
+installRuntimePerformanceOptimizations({
+    documentObject: document,
+    globalObject: window,
+    onSnapshot(snapshot) {
+        appRuntimeState.set("performance", snapshot, { silent: true });
+    }
+});
+
+window.addEventListener("load", () => {
+    appRuntimeState.set(
+        "performance",
+        getRuntimePerformanceSnapshot(window.performance),
+        { silent: true }
+    );
+}, { once: true });
 
 window.dispatchEvent(
     new CustomEvent("shuffleplus:app-ready", {

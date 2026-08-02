@@ -1621,3 +1621,27 @@ body.is-driving-mode {
         grid-template-columns: 1fr;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v8.5.0 — rendu différé et performance des longues pages
+   ===================================================================== */
+.ui-deferred-section {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 540px;
+}
+
+.ui-deferred-section:focus-within,
+.ui-deferred-section[data-force-visible="true"] {
+    content-visibility: visible;
+}
+
+img[loading="lazy"] {
+    content-visibility: auto;
+}
+
+@media print {
+    .ui-deferred-section {
+        content-visibility: visible;
+        contain-intrinsic-size: auto;
+    }
+}

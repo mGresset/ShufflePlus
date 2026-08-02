@@ -1,0 +1,39 @@
+Shuffle+ v8.5.0 — patch depuis v8.4.1
+
+Fichiers ajoutés (11)
++ BUILD_REPORT_V8.5.0.json
++ DEPLOIEMENT-V8.5.0.md
++ V8.5.0_NOTES.md
++ core/pwa-install-ui.js
++ core/runtime-performance.js
++ core/security-policy.js
++ core/spotify-setup-ui.js
++ scripts/check-security.mjs
++ startup-recovery-8.5.0.js
++ tests/v850-performance-security.test.mjs
++ PATCH_MANIFEST_V8.5.0.txt
+
+Fichiers modifiés (18)
+~ README.md
+~ ROADMAP.md
+~ VERSION
+~ app.js
+~ config.js
+~ design-system.css
+~ index.html
+~ manifest.webmanifest
+~ package-lock.json
+~ package.json
+~ scripts/serve-local.mjs
+~ service-worker.js
+~ tests/v800-public-experience.test.mjs
+~ tests/v830-launch-center.test.mjs
+~ tests/v831-design-system.test.mjs
+~ tests/v832-ui-fixes.test.mjs
+~ tests/v840-ui-driving.test.mjs
+~ tests/v841-spotify-pwa-theme.test.mjs
+
+Fichiers supprimés (0)
+Aucun.
+
+Les dossiers .git, node_modules et dist ne sont pas inclus dans le patch.

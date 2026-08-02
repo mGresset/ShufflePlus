@@ -1,17 +1,18 @@
-# Shuffle+ v8.4.1
+# Shuffle+ v8.5.0
 
 Shuffle+ est une interface web Spotify conçue pour lancer rapidement une playlist ou un mix intelligent, notamment depuis un raccourci Apple. L’application inclut aussi un centre de lancement, un mode conduite, des profils, des recommandations, des statistiques et une synchronisation chiffrée facultative.
 
-## Nouveautés v8.4.1
+## Nouveautés v8.5.0
 
-- parcours de configuration Spotify réorganisé en deux blocs lisibles ;
-- Client ID présenté dans un champ pleine largeur avec aide explicite ;
-- boutons « Enregistrer et continuer » et « Ouvrir Spotify for Developers » alignés sous le champ ;
-- rappel clair de ne jamais renseigner le Client Secret ;
-- états de l’installation PWA reliés à la couleur du thème actif ;
-- suppression des cartes et badges verts fixes dans les réglages PWA ;
-- indicateurs de capacités PWA remplacés par des symboles cohérents et accessibles ;
-- treize thèmes prédéfinis et couleur personnalisée conservés.
+- découpage du rendu PWA et de la configuration Spotify hors de `app.js` ;
+- module central de sécurité et ouverture contrôlée des liens Spotify ;
+- politique CSP de 15 directives, sans scripts inline ni `eval` ;
+- contrôle de sécurité intégré à `npm run check` ;
+- préconnexion à Spotify pour accélérer l’autorisation et les appels API ;
+- chargement différé des pochettes secondaires ;
+- rendu différé des panneaux longs situés hors écran ;
+- mesures légères de performance intégrées au diagnostic ;
+- thèmes, Client ID personnel, profils et raccourcis Apple conservés.
 
 ## Validation
 
@@ -23,4 +24,4 @@ npm.cmd start
 
 Le déploiement reste compatible avec la chaîne actuelle : Visual Studio Code → GitHub → Railway.
 
-Consulte `V8.4.1_NOTES.md` et `DEPLOIEMENT-V8.4.1.md` pour le détail.
+Consulte `V8.5.0_NOTES.md` et `DEPLOIEMENT-V8.5.0.md` pour le détail.

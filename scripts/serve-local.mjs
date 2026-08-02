@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { SHUFFLEPLUS_CSP } from "../core/security-policy.js";
 
 const host = "127.0.0.1";
 const requestedPort = Number(process.env.PORT || 5500);
@@ -59,7 +60,12 @@ const server = createServer(async (request, response) => {
 
         response.writeHead(200, {
             "Content-Type": mimeTypes[extension] || "application/octet-stream",
-            "Cache-Control": "no-store"
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": SHUFFLEPLUS_CSP,
+            "X-Content-Type-Options": "nosniff",
+            "X-Frame-Options": "DENY",
+            "Referrer-Policy": "no-referrer",
+            "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
         });
         response.end(body);
     } catch (error) {

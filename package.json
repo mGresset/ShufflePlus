@@ -1,15 +1,15 @@
 {
   "name": "shuffleplus",
-  "version": "8.4.1",
+  "version": "8.5.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.4.1 — connexion Spotify clarifiée et composants PWA entièrement liés au thème actif.",
+  "description": "Shuffle+ 8.5.0 — architecture UI découpée, démarrage optimisé et sécurité CSP renforcée.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",

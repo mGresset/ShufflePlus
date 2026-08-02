@@ -6,6 +6,7 @@ const versionSource = (await readFile("VERSION", "utf8")).trim();
 const packageSource = await readFile("package.json", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 const appSource = await readFile("app.js", "utf8");
+const pwaUiSource = await readFile("core/pwa-install-ui.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 
@@ -13,13 +14,13 @@ const v841Design = designSource.split(
     "Shuffle+ v8.4.1 — Connexion Spotify lisible et PWA liée au thème"
 )[1] || "";
 
-test("la distribution active annonce Shuffle+ 8.4.1", () => {
-    assert.equal(versionSource, "8.4.1");
-    assert.match(packageSource, /"version": "8\.4\.1"/);
-    assert.match(indexSource, /shuffleplus-version" content="8\.4\.1/);
-    assert.match(indexSource, /startup-recovery-8\.4\.1\.js/);
-    assert.match(appSource, /const APP_VERSION = "8\.4\.1"/);
-    assert.match(workerSource, /shuffleplus-v8\.4\.1/);
+test("la distribution active annonce Shuffle+ 8.5.0", () => {
+    assert.equal(versionSource, "8.5.0");
+    assert.match(packageSource, /"version": "8\.5\.0"/);
+    assert.match(indexSource, /shuffleplus-version" content="8\.5\.0/);
+    assert.match(indexSource, /startup-recovery-8\.5\.0\.js/);
+    assert.match(appSource, /const APP_VERSION = "8\.5\.0"/);
+    assert.match(workerSource, /shuffleplus-v8\.5\.0/);
 });
 
 test("le Client ID Spotify possède un bloc explicatif autonome", () => {
@@ -39,10 +40,10 @@ test("les actions Client ID sont regroupées sous un champ pleine largeur", () =
 });
 
 test("les capacités PWA utilisent des indicateurs pilotés par le thème", () => {
-    assert.match(appSource, /class="pwa-capability \$\{serviceWorkerSupported \? "is-ready" : "is-unavailable"\}"/);
-    assert.match(appSource, /class="pwa-capability \$\{isStandalonePwa\(\) \? "is-ready" : "is-info"\}"/);
-    assert.match(appSource, /class="ui-button \$\{state\.id === "installed" \? "ui-button--secondary" : "ui-button--primary"\}"/);
-    assert.doesNotMatch(appSource, /\$\{serviceWorkerSupported \? "✅" : "❌"\}/);
+    assert.match(pwaUiSource, /class="pwa-capability \$\{serviceWorkerSupported \? "is-ready" : "is-unavailable"\}"/);
+    assert.match(pwaUiSource, /class="pwa-capability \$\{standalone \? "is-ready" : "is-info"\}"/);
+    assert.match(pwaUiSource, /class="ui-button \$\{safeState\.id === "installed" \? "ui-button--secondary" : "ui-button--primary"\}"/);
+    assert.doesNotMatch(pwaUiSource, /\$\{serviceWorkerSupported \? "✅" : "❌"\}/);
 });
 
 test("la couche v8.4.1 remplace les verts PWA par la palette active", () => {
