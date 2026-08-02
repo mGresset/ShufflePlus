@@ -1,0 +1,135 @@
+/* Shuffle+ v8.8.0 — Réglages et états PWA chargés à l’ouverture des paramètres. */
+
+/* ---------------------------------------------------------------------
+   Installation PWA : les anciens verts Spotify/PWA sont remplacés par
+   la palette active. Le rouge reste réservé à une capacité indisponible.
+   --------------------------------------------------------------------- */
+.pwa-install-header-button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-install-guide,
+.pwa-update-banner,
+.pwa-settings-panel {
+    border-color: var(--ui-card-border) !important;
+    background: var(--ui-card-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-install-guide strong,
+.pwa-update-banner strong {
+    color: color-mix(in srgb, var(--accent) 66%, white) !important;
+}
+
+.pwa-install-guide > button {
+    background: rgb(var(--accent-rgb) / 18%) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-update-banner span,
+.pwa-state-description,
+.pwa-offline-note {
+    color: var(--text-muted) !important;
+}
+
+.pwa-state-badge,
+.pwa-state-installed,
+.pwa-state-available,
+.pwa-state-ios,
+.pwa-state-browser {
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent) !important;
+    background: rgb(var(--accent-rgb) / 15%) !important;
+    color: color-mix(in srgb, var(--accent) 66%, white) !important;
+}
+
+.pwa-capabilities {
+    gap: 10px;
+}
+
+.pwa-capabilities .pwa-capability {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--ui-control-border) !important;
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main);
+}
+
+.pwa-capability > b {
+    display: grid;
+    width: 23px;
+    height: 23px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+    border-radius: 7px;
+    background: rgb(var(--accent-rgb) / 16%);
+    color: color-mix(in srgb, var(--accent) 68%, white);
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.pwa-capability.is-unavailable > b {
+    border-color: color-mix(in srgb, var(--ui-danger) 42%, transparent);
+    background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+    color: #fecdd3;
+}
+
+.pwa-settings-actions button,
+.pwa-update-actions button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-settings-actions .ui-button--primary,
+.pwa-update-actions button:first-child {
+    border-color: transparent !important;
+    background: linear-gradient(
+        120deg,
+        var(--accent),
+        var(--accent-secondary)
+    ) !important;
+    color: var(--accent-contrast) !important;
+}
+
+/* =====================================================================
+   Shuffle+ v8.8.0 — Garantie de palette dans les réglages
+   Les cartes PWA et leurs libellés utilisent exclusivement le thème actif.
+   ===================================================================== */
+
+.pwa-capabilities > .pwa-capability:is(.is-ready, .is-info) {
+    border-color: color-mix(in srgb, var(--accent) 34%, rgb(255 255 255 / 8%)) !important;
+    background: rgb(var(--accent-rgb) / 9%) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-capabilities > .pwa-capability > span {
+    min-width: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    font: inherit;
+}
+
+.pwa-capabilities > .pwa-capability.is-unavailable {
+    border-color: color-mix(in srgb, var(--ui-danger) 34%, rgb(255 255 255 / 8%)) !important;
+    background: color-mix(in srgb, var(--ui-danger) 8%, rgb(10 10 22 / 96%)) !important;
+}
+
+.pwa-settings-panel :is(.pwa-state-badge, .pwa-capability, .pwa-settings-actions button) {
+    box-shadow: var(--ui-control-shadow);
+}
+
+/* Empêche une ancienne règle de succès verte d’écraser la palette choisie. */
+.pwa-settings-panel .is-ready:not(.ui-status--success),
+.pwa-settings-panel .is-info:not(.ui-status--success) {
+    --pwa-state-accent: var(--accent);
+}
