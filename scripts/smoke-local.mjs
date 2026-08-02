@@ -3,13 +3,18 @@ import { once } from "node:events";
 import process from "node:process";
 import { readFile } from "node:fs/promises";
 
-const baseUrl = "http://127.0.0.1:5500";
+const port = 5600 + process.pid % 300;
+const baseUrl = `http://127.0.0.1:${port}`;
 const version = (await readFile("VERSION", "utf8")).trim();
 const server = spawn(
     process.execPath,
     ["scripts/serve-local.mjs"],
     {
         cwd: process.cwd(),
+        env: {
+            ...process.env,
+            PORT: String(port)
+        },
         stdio: ["ignore", "pipe", "pipe"]
     }
 );

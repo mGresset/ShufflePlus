@@ -271,7 +271,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "8.2.0";
+const APP_VERSION = "8.3.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -687,7 +687,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.2.0-shell";
+    "shuffleplus-v8.3.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1336,6 +1336,7 @@ let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
 let automationRunInProgress = false;
+let lastLaunchDiagnosticText = "";
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -3365,10 +3366,10 @@ function renderPrimaryLaunchPanel() {
                     </button>
                     <button
                         type="button"
-                        data-guided-copy-shortcut
+                        data-copy-universal-launch
                         ${commandReady ? "" : "disabled"}
                     >
-                        🔗 Copier l’URL iOS
+                        🔗 Copier l’URL universelle
                     </button>
                 </div>
             </div>
@@ -3403,7 +3404,7 @@ function renderPrimaryLaunchPanel() {
                     Changer de playlist
                 </button>
                 <button type="button" data-guided-nav="quick">
-                    Configurer le raccourci iPhone
+                    Ouvrir le centre de lancement
                 </button>
                 <button type="button" data-guided-nav="music">
                     Créer un mélange
@@ -3416,16 +3417,20 @@ function renderPrimaryLaunchPanel() {
 function renderGuidedSetupPanel() {
     const snapshot = getGuidedSetupSnapshot();
     const shouldOpen = !snapshot.complete && !guidedSetupState.dismissedAt;
+    const nextStep = snapshot.steps.find((step) => !step.ready) || null;
+    const nextStepIndex = nextStep
+        ? snapshot.steps.findIndex((step) => step.id === nextStep.id) + 1
+        : snapshot.totalCount;
 
     return `
         <details class="guided-setup-panel" ${shouldOpen ? "open" : ""}>
             <summary>
                 <span>
-                    <small>🚀 Installation guidée</small>
+                    <small>🚀 Installation Shuffle+</small>
                     <strong>
                         ${snapshot.complete
-                            ? "Shuffle+ est prêt"
-                            : `${snapshot.readyCount}/${snapshot.totalCount} étapes terminées`}
+                            ? "Tout est prêt"
+                            : `Étape ${nextStepIndex} sur ${snapshot.totalCount} · ${escapeHtml(nextStep?.label || "Configuration")}`}
                     </strong>
                 </span>
                 <span class="guided-setup-progress-label">
@@ -3437,20 +3442,50 @@ function renderGuidedSetupPanel() {
                 <i style="width:${snapshot.progress}%"></i>
             </div>
 
-            <ol class="guided-setup-steps">
-                ${snapshot.steps.map((step, index) => `
-                    <li class="${step.ready ? "is-ready" : ""}">
-                        <span>${step.ready ? "✓" : index + 1}</span>
+            ${snapshot.complete
+                ? `
+                    <div class="guided-setup-current-step is-ready">
+                        <span>✓</span>
                         <div>
-                            <strong>${escapeHtml(step.label)}</strong>
-                            <small>${step.ready ? "Terminé" : "À configurer"}</small>
+                            <strong>Shuffle+ est configuré</strong>
+                            <small>Le profil principal et le raccourci Apple sont prêts.</small>
                         </div>
-                        ${step.ready
-                            ? ""
-                            : `<button type="button" data-guided-step="${escapeHtml(step.id)}" data-guided-nav="${escapeHtml(step.menuId)}">Ouvrir</button>`}
-                    </li>
-                `).join("")}
-            </ol>
+                    </div>
+                `
+                : `
+                    <div class="guided-setup-current-step">
+                        <span>${nextStepIndex}</span>
+                        <div>
+                            <strong>${escapeHtml(nextStep?.label || "Configuration")}</strong>
+                            <small>Une seule action à terminer avant de continuer.</small>
+                        </div>
+                        <button
+                            type="button"
+                            data-guided-step="${escapeHtml(nextStep?.id || "")}"
+                            data-guided-nav="${escapeHtml(nextStep?.menuId || "dashboard")}"
+                        >
+                            Continuer
+                        </button>
+                    </div>
+                `}
+
+            <details class="guided-setup-all-steps">
+                <summary>Voir les ${snapshot.totalCount} étapes</summary>
+                <ol class="guided-setup-steps">
+                    ${snapshot.steps.map((step, index) => `
+                        <li class="${step.ready ? "is-ready" : ""}">
+                            <span>${step.ready ? "✓" : index + 1}</span>
+                            <div>
+                                <strong>${escapeHtml(step.label)}</strong>
+                                <small>${step.ready ? "Terminé" : "À configurer"}</small>
+                            </div>
+                            ${step.ready
+                                ? ""
+                                : `<button type="button" data-guided-step="${escapeHtml(step.id)}" data-guided-nav="${escapeHtml(step.menuId)}">Ouvrir</button>`}
+                        </li>
+                    `).join("")}
+                </ol>
+            </details>
 
             <div class="guided-setup-actions">
                 <button type="button" class="primary" data-guided-test-installation>
@@ -3483,12 +3518,12 @@ function renderGuidedSetupPanel() {
     `;
 }
 
-async function runGuidedPrimaryLaunch() {
+async function runGuidedPrimaryLaunch({ source = "guided-setup" } = {}) {
     const command = getGuidedPrimaryCommand();
 
     if (!command) {
         setStatus(
-            "Crée d’abord un profil dans Raccourcis iOS.",
+            "Crée d’abord un profil dans Profils de lancement.",
             "error"
         );
         await navigateToAppMenu("mixes");
@@ -3519,7 +3554,7 @@ async function runGuidedPrimaryLaunch() {
                 openDynamicLyrics: command.openDynamicLyrics,
                 dynamicLyricsShortcutName:
                     command.dynamicLyricsShortcutName,
-                source: "guided-setup"
+                source
             }
         );
     }
@@ -3592,7 +3627,7 @@ function renderV8WelcomePanel() {
             </div>
             <div class="v8-welcome-actions">
                 <button type="button" data-app-menu="quick">
-                    📱 Mes raccourcis
+                    ▶ Centre de lancement
                 </button>
                 <button type="button" data-app-menu="music">
                     🎵 Ma musique
@@ -3642,9 +3677,9 @@ function renderEssentialAdvancedSettingsCallout() {
 function getDashboardQuickAccessItems() {
     const essentialItems = [
         ["music", "🎵", "Ma musique"],
-        ["mixes", "📱", "Raccourcis iOS"],
+        ["mixes", "📱", "Profils de lancement"],
         ["assistant", "✨", "Assistant"],
-        ["quick", "⚡", "Mes raccourcis"],
+        ["quick", "▶️", "Centre de lancement"],
         ["guide", "📖", "Guide"],
         ["settings", "⚙️", "Réglages"]
     ];
@@ -3726,7 +3761,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.2.0
+                        ✨ Apparence v8.3.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4899,7 +4934,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.2.0",
+                "./service-worker.js?v=8.3.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -8245,6 +8280,39 @@ function renderDrivingQueueItem(item, index) {
     `;
 }
 
+function renderDrivingQueuePreview() {
+    const upcoming = (drivingQueueState.queue || []).slice(0, 3);
+
+    if (!upcoming.length) {
+        return "";
+    }
+
+    return `
+        <section class="driving-queue-preview" aria-label="Prochains morceaux">
+            <header>
+                <div>
+                    <span>À suivre</span>
+                    <strong>Les ${upcoming.length} prochains titres</strong>
+                </div>
+                <button type="button" data-open-driving-queue>
+                    Voir la liste
+                </button>
+            </header>
+            <ol>
+                ${upcoming.map((item, index) => `
+                    <li>
+                        <span>${index + 1}</span>
+                        <div>
+                            <strong>${escapeHtml(item.name)}</strong>
+                            <small>${escapeHtml(item.artist)}</small>
+                        </div>
+                    </li>
+                `).join("")}
+            </ol>
+        </section>
+    `;
+}
+
 function renderDrivingQueuePanel() {
     if (!drivingQueueOpen) {
         return "";
@@ -8629,6 +8697,8 @@ function renderDrivingModePage() {
                     <small>${escapeHtml(deviceName)}</small>
                 </div>
             </section>
+
+            ${renderDrivingQueuePreview()}
 
             <div class="driving-main-controls">
                 <button
@@ -9082,6 +9152,9 @@ async function enterDrivingMode({
         await refreshDrivingPlayback({
             silent: true
         });
+        await refreshDrivingQueue({
+            silent: true
+        });
     }
 
     return true;
@@ -9224,7 +9297,7 @@ async function skipDrivingTrack() {
         );
         drivingPlaybackState =
             await getCurrentPlayback();
-        if (drivingQueueOpen) {
+        if (drivingQueueOpen || drivingQueueState.queue?.length) {
             await refreshDrivingQueue({
                 silent: true,
                 render: false
@@ -11379,6 +11452,133 @@ function renderShortcutProfileDiagnosticSteps(lastRun) {
     `;
 }
 
+function renderLaunchCenter() {
+    const snapshot = getGuidedSetupSnapshot();
+    const command = snapshot.primaryCommand;
+    const playlistIds = playlistsCache
+        .map((playlist) => playlist?.id)
+        .filter(Boolean);
+    const mixIds = savedMixes
+        .map((mix) => mix?.id)
+        .filter(Boolean);
+    const diagnostic = command
+        ? buildShortcutProfileDiagnostic(
+            command,
+            iosCommandHistory,
+            {
+                playlistIds,
+                mixIds,
+                preferredDevice: preferredSpotifyDevice
+            }
+        )
+        : null;
+    const lastRun = diagnostic?.lastRun || null;
+    const universalUrl = buildUniversalLaunchUrl();
+    const targetLabel = getGuidedCommandTargetLabel(command);
+    const deviceLabel = command
+        ? getShortcutProfileDeviceLabel(command)
+        : "Aucun appareil configuré";
+
+    return `
+        <section class="launch-center" aria-label="Centre de lancement Shuffle+">
+            <div class="launch-center-hero">
+                <div>
+                    <span class="launch-center-kicker">▶ Centre de lancement</span>
+                    <h3>${escapeHtml(targetLabel)}</h3>
+                    <p>
+                        ${escapeHtml(deviceLabel)}
+                        ${command?.shuffle === false ? " · ordre normal" : " · shuffle"}
+                        ${command?.openDrivingMode && DRIVING_MODE_AVAILABLE ? " · mode conduite" : ""}
+                    </p>
+                </div>
+                <span class="launch-center-status ${escapeHtml(diagnostic?.status || "warning")}">
+                    ${escapeHtml(diagnostic?.label || "À configurer")}
+                </span>
+            </div>
+
+            <div class="launch-center-actions">
+                <button
+                    type="button"
+                    class="launch-center-primary"
+                    data-guided-primary-launch
+                    ${diagnostic?.readiness.ready ? "" : "disabled"}
+                >
+                    ▶ Lancer ma musique
+                </button>
+                <button type="button" data-copy-universal-launch>
+                    🔗 Copier l’URL universelle
+                </button>
+                <button type="button" data-share-universal-launch>
+                    📤 Envoyer vers l’iPhone
+                </button>
+                ${DRIVING_MODE_AVAILABLE
+                    ? `<button type="button" data-guided-nav="driving">🚗 Mode conduite</button>`
+                    : ""}
+            </div>
+
+            <form id="primaryLaunchSettingsForm" class="launch-center-profile-form">
+                <label for="launchCenterCommandSelect">Profil principal</label>
+                <select
+                    id="launchCenterCommandSelect"
+                    name="commandId"
+                    ${iosCommands.length ? "" : "disabled"}
+                >
+                    ${iosCommands.length
+                        ? iosCommands.map((item) => `
+                            <option
+                                value="${escapeHtml(item.id)}"
+                                ${command?.id === item.id ? "selected" : ""}
+                            >
+                                ${escapeHtml(item.icon || "▶️")} ${escapeHtml(item.name)}
+                            </option>
+                        `).join("")
+                        : `<option value="">Aucun profil enregistré</option>`}
+                </select>
+                <button type="submit" ${iosCommands.length ? "" : "disabled"}>
+                    Définir comme principal
+                </button>
+                <button type="button" data-guided-nav="mixes">
+                    Gérer les profils
+                </button>
+            </form>
+
+            <details class="universal-shortcut-guide">
+                <summary>Installer un seul raccourci Apple pour tous mes profils</summary>
+                <div>
+                    <ol>
+                        <li>Dans Raccourcis, ajoute « Ouvrir l’app » et choisis Spotify.</li>
+                        <li>Ajoute « Attendre » pendant 1 seconde.</li>
+                        <li>Ajoute « Ouvrir les URL » et colle l’adresse universelle ci-dessous.</li>
+                    </ol>
+                    <code>${escapeHtml(universalUrl)}</code>
+                    <p>
+                        Cette adresse reste identique : elle lance toujours le profil principal
+                        choisi dans Shuffle+, même après avoir changé de playlist.
+                    </p>
+                </div>
+            </details>
+
+            <div class="launch-center-diagnostic">
+                <div>
+                    <span>Diagnostic du dernier lancement</span>
+                    <strong>
+                        ${lastRun
+                            ? `${lastRun.status === "success" ? "Réussi" : "En erreur"} · ${escapeHtml(formatShortcutRunDuration(lastRun.durationMs))}`
+                            : "Aucun lancement enregistré"}
+                    </strong>
+                    ${lastRun
+                        ? `<small>${escapeHtml(lastRun.message || "Aucun détail")}</small>`
+                        : `<small>Lance le profil pour vérifier l’appareil et la lecture Spotify.</small>`}
+                </div>
+                ${lastRun
+                    ? `<button type="button" data-copy-last-launch-diagnostic>Copier le diagnostic</button>`
+                    : ""}
+            </div>
+            ${lastRun ? renderShortcutProfileDiagnosticSteps(lastRun) : ""}
+        </section>
+    `;
+}
+
 function renderShortcutProfilesDashboard() {
     const playlistIds = playlistsCache
         .map((playlist) => playlist?.id)
@@ -11406,10 +11606,10 @@ function renderShortcutProfilesDashboard() {
     ).length;
 
     return `
-        <section class="shortcut-profiles-dashboard" aria-label="Mes raccourcis iOS">
+        <section class="shortcut-profiles-dashboard" aria-label="Profils de lancement">
             <div class="shortcut-profiles-hero">
                 <div>
-                    <span class="quick-control-kicker">📱 Mes raccourcis</span>
+                    <span class="quick-control-kicker">📱 Profils de lancement</span>
                     <h3>Lance la bonne musique en une seule action</h3>
                     <p>
                         Chaque profil mémorise sa playlist ou son mix, l’appareil Spotify,
@@ -11421,7 +11621,7 @@ function renderShortcutProfilesDashboard() {
                         ＋ Nouveau profil
                     </button>
                     <button id="openShortcutProfilesConfigButton" type="button">
-                        Gérer dans Mix & iOS
+                        Gérer les profils
                     </button>
                 </div>
             </div>
@@ -11597,8 +11797,9 @@ function renderQuickControlPage() {
     const html = `
         <section
             class="quick-control-page"
-            aria-label="Commandes rapides"
+            aria-label="Centre de lancement"
         >
+            ${renderLaunchCenter()}
             ${renderShortcutProfilesDashboard()}
 
             <details class="quick-control-legacy-panel">
@@ -14862,7 +15063,7 @@ function getUniversalSearchSections() {
             key: "section:mixes",
             type: "section",
             icon: "🔀",
-            title: "Mix & iOS",
+            title: "Profils & mix",
             subtitle: "Mix, raccourcis et routines",
             description: "Créer un mix, le sauvegarder et préparer une automatisation iPhone.",
             menu: "mixes",
@@ -16923,7 +17124,7 @@ function renderSimpleManualPage() {
         {
             id: "mixes",
             icon: "🔀",
-            title: "Mix & iOS",
+            title: "Profils & mix",
             summary: "Créer, enregistrer et automatiser tes mix.",
             details: "Sélectionne plusieurs sources, sauvegarde le résultat, prépare des raccourcis iOS et programme des routines."
         },
@@ -17049,7 +17250,7 @@ function renderSimpleManualPage() {
                     </li>
                     <li>
                         <strong>2. Crée un mix</strong>
-                        <span>Dans Mix & iOS, enregistre une combinaison que tu aimes.</span>
+                        <span>Dans Profils de lancement, enregistre une combinaison que tu aimes.</span>
                     </li>
                     <li>
                         <strong>3. Associe une scène</strong>
@@ -17057,7 +17258,7 @@ function renderSimpleManualPage() {
                     </li>
                     <li>
                         <strong>4. Lance en un geste</strong>
-                        <span>Utilise Accueil, Rapide, Conduite, l’Assistant ou un raccourci iOS.</span>
+                        <span>Utilise Accueil, Lancer, Conduite, l’Assistant ou un raccourci Apple.</span>
                     </li>
                 </ol>
             </section>
@@ -18351,6 +18552,61 @@ function buildIosCommandUrl(command) {
     }
 
     return url.toString();
+}
+
+function buildUniversalLaunchUrl() {
+    const url = new URL(
+        window.location.origin +
+        window.location.pathname
+    );
+
+    url.searchParams.set("action", "launch");
+    url.searchParams.set("autoplay", "1");
+
+    return url.toString();
+}
+
+async function copyUniversalLaunchUrl() {
+    const url = buildUniversalLaunchUrl();
+
+    try {
+        await copyTextToClipboard(url);
+        showToast(
+            "✅ URL universelle copiée. Elle suivra toujours le profil principal.",
+            "success"
+        );
+        setStatus(
+            "URL universelle copiée pour le raccourci Apple."
+        );
+    } catch (error) {
+        console.error(error);
+        window.prompt(
+            "Copie cette URL dans Raccourcis :",
+            url
+        );
+    }
+}
+
+async function shareUniversalLaunchUrl() {
+    const url = buildUniversalLaunchUrl();
+
+    if (typeof navigator.share !== "function") {
+        await copyUniversalLaunchUrl();
+        return;
+    }
+
+    try {
+        await navigator.share({
+            title: "Shuffle+",
+            text: "Ouvrir mon profil principal Shuffle+",
+            url
+        });
+    } catch (error) {
+        if (error?.name !== "AbortError") {
+            console.error(error);
+            await copyUniversalLaunchUrl();
+        }
+    }
 }
 
 function saveIosCommandFromForm(form) {
@@ -19942,6 +20198,101 @@ function scheduleDynamicLyricsLaunch(
     return true;
 }
 
+function buildLaunchDiagnosticText({
+    command,
+    status = "info",
+    message = "",
+    deviceName = "",
+    durationMs = 0,
+    steps = []
+} = {}) {
+    const lines = [
+        `Shuffle+ ${APP_VERSION} — diagnostic de lancement`,
+        `Date : ${new Date().toLocaleString("fr-FR")}`,
+        `Profil : ${command?.name || command?.id || "inconnu"}`,
+        `Source : ${getGuidedCommandTargetLabel(command)}`,
+        `Statut : ${status}`,
+        deviceName ? `Appareil : ${deviceName}` : "",
+        durationMs ? `Durée : ${formatShortcutRunDuration(durationMs)}` : "",
+        message ? `Message : ${message}` : "",
+        "",
+        "Étapes :",
+        ...normalizeShortcutHistorySteps(steps).map(
+            (step) =>
+                `- ${step.status.toUpperCase()} · ${step.label}${step.message ? ` — ${step.message}` : ""}`
+        )
+    ];
+
+    return lines.filter(Boolean).join("\n");
+}
+
+function renderIosLaunchProgress({
+    command,
+    steps = [],
+    activeStep = "device",
+    message = "Préparation du lancement…"
+} = {}) {
+    const stepDefinitions = [
+        ["configuration", "Profil", "Playlist et options"],
+        ["device", "Appareil", "Détection Spotify Connect"],
+        ["playback", "Lecture", "Démarrage et vérification"]
+    ];
+    const stepMap = new Map(
+        normalizeShortcutHistorySteps(steps).map(
+            (step) => [step.id, step]
+        )
+    );
+
+    contentElement.innerHTML = `
+        <section class="launch-progress-screen" aria-live="polite">
+            <span class="launch-progress-kicker">▶ Lancement Shuffle+</span>
+            <h2>${escapeHtml(command?.name || "Profil principal")}</h2>
+            <p>${escapeHtml(message)}</p>
+            <ol class="launch-progress-steps">
+                ${stepDefinitions.map(([id, label, description]) => {
+                    const savedStep = stepMap.get(id);
+                    const status = savedStep?.status || (activeStep === id ? "pending" : "waiting");
+                    return `
+                        <li class="${escapeHtml(status)}">
+                            <span aria-hidden="true">
+                                ${status === "success" ? "✓" : status === "error" ? "!" : status === "pending" ? "…" : "○"}
+                            </span>
+                            <div>
+                                <strong>${escapeHtml(label)}</strong>
+                                <small>${escapeHtml(savedStep?.message || description)}</small>
+                            </div>
+                        </li>
+                    `;
+                }).join("")}
+            </ol>
+            <div class="launch-progress-spinner" aria-hidden="true"></div>
+            <small class="launch-progress-note">
+                Garde Spotify ouvert sur l’appareil ciblé pendant quelques secondes.
+            </small>
+        </section>
+    `;
+}
+
+function getLastPrimaryLaunchDiagnosticText() {
+    const command = getGuidedPrimaryCommand();
+    const lastRun = iosCommandHistory.find(
+        (entry) => entry.commandId === command?.id
+    );
+
+    if (!lastRun) {
+        return "Aucun lancement n’est encore enregistré pour le profil principal.";
+    }
+
+    return buildLaunchDiagnosticText({
+        command,
+        status: lastRun.status,
+        message: lastRun.message,
+        deviceName: lastRun.deviceName,
+        durationMs: lastRun.durationMs,
+        steps: lastRun.steps
+    });
+}
+
 async function runIosQuickPlay(
     playlistId = "",
     commandId = "",
@@ -20006,6 +20357,13 @@ async function runIosQuickPlay(
     });
     activeLaunchStep = "device";
 
+    renderIosLaunchProgress({
+        command,
+        steps: launchSteps,
+        activeStep: activeLaunchStep,
+        message: "Recherche de l’appareil Spotify…"
+    });
+
     automationRunInProgress = true;
     setStatus(
         "Lecture immédiate iOS : recherche de l’iPhone…"
@@ -20036,6 +20394,13 @@ async function runIosQuickPlay(
             message: device.name || "Appareil détecté"
         });
         activeLaunchStep = "playback";
+
+        renderIosLaunchProgress({
+            command,
+            steps: launchSteps,
+            activeStep: activeLaunchStep,
+            message: `Appareil trouvé : ${device.name}. Démarrage de la lecture…`
+        });
 
         setStatus(
             `Lancement sur ${device.name}…`
@@ -20086,6 +20451,18 @@ async function runIosQuickPlay(
                 : "Non demandé"
         });
 
+        const launchDurationMs =
+            performance.now() - launchStartedAt;
+
+        lastLaunchDiagnosticText = buildLaunchDiagnosticText({
+            command,
+            status: "success",
+            message: "Lecture démarrée et vérifiée",
+            deviceName: device.name,
+            durationMs: launchDurationMs,
+            steps: launchSteps
+        });
+
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
 
@@ -20099,6 +20476,7 @@ async function runIosQuickPlay(
                         ${escapeHtml(device.name)}
                     </strong>.
                 </p>
+                ${renderShortcutProfileDiagnosticSteps({steps: launchSteps})}
                 ${dynamicLyricsLaunch.requested
                     ? `
                         <button
@@ -20115,8 +20493,16 @@ async function runIosQuickPlay(
                     id="backToPlaylists"
                     class="${dynamicLyricsLaunch.requested ? "secondary-button" : "primary-button"}"
                     type="button"
+                    data-back-menu="quick"
                 >
-                    Ouvrir Shuffle+
+                    Revenir au centre de lancement
+                </button>
+                <button
+                    type="button"
+                    class="secondary-button"
+                    data-copy-current-launch-diagnostic
+                >
+                    Copier le diagnostic
                 </button>
             </section>
         `;
@@ -20131,7 +20517,7 @@ async function runIosQuickPlay(
             deviceName: device.name,
             shuffle: command.shuffle === true,
             source,
-            durationMs: performance.now() - launchStartedAt,
+            durationMs: launchDurationMs,
             steps: launchSteps,
             status: "success",
             message: "Lecture démarrée et vérifiée"
@@ -20165,6 +20551,17 @@ async function runIosQuickPlay(
             status: "error",
             message: error.message || "Étape interrompue"
         });
+        const launchDurationMs =
+            performance.now() - launchStartedAt;
+        lastLaunchDiagnosticText = buildLaunchDiagnosticText({
+            command,
+            status: "error",
+            message:
+                error.message ||
+                "Lecture automatique impossible.",
+            durationMs: launchDurationMs,
+            steps: launchSteps
+        });
         savePendingAutomationCommand(null);
 
         contentElement.innerHTML = `
@@ -20177,6 +20574,30 @@ async function runIosQuickPlay(
                         "Une erreur est survenue."
                     )}
                 </p>
+                ${renderShortcutProfileDiagnosticSteps({steps: launchSteps})}
+                <div class="ios-automation-recovery-actions">
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        data-launch-open-spotify
+                    >
+                        Ouvrir Spotify
+                    </button>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        data-guided-nav="mixes"
+                    >
+                        Changer d’appareil ou de profil
+                    </button>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        data-launch-reconnect-spotify
+                    >
+                        Reconnecter Spotify
+                    </button>
+                </div>
                 <button
                     id="retryIosQuickPlayButton"
                     class="primary-button"
@@ -20193,8 +20614,16 @@ async function runIosQuickPlay(
                     id="backToPlaylists"
                     class="secondary-button"
                     type="button"
+                    data-back-menu="quick"
                 >
-                    Ouvrir Shuffle+
+                    Revenir au centre de lancement
+                </button>
+                <button
+                    type="button"
+                    class="secondary-button"
+                    data-copy-current-launch-diagnostic
+                >
+                    Copier le diagnostic
                 </button>
             </section>
         `;
@@ -20208,7 +20637,7 @@ async function runIosQuickPlay(
             deviceName: "",
             shuffle: command.shuffle === true,
             source,
-            durationMs: performance.now() - launchStartedAt,
+            durationMs: launchDurationMs,
             steps: launchSteps,
             status: "error",
             message:
@@ -20238,6 +20667,45 @@ async function executeAutomationCommand(
 
     const normalized =
         normalizeAutomationCommand(command);
+
+    if (normalized.action === "launch") {
+        if (normalized.mixId) {
+            const prepared = await launchSavedMix(
+                normalized.mixId
+            );
+
+            if (!prepared) {
+                throw new Error(
+                    "Le mix demandé n’a pas pu être préparé."
+                );
+            }
+
+            if (normalized.autoplay && selectedTracks.length) {
+                const launchCommand = getEffectiveIosCommand("");
+                const device = await getAutomationDeviceWithRetry(
+                    launchCommand
+                );
+                const playbackUris = selectedTracks
+                    .slice(0, MAX_DIRECT_PLAYBACK_TRACKS)
+                    .map((track) => track?.uri)
+                    .filter(Boolean);
+
+                if (!device || !playbackUris.length) {
+                    throw new Error(
+                        "Le mix est prêt, mais aucun appareil Spotify n’est disponible."
+                    );
+                }
+
+                await startPlayback(playbackUris, device.id);
+            }
+        } else {
+            await runGuidedPrimaryLaunch({ source: "automation-url" });
+        }
+
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+        return;
+    }
 
     if (
         normalized.action === "quickplay" ||
@@ -39454,6 +39922,9 @@ async function initializeApp() {
             await refreshDrivingPlayback({
                 silent: true
             });
+            await refreshDrivingQueue({
+                silent: true
+            });
             await requestDrivingWakeLock();
         } else if (activeAppMenu === "quick") {
             await refreshQuickControlPlayback({silent:true});
@@ -39733,6 +40204,63 @@ contentElement.addEventListener(
                 return;
             }
             await copyIosCommandUrl(command.id);
+            return;
+        }
+
+        if (event.target.closest("[data-copy-universal-launch]")) {
+            await copyUniversalLaunchUrl();
+            return;
+        }
+
+        if (event.target.closest("[data-share-universal-launch]")) {
+            await shareUniversalLaunchUrl();
+            return;
+        }
+
+        if (event.target.closest("[data-copy-last-launch-diagnostic]")) {
+            const diagnostic = getLastPrimaryLaunchDiagnosticText();
+            try {
+                await copyTextToClipboard(diagnostic);
+                showToast("✅ Diagnostic copié.", "success");
+            } catch (error) {
+                console.error(error);
+                window.prompt("Copie le diagnostic :", diagnostic);
+            }
+            return;
+        }
+
+        if (event.target.closest("[data-copy-current-launch-diagnostic]")) {
+            const diagnostic = lastLaunchDiagnosticText ||
+                getLastPrimaryLaunchDiagnosticText();
+            try {
+                await copyTextToClipboard(diagnostic);
+                showToast("✅ Diagnostic copié.", "success");
+            } catch (error) {
+                console.error(error);
+                window.prompt("Copie le diagnostic :", diagnostic);
+            }
+            return;
+        }
+
+        if (event.target.closest("[data-launch-open-spotify]")) {
+            window.open(
+                "https://open.spotify.com/",
+                "_blank",
+                "noopener,noreferrer"
+            );
+            return;
+        }
+
+        if (event.target.closest("[data-launch-reconnect-spotify]")) {
+            try {
+                await loginWithSpotify();
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message || "Reconnexion Spotify impossible.",
+                    "error"
+                );
+            }
             return;
         }
 
@@ -40411,7 +40939,7 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
-                "#drivingQueueButton"
+                "#drivingQueueButton, [data-open-driving-queue]"
             )
         ) {
             await openDrivingQueue();
@@ -41838,6 +42366,11 @@ contentElement.addEventListener(
             event.target.closest("#backToPlaylists");
 
         if (backButton) {
+            const targetMenu = normalizeActiveAppMenu(
+                backButton.dataset.backMenu || activeAppMenu
+            );
+            activeAppMenu = targetMenu;
+            saveActiveAppMenu();
             setStatus("");
             displayPlaylists(playlistsCache);
 

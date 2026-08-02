@@ -62,13 +62,13 @@ test("la palette personnalisée génère un accent secondaire et un contraste li
     assert.equal(getContrastText("#050505"), "#ffffff");
 });
 
-test("Raccourcis iOS est la première section du menu Créer", () => {
+test("Profils de lancement est la première section du menu Créer", () => {
     const section = getAppSectionGroup("mixes");
 
     assert.deepEqual(section.featured[0], [
         "mixes",
         "📱",
-        "Raccourcis iOS"
+        "Profils de lancement"
     ]);
 
     const iosPosition = appSource.indexOf(

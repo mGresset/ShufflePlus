@@ -1,0 +1,13 @@
+SHUFFLE+ V8.3.0 — INSTALLATION RAPIDE
+
+1. Partir du dépôt Shuffle+ v8.2.0 à jour.
+2. Créer la branche release/8.3.0.
+3. Copier les fichiers de la v8.3.0 à la racine du dépôt.
+4. Supprimer startup-recovery-8.2.0.js s’il est encore présent.
+5. Exécuter : npm run validate
+6. Exécuter : npm start
+7. Tester http://127.0.0.1:5500/
+8. Pousser la branche GitHub puis fusionner la Pull Request.
+9. Sur iPhone, fermer complètement la PWA et la rouvrir après le déploiement.
+
+Les profils, thèmes, connexions Spotify/Railway, mix et sauvegardes sont conservés.

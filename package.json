@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.2.0",
+  "version": "8.3.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.2 — lancement principal, installation guidée, raccourci iPhone simplifié et expérience publique essentielle.",
+  "description": "Shuffle+ 8.3 — centre de lancement, raccourci Apple universel, diagnostic guidé et mode conduite enrichi.",
   "engines": {
     "node": ">=20"
   },

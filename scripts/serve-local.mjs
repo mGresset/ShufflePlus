@@ -4,7 +4,10 @@ import path from "node:path";
 import process from "node:process";
 
 const host = "127.0.0.1";
-const port = 5500;
+const requestedPort = Number(process.env.PORT || 5500);
+const port = Number.isInteger(requestedPort) && requestedPort > 0
+    ? requestedPort
+    : 5500;
 const root = process.cwd();
 
 const mimeTypes = {

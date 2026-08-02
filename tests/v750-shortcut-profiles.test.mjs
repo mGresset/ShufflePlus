@@ -92,7 +92,7 @@ test("les étapes et durées de diagnostic sont normalisées", () => {
 });
 
 test("la v7.5 expose Mes raccourcis, ses actions et son diagnostic", () => {
-    assert.match(menuSource, /Mes raccourcis/);
+    assert.match(menuSource, /Centre de lancement/);
     assert.match(appSource, /function renderShortcutProfilesDashboard\(/);
     assert.match(appSource, /id="createShortcutProfileButton"/);
     assert.match(appSource, /shortcut-profile-diagnostic-steps/);

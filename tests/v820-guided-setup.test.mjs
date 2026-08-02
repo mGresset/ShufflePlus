@@ -130,7 +130,7 @@ test("Shuffle+ 8.2 relie le lancement principal à l’interface", () => {
     assert.match(appSource, /Tester mon installation/);
     assert.match(appSource, /Lancer maintenant/);
     assert.match(appSource, /primaryLaunchSettingsForm/);
-    assert.match(indexSource, /Étape 1 sur 7/);
+    assert.match(indexSource, /Étape 1 · Connexion Spotify/);
     assert.match(styleSource, /\.primary-launch-panel/);
     assert.match(styleSource, /\.guided-setup-steps/);
     assert.match(workerSource, /\.\/core\/guided-setup\.js/);

@@ -1,16 +1,20 @@
-# Shuffle+ v8.2.0
+# Shuffle+ v8.3.0
 
-Shuffle+ lance des playlists Spotify, crée des mélanges intelligents et prépare des raccourcis iPhone avec un Client ID Spotify personnel.
+Shuffle+ lance des playlists Spotify, crée des mélanges intelligents et prépare des raccourcis Apple avec un Client ID Spotify personnel.
 
-## v8.2.0 — Lancement principal et installation guidée
+## v8.3.0 — Centre de lancement
 
-- bouton principal « Lancer maintenant » sur l’accueil ;
-- sélection d’un profil iOS comme playlist principale ;
-- assistant progressif en sept étapes ;
-- test global de l’installation ;
-- confirmation du raccourci iPhone et de l’installation PWA ;
-- sauvegarde et synchronisation de la configuration guidée ;
-- modes Essentiel et Expert conservés ;
-- synchronisation Railway simplifiée de la v8.1 maintenue.
+- nouvelle rubrique **Lancer** au premier niveau ;
+- centre de lancement dédié au profil principal ;
+- URL Apple universelle qui reste identique quand la playlist principale change ;
+- partage natif de l’URL vers l’iPhone, avec copie de secours ;
+- progression visuelle pendant la recherche de l’appareil et le démarrage Spotify ;
+- erreurs accompagnées d’actions directes et d’un diagnostic copiable ;
+- assistant d’installation recentré sur l’unique prochaine étape ;
+- aperçu permanent des trois prochains titres dans le mode conduite ;
+- thèmes prédéfinis et couleurs personnalisées intégralement conservés ;
+- déploiement GitHub → Railway inchangé.
 
-Voir `V8.2.0_NOTES.md` et `DEPLOIEMENT-V8.2.0.md`.
+Les profils historiques, mix, statistiques, synchronisation chiffrée, PWA et modes Essentiel/Expert restent compatibles.
+
+Voir `V8.3.0_NOTES.md` et `DEPLOIEMENT-V8.3.0.md`.

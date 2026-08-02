@@ -31,7 +31,7 @@ export const APP_MENU_GROUPS = Object.freeze([
             Object.freeze(["dashboard", "🏠", "Accueil"]),
             Object.freeze(["music", "🎵", "Musique"]),
             Object.freeze(["mixes", "✨", "Créer"]),
-            Object.freeze(["quick", "📱", "Raccourcis"]),
+            Object.freeze(["quick", "▶️", "Lancer"]),
             Object.freeze(["settings", "⚙️", "Réglages"])
         ])
     })
@@ -72,7 +72,7 @@ export const APP_SECTION_GROUPS = Object.freeze({
         id: "mixes",
         label: "Créer",
         featured: Object.freeze([
-            Object.freeze(["mixes", "📱", "Raccourcis iOS"]),
+            Object.freeze(["mixes", "📱", "Profils de lancement"]),
             Object.freeze(["assistant", "✨", "Assistant"])
         ]),
         more: Object.freeze([
@@ -82,12 +82,12 @@ export const APP_SECTION_GROUPS = Object.freeze({
     }),
     quick: Object.freeze({
         id: "quick",
-        label: "Raccourcis",
+        label: "Lancer",
         featured: Object.freeze([
-            Object.freeze(["quick", "📱", "Mes raccourcis"])
+            Object.freeze(["quick", "▶️", "Centre de lancement"])
         ]),
         more: Object.freeze([
-            Object.freeze(["driving", "🚗", "Conduite"])
+            Object.freeze(["driving", "🚗", "Mode conduite"])
         ])
     }),
     settings: Object.freeze({
