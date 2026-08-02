@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html-utils.js";
+import { analyzeQueueContinuity } from "./queue-continuity.js";
 
 function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, Number(value) || 0));
@@ -27,6 +28,7 @@ export function buildDailyHomeSnapshot({
     deviceLabel = "Appareil Spotify à détecter",
     guidedSetup = null,
     queue = [],
+    queueUpdatedAt = 0,
     experienceMode = "essential",
     drivingAvailable = false,
     contextualSuggestion = null,
@@ -40,15 +42,23 @@ export function buildDailyHomeSnapshot({
         : 0;
     const greeting = getDailyHomeGreeting(now);
     const nextStep = guidedSetup?.steps?.find?.((step) => !step.ready) || null;
-    const upcoming = (Array.isArray(queue) ? queue : [])
-        .filter(Boolean)
+    const safeQueue = (Array.isArray(queue) ? queue : [])
+        .filter(Boolean);
+    const queueContinuity = analyzeQueueContinuity(safeQueue, {
+        current: track,
+        updatedAt: queueUpdatedAt,
+        now: now?.getTime?.() || Date.now()
+    });
+    const upcoming = safeQueue
         .slice(0, 3)
         .map((item, index) => ({
             id: item.id || item.uri || `queue-${index}`,
             name: item.name || "Titre inconnu",
-            artist: item.artists?.map?.((artist) => artist?.name).filter(Boolean).join(", ") || "Artiste inconnu",
-            imageUrl: item.album?.images?.[0]?.url || "",
-            durationLabel: formatDuration(item.duration_ms)
+            artist: item.artist || item.artists?.map?.((artist) => artist?.name).filter(Boolean).join(", ") || "Artiste inconnu",
+            imageUrl: item.imageUrl || item.album?.images?.[0]?.url || "",
+            durationLabel: formatDuration(item.durationMs ?? item.duration_ms),
+            duplicate: Boolean(queueContinuity.itemFlags[index]?.duplicate),
+            repeatedArtist: Boolean(queueContinuity.itemFlags[index]?.repeatedArtist)
         }));
 
     return {
@@ -86,6 +96,7 @@ export function buildDailyHomeSnapshot({
             deviceName: playback?.device?.name || deviceLabel
         },
         upcoming,
+        queueContinuity,
         setup: {
             complete: Boolean(guidedSetup?.complete),
             progress: clamp(guidedSetup?.progress, 0, 100),
@@ -132,7 +143,7 @@ function renderUpcoming(snapshot) {
     return `
         <ol class="v9-home-queue-list">
             ${snapshot.upcoming.map((item, index) => `
-                <li>
+                <li class="${item.duplicate ? "is-duplicate" : ""} ${item.repeatedArtist ? "is-artist-repeat" : ""}">
                     ${item.imageUrl
                         ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
                         : `<span class="v9-home-queue-index">${index + 1}</span>`}
@@ -140,7 +151,10 @@ function renderUpcoming(snapshot) {
                         <strong>${escapeHtml(item.name)}</strong>
                         <small>${escapeHtml(item.artist)}</small>
                     </div>
-                    <time>${escapeHtml(item.durationLabel)}</time>
+                    <div class="v9-home-queue-meta">
+                        ${item.duplicate ? '<span class="v9-home-queue-warning">Doublon</span>' : ""}
+                        <time>${escapeHtml(item.durationLabel)}</time>
+                    </div>
                 </li>
             `).join("")}
         </ol>
@@ -293,12 +307,24 @@ export function renderDailyHomeMarkup(snapshot, {
                 <header>
                     <div>
                         <span>≡ À suivre</span>
-                        <h3>${snapshot.upcoming.length ? `${snapshot.upcoming.length} prochains titres` : "File d’attente Spotify"}</h3>
+                        <h3>${snapshot.queueContinuity.totalCount ? `${snapshot.queueContinuity.totalCount} titres dans la file` : "File d’attente Spotify"}</h3>
                     </div>
                     <button type="button" class="ui-button ui-button--ghost" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>
                         ${snapshot.drivingAvailable && snapshot.upcoming.length ? "Voir toute la liste" : snapshot.upcoming.length ? "Actualiser" : "Charger la liste"}
                     </button>
                 </header>
+                ${snapshot.queueContinuity.totalCount
+                    ? `<div class="v9-home-queue-insights" aria-label="État de la file d’attente">
+                        <span class="is-${escapeHtml(snapshot.queueContinuity.state)}">${escapeHtml(snapshot.queueContinuity.label)}</span>
+                        <span>⏱ ${escapeHtml(snapshot.queueContinuity.durationLabel)} visibles</span>
+                        <span>🎤 ${snapshot.queueContinuity.uniqueArtistCount} artiste${snapshot.queueContinuity.uniqueArtistCount > 1 ? "s" : ""}</span>
+                        <span class="${snapshot.queueContinuity.duplicateCount ? "has-warning" : ""}">
+                            ${snapshot.queueContinuity.duplicateCount
+                                ? `⚠ ${snapshot.queueContinuity.duplicateCount} doublon${snapshot.queueContinuity.duplicateCount > 1 ? "s" : ""}`
+                                : "✓ Aucun doublon"}
+                        </span>
+                    </div>`
+                    : ""}
                 ${renderUpcoming(snapshot)}
             </section>
 

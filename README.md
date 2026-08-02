@@ -1,21 +1,22 @@
-# Shuffle+ v9.3.0
+# Shuffle+ v9.4.0
 
 Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple sur iPhone.
 
-## Nouveautés v9.3.0
+## Nouveautés v9.4.0
 
-- profils contextuels étendus : **Voiture**, **Maison**, **Écouteurs**, **Matin**, **Travail**, **Sport**, **Soirée** et **Nuit** ;
-- reconnaissance locale du nom de l’appareil Spotify : voiture, AirPods/casque ou enceinte domestique ;
-- suggestions selon le moment de la journée lorsque l’appareil ne suffit pas ;
-- carte de suggestion directement sur l’accueil quotidien ;
-- aucune lecture automatique sans action explicite ;
-- bouton **Pas maintenant** qui masque la suggestion pendant quatre heures ;
-- proposition de configuration lorsqu’un profil ne possède pas encore de mix ;
-- mémorisation locale du dernier profil contextuel accepté ;
-- sauvegarde et synchronisation des préférences contextuelles ;
-- compatibilité maintenue avec les profils, mix et réglages des versions précédentes.
+- analyse locale de la **file d’attente Spotify** ;
+- durée totale visible de la file ;
+- nombre d’artistes distincts ;
+- détection des morceaux présents plusieurs fois ;
+- signalement des répétitions immédiates du même artiste ;
+- indicateur de santé : **File fluide**, **File correcte**, **À surveiller** ou **À actualiser** ;
+- informations cohérentes entre l’accueil et le mode conduite ;
+- affichage corrigé des pochettes, artistes et durées provenant de la file Spotify normalisée ;
+- actualisation automatique de la file après le bouton **Suivant** ;
+- actualisation au retour dans l’application lorsque les données sont anciennes ;
+- aucune modification forcée de l’ordre Spotify : Shuffle+ informe sans supprimer ni déplacer des titres à l’insu de l’utilisateur.
 
-Les optimisations réseau de la v9.2.0 et la fiabilité Spotify de la v9.1.0 restent incluses.
+Les profils contextuels de la v9.3.0, les optimisations réseau de la v9.2.0 et la fiabilité Spotify de la v9.1.0 restent inclus.
 
 ## Validation
 
@@ -27,4 +28,4 @@ npm.cmd start
 
 La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V9.3.0_NOTES.md` et `DEPLOIEMENT-V9.3.0.md` pour le détail.
+Consulte `V9.4.0_NOTES.md` et `DEPLOIEMENT-V9.4.0.md` pour le détail.

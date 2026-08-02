@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.3.0",
+  "version": "9.4.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.3.0 — profils contextuels, suggestions selon l’appareil et moments de la journée.",
+  "description": "Shuffle+ 9.4.0 — file d’attente Spotify intelligente, continuité de lecture et détection des doublons.",
   "engines": {
     "node": ">=20"
   },

@@ -141,6 +141,11 @@ import {
 } from "./core/playback-queue.js";
 
 import {
+    analyzeQueueContinuity,
+    shouldRefreshQueue
+} from "./core/queue-continuity.js";
+
+import {
     buildDrivingQueuePreview,
     getDrivingPlaybackProgress,
     getDrivingQueueFreshness
@@ -346,7 +351,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.3.0";
+const APP_VERSION = "9.4.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -801,7 +806,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.3.0-shell";
+    "shuffleplus-v9.4.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -2639,7 +2644,52 @@ function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.e
 function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:quickPlaybackState||drivingPlaybackState,activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
 function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
 function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
-async function refreshMusicalDashboardPlayback({silent=false}={}){if(musicalDashboardRefreshing)return quickPlaybackState;musicalDashboardRefreshing=true;try{quickPlaybackState=await getCurrentPlayback();if(!silent)setStatus(quickPlaybackState?.item?"Tableau de bord actualisé.":"Actualisé · aucune lecture active.");}catch(error){if(!silent)setStatus(getPlaybackErrorMessage(error),"error");}finally{musicalDashboardRefreshing=false;}if(activeAppMenu==="dashboard")displayPlaylists(playlistsCache);return quickPlaybackState;}
+async function refreshMusicalDashboardPlayback({ silent = false } = {}) {
+    if (musicalDashboardRefreshing) {
+        return quickPlaybackState;
+    }
+
+    musicalDashboardRefreshing = true;
+
+    try {
+        quickPlaybackState = await getCurrentPlayback();
+
+        if (
+            quickPlaybackState?.item &&
+            shouldRefreshQueue({
+                updatedAt: drivingQueueState.updatedAt
+            })
+        ) {
+            await refreshDrivingQueue({
+                silent: true,
+                render: false
+            });
+        }
+
+        if (!silent) {
+            setStatus(
+                quickPlaybackState?.item
+                    ? "Tableau de bord et file Spotify actualisés."
+                    : "Actualisé · aucune lecture active."
+            );
+        }
+    } catch (error) {
+        if (!silent) {
+            setStatus(
+                getPlaybackErrorMessage(error),
+                "error"
+            );
+        }
+    } finally {
+        musicalDashboardRefreshing = false;
+    }
+
+    if (activeAppMenu === "dashboard") {
+        displayPlaylists(playlistsCache);
+    }
+
+    return quickPlaybackState;
+}
 function openDashboardSection(id){return navigateToAppMenu(id);}
 function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
 function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
@@ -4084,6 +4134,7 @@ function renderV9HomePanel() {
         deviceLabel,
         guidedSetup: guidedSnapshot,
         queue: drivingQueueState.queue,
+        queueUpdatedAt: drivingQueueState.updatedAt,
         experienceMode,
         drivingAvailable: DRIVING_MODE_AVAILABLE,
         contextualSuggestion: getContextualProfileSuggestion(
@@ -4214,7 +4265,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.3.0
+                        ✨ Apparence v9.4.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5248,7 +5299,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.3.0",
+                "./service-worker.js?v=9.4.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -8571,9 +8622,33 @@ function getDrivingCurrentFeedbackAction(track) {
     );
 }
 
-function renderDrivingQueueItem(item, index) {
+function renderQueueContinuityBadges(continuity = {}) {
+    if (!continuity?.totalCount) {
+        return "";
+    }
+
     return `
-        <li class="driving-queue-item">
+        <div class="queue-continuity-badges" aria-label="État de la file d’attente">
+            <span class="is-${escapeHtml(continuity.state || "good")}">
+                ${escapeHtml(continuity.label || "File correcte")}
+            </span>
+            <span>⏱ ${escapeHtml(continuity.durationLabel || "0 min")} visibles</span>
+            <span>🎤 ${Number(continuity.uniqueArtistCount || 0)} artiste${Number(continuity.uniqueArtistCount || 0) > 1 ? "s" : ""}</span>
+            <span class="${continuity.duplicateCount ? "has-warning" : ""}">
+                ${continuity.duplicateCount
+                    ? `⚠ ${continuity.duplicateCount} doublon${continuity.duplicateCount > 1 ? "s" : ""}`
+                    : "✓ Aucun doublon"}
+            </span>
+        </div>
+    `;
+}
+
+function renderDrivingQueueItem(item, index, flag = {}) {
+    const duplicate = Boolean(flag?.duplicate);
+    const repeatedArtist = Boolean(flag?.repeatedArtist);
+
+    return `
+        <li class="driving-queue-item ${duplicate ? "is-duplicate" : ""} ${repeatedArtist ? "is-artist-repeat" : ""}">
             <span class="driving-queue-index">${index + 1}</span>
             ${item.imageUrl
                 ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
@@ -8581,6 +8656,11 @@ function renderDrivingQueueItem(item, index) {
             <div>
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${escapeHtml(item.artist)}</span>
+                ${duplicate
+                    ? '<small class="driving-queue-warning">Doublon repéré</small>'
+                    : repeatedArtist
+                        ? '<small class="driving-queue-note">Même artiste que le titre précédent</small>'
+                        : ""}
             </div>
             <small>${escapeHtml(formatQueueDuration(item.durationMs))}</small>
         </li>
@@ -8636,6 +8716,13 @@ function renderDrivingQueuePreview() {
     const freshness = getDrivingQueueFreshness(
         drivingQueueState.updatedAt
     );
+    const continuity = analyzeQueueContinuity(
+        drivingQueueState.queue,
+        {
+            current: drivingQueueState.current,
+            updatedAt: drivingQueueState.updatedAt
+        }
+    );
 
     return `
         <section
@@ -8666,6 +8753,7 @@ function renderDrivingQueuePreview() {
                             : "Charger la liste"}
                 </button>
             </header>
+            ${renderQueueContinuityBadges(continuity)}
             ${upcoming.length
                 ? `
                     <ol>
@@ -8708,6 +8796,10 @@ function renderDrivingQueuePanel() {
     const freshness = getDrivingQueueFreshness(
         drivingQueueState.updatedAt
     );
+    const continuity = analyzeQueueContinuity(queue, {
+        current,
+        updatedAt: drivingQueueState.updatedAt
+    });
 
     return `
         <section
@@ -8741,6 +8833,7 @@ function renderDrivingQueuePanel() {
                     >×</button>
                 </div>
             </header>
+            ${renderQueueContinuityBadges(continuity)}
             ${drivingQueueBusy
                 ? `<p class="driving-queue-status">Chargement de la liste Spotify…</p>`
                 : drivingQueueError
@@ -8762,7 +8855,13 @@ function renderDrivingQueuePanel() {
                 : ""}
             <ol class="driving-queue-list">
                 ${queue.length
-                    ? queue.map(renderDrivingQueueItem).join("")
+                    ? queue.map((item, index) =>
+                        renderDrivingQueueItem(
+                            item,
+                            index,
+                            continuity.itemFlags[index]
+                        )
+                    ).join("")
                     : `<li class="driving-queue-empty">Aucun prochain morceau renvoyé par Spotify.</li>`}
             </ol>
             <p class="driving-queue-hint">
@@ -12803,6 +12902,16 @@ async function runQuickControlAction(
                 await getCurrentPlayback().catch(
                     () => state
                 );
+
+            if (
+                normalizedAction === "next" &&
+                drivingQueueState.queue?.length
+            ) {
+                await refreshDrivingQueue({
+                    silent: true,
+                    render: false
+                });
+            }
         } else if (normalizedAction === "driving") {
             await enterDrivingMode();
             return;
@@ -45267,6 +45376,27 @@ document.addEventListener(
 
         if (activeAppMenu === "dashboard") {
             startMusicalDashboardRefreshTimer();
+
+            if (
+                quickPlaybackState?.item &&
+                shouldRefreshQueue({
+                    updatedAt: drivingQueueState.updatedAt
+                })
+            ) {
+                refreshDrivingQueue({
+                    silent: true,
+                    render: false
+                }).then(() => {
+                    if (activeAppMenu === "dashboard") {
+                        displayPlaylists(playlistsCache);
+                    }
+                }).catch((error) => {
+                    console.warn(
+                        "Actualisation de la file au retour impossible :",
+                        error
+                    );
+                });
+            }
         }
     }
 );

@@ -31,8 +31,8 @@ const contexts = [
     { id: "night", name: "Nuit", icon: "🌙", mixId: "mix-night", autoplay: true }
 ];
 
-test("la distribution active annonce Shuffle+ 9.3.0", () => {
-    assert.equal(version, "9.3.0");
+test("la distribution active annonce Shuffle+ 9.4.0", () => {
+    assert.equal(version, "9.4.0");
 });
 
 test("la détection d’appareil reconnaît voiture, écouteurs et maison", () => {

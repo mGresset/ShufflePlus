@@ -303,3 +303,76 @@ body.is-driving-mode {
         grid-template-rows: auto minmax(54px, 1fr) auto auto auto auto;
     }
 }
+
+/* Shuffle+ v9.4.0 — diagnostic de continuité de la file */
+.queue-continuity-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0.8rem 0;
+}
+
+.queue-continuity-badges span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0.32rem 0.58rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.045);
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.74rem;
+    font-weight: 780;
+}
+
+.queue-continuity-badges .is-excellent,
+.queue-continuity-badges .is-good {
+    border-color: color-mix(in srgb, var(--accent-color) 42%, transparent);
+    background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+    color: white;
+}
+
+.queue-continuity-badges .is-stale,
+.queue-continuity-badges .is-warning,
+.queue-continuity-badges .has-warning {
+    border-color: rgba(255, 183, 77, 0.4);
+    background: rgba(255, 183, 77, 0.1);
+    color: #ffd7a0;
+}
+
+.driving-queue-item.is-duplicate {
+    border-color: rgba(255, 183, 77, 0.38);
+    box-shadow: inset 3px 0 0 rgba(255, 183, 77, 0.72);
+}
+
+.driving-queue-item.is-artist-repeat:not(.is-duplicate) {
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent-color) 58%, transparent);
+}
+
+.driving-queue-warning,
+.driving-queue-note {
+    display: block;
+    margin-top: 0.18rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.driving-queue-warning {
+    color: #ffd7a0;
+}
+
+.driving-queue-note {
+    color: color-mix(in srgb, var(--accent-color) 65%, white);
+}
+
+@media (max-width: 620px) {
+    .queue-continuity-badges {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .queue-continuity-badges span {
+        justify-content: center;
+        text-align: center;
+    }
+}

@@ -1,0 +1,13 @@
+SHUFFLE+ V9.4.0
+
+1. Décompresser l’archive source.
+2. Copier son contenu dans le dépôt Git local en conservant le dossier .git.
+3. Dans Visual Studio Code :
+
+   npm.cmd run validate
+   git add -A
+   git commit -m "Release Shuffle+ v9.4.0"
+   git push origin main
+
+4. Dans GitHub Pages, conserver le déploiement par GitHub Actions.
+5. Dans Railway, conserver Root Directory = /server.

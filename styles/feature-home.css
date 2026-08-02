@@ -478,3 +478,74 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Shuffle+ v9.4.0 — continuité et santé de la file Spotify */
+.v9-home-queue-insights {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.9rem;
+}
+
+.v9-home-queue-insights span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0.32rem 0.58rem;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text-muted, rgba(255, 255, 255, 0.68));
+    font-size: 0.74rem;
+    font-weight: 750;
+}
+
+.v9-home-queue-insights .is-excellent,
+.v9-home-queue-insights .is-good {
+    border-color: color-mix(in srgb, var(--accent-color) 42%, transparent);
+    background: color-mix(in srgb, var(--accent-color) 13%, transparent);
+    color: white;
+}
+
+.v9-home-queue-insights .is-stale,
+.v9-home-queue-insights .is-warning,
+.v9-home-queue-insights .has-warning {
+    border-color: rgba(255, 183, 77, 0.38);
+    background: rgba(255, 183, 77, 0.09);
+    color: #ffd7a0;
+}
+
+.v9-home-queue-meta {
+    display: grid;
+    justify-items: end;
+    gap: 0.18rem;
+}
+
+.v9-home-queue-warning {
+    border-radius: 999px;
+    padding: 0.14rem 0.4rem;
+    background: rgba(255, 183, 77, 0.12);
+    color: #ffd7a0;
+    font-size: 0.66rem;
+    font-weight: 850;
+}
+
+.v9-home-queue-list li.is-duplicate {
+    box-shadow: inset 3px 0 0 rgba(255, 183, 77, 0.68);
+}
+
+.v9-home-queue-list li.is-artist-repeat:not(.is-duplicate) {
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent-color) 55%, transparent);
+}
+
+@media (max-width: 620px) {
+    .v9-home-queue-insights {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .v9-home-queue-insights span {
+        justify-content: center;
+        text-align: center;
+    }
+}
