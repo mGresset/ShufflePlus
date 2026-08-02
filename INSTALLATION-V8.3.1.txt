@@ -1,0 +1,11 @@
+SHUFFLE+ V8.3.1 — INSTALLATION RAPIDE
+
+1. Ouvrir le dépôt ShufflePlus dans Visual Studio ou VS Code.
+2. Créer la branche release/8.3.1 depuis main à jour.
+3. Extraire le patch v8.3.0 → v8.3.1 à la racine du dépôt.
+4. Accepter le remplacement des fichiers.
+5. Exécuter : npm run validate
+6. Tester localement : npm start
+7. Commit : Release Shuffle+ v8.3.1
+8. Pousser la branche, créer la Pull Request et fusionner dans main.
+9. Vérifier le déploiement Railway et vider le cache PWA si nécessaire.

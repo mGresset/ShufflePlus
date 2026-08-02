@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.3.0",
+  "version": "8.3.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.3 — centre de lancement, raccourci Apple universel, diagnostic guidé et mode conduite enrichi.",
+  "description": "Shuffle+ 8.3.1 — design unifié, thèmes globaux et composants cohérents sur toutes les pages.",
   "engines": {
     "node": ">=20"
   },

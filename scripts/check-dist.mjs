@@ -8,6 +8,7 @@ const version = (await readFile(path.join(root, "VERSION"), "utf8")).trim();
 const required = [
     "index.html",
     "style.css",
+    "design-system.css",
     "app.js",
     "service-worker.js",
     "manifest.webmanifest",
@@ -38,6 +39,7 @@ const index = await readFile(path.join(dist, "index.html"), "utf8");
 if (
     !index.includes(`app.js?v=${version}`) ||
     !index.includes(`style.css?v=${version}`) ||
+    !index.includes(`design-system.css?v=${version}`) ||
     !index.includes(`startup-recovery-${version}.js`)
 ) {
     console.error("Le build ne référence pas les ressources de la version courante.");

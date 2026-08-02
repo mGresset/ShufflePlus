@@ -17,6 +17,7 @@ const runtimeDirectories = ["core", "icons"];
 const staticFiles = new Set([
     "index.html",
     "style.css",
+    "design-system.css",
     "manifest.webmanifest",
     "favicon.ico"
 ]);
