@@ -1,5 +1,5 @@
-const APP_VERSION = "8.8.0";
-const CACHE_VERSION = "shuffleplus-v8.8.0";
+const APP_VERSION = "9.0.0";
+const CACHE_VERSION = "shuffleplus-v9.0.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,14 +7,14 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=8.8.0",
-    "./design-system.css?v=8.8.0",
-    "./app.js?v=8.8.0",
+    "./style.css?v=9.0.0",
+    "./design-system.css?v=9.0.0",
+    "./app.js?v=9.0.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-8.8.0.js",
+    "./startup-recovery-9.0.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -44,6 +44,7 @@ const CORE_APP_SHELL = [
     "./core/shortcut-profiles.js",
     "./core/launch-reliability.js",
     "./core/guided-setup.js",
+    "./core/daily-home.js",
     "./adaptive-dj.js",
     "./musical-assistant.js",
     "./voice-assistant.js",
@@ -59,10 +60,11 @@ const CORE_APP_SHELL = [
 ];
 
 const OPTIONAL_APP_SHELL = [
+    "./styles/feature-home.css?v=9.0.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=8.8.0",
-    "./styles/feature-settings.css?v=8.8.0",
-    "./styles/feature-driving.css?v=8.8.0",
+    "./styles/feature-search.css?v=9.0.0",
+    "./styles/feature-settings.css?v=9.0.0",
+    "./styles/feature-driving.css?v=9.0.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

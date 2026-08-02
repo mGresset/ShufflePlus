@@ -2,6 +2,7 @@ import { readFile, access } from "node:fs/promises";
 import process from "node:process";
 
 const required = [
+    "styles/feature-home.css",
     "styles/feature-search.css",
     "styles/feature-settings.css",
     "styles/feature-driving.css",
@@ -18,10 +19,11 @@ for (const file of required) {
     }
 }
 
-const [app, style, design, search, settings, driving, index] = await Promise.all([
+const [app, style, design, home, search, settings, driving, index] = await Promise.all([
     readFile("app.js", "utf8"),
     readFile("style.css", "utf8"),
     readFile("design-system.css", "utf8"),
+    readFile("styles/feature-home.css", "utf8"),
     readFile("styles/feature-search.css", "utf8"),
     readFile("styles/feature-settings.css", "utf8"),
     readFile("styles/feature-driving.css", "utf8"),
@@ -44,6 +46,9 @@ if (style.includes("Shuffle+ v8.7.1 — Recherche compacte")) {
 if (design.includes("Mode conduite v8.4 : progression")) {
     failures.push("le bloc conduite est encore dans design-system.css");
 }
+if (!home.includes(".v9-home-launch-button")) {
+    failures.push("feature-home.css ne contient pas le lancement principal v9");
+}
 if (!search.includes(".app-menu-search-button")) {
     failures.push("feature-search.css ne contient pas la navigation de recherche");
 }
@@ -53,7 +58,7 @@ if (!settings.includes(".pwa-capabilities > .pwa-capability")) {
 if (!driving.includes(".driving-playback-progress")) {
     failures.push("feature-driving.css ne contient pas l’interface de conduite");
 }
-if (/feature-(?:search|settings|driving)\.css/.test(index)) {
+if (/feature-(?:home|search|settings|driving)\.css/.test(index)) {
     failures.push("les styles de fonctionnalité sont encore chargés statiquement dans index.html");
 }
 
@@ -63,4 +68,4 @@ if (failures.length) {
     process.exit(1);
 }
 
-console.log("Architecture CSS modulaire valide : 3 feuilles chargées à la demande.");
+console.log("Architecture CSS modulaire valide : 4 feuilles chargées à la demande.");

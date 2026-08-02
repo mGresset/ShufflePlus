@@ -1,19 +1,19 @@
-# Shuffle+ v8.8.0
+# Shuffle+ v9.0.0
 
-Shuffle+ est une interface web Spotify conçue pour lancer rapidement une playlist ou un mix intelligent, notamment depuis un raccourci Apple. L’application inclut aussi un centre de lancement, un mode conduite, des profils, des recommandations, des statistiques, des thèmes personnalisables et une synchronisation chiffrée facultative.
+Shuffle+ est une application web Spotify pensée pour lancer une playlist ou un mix personnel en une seule action, notamment depuis un raccourci Apple sur iPhone.
 
-## Nouveautés v8.8.0
+## Nouveautés v9.0.0
 
-- recherche universelle déplacée dans la barre de navigation principale ;
-- suppression de la grande carte « Rechercher dans Shuffle+ » en haut des pages ;
-- bouton compact **Rechercher** sur ordinateur et icône seule sur mobile ;
-- raccourci `Ctrl + K` sur Windows/Linux et `⌘ + K` sur macOS ;
-- palette de recherche plus compacte ;
-- résultats regroupés par catégorie : rubriques, playlists, mix, scènes, profils et réglages ;
-- navigation au clavier conservée avec les flèches, Entrée et Échap ;
-- recherches récentes conservées ;
-- recherche locale de la bibliothèque maintenue dans la rubrique Musique ;
-- thèmes, raccourcis Apple et déploiement GitHub → Railway inchangés.
+- nouvel accueil quotidien centré sur **Lancer ma musique** ;
+- profil principal, appareil Spotify et options visibles immédiatement ;
+- morceau en cours avec progression, pause/reprise et titre suivant ;
+- aperçu des trois prochains morceaux et accès **Liste de lecture** ;
+- comportement adapté : file complète dans le mode conduite sur iPhone/iPad, actualisation directe ailleurs ;
+- mode **Essentiel** allégé, tandis que le mode **Expert** conserve le tableau de bord avancé ;
+- nouvelle feuille `feature-home.css` chargée uniquement pour l’accueil ;
+- nouveau module testable `core/daily-home.js` ;
+- cache PWA, manifeste et récupération de démarrage migrés vers la version 9.0.0 ;
+- compatibilité maintenue avec les profils, mix, réglages et données de la v8.8.0.
 
 ## Validation
 
@@ -23,6 +23,6 @@ npm.cmd run validate
 npm.cmd start
 ```
 
-Le déploiement reste compatible avec la chaîne actuelle : Visual Studio Code → GitHub → Railway.
+La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V8.8.0_NOTES.md` et `DEPLOIEMENT-V8.8.0.md` pour le détail.
+Consulte `V9.0.0_NOTES.md` et `DEPLOIEMENT-V9.0.0.md` pour le détail.

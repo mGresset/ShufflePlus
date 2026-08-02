@@ -261,6 +261,11 @@ import {
 } from "./core/shortcut-profiles.js";
 
 import {
+    buildDailyHomeSnapshot,
+    renderDailyHomeMarkup
+} from "./core/daily-home.js";
+
+import {
     buildLaunchPreflight,
     buildLaunchRecoveryActions,
     classifyLaunchError,
@@ -319,7 +324,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "8.8.0";
+const APP_VERSION = "9.0.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -737,7 +742,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.8.0-shell";
+    "shuffleplus-v9.0.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3772,7 +3777,7 @@ function renderV8WelcomePanel() {
         <section class="v8-welcome-panel">
             <div>
                 <span class="v8-welcome-kicker">
-                    ${definition.icon} Shuffle+ 8 · ${escapeHtml(definition.label)}
+                    ${definition.icon} Shuffle+ 9 · ${escapeHtml(definition.label)}
                 </span>
                 <h3>
                     ${expert
@@ -3819,6 +3824,60 @@ function renderV8WelcomePanel() {
         ${renderPrimaryLaunchPanel()}
         ${renderGuidedSetupPanel()}
     `;
+}
+
+function renderV9HomePanel() {
+    const guidedSnapshot = getGuidedSetupSnapshot();
+    const command = guidedSnapshot.primaryCommand;
+    const playlistIds = playlistsCache
+        .map((playlist) => playlist?.id)
+        .filter(Boolean);
+    const mixIds = savedMixes
+        .map((mix) => mix?.id)
+        .filter(Boolean);
+    const diagnostic = command
+        ? buildShortcutProfileDiagnostic(
+            command,
+            iosCommandHistory,
+            {
+                playlistIds,
+                mixIds,
+                preferredDevice: preferredSpotifyDevice
+            }
+        )
+        : null;
+    const deviceLabel =
+        preferredSpotifyDevice?.name ||
+        lastWorkingSpotifyDevice?.name ||
+        command?.deviceName ||
+        (command?.deviceMode === "active"
+            ? "Appareil Spotify actif"
+            : "Appareil Spotify à détecter");
+    const commandReady = Boolean(
+        command &&
+        diagnostic?.readiness?.ready
+    );
+    const snapshot = buildDailyHomeSnapshot({
+        command,
+        commandReady,
+        diagnostic,
+        playback: quickPlaybackState || drivingPlaybackState,
+        deviceLabel,
+        guidedSetup: guidedSnapshot,
+        queue: drivingQueueState.queue,
+        experienceMode,
+        drivingAvailable: DRIVING_MODE_AVAILABLE,
+        now: new Date()
+    });
+
+    return renderDailyHomeMarkup(snapshot, {
+        profileOptions: iosCommands.map((item) => ({
+            id: item.id,
+            name: item.name,
+            icon: item.icon || "▶️",
+            selected: command?.id === item.id
+        }))
+    });
 }
 
 function renderEssentialAdvancedSettingsCallout() {
@@ -3933,7 +3992,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.8.0
+                        ✨ Apparence v9.0.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4959,7 +5018,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.8.0",
+                "./service-worker.js?v=9.0.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -14627,8 +14686,12 @@ function refreshTargetAppMenuPage(
         page.innerHTML =
             renderAdvancedListeningStatisticsPage();
     } else if (normalizedMenu === "dashboard") {
-        page.innerHTML =
-            renderMusicalDashboardPage();
+        page.innerHTML = `
+            ${renderV9HomePanel()}
+            ${isExpertExperience(experienceMode)
+                ? renderMusicalDashboardPage()
+                : ""}
+        `;
     } else if (normalizedMenu === "assistant") {
         page.innerHTML =
             renderMusicalAssistantPage();
@@ -14704,6 +14767,10 @@ async function navigateToAppMenu(
         startMusicalDashboardRefreshTimer();
         await refreshMusicalDashboardPlayback({
             silent: true
+        });
+        await refreshDrivingQueue({
+            silent: true,
+            render: false
         });
     } else {
         stopMusicalDashboardRefreshTimer();
@@ -36736,8 +36803,10 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="dashboard"
             >
-                ${renderV8WelcomePanel()}
-                ${renderMusicalDashboardPage()}
+                ${renderV9HomePanel()}
+                ${isExpertExperience(experienceMode)
+                    ? renderMusicalDashboardPage()
+                    : ""}
             </div>
                 `
                 : ""}
@@ -40377,6 +40446,7 @@ async function initializeApp() {
             await refreshQuickControlPlayback({silent:true});
         } else if (activeAppMenu === "dashboard") {
             await refreshMusicalDashboardPlayback({silent:true});
+            await refreshDrivingQueue({silent:true});
         }
 
         startScheduleWatcher();
@@ -41445,7 +41515,24 @@ contentElement.addEventListener(
                 "#drivingQueueButton, [data-open-driving-queue]"
             )
         ) {
+            if (activeAppMenu !== "driving") {
+                await navigateToAppMenu("driving");
+                if (activeAppMenu !== "driving") {
+                    return;
+                }
+            }
             await openDrivingQueue();
+            return;
+        }
+
+        if (event.target.closest("[data-refresh-home-queue]")) {
+            await refreshDrivingQueue({
+                silent: false,
+                render: false
+            });
+            if (activeAppMenu === "dashboard") {
+                displayPlaylists(playlistsCache);
+            }
             return;
         }
 

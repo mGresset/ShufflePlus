@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 8.8.0 avec recherche globale compacte, lancement Apple fiable, thèmes personnalisés et mode conduite.",
+  "description": "Shuffle+ 9.0.0 centré sur le lancement instantané, la lecture en cours et la file Spotify.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",
@@ -50,9 +50,9 @@
       ]
     },
     {
-      "name": "Commandes rapides",
-      "short_name": "Rapide",
-      "description": "Ouvrir les principales commandes Shuffle+.",
+      "name": "Lancer ma musique",
+      "short_name": "Lancer",
+      "description": "Ouvrir le centre de lancement et démarrer le profil principal.",
       "url": "./?view=quick",
       "icons": [
         {

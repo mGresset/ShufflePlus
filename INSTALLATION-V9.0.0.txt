@@ -1,0 +1,12 @@
+SHUFFLE+ V9.0.0
+================
+
+1. Extraire l'archive.
+2. Ouvrir le dossier dans Visual Studio Code.
+3. Installer Node.js 20 ou plus récent.
+4. Exécuter : npm.cmd install
+5. Vérifier : npm.cmd run validate
+6. Démarrer : npm.cmd start
+
+Le dossier dist contient la version prête à publier.
+Les données locales de Shuffle+ v8.8.0 sont conservées lors de la mise à jour.

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.8.0",
+  "version": "9.0.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.8.0 — styles par fonctionnalité, chargement ciblé et recherche globale chargée à la demande.",
+  "description": "Shuffle+ 9.0.0 — accueil quotidien, lancement instantané et file Spotify.",
   "engines": {
     "node": ">=20"
   },
