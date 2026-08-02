@@ -272,6 +272,14 @@ import {
 } from "./core/reliability-center.js";
 
 import {
+    FINALIZATION_CHECKS,
+    buildReleaseReadiness,
+    buildReleaseReadinessExport,
+    normalizeFinalizationState,
+    updateFinalizationConfirmation
+} from "./core/release-readiness.js";
+
+import {
     canUseDrivingMode,
     isAppleMobileDevice
 } from "./core/platform.js";
@@ -380,7 +388,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.8.0";
+const APP_VERSION = "9.9.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -837,9 +845,11 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.8.0-shell";
+    "shuffleplus-v9.9.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
+const FINALIZATION_STATE_KEY =
+    "shuffleplus_finalization_state_v1";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1725,6 +1735,7 @@ let appHealthSnapshot = null;
 let appHealthRunning = false;
 let appHealthLoadScheduled = false;
 let reliabilityEvents = readReliabilityEvents();
+let finalizationState = readFinalizationState();
 let reliabilityServerHealth = {
     status: "unknown",
     version: "",
@@ -1848,6 +1859,30 @@ function saveReliabilityEvents() {
         );
     } catch (error) {
         console.warn("Journal de fiabilité non enregistré :", error);
+    }
+}
+
+function readFinalizationState() {
+    try {
+        return normalizeFinalizationState(
+            JSON.parse(
+                localStorage.getItem(FINALIZATION_STATE_KEY) || "{}"
+            )
+        );
+    } catch (error) {
+        console.warn("État de finalisation illisible :", error);
+        return normalizeFinalizationState();
+    }
+}
+
+function saveFinalizationState() {
+    try {
+        localStorage.setItem(
+            FINALIZATION_STATE_KEY,
+            JSON.stringify(finalizationState)
+        );
+    } catch (error) {
+        console.warn("État de finalisation non enregistré :", error);
     }
 }
 
@@ -4491,7 +4526,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.8.0
+                        ✨ Apparence v9.9.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5525,7 +5560,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.8.0",
+                "./service-worker.js?v=9.9.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6164,6 +6199,172 @@ function renderAppHealthPanel() {
             </p>
         </section>
     `;
+}
+
+
+function getCurrentReleaseReadiness() {
+    return buildReleaseReadiness({
+        appVersion: APP_VERSION,
+        healthSnapshot: appHealthSnapshot,
+        finalizationState,
+        buildValidated:
+            document.querySelector(
+                'meta[name="shuffleplus-build-validated"]'
+            )?.content === "true",
+        serverTestsValidated:
+            document.querySelector(
+                'meta[name="shuffleplus-server-tests-validated"]'
+            )?.content === "true"
+    });
+}
+
+function renderReleaseReadinessPanel() {
+    const readiness = getCurrentReleaseReadiness();
+    const status = readiness.status;
+    const fieldChecks = readiness.fieldChecks;
+
+    return `
+        <section
+            id="releaseReadinessPanel"
+            class="settings-panel release-readiness-panel release-readiness-panel--${escapeHtml(status.id)}"
+        >
+            <div class="panel-heading">
+                <div>
+                    <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
+                    <h3>Validation terrain</h3>
+                    <p>
+                        La v9.9.0 ferme les risques techniques avant la version finale.
+                        Confirme uniquement les essais réellement effectués sur tes appareils.
+                    </p>
+                </div>
+                <span class="release-readiness-status release-readiness-status--${escapeHtml(status.id)}">
+                    ${escapeHtml(status.icon)} ${escapeHtml(status.label)}
+                </span>
+            </div>
+
+            <div class="release-readiness-score">
+                <div
+                    class="release-readiness-score-ring"
+                    style="--release-score:${readiness.score}%"
+                    aria-label="Préparation ${readiness.score} pour cent"
+                >
+                    <strong>${readiness.score}%</strong>
+                    <span>préparation</span>
+                </div>
+                <div>
+                    <strong>${escapeHtml(status.message)}</strong>
+                    <p>
+                        ${readiness.automaticPassed}/${readiness.automaticTotal}
+                        contrôles automatiques ·
+                        ${readiness.fieldPassed}/${readiness.fieldTotal}
+                        validations terrain.
+                    </p>
+                </div>
+            </div>
+
+            <div class="release-readiness-automatic" aria-label="Contrôles automatiques">
+                ${readiness.automaticChecks.map((check) => `
+                    <span class="${check.passed ? "is-passed" : "is-blocked"}">
+                        <b aria-hidden="true">${check.passed ? "✓" : "×"}</b>
+                        ${escapeHtml(check.label)}
+                    </span>
+                `).join("")}
+            </div>
+
+            <div class="release-readiness-field" aria-label="Validations terrain">
+                ${fieldChecks.map((check) => `
+                    <button
+                        type="button"
+                        class="release-readiness-check ${check.confirmed ? "is-confirmed" : ""}"
+                        data-finalization-check="${escapeHtml(check.id)}"
+                        aria-pressed="${String(check.confirmed)}"
+                    >
+                        <span aria-hidden="true">${check.confirmed ? "✓" : "○"}</span>
+                        <div>
+                            <strong>${escapeHtml(check.label)}</strong>
+                            <small>${escapeHtml(check.description)}</small>
+                            ${check.confirmedAt
+                                ? `<em>Confirmé le ${escapeHtml(new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(check.confirmedAt)))}</em>`
+                                : ""}
+                        </div>
+                    </button>
+                `).join("")}
+            </div>
+
+            <div class="release-readiness-actions">
+                <button id="exportReleaseReadinessButton" type="button">
+                    ⬇ Exporter la préparation v10
+                </button>
+                <button
+                    id="resetFinalizationChecksButton"
+                    type="button"
+                    ${readiness.fieldPassed ? "" : "disabled"}
+                >
+                    Réinitialiser les validations
+                </button>
+            </div>
+
+            <p class="release-readiness-note">
+                La mention « Prête pour v10 » ne remplace pas les essais réels :
+                elle apparaît seulement lorsque les contrôles automatiques passent
+                et que les cinq validations terrain ont été confirmées.
+            </p>
+        </section>
+    `;
+}
+
+function toggleFinalizationCheck(checkId = "") {
+    const current = finalizationState.confirmations?.[checkId]?.confirmed === true;
+    finalizationState = updateFinalizationConfirmation(
+        finalizationState,
+        checkId,
+        !current
+    );
+    saveFinalizationState();
+    const definition = FINALIZATION_CHECKS.find((check) => check.id === checkId);
+    recordReliabilityEvent({
+        category: "release",
+        level: !current ? "success" : "info",
+        label: !current
+            ? "Validation terrain confirmée"
+            : "Validation terrain retirée",
+        detail: definition?.label || "Préparation v10 mise à jour.",
+        createdAt: Date.now()
+    });
+    setStatus(
+        !current
+            ? "Validation terrain confirmée."
+            : "Validation terrain retirée."
+    );
+    if (activeAppMenu === "settings") {
+        displayPlaylists(playlistsCache);
+    }
+}
+
+function resetFinalizationChecks() {
+    const confirmed = window.confirm(
+        "Réinitialiser toutes les validations terrain de préparation à la v10 ?"
+    );
+    if (!confirmed) return;
+
+    finalizationState = normalizeFinalizationState();
+    saveFinalizationState();
+    setStatus("Validations terrain réinitialisées.");
+    if (activeAppMenu === "settings") {
+        displayPlaylists(playlistsCache);
+    }
+}
+
+function exportReleaseReadinessReport() {
+    const date = new Date().toISOString().slice(0, 10);
+    downloadJsonPayload(
+        buildReleaseReadinessExport(
+            getCurrentReleaseReadiness(),
+            finalizationState
+        ),
+        `shuffleplus-preparation-v10-${date}.json`
+    );
+    setStatus("Rapport de préparation v10 exporté.");
 }
 
 async function exportAppHealthReport() {
@@ -30967,6 +31168,7 @@ function buildBackupPayload() {
         usageProfileState,
         offlinePerformanceSettings,
         homeLayoutSettings,
+        finalizationState,
         uiThemeSettings,
         mixSchedules
     };
@@ -31227,6 +31429,10 @@ function validateBackupPayload(payload) {
                 payload.data.homeLayoutSettings ||
                 DEFAULT_HOME_LAYOUT
             ),
+        finalizationState:
+            normalizeFinalizationState(
+                payload.data.finalizationState || {}
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -31396,6 +31602,9 @@ function applyValidatedBackupState(imported) {
     homeLayoutSettings =
         imported.homeLayoutSettings;
     saveHomeLayoutSettings();
+    finalizationState =
+        imported.finalizationState;
+    saveFinalizationState();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -38525,6 +38734,7 @@ function displayPlaylists(playlists) {
                     ? `
                         ${renderContextualHelpSettingsPanel()}
                         ${renderAppHealthPanel()}
+                        ${renderReleaseReadinessPanel()}
                         ${renderOfflinePerformancePanel()}
                         ${renderCleanupPanel()}
                         ${renderMixProfilesSection()}
@@ -42388,6 +42598,37 @@ contentElement.addEventListener(
                 reliabilityActionButton.dataset
                     .reliabilityAction || ""
             );
+            return;
+        }
+
+        const finalizationCheckButton =
+            event.target.closest(
+                "[data-finalization-check]"
+            );
+
+        if (finalizationCheckButton) {
+            toggleFinalizationCheck(
+                finalizationCheckButton.dataset
+                    .finalizationCheck || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportReleaseReadinessButton"
+            )
+        ) {
+            exportReleaseReadinessReport();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetFinalizationChecksButton"
+            )
+        ) {
+            resetFinalizationChecks();
             return;
         }
 

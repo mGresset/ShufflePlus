@@ -1,19 +1,20 @@
 {
   "name": "shuffleplus",
-  "version": "9.8.0",
+  "version": "9.9.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.8.0 — accueil personnalisable, ordre des blocs et mode compact.",
+  "description": "Shuffle+ 9.9.0 — candidate v10, validation terrain et contrôle de préparation final.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-release-readiness.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",
     "validate": "npm test && npm run build && npm run check:dist && npm run smoke",
-    "smoke": "node scripts/smoke-local.mjs"
+    "smoke": "node scripts/smoke-local.mjs",
+    "release:check": "npm run validate"
   }
 }

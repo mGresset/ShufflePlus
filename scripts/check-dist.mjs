@@ -24,6 +24,7 @@ const required = [
     "core/spotify-device.js",
     "core/playback-queue.js",
     "core/queue-continuity.js",
+    "core/release-readiness.js",
     "core/style-loader.js",
     "core/feature-assets.js",
     "core/session-recovery.js",

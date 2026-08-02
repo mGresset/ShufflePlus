@@ -1,26 +1,24 @@
-# Shuffle+ v9.8.0
+# Shuffle+ v9.9.0 — Candidate v10
 
-Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple et le mode conduite sur iPhone.
+Shuffle+ v9.9.0 est la version de pré-finalisation du projet. Elle conserve les fonctions Spotify, iPhone, PWA, synchronisation, thèmes, mix, profils et mode conduite des versions précédentes, puis ajoute une étape de validation explicite avant la v10.0.0.
 
-## Nouveautés v9.8.0
+## Nouveautés
 
-- accueil personnalisable depuis un nouveau panneau intégré ;
-- trois ordres prédéfinis pour les blocs principaux ;
-- affichage confortable ou compact ;
-- masquage facultatif des accès immédiats, de la lecture en cours, de la file et des raccourcis ;
-- aperçu réglable sur 2, 3 ou 5 titres ;
-- préférences incluses dans la sauvegarde et la restauration ;
-- toutes les fonctions des versions 9.7.x restent incluses ;
-- cache PWA mis à jour vers `shuffleplus-v9.8.0`.
+- panneau **Pré-finalisation v10** dans Réglages > mode Expert ;
+- score de préparation séparant contrôles automatiques et essais réels ;
+- cinq validations terrain : Spotify, PWA iPhone, Railway, sauvegarde/restauration et mode conduite ;
+- export privé d’un rapport de préparation v10 ;
+- sauvegarde et synchronisation de l’état de validation ;
+- contrôle CI `check-release-readiness.mjs` ;
+- vérification des ressources PWA, du serveur `/health`, des fichiers de version et des secrets potentiels ;
+- cache PWA `shuffleplus-v9.9.0`.
 
-## Validation
+## Validation locale
 
 ```powershell
-npm.cmd install
 npm.cmd run validate
-npm.cmd start
 ```
 
-La distribution prête à publier est générée dans `dist/`.
+La v10.0.0 ne devra être créée qu’après confirmation des cinq essais terrain dans l’application et correction des éventuels problèmes découverts.
 
-Consulte `V9.8.0_NOTES.md` et `DEPLOIEMENT-V9.8.0.md` pour le détail.
+Consulte `FINALISATION-V10.md`, `V9.9.0_NOTES.md` et `DEPLOIEMENT-V9.9.0.md`.
