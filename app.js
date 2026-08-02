@@ -285,7 +285,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "8.4.0";
+const APP_VERSION = "8.4.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -701,7 +701,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.4.0-shell";
+    "shuffleplus-v8.4.1-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3804,7 +3804,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.4.0
+                        ✨ Apparence v8.4.1
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4976,7 +4976,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.4.0",
+                "./service-worker.js?v=8.4.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -5679,24 +5679,34 @@ function renderPwaSettingsPanel() {
                 ${escapeHtml(state.description)}
             </p>
 
-            <div class="pwa-capabilities">
-                <span>
-                    ${serviceWorkerSupported ? "✅" : "❌"}
-                    Cache de l’interface
+            <div class="pwa-capabilities" role="list" aria-label="Capacités de l’application">
+                <span
+                    class="pwa-capability ${serviceWorkerSupported ? "is-ready" : "is-unavailable"}"
+                    role="listitem"
+                >
+                    <b aria-hidden="true">${serviceWorkerSupported ? "✓" : "×"}</b>
+                    <span>Cache de l’interface</span>
                 </span>
-                <span>
-                    ${cacheAvailable ? "✅" : "❌"}
-                    Ressources hors connexion
+                <span
+                    class="pwa-capability ${cacheAvailable ? "is-ready" : "is-unavailable"}"
+                    role="listitem"
+                >
+                    <b aria-hidden="true">${cacheAvailable ? "✓" : "×"}</b>
+                    <span>Ressources hors connexion</span>
                 </span>
-                <span>
-                    ${isStandalonePwa() ? "✅" : "ℹ️"}
-                    Mode application
+                <span
+                    class="pwa-capability ${isStandalonePwa() ? "is-ready" : "is-info"}"
+                    role="listitem"
+                >
+                    <b aria-hidden="true">${isStandalonePwa() ? "✓" : "i"}</b>
+                    <span>Mode application</span>
                 </span>
             </div>
 
             <div class="pwa-settings-actions">
                 <button
                     id="installPwaSettingsButton"
+                    class="ui-button ${state.id === "installed" ? "ui-button--secondary" : "ui-button--primary"}"
                     type="button"
                     ${state.id === "installed"
                         ? "disabled"
@@ -5709,6 +5719,7 @@ function renderPwaSettingsPanel() {
 
                 <button
                     id="showPwaInstructionsButton"
+                    class="ui-button ui-button--secondary"
                     type="button"
                 >
                     Instructions d’installation
@@ -5716,6 +5727,7 @@ function renderPwaSettingsPanel() {
 
                 <button
                     id="checkPwaUpdateButton"
+                    class="ui-button ui-button--ghost"
                     type="button"
                     ${serviceWorkerSupported
                         ? ""

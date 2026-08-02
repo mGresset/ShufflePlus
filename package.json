@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.4.0",
+  "version": "8.4.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.4.0 — design unifié sur toutes les pages, composants sémantiques et mode conduite enrichi.",
+  "description": "Shuffle+ 8.4.1 — connexion Spotify clarifiée et composants PWA entièrement liés au thème actif.",
   "engines": {
     "node": ">=20"
   },

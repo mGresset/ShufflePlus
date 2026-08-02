@@ -10,11 +10,11 @@
 
     <meta
         name="description"
-        content="Shuffle+ 8.4.0 — design unifié, thèmes personnalisables, conduite enrichie et raccourci Apple universel."
+        content="Shuffle+ 8.4.1 — connexion Spotify clarifiée, thèmes personnalisables et installation PWA harmonisée."
     >
 
     <meta name="theme-color" content="#8b5cf6">
-    <meta name="shuffleplus-version" content="8.4.0">
+    <meta name="shuffleplus-version" content="8.4.1">
     <meta name="color-scheme" content="dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -42,8 +42,8 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=8.4.0">
-    <link rel="stylesheet" href="./design-system.css?v=8.4.0">
+    <link rel="stylesheet" href="./style.css?v=8.4.1">
+    <link rel="stylesheet" href="./design-system.css?v=8.4.1">
 </head>
 
 <body>
@@ -132,7 +132,7 @@
                 </div>
 
                 <div class="spotify-setup-public-intro">
-                    <span>Shuffle+ 8.4 · accès public</span>
+                    <span>Shuffle+ 8.4.1 · accès public</span>
                     <h4>Votre playlist Spotify en une seule action</h4>
                     <p>
                         Lancez une playlist en mode aléatoire depuis un raccourci
@@ -166,44 +166,75 @@
                     </li>
                 </ol>
 
-                <div class="spotify-redirect-box">
-                    <span>Adresse de redirection</span>
-                    <code id="spotifySetupRedirectUri"></code>
-                    <button id="copySpotifySetupRedirectButton" class="ui-button ui-button--secondary" type="button">
-                        Copier l’adresse
-                    </button>
+                <div class="spotify-auth-config">
+                    <div class="spotify-redirect-box">
+                        <div class="spotify-config-box-heading">
+                            <span aria-hidden="true">1</span>
+                            <div>
+                                <strong>Ajouter l’adresse de redirection</strong>
+                                <small>
+                                    Copie cette adresse dans les réglages de ton application Spotify.
+                                </small>
+                            </div>
+                        </div>
+                        <code id="spotifySetupRedirectUri"></code>
+                        <button id="copySpotifySetupRedirectButton" class="ui-button ui-button--secondary" type="button">
+                            Copier l’adresse
+                        </button>
+                    </div>
+
+                    <div class="spotify-client-id-card" aria-labelledby="spotifyClientIdTitle">
+                        <div class="spotify-client-id-heading">
+                            <span class="spotify-client-id-step" aria-hidden="true">2</span>
+                            <div>
+                                <small>Autorisation Spotify</small>
+                                <h4 id="spotifyClientIdTitle">Renseigner le Client ID</h4>
+                                <p>
+                                    Dans Spotify for Developers, ouvre ton application puis copie uniquement
+                                    la valeur <strong>Client ID</strong>. Ne renseigne jamais le Client Secret.
+                                </p>
+                            </div>
+                        </div>
+
+                        <form id="spotifySetupForm" class="spotify-setup-form">
+                            <div class="spotify-client-id-field">
+                                <label for="spotifySetupClientIdInput">
+                                    Client ID Spotify
+                                </label>
+                                <input
+                                    id="spotifySetupClientIdInput"
+                                    name="clientId"
+                                    type="text"
+                                    inputmode="text"
+                                    autocomplete="off"
+                                    autocapitalize="none"
+                                    spellcheck="false"
+                                    minlength="20"
+                                    maxlength="64"
+                                    placeholder="Ex. 0123456789abcdef…"
+                                    aria-describedby="spotifySetupClientIdHelp"
+                                    required
+                                >
+                                <small id="spotifySetupClientIdHelp">
+                                    Cet identifiant reste enregistré uniquement dans ce navigateur.
+                                </small>
+                            </div>
+
+                            <div class="spotify-client-id-actions">
+                                <button class="ui-button ui-button--primary" type="submit">
+                                    Enregistrer et continuer
+                                </button>
+                                <button id="openSpotifyDeveloperButton" class="ui-button ui-button--secondary" type="button">
+                                    Ouvrir Spotify for Developers
+                                </button>
+                            </div>
+                        </form>
+
+                        <small class="spotify-setup-note">
+                            Les commandes de lecture nécessitent un compte Spotify compatible.
+                        </small>
+                    </div>
                 </div>
-
-                <form id="spotifySetupForm" class="spotify-setup-form">
-                    <label for="spotifySetupClientIdInput">
-                        Client ID Spotify
-                    </label>
-                    <input
-                        id="spotifySetupClientIdInput"
-                        name="clientId"
-                        type="text"
-                        inputmode="text"
-                        autocomplete="off"
-                        autocapitalize="none"
-                        spellcheck="false"
-                        minlength="20"
-                        maxlength="64"
-                        placeholder="Ex. 0123456789abcdef…"
-                        required
-                    >
-                    <button class="ui-button ui-button--primary" type="submit">Enregistrer et continuer</button>
-                </form>
-
-                <div class="spotify-setup-actions">
-                    <button id="openSpotifyDeveloperButton" class="ui-button ui-button--secondary" type="button">
-                        Ouvrir Spotify for Developers
-                    </button>
-                </div>
-
-                <small class="spotify-setup-note">
-                    Le Client ID est enregistré uniquement dans ce navigateur.
-                    Les commandes de lecture nécessitent un compte Spotify compatible.
-                </small>
             </section>
 
             <div class="startup-recovery-entry">
@@ -278,7 +309,7 @@
         </div>
     </aside>
 
-    <script src="./startup-recovery-8.4.0.js"></script>
-    <script type="module" src="./app.js?v=8.4.0"></script>
+    <script src="./startup-recovery-8.4.1.js"></script>
+    <script type="module" src="./app.js?v=8.4.1"></script>
 </body>
 </html>

@@ -1334,3 +1334,290 @@ body.is-driving-mode {
         grid-template-rows: auto minmax(54px, 1fr) auto auto auto auto;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v8.4.1 — Connexion Spotify lisible et PWA liée au thème
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   Configuration Spotify : le Client ID suit désormais un parcours
+   vertical. Le champ n'est plus isolé à droite et toutes les actions
+   restent alignées sous les informations utiles.
+   --------------------------------------------------------------------- */
+.spotify-auth-config {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.spotify-auth-config .spotify-redirect-box,
+.spotify-client-id-card {
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--ui-card-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-card-bg);
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 4%),
+        0 16px 34px rgb(0 0 0 / 16%);
+}
+
+.spotify-config-box-heading,
+.spotify-client-id-heading {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+}
+
+.spotify-config-box-heading > span,
+.spotify-client-id-step {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+    border-radius: 50%;
+    background: rgb(var(--accent-rgb) / 16%);
+    color: color-mix(in srgb, var(--accent) 66%, white);
+    font-weight: 900;
+}
+
+.spotify-config-box-heading strong,
+.spotify-client-id-heading h4 {
+    display: block;
+    margin: 0;
+    color: var(--text-main);
+    font-size: 1rem;
+}
+
+.spotify-config-box-heading small,
+.spotify-client-id-heading > div > small,
+.spotify-client-id-heading p,
+.spotify-client-id-field > small {
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.spotify-config-box-heading small {
+    display: block;
+    margin-top: 4px;
+}
+
+.spotify-client-id-heading > div > small {
+    display: block;
+    margin-bottom: 4px;
+    color: color-mix(in srgb, var(--accent) 58%, white);
+    font-size: 0.73rem;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.spotify-client-id-heading p {
+    margin: 7px 0 0;
+    max-width: 68ch;
+    font-size: 0.9rem;
+}
+
+.spotify-client-id-heading p strong {
+    color: var(--text-main);
+}
+
+.spotify-auth-config .spotify-redirect-box code {
+    display: block;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--ui-control-border);
+    border-radius: var(--ui-radius-sm);
+    background: rgb(0 0 0 / 18%);
+    color: color-mix(in srgb, var(--accent) 62%, white);
+    font-size: 0.86rem;
+    line-height: 1.45;
+    text-align: left;
+}
+
+.spotify-auth-config .spotify-redirect-box > button {
+    width: 100%;
+    margin-top: 2px;
+}
+
+.spotify-client-id-card {
+    display: grid;
+    gap: 16px;
+}
+
+.spotify-setup-form {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    align-items: stretch !important;
+    gap: 14px !important;
+    margin: 0;
+}
+
+.spotify-client-id-field {
+    display: grid;
+    gap: 7px;
+    min-width: 0;
+}
+
+.spotify-client-id-field > label {
+    color: var(--text-main);
+    font-weight: 800;
+}
+
+.spotify-client-id-field > input {
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    padding-inline: 15px !important;
+    font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    letter-spacing: 0.015em;
+}
+
+.spotify-client-id-field > small {
+    font-size: 0.8rem;
+}
+
+.spotify-client-id-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(220px, 0.88fr);
+    gap: 10px;
+}
+
+.spotify-client-id-actions > button {
+    width: 100%;
+    min-height: 48px;
+}
+
+.spotify-client-id-card .spotify-setup-note {
+    margin: -2px 0 0;
+    padding-top: 13px;
+    border-top: 1px solid color-mix(in srgb, var(--accent) 16%, rgb(255 255 255 / 8%));
+}
+
+/* ---------------------------------------------------------------------
+   Installation PWA : les anciens verts Spotify/PWA sont remplacés par
+   la palette active. Le rouge reste réservé à une capacité indisponible.
+   --------------------------------------------------------------------- */
+.pwa-install-header-button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-install-guide,
+.pwa-update-banner,
+.pwa-settings-panel {
+    border-color: var(--ui-card-border) !important;
+    background: var(--ui-card-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-install-guide strong,
+.pwa-update-banner strong {
+    color: color-mix(in srgb, var(--accent) 66%, white) !important;
+}
+
+.pwa-install-guide > button {
+    background: rgb(var(--accent-rgb) / 18%) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-update-banner span,
+.pwa-state-description,
+.pwa-offline-note {
+    color: var(--text-muted) !important;
+}
+
+.pwa-state-badge,
+.pwa-state-installed,
+.pwa-state-available,
+.pwa-state-ios,
+.pwa-state-browser {
+    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent) !important;
+    background: rgb(var(--accent-rgb) / 15%) !important;
+    color: color-mix(in srgb, var(--accent) 66%, white) !important;
+}
+
+.pwa-capabilities {
+    gap: 10px;
+}
+
+.pwa-capabilities .pwa-capability {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--ui-control-border) !important;
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main);
+}
+
+.pwa-capability > b {
+    display: grid;
+    width: 23px;
+    height: 23px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+    border-radius: 7px;
+    background: rgb(var(--accent-rgb) / 16%);
+    color: color-mix(in srgb, var(--accent) 68%, white);
+    font-size: 0.78rem;
+    line-height: 1;
+}
+
+.pwa-capability.is-unavailable > b {
+    border-color: color-mix(in srgb, var(--ui-danger) 42%, transparent);
+    background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
+    color: #fecdd3;
+}
+
+.pwa-settings-actions button,
+.pwa-update-actions button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-settings-actions .ui-button--primary,
+.pwa-update-actions button:first-child {
+    border-color: transparent !important;
+    background: linear-gradient(
+        120deg,
+        var(--accent),
+        var(--accent-secondary)
+    ) !important;
+    color: var(--accent-contrast) !important;
+}
+
+@media (max-width: 700px) {
+    .spotify-auth-config .spotify-redirect-box,
+    .spotify-client-id-card {
+        padding: 14px;
+        border-radius: var(--ui-radius-md);
+    }
+
+    .spotify-client-id-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .spotify-config-box-heading,
+    .spotify-client-id-heading {
+        grid-template-columns: 32px minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .spotify-config-box-heading > span,
+    .spotify-client-id-step {
+        width: 30px;
+        height: 30px;
+    }
+
+    .pwa-capabilities {
+        grid-template-columns: 1fr;
+    }
+}
