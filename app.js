@@ -35780,7 +35780,7 @@ function renderSyncPreparationPanel() {
     return `
         <section
             id="syncPreparationPanel"
-            class="sync-preparation-panel sync-v810"
+            class="sync-preparation-panel settings-panel sync-v810"
             aria-label="Synchronisation Shuffle+"
         >
             <div class="sync-panel-heading">
@@ -35946,7 +35946,7 @@ async function applyPendingSyncPackage(action) {
 
 function renderBackupPanel() {
     return `
-        <section class="backup-panel" aria-label="Sauvegarde des données">
+        <section class="backup-panel settings-panel" aria-label="Sauvegarde des données">
             <div class="backup-panel-copy">
                 <h3>Sauvegarde et restauration</h3>
                 <p>
