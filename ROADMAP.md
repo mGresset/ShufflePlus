@@ -4,6 +4,7 @@
 - **v8.1.0 — Synchronisation serveur simplifiée : terminée**
 - **v8.2.0 — Lancement principal et installation guidée : terminée**
 - **v8.3.0 — Centre de lancement, raccourci universel et conduite : terminée**
-- **v8.3.1 — Design system, thèmes globaux et uniformisation initiale : terminée**
-- **v8.3.2 — Correctifs du header, navigation sticky et réglages uniformes : terminée**
-- **v8.4.0 — Découpage progressif de l’interface, CSP et performances**
+- **v8.3.1 — Design system et thèmes globaux : terminée**
+- **v8.3.2 — Correctifs du header, navigation et réglages : terminée**
+- **v8.4.0 — Cohérence globale, composants sémantiques et conduite enrichie : terminée**
+- **v8.5.0 — Découpage progressif d’app.js, performances et sécurité CSP : prévue**

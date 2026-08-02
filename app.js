@@ -130,6 +130,11 @@ import {
 } from "./core/ui-theme.js";
 
 import {
+    applyUiConsistency,
+    installUiConsistencyObserver
+} from "./core/ui-consistency.js";
+
+import {
     normalizePreferredSpotifyDevice,
     findStoredPreferredDevice,
     selectSpotifyDevice
@@ -139,6 +144,12 @@ import {
     normalizePlaybackQueue,
     formatQueueDuration
 } from "./core/playback-queue.js";
+
+import {
+    buildDrivingQueuePreview,
+    getDrivingPlaybackProgress,
+    getDrivingQueueFreshness
+} from "./core/driving-ui.js";
 
 import {
     DEFAULT_DYNAMIC_LYRICS_SETTINGS,
@@ -271,7 +282,10 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "8.3.2";
+installUiConsistencyObserver();
+applyUiConsistency(document);
+
+const APP_VERSION = "8.4.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -687,7 +701,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.3.2-shell";
+    "shuffleplus-v8.4.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3790,15 +3804,14 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.3.2
+                        ✨ Apparence v8.4.0
                     </span>
                     <h3>
                         Couleur & lisibilité
                     </h3>
                     <p>
                         Choisis une palette prédéfinie ou crée
-                        ta propre couleur. Le mode conduite suit
-                        maintenant automatiquement ce thème.
+                        ta propre couleur. Tous les écrans et le mode conduite suivent désormais automatiquement ce thème.
                     </p>
                 </div>
 
@@ -4963,7 +4976,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.3.2",
+                "./service-worker.js?v=8.4.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -8309,35 +8322,107 @@ function renderDrivingQueueItem(item, index) {
     `;
 }
 
-function renderDrivingQueuePreview() {
-    const upcoming = (drivingQueueState.queue || []).slice(0, 3);
+function getDrivingSpotifyUrl(track = {}) {
+    const externalUrl = String(
+        track?.external_urls?.spotify || ""
+    ).trim();
 
-    if (!upcoming.length) {
+    if (externalUrl.startsWith("https://open.spotify.com/")) {
+        return externalUrl;
+    }
+
+    const uri = String(track?.uri || "");
+    const match = uri.match(/^spotify:track:([a-zA-Z0-9]+)$/);
+
+    return match
+        ? `https://open.spotify.com/track/${match[1]}`
+        : "";
+}
+
+function renderDrivingPlaybackProgress(playback = {}) {
+    const progress = getDrivingPlaybackProgress(playback);
+
+    if (!progress.available) {
         return "";
     }
 
     return `
-        <section class="driving-queue-preview" aria-label="Prochains morceaux">
+        <section
+            class="driving-playback-progress"
+            aria-label="Progression du titre"
+            style="--driving-progress:${progress.percent.toFixed(2)}%"
+        >
+            <div class="driving-playback-progress-track" aria-hidden="true">
+                <i></i>
+            </div>
+            <div>
+                <span>${escapeHtml(progress.elapsedLabel)}</span>
+                <span>${escapeHtml(progress.remainingLabel)}</span>
+            </div>
+        </section>
+    `;
+}
+
+function renderDrivingQueuePreview() {
+    const upcoming = buildDrivingQueuePreview(
+        drivingQueueState.queue,
+        3
+    );
+    const freshness = getDrivingQueueFreshness(
+        drivingQueueState.updatedAt
+    );
+
+    return `
+        <section
+            class="driving-queue-preview ${upcoming.length ? "has-items" : "is-empty"}"
+            aria-label="Prochains morceaux"
+        >
             <header>
                 <div>
                     <span>À suivre</span>
-                    <strong>Les ${upcoming.length} prochains titres</strong>
+                    <strong>
+                        ${upcoming.length
+                            ? `${upcoming.length} prochain${upcoming.length > 1 ? "s" : ""} titre${upcoming.length > 1 ? "s" : ""}`
+                            : "File Spotify"}
+                    </strong>
                 </div>
-                <button type="button" data-open-driving-queue>
-                    Voir la liste
+                <span class="driving-queue-freshness is-${escapeHtml(freshness.state)}">
+                    ${escapeHtml(freshness.label)}
+                </span>
+                <button
+                    type="button"
+                    data-open-driving-queue
+                    ${drivingQueueBusy ? "disabled" : ""}
+                >
+                    ${drivingQueueBusy
+                        ? "Chargement…"
+                        : upcoming.length
+                            ? "Voir la liste"
+                            : "Charger la liste"}
                 </button>
             </header>
-            <ol>
-                ${upcoming.map((item, index) => `
-                    <li>
-                        <span>${index + 1}</span>
-                        <div>
-                            <strong>${escapeHtml(item.name)}</strong>
-                            <small>${escapeHtml(item.artist)}</small>
-                        </div>
-                    </li>
-                `).join("")}
-            </ol>
+            ${upcoming.length
+                ? `
+                    <ol>
+                        ${upcoming.map((item) => `
+                            <li>
+                                ${item.imageUrl
+                                    ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
+                                    : `<span class="driving-queue-preview-index">${item.index}</span>`}
+                                <div>
+                                    <strong>${escapeHtml(item.name)}</strong>
+                                    <small>${escapeHtml(item.artist)}</small>
+                                </div>
+                                <time>${escapeHtml(item.durationLabel)}</time>
+                            </li>
+                        `).join("")}
+                    </ol>
+                `
+                : `
+                    <p class="driving-queue-preview-empty">
+                        Charge la file pour voir immédiatement les prochains morceaux.
+                    </p>
+                `}
         </section>
     `;
 }
@@ -8355,10 +8440,14 @@ function renderDrivingQueuePanel() {
             { hour: "2-digit", minute: "2-digit" }
         )
         : "jamais";
+    const freshness = getDrivingQueueFreshness(
+        drivingQueueState.updatedAt
+    );
 
     return `
         <section
             class="driving-queue-sheet"
+            role="dialog"
             aria-label="Liste de lecture Spotify"
             aria-live="polite"
         >
@@ -8366,7 +8455,12 @@ function renderDrivingQueuePanel() {
                 <div>
                     <span>📋 Liste de lecture</span>
                     <strong>${queue.length} prochain(s) morceau(x)</strong>
-                    <small>Actualisée à ${escapeHtml(updatedLabel)}</small>
+                    <small>
+                        Actualisée à ${escapeHtml(updatedLabel)} ·
+                        <span class="driving-queue-freshness is-${escapeHtml(freshness.state)}">
+                            ${escapeHtml(freshness.label)}
+                        </span>
+                    </small>
                 </div>
                 <div>
                     <button
@@ -8681,6 +8775,7 @@ function renderDrivingModePage() {
         isVoiceAssistantSupported();
     const queueCount =
         drivingQueueState.queue?.length || 0;
+    const spotifyUrl = getDrivingSpotifyUrl(track);
 
     contentElement.innerHTML = `
         <section class="driving-mode-page" aria-label="Mode conduite">
@@ -8727,6 +8822,7 @@ function renderDrivingModePage() {
                 </div>
             </section>
 
+            ${renderDrivingPlaybackProgress(drivingPlaybackState)}
             ${renderDrivingQueuePreview()}
 
             <div class="driving-main-controls">
@@ -8802,6 +8898,19 @@ function renderDrivingModePage() {
             ` : ""}
 
             <div class="driving-secondary-controls">
+                ${spotifyUrl ? `
+                    <a
+                        class="driving-spotify-link"
+                        href="${escapeHtml(spotifyUrl)}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Ouvrir le titre actuel dans Spotify"
+                    >
+                        <span aria-hidden="true">◉</span>
+                        <small>Spotify</small>
+                    </a>
+                ` : ""}
+
                 <button
                     id="drivingQueueButton"
                     class="driving-queue-control ${drivingQueueOpen ? "is-active" : ""}"

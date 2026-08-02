@@ -1,20 +1,28 @@
-# Shuffle+ v8.3.2
+# Shuffle+ v8.4.0
 
-Shuffle+ lance des playlists Spotify, crée des mélanges intelligents et prépare des raccourcis Apple avec un Client ID Spotify personnel.
+Shuffle+ est une interface web Spotify conçue pour lancer rapidement une playlist ou un mix intelligent, notamment depuis un raccourci Apple. L’application inclut aussi un centre de lancement, un mode conduite, des profils, des recommandations, des statistiques et une synchronisation chiffrée facultative.
 
-## v8.3.2 — Correctifs d’interface et thèmes cohérents
+## Nouveautés v8.4.0
 
-- correction du header connecté sur ordinateur ;
-- les boutons masqués avec `hidden` ne réapparaissent plus à cause du design system ;
-- texte de bienvenue, version, statut et actions correctement alignés ;
-- boutons du header dimensionnés selon leur contenu, sans retour à la ligne forcé ;
-- navigation sticky sans bande de contenu visible au-dessus ;
-- page Réglages uniformisée avec la palette active ;
-- suppression des accents jaunes, verts, turquoise et roses hérités des anciennes rubriques ;
-- boutons Enregistrer reliés à la couleur principale du thème ;
-- boutons Réinitialiser conservés en variante neutre ;
-- champs, sélecteurs, cases, sliders et cartes reliés au même design system ;
-- les treize palettes prédéfinies et la couleur personnalisée sont conservées ;
-- fonctionnement Spotify, profils, raccourcis Apple, synchronisation et déploiement GitHub → Railway inchangés.
+- design homogène sur l’ensemble des pages ;
+- boutons historiques classés automatiquement selon leur fonction : principal, secondaire, discret ou danger ;
+- formulaires, sélecteurs et zones de texte reliés à la palette active ;
+- treize thèmes prédéfinis et couleur personnalisée conservés ;
+- mode conduite enrichi avec progression du titre ;
+- aperçu de la file Spotify toujours accessible, même avant son premier chargement ;
+- indicateur de fraîcheur de la file ;
+- trois prochains titres avec pochette, artiste et durée ;
+- lien direct vers le titre actif dans Spotify ;
+- premiers composants d’interface extraits d’`app.js` dans des modules testables.
 
-Voir `V8.3.2_NOTES.md` et `DEPLOIEMENT-V8.3.2.md`.
+## Validation
+
+```powershell
+npm.cmd install
+npm.cmd run validate
+npm.cmd start
+```
+
+Le déploiement reste compatible avec la chaîne actuelle : Visual Studio Code → GitHub → Railway.
+
+Consulte `V8.4.0_NOTES.md` et `DEPLOIEMENT-V8.4.0.md` pour le détail.

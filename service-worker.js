@@ -1,5 +1,5 @@
-const APP_VERSION = "8.3.2";
-const CACHE_VERSION = "shuffleplus-v8.3.2";
+const APP_VERSION = "8.4.0";
+const CACHE_VERSION = "shuffleplus-v8.4.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,14 +7,14 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=8.3.2",
-    "./design-system.css?v=8.3.2",
-    "./app.js?v=8.3.2",
+    "./style.css?v=8.4.0",
+    "./design-system.css?v=8.4.0",
+    "./app.js?v=8.4.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-8.3.2.js",
+    "./startup-recovery-8.4.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -28,9 +28,11 @@ const CORE_APP_SHELL = [
     "./core/spotify-app-config.js",
     "./core/html-utils.js",
     "./core/ui-theme.js",
+    "./core/ui-consistency.js",
     "./core/spotify-device.js",
     "./core/spotify-request-manager.js",
     "./core/playback-queue.js",
+    "./core/driving-ui.js",
     "./core/dynamic-lyrics.js",
     "./core/session-recovery.js",
     "./core/shortcut-profiles.js",

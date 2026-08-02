@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.3.2",
+  "version": "8.4.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.3.2 — correctifs du header, navigation stable et réglages uniformes selon le thème actif.",
+  "description": "Shuffle+ 8.4.0 — design unifié sur toutes les pages, composants sémantiques et mode conduite enrichi.",
   "engines": {
     "node": ">=20"
   },
