@@ -93,12 +93,6 @@ import {
     getContextualHelpProgress
 } from "./contextual-help.js";
 
-import {
-    buildUniversalSearchIndex,
-    groupUniversalSearchResults,
-    searchUniversalIndex,
-    getUniversalSearchTypeLabel
-} from "./universal-search.js";
 
 import {
     USAGE_PROFILES,
@@ -174,6 +168,15 @@ import {
 import {
     createFeatureLoader
 } from "./core/feature-loader.js";
+
+import {
+    createStylesheetLoader
+} from "./core/style-loader.js";
+
+import {
+    FEATURE_STYLE_ASSETS,
+    getFeatureStyleNamesForMenu
+} from "./core/feature-assets.js";
 
 import {
     createRuntimeState
@@ -316,7 +319,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "8.7.1";
+const APP_VERSION = "8.8.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -734,7 +737,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.7.1-shell";
+    "shuffleplus-v8.8.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1099,7 +1102,8 @@ const appRuntimeState = createRuntimeState({
         product: ""
     },
     features: {
-        modules: []
+        modules: [],
+        styles: []
     },
     performance: {
         available: false,
@@ -1117,7 +1121,8 @@ const appRuntimeState = createRuntimeState({
 
 const featureLoader = createFeatureLoader(
     {
-        appHealth: () => import("./app-health.js")
+        appHealth: () => import("./app-health.js"),
+        universalSearch: () => import("./universal-search.js")
     },
     {
         onChange(modules) {
@@ -1129,6 +1134,79 @@ const featureLoader = createFeatureLoader(
         }
     }
 );
+
+const stylesheetLoader = createStylesheetLoader(
+    FEATURE_STYLE_ASSETS,
+    {
+        version: APP_VERSION,
+        onChange(styles) {
+            appRuntimeState.set(
+                "features.styles",
+                styles,
+                { silent: true }
+            );
+        }
+    }
+);
+
+async function ensureFeatureStyles(names = []) {
+    const requested = [...new Set(
+        (Array.isArray(names) ? names : [names])
+            .map((name) => String(name || "").trim())
+            .filter(Boolean)
+    )];
+
+    const results = await Promise.allSettled(
+        requested.map((name) => stylesheetLoader.load(name))
+    );
+
+    results.forEach((result, index) => {
+        if (result.status === "rejected") {
+            console.warn(
+                `Style différé indisponible (${requested[index]}) :`,
+                result.reason
+            );
+        }
+    });
+
+    return results;
+}
+
+async function ensureMenuFeatureStyles(menuId = "") {
+    await ensureFeatureStyles(
+        getFeatureStyleNamesForMenu(menuId)
+    );
+}
+
+let universalSearchFeature = null;
+let universalSearchFeaturePromise = null;
+
+async function ensureUniversalSearchFeature() {
+    if (universalSearchFeature) {
+        return universalSearchFeature;
+    }
+
+    if (!universalSearchFeaturePromise) {
+        universalSearchFeaturePromise = Promise.all([
+            featureLoader.load("universalSearch"),
+            ensureFeatureStyles("search")
+        ]).then(([module]) => {
+            universalSearchFeature = module;
+            return module;
+        }).finally(() => {
+            universalSearchFeaturePromise = null;
+        });
+    }
+
+    return universalSearchFeaturePromise;
+}
+
+function getLoadedUniversalSearchFeature() {
+    if (!universalSearchFeature) {
+        throw new Error("La recherche globale n’est pas encore chargée.");
+    }
+    return universalSearchFeature;
+}
 
 const storageMigrationReport = runStorageMigrations({
     storage: globalThis.localStorage,
@@ -3855,7 +3933,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.7.1
+                        ✨ Apparence v8.8.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4881,7 +4959,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.7.1",
+                "./service-worker.js?v=8.8.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -14578,6 +14656,8 @@ async function navigateToAppMenu(
             requestedMenu
         );
 
+    await ensureMenuFeatureStyles(normalizedMenu);
+
     if (normalizedMenu === "driving") {
         if (!DRIVING_MODE_AVAILABLE) {
             activeAppMenu = "dashboard";
@@ -15295,7 +15375,7 @@ function getUniversalSearchIndex() {
             ].includes(item.menu)
         );
 
-    return buildUniversalSearchIndex({
+    return getLoadedUniversalSearchFeature().buildUniversalSearchIndex({
         sections: visibleSections,
         playlists: [
             {
@@ -15378,7 +15458,7 @@ function getUniversalSearchIndex() {
 
 function updateUniversalSearchResults() {
     universalSearchResults =
-        searchUniversalIndex(
+        getLoadedUniversalSearchFeature().searchUniversalIndex(
             getUniversalSearchIndex(),
             universalSearchQuery,
             MAX_UNIVERSAL_SEARCH_RESULTS
@@ -15452,7 +15532,7 @@ function renderUniversalSearchResults() {
         `;
     }
 
-    const groups = groupUniversalSearchResults(
+    const groups = getLoadedUniversalSearchFeature().groupUniversalSearchResults(
         universalSearchResults
     );
 
@@ -15500,7 +15580,7 @@ function renderUniversalSearchResults() {
                                         <span>
                                             <strong>${escapeHtml(item.title)}</strong>
                                             <small>${escapeHtml(
-                                                getUniversalSearchTypeLabel(
+                                                getLoadedUniversalSearchFeature().getUniversalSearchTypeLabel(
                                                     item.type
                                                 )
                                             )}</small>
@@ -15691,20 +15771,33 @@ function updateUniversalSearchSelectionDom() {
         });
 }
 
-function openUniversalSearch({
+async function openUniversalSearch({
     query = ""
 } = {}) {
     if (activeAppMenu === "driving") {
         return;
     }
 
-    universalSearchOpen = true;
-    universalSearchQuery =
-        String(query || "").slice(0, 100);
-    universalSearchSelectedIndex = 0;
-    refreshUniversalSearchLayer({
-        focus: true
-    });
+    document.documentElement.dataset.universalSearchLoading = "true";
+
+    try {
+        await ensureUniversalSearchFeature();
+        universalSearchOpen = true;
+        universalSearchQuery =
+            String(query || "").slice(0, 100);
+        universalSearchSelectedIndex = 0;
+        refreshUniversalSearchLayer({
+            focus: true
+        });
+    } catch (error) {
+        console.error("Recherche globale indisponible :", error);
+        showToast(
+            "La recherche n’a pas pu être chargée. Réessaie dans un instant.",
+            "error"
+        );
+    } finally {
+        delete document.documentElement.dataset.universalSearchLoading;
+    }
 }
 
 function closeUniversalSearch() {
@@ -16627,7 +16720,7 @@ async function executeMusicalAssistantPlan() {
             );
             vibrateVoiceAssistant([25, 35, 25]);
             displayPlaylists(playlistsCache);
-            openUniversalSearch();
+            await openUniversalSearch();
             return;
         }
 
@@ -40094,6 +40187,7 @@ async function initializeApp() {
     });
 
     applyDrivingViewFromUrl();
+    await ensureMenuFeatureStyles(activeAppMenu);
 
     const urlAutomationCommand =
         parseAutomationCommandFromUrl();
@@ -40864,7 +40958,7 @@ contentElement.addEventListener(
                 "#openUniversalSearchButton, [data-open-universal-search]"
             )
         ) {
-            openUniversalSearch();
+            await openUniversalSearch();
             return;
         }
 
@@ -44345,6 +44439,28 @@ contentElement.addEventListener(
 
 }
 
+function prewarmUniversalSearch(event) {
+    if (
+        event.target?.closest?.(
+            "[data-open-universal-search], #openUniversalSearchButton"
+        )
+    ) {
+        stylesheetLoader.preload("search");
+        ensureUniversalSearchFeature().catch(() => {});
+    }
+}
+
+document.addEventListener(
+    "pointerover",
+    prewarmUniversalSearch,
+    { passive: true, capture: true }
+);
+
+document.addEventListener(
+    "focusin",
+    prewarmUniversalSearch,
+    { passive: true, capture: true }
+);
 
 document.addEventListener(
     "keydown",
@@ -44361,7 +44477,7 @@ document.addEventListener(
 
         if (openShortcut) {
             event.preventDefault();
-            openUniversalSearch();
+            await openUniversalSearch();
             return;
         }
 
@@ -44372,7 +44488,7 @@ document.addEventListener(
             activeAppMenu !== "driving"
         ) {
             event.preventDefault();
-            openUniversalSearch();
+            await openUniversalSearch();
             return;
         }
 

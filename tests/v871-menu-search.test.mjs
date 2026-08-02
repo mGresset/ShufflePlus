@@ -8,17 +8,18 @@ import {
 
 const appSource = await readFile("app.js", "utf8");
 const styleSource = await readFile("style.css", "utf8");
+const searchStyleSource = await readFile("styles/feature-search.css", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("la distribution active annonce Shuffle+ 8.7.1", () => {
-    assert.equal(versionSource, "8.7.1");
+test("la distribution active annonce Shuffle+ 8.8.0", () => {
+    assert.equal(versionSource, "8.8.0");
 });
 
 test("la recherche globale est intégrée au menu principal", () => {
     assert.match(appSource, /class="app-menu-button app-menu-search-button"/);
     assert.match(appSource, /data-open-universal-search/);
     assert.match(appSource, /aria-keyshortcuts="Control\+K Meta\+K"/);
-    assert.match(styleSource, /repeat\(6, minmax\(0, 1fr\)\)/);
+    assert.match(searchStyleSource, /repeat\(6, minmax\(0, 1fr\)\)/);
 });
 
 test("la grande barre de recherche supérieure a disparu", () => {
@@ -28,7 +29,7 @@ test("la grande barre de recherche supérieure a disparu", () => {
 
 test("le menu mobile n’affiche que l’icône de recherche", () => {
     assert.match(
-        styleSource,
+        searchStyleSource,
         /@media \(max-width: 760px\)[\s\S]*?\.app-menu-search-button__label,[\s\S]*?display: none;/
     );
 });

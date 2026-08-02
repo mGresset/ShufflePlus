@@ -14,14 +14,15 @@ import {
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
+const drivingStyleSource = await readFile("styles/feature-driving.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 
-test("la distribution active annonce Shuffle+ 8.7.1", () => {
-    assert.equal(versionSource, "8.7.1");
-    assert.match(indexSource, /shuffleplus-version" content="8\.7\.1/);
-    assert.match(appSource, /const APP_VERSION = "8\.7\.1"/);
-    assert.match(serviceWorkerSource, /shuffleplus-v8\.7\.1/);
+test("la distribution active annonce Shuffle+ 8.8.0", () => {
+    assert.equal(versionSource, "8.8.0");
+    assert.match(indexSource, /shuffleplus-version" content="8\.8\.0/);
+    assert.match(appSource, /const APP_VERSION = "8\.8\.0"/);
+    assert.match(serviceWorkerSource, /shuffleplus-v8\.8\.0/);
 });
 
 test("les actions historiques reçoivent une variante sémantique stable", () => {
@@ -82,9 +83,9 @@ test("le mode conduite affiche toujours la file, la progression et le lien Spoti
 test("le design system v8.4 couvre les formulaires et le layout conduite mobile", () => {
     assert.match(designSource, /Shuffle\+ v8\.4\.0/);
     assert.match(designSource, /#content :where\(/);
-    assert.match(designSource, /"progress"/);
-    assert.match(designSource, /"queue"/);
-    assert.match(designSource, /driving-queue-freshness/);
+    assert.match(drivingStyleSource, /"progress"/);
+    assert.match(drivingStyleSource, /"queue"/);
+    assert.match(drivingStyleSource, /driving-queue-freshness/);
 });
 
 test("le Service Worker précharge les modules UI v8.4", () => {

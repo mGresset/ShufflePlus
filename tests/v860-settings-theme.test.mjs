@@ -16,31 +16,32 @@ const appSource = await readFile("app.js", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 const legacyStyleSource = await readFile("style.css", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
+const settingsStyleSource = await readFile("styles/feature-settings.css", "utf8");
 
 const pwaLegacySlice = legacyStyleSource.split(".pwa-update-actions button {")[1]
     ?.split("@media (display-mode: standalone)")[0] || "";
-const v860Design = designSource.split(
-    "Shuffle+ v8.6.0 — Garantie de palette dans les réglages"
-)[1] || "";
+const v860Design = settingsStyleSource.split(
+    "Garantie de palette dans les réglages"
+)[1] || settingsStyleSource;
 
 const LEGACY_GREEN_PATTERN = /#1ed760|#1d5d36|#9cf0b8|#315d40|#101913|#2f4938|#3c7350|#173923|#d9f7e3|#3d8055|#d8f7e2/i;
 
-test("la distribution active annonce Shuffle+ 8.7.1", () => {
-    assert.equal(versionSource, "8.7.1");
-    assert.match(packageSource, /"version": "8\.7\.1"/);
-    assert.match(indexSource, /shuffleplus-version" content="8\.7\.1/);
-    assert.match(indexSource, /startup-recovery-8\.7\.1\.js/);
-    assert.match(appSource, /const APP_VERSION = "8\.7\.1"/);
-    assert.match(workerSource, /shuffleplus-v8\.7\.1/);
+test("la distribution active annonce Shuffle+ 8.8.0", () => {
+    assert.equal(versionSource, "8.8.0");
+    assert.match(packageSource, /"version": "8\.8\.0"/);
+    assert.match(indexSource, /shuffleplus-version" content="8\.8\.0/);
+    assert.match(indexSource, /startup-recovery-8\.8\.0\.js/);
+    assert.match(appSource, /const APP_VERSION = "8\.8\.0"/);
+    assert.match(workerSource, /shuffleplus-v8\.8\.0/);
 });
 
 test("la règle historique PWA ne cible plus tous les span imbriqués", () => {
     assert.match(
-        legacyStyleSource,
-        /\.pwa-capabilities > \.pwa-capability\s*\{/
+        `${legacyStyleSource}\n${settingsStyleSource}`,
+        /\.pwa-capabilities > \.pwa-capability(?:\s*|:is\([^)]*\)\s*)\{/
     );
     assert.doesNotMatch(
-        legacyStyleSource,
+        `${legacyStyleSource}\n${settingsStyleSource}`,
         /\.pwa-capabilities span\s*\{/
     );
 });

@@ -13,7 +13,7 @@ const root = process.cwd();
 const destination = path.join(root, "dist");
 const appVersion = (await readFile(path.join(root, "VERSION"), "utf8")).trim();
 const currentRecoveryFile = `startup-recovery-${appVersion}.js`;
-const runtimeDirectories = ["core", "icons"];
+const runtimeDirectories = ["core", "icons", "styles"];
 const staticFiles = new Set([
     "index.html",
     "style.css",

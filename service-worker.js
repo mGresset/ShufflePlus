@@ -1,5 +1,5 @@
-const APP_VERSION = "8.7.1";
-const CACHE_VERSION = "shuffleplus-v8.7.1";
+const APP_VERSION = "8.8.0";
+const CACHE_VERSION = "shuffleplus-v8.8.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,17 +7,19 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CORE_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=8.7.1",
-    "./design-system.css?v=8.7.1",
-    "./app.js?v=8.7.1",
+    "./style.css?v=8.8.0",
+    "./design-system.css?v=8.8.0",
+    "./app.js?v=8.8.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-8.7.1.js",
+    "./startup-recovery-8.8.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
+    "./core/style-loader.js",
+    "./core/feature-assets.js",
     "./core/runtime-state.js",
     "./core/storage-migrations.js",
     "./core/experience-mode.js",
@@ -50,7 +52,6 @@ const CORE_APP_SHELL = [
     "./musical-dashboard.js",
     "./musical-goals.js",
     "./contextual-help.js",
-    "./universal-search.js",
     "./usage-profiles.js",
     "./app-health.js",
     "./offline-performance.js",
@@ -58,6 +59,10 @@ const CORE_APP_SHELL = [
 ];
 
 const OPTIONAL_APP_SHELL = [
+    "./universal-search.js",
+    "./styles/feature-search.css?v=8.8.0",
+    "./styles/feature-settings.css?v=8.8.0",
+    "./styles/feature-driving.css?v=8.8.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

@@ -1,15 +1,15 @@
 {
   "name": "shuffleplus",
-  "version": "8.7.1",
+  "version": "8.8.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.7.1 — recherche globale compacte dans le menu, palette catégorisée et raccourci Ctrl/⌘ K.",
+  "description": "Shuffle+ 8.8.0 — styles par fonctionnalité, chargement ciblé et recherche globale chargée à la demande.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",
