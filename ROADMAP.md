@@ -21,5 +21,5 @@
 - **v9.5.0 — Centre de fiabilité, journal et récupération guidée : terminée**
 - **v9.6.0 — Accès immédiat, profils épinglés et derniers lancements : terminée**
 - **v9.6.1 — Cohérence du thème dans la rubrique Créer : terminée**
-- **v9.7.0 — Mode conduite avancé, verrouillage et personnalisation : terminée**
+- **v9.7.1 — Mode conduite avancé, verrouillage et personnalisation : terminée**
 - **v10.0.0 — Découpage majeur des contrôleurs métier hors de `app.js` : prévue**

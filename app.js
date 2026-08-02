@@ -374,7 +374,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.7.0";
+const APP_VERSION = "9.7.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -829,7 +829,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.7.0-shell";
+    "shuffleplus-v9.7.1-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const ADAPTIVE_DJ_MENU_KEY =
@@ -4425,7 +4425,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.7.0
+                        ✨ Apparence v9.7.1
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5459,7 +5459,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.7.0",
+                "./service-worker.js?v=9.7.1",
                 {
                     scope: "./",
                     updateViaCache: "none"

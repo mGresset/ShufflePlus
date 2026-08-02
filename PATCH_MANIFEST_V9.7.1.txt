@@ -1,0 +1,22 @@
+SHUFFLE+ V9.7.1 — MANIFESTE
+
+Fichiers principaux ajoutés ou modifiés :
+- core/driving-advanced.js
+- app.js
+- styles/feature-driving.css
+- service-worker.js
+- startup-recovery-9.7.1.js
+- tests/v970-driving-advanced.test.mjs
+- VERSION
+- package.json
+- package-lock.json
+- config.js
+- index.html
+- README.md
+- ROADMAP.md
+- V9.7.1_NOTES.md
+- DEPLOIEMENT-V9.7.1.md
+- INSTALLATION-V9.7.1.txt
+
+Cache PWA : shuffleplus-v9.7.1
+Compatibilité : données et réglages v9.6.1 et antérieurs conservés.

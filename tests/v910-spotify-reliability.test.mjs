@@ -9,7 +9,7 @@ import {
     shouldRetrySpotifyPlayback
 } from "../core/launch-reliability.js";
 
-test("la v9.7.0 résume la fiabilité du profil principal", () => {
+test("la v9.7.1 résume la fiabilité du profil principal", () => {
     const now = 1_800_000;
     const summary = buildLaunchReliabilitySummary([
         {
