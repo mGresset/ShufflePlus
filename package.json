@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.1.0",
+  "version": "9.2.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.1.0 — fiabilité Spotify, reprise iPhone et file d’attente Spotify.",
+  "description": "Shuffle+ 9.2.0 — chargement adaptatif, budget de performance et cache PWA progressif.",
   "engines": {
     "node": ">=20"
   },

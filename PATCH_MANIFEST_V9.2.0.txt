@@ -1,0 +1,27 @@
+Shuffle+ v9.2.0 — principaux fichiers modifiés
+
+AJOUTÉS
+- core/network-performance.js
+- core/performance-budget.js
+- tests/v920-adaptive-performance.test.mjs
+- startup-recovery-9.2.0.js
+- V9.2.0_NOTES.md
+- DEPLOIEMENT-V9.2.0.md
+- INSTALLATION-V9.2.0.txt
+
+MODIFIÉS
+- app.js
+- app-health.js
+- service-worker.js
+- index.html
+- config.js
+- manifest.webmanifest
+- package.json
+- package-lock.json
+- VERSION
+- README.md
+- ROADMAP.md
+
+COMPATIBILITÉ
+- aucune suppression des données locales des versions précédentes ;
+- maintien de la fiabilité Spotify introduite en v9.1.0.

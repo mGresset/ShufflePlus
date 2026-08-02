@@ -1,19 +1,21 @@
-# Shuffle+ v9.1.0
+# Shuffle+ v9.2.0
 
 Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple sur iPhone.
 
-## Nouveautés v9.1.0
+## Nouveautés v9.2.0
 
-- relances automatiques des commandes Spotify temporaires (`404`, `429`, `502`, `503`, `504`) ;
-- respect de l’en-tête Spotify `Retry-After` lors d’une limitation de débit ;
-- bascule automatique vers un autre appareil Spotify Connect lorsque le premier ne répond pas ;
-- reprise d’un lancement récent après le retour d’Internet ou le retour de Shuffle+ au premier plan ;
-- indicateur de fiabilité du profil principal fondé sur les derniers lancements ;
-- actualisation automatique de la file d’attente après une lecture confirmée ;
-- cadres du menu Réglages harmonisés ;
-- libellé **File d’attente Spotify** uniformisé ;
-- cache PWA et bootstrap de récupération migrés vers la version 9.1.0 ;
-- compatibilité maintenue avec les profils, mix, réglages et données de la v9.0.0 et de la v8.8.0.
+- profil réseau automatique : rapide, standard, économisé ou hors connexion ;
+- respect du mode **Économie de données** du navigateur ;
+- préchargement des écrans uniquement après une intention réelle : survol, focus ou toucher ;
+- préchauffage en arrière-plan réservé aux connexions suffisamment rapides ;
+- cache PWA divisé entre coque critique et ressources optionnelles ;
+- installation et mise à jour du Service Worker moins dépendantes des outils secondaires ;
+- budget de performance adapté au réseau, visible dans le Centre de diagnostic ;
+- diagnostic des modules préchargés, du profil réseau et du score de démarrage ;
+- ajout des modules `core/network-performance.js` et `core/performance-budget.js` ;
+- compatibilité maintenue avec les profils, mix, réglages et données des versions 9.1.0, 9.0.0 et 8.8.0.
+
+Les améliorations de fiabilité Spotify de la v9.1.0 restent incluses : nouvelles tentatives temporaires, appareil de secours, reprise iPhone et actualisation de la file d’attente.
 
 ## Validation
 
@@ -25,4 +27,4 @@ npm.cmd start
 
 La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V9.1.0_NOTES.md` et `DEPLOIEMENT-V9.1.0.md` pour le détail.
+Consulte `V9.2.0_NOTES.md` et `DEPLOIEMENT-V9.2.0.md` pour le détail.

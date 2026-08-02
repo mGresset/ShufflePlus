@@ -14,5 +14,6 @@
 - **v8.8.0 — Recherche globale compacte et styles fonctionnels différés : terminée**
 - **v9.0.0 — Accueil quotidien, lecture en cours et file Spotify : terminée**
 - **v9.1.0 — Fiabilité Spotify, reprise iPhone et appareils de secours : terminée**
-- **v9.2.0 — Découpage progressif des contrôleurs hors de `app.js` : prévue**
+- **v9.2.0 — Chargement adaptatif, budget de performance et cache PWA progressif : terminée**
 - **v9.3.0 — Tests navigateur Safari/iPhone et scénarios Spotify réels : prévue**
+- **v9.4.0 — Découpage progressif des contrôleurs métier hors de `app.js` : prévue**

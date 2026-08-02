@@ -1,20 +1,20 @@
-const APP_VERSION = "9.1.0";
-const CACHE_VERSION = "shuffleplus-v9.1.0";
+const APP_VERSION = "9.2.0";
+const CACHE_VERSION = "shuffleplus-v9.2.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
 
-const CORE_APP_SHELL = [
+const CRITICAL_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=9.1.0",
-    "./design-system.css?v=9.1.0",
-    "./app.js?v=9.1.0",
+    "./style.css?v=9.2.0",
+    "./design-system.css?v=9.2.0",
+    "./app.js?v=9.2.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-9.1.0.js",
+    "./startup-recovery-9.2.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -30,6 +30,8 @@ const CORE_APP_SHELL = [
     "./core/spotify-setup-ui.js",
     "./core/security-policy.js",
     "./core/runtime-performance.js",
+    "./core/network-performance.js",
+    "./core/performance-budget.js",
     "./core/platform.js",
     "./core/spotify-app-config.js",
     "./core/html-utils.js",
@@ -54,17 +56,17 @@ const CORE_APP_SHELL = [
     "./musical-goals.js",
     "./contextual-help.js",
     "./usage-profiles.js",
-    "./app-health.js",
     "./offline-performance.js",
     "./manifest.webmanifest"
 ];
 
 const OPTIONAL_APP_SHELL = [
-    "./styles/feature-home.css?v=9.1.0",
+    "./app-health.js",
+    "./styles/feature-home.css?v=9.2.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=9.1.0",
-    "./styles/feature-settings.css?v=9.1.0",
-    "./styles/feature-driving.css?v=9.1.0",
+    "./styles/feature-search.css?v=9.2.0",
+    "./styles/feature-settings.css?v=9.2.0",
+    "./styles/feature-driving.css?v=9.2.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",
@@ -83,13 +85,22 @@ async function cacheOptionalShell(cache) {
     );
 }
 
-async function warmShell() {
+async function warmCriticalShell() {
     const cache = await caches.open(SHELL_CACHE);
 
-    // Les fichiers indispensables doivent tous être disponibles avant que la
-    // nouvelle version ne remplace le Service Worker actuellement actif.
-    await cache.addAll(CORE_APP_SHELL);
+    // Seuls les fichiers nécessaires au premier écran bloquent l’installation.
+    // Les outils secondaires sont préchauffés plus tard selon le réseau.
+    await cache.addAll(CRITICAL_APP_SHELL);
+}
+
+async function warmOptionalShell() {
+    const cache = await caches.open(SHELL_CACHE);
     await cacheOptionalShell(cache);
+}
+
+async function warmShell() {
+    await warmCriticalShell();
+    await warmOptionalShell();
 }
 
 async function trimRuntimeCache(cache) {
@@ -113,7 +124,7 @@ async function putInRuntimeCache(cache, request, response) {
 }
 
 self.addEventListener("install", (event) => {
-    event.waitUntil(warmShell());
+    event.waitUntil(warmCriticalShell());
 });
 
 self.addEventListener("activate", (event) => {
@@ -142,6 +153,9 @@ self.addEventListener("message", (event) => {
     }
     if (event.data?.type === "WARM_APP_SHELL") {
         event.waitUntil(warmShell());
+    }
+    if (event.data?.type === "WARM_OPTIONAL_SHELL") {
+        event.waitUntil(warmOptionalShell());
     }
     if (event.data?.type === "CLEAR_RUNTIME_CACHE") {
         event.waitUntil(caches.delete(RUNTIME_CACHE));

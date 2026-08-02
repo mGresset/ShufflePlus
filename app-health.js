@@ -77,6 +77,9 @@ export function buildAppHealthSnapshot({
     spotifyConnected = false,
     spotifyApiDiagnostics = {},
     featureRuntime = [],
+    prefetchRuntime = [],
+    networkProfile = {},
+    performanceBudget = {},
     runtimeStateDiagnostics = {},
     storageMigration = {},
     experienceMode = "essential",
@@ -116,6 +119,33 @@ export function buildAppHealthSnapshot({
         : [];
     const loadedFeatureCount = featureModules.filter((item) => item.status === "loaded").length;
     const failedFeatureCount = featureModules.filter((item) => item.status === "error").length;
+    const prefetchRules = Array.isArray(prefetchRuntime)
+        ? prefetchRuntime.map((item) => ({
+            id: String(item?.id || "feature"),
+            status: String(item?.status || "idle"),
+            durationMs: Math.max(0, normalizeNumber(item?.durationMs)),
+            reason: String(item?.reason || ""),
+            trigger: String(item?.trigger || "")
+        }))
+        : [];
+    const failedPrefetchCount = prefetchRules.filter((item) => item.status === "error").length;
+    const normalizedNetworkProfile = {
+        id: String(networkProfile?.id || (online ? "fast" : "offline")),
+        label: String(networkProfile?.label || (online ? "Connexion disponible" : "Hors connexion")),
+        saveData: normalizeBoolean(networkProfile?.saveData),
+        effectiveType: String(networkProfile?.effectiveType || ""),
+        downlink: Math.max(0, normalizeNumber(networkProfile?.downlink)),
+        rtt: Math.max(0, normalizeNumber(networkProfile?.rtt)),
+        allowBackgroundWarmup: normalizeBoolean(networkProfile?.allowBackgroundWarmup)
+    };
+    const normalizedPerformanceBudget = {
+        status: String(performanceBudget?.status || "healthy"),
+        score: Math.max(0, Math.min(100, normalizeNumber(performanceBudget?.score, 100))),
+        criticalCount: Math.max(0, normalizeNumber(performanceBudget?.criticalCount)),
+        warningCount: Math.max(0, normalizeNumber(performanceBudget?.warningCount)),
+        measurableCount: Math.max(0, normalizeNumber(performanceBudget?.measurableCount)),
+        profileId: String(performanceBudget?.profileId || normalizedNetworkProfile.id)
+    };
     const storage = {
         schemaVersion: Math.max(0, normalizeNumber(storageMigration?.schemaVersion)),
         recoveryCount: Math.max(0, normalizeNumber(storageMigration?.recoveryCount)),
@@ -219,6 +249,36 @@ export function buildAppHealthSnapshot({
             value: `${loadedFeatureCount} chargé(s) · ${failedFeatureCount} erreur(s)`
         }),
         buildCheck({
+            id: "adaptive-prefetch",
+            label: "Préchargement adaptatif",
+            description: "Anticipe une ouverture seulement après une intention utilisateur et respecte l’économie de données.",
+            category: "performance",
+            available: failedPrefetchCount === 0,
+            warningWhenMissing: true,
+            value: `${prefetchRules.filter((item) => item.status === "loaded").length} prêt(s) · ${failedPrefetchCount} erreur(s)`
+        }),
+        buildCheck({
+            id: "network-profile",
+            label: "Profil réseau",
+            description: "Ajuste les préchargements à la vitesse de connexion et au mode économie de données.",
+            category: "performance",
+            available: true,
+            value: normalizedNetworkProfile.saveData
+                ? `${normalizedNetworkProfile.label} · économie de données`
+                : normalizedNetworkProfile.label
+        }),
+        buildCheck({
+            id: "performance-budget",
+            label: "Budget de démarrage",
+            description: "Compare le chargement réel à un budget adapté au réseau de cet appareil.",
+            category: "performance",
+            available: normalizedPerformanceBudget.status !== "critical",
+            warningWhenMissing: true,
+            value: normalizedPerformanceBudget.measurableCount
+                ? `Score ${normalizedPerformanceBudget.score}/100 · profil ${normalizedPerformanceBudget.profileId}`
+                : "Mesure disponible après le chargement complet"
+        }),
+        buildCheck({
             id: "experience-mode",
             label: "Niveau d’interface",
             description: "Le mode Essentiel allège les menus, tandis que le mode Expert affiche tous les outils.",
@@ -317,6 +377,9 @@ export function buildAppHealthSnapshot({
             userAgent: String(userAgent || ""),
             spotifyApi,
             featureModules,
+            prefetchRules,
+            networkProfile: normalizedNetworkProfile,
+            performanceBudget: normalizedPerformanceBudget,
             runtimeState,
             storage,
             experienceMode: normalizedExperienceMode,
@@ -336,6 +399,11 @@ export function buildAppHealthExport(snapshot = {}, extras = {}) {
             loadedModules: Array.isArray(extras.loadedModules)
                 ? extras.loadedModules
                 : snapshot?.runtime?.featureModules || [],
+            prefetchRules: Array.isArray(extras.prefetchRules)
+                ? extras.prefetchRules
+                : snapshot?.runtime?.prefetchRules || [],
+            networkProfile: extras.networkProfile || snapshot?.runtime?.networkProfile || {},
+            performanceBudget: extras.performanceBudget || snapshot?.runtime?.performanceBudget || {},
             storageMigration: extras.storageMigration || snapshot?.runtime?.storage || {},
             runtimeState: extras.runtimeState || snapshot?.runtime?.runtimeState || {}
         }

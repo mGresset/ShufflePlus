@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 9.1.0 renforce le lancement Spotify, la reprise iPhone et la file d’attente.",
+  "description": "Shuffle+ 9.2.0 adapte le chargement au réseau et accélère les mises à jour PWA.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

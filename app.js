@@ -240,6 +240,15 @@ import {
 } from "./core/runtime-performance.js";
 
 import {
+    createIntentPrefetcher,
+    readNetworkPerformanceProfile
+} from "./core/network-performance.js";
+
+import {
+    evaluatePerformanceBudget
+} from "./core/performance-budget.js";
+
+import {
     canUseDrivingMode,
     isAppleMobileDevice
 } from "./core/platform.js";
@@ -329,7 +338,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.1.0";
+const APP_VERSION = "9.2.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -747,7 +756,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.1.0-shell";
+    "shuffleplus-v9.2.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1120,7 +1129,13 @@ const appRuntimeState = createRuntimeState({
         resources: 0,
         domContentLoadedMs: 0,
         loadMs: 0,
-        transferBytes: 0
+        transferBytes: 0,
+        networkProfile: readNetworkPerformanceProfile(),
+        budget: evaluatePerformanceBudget({}, readNetworkPerformanceProfile())
+    },
+    prefetch: {
+        rules: [],
+        optionalShellRequested: false
     },
     security: getSecurityPolicyDiagnostics(),
     experience: {
@@ -1216,6 +1231,142 @@ function getLoadedUniversalSearchFeature() {
         throw new Error("La recherche globale n’est pas encore chargée.");
     }
     return universalSearchFeature;
+}
+
+let adaptivePrefetcher = null;
+let optionalShellWarmupRequested = false;
+
+function updateRuntimePerformanceState(snapshot = {}) {
+    const networkProfile = readNetworkPerformanceProfile();
+    const budget = evaluatePerformanceBudget(snapshot, networkProfile);
+
+    appRuntimeState.set(
+        "performance",
+        {
+            ...snapshot,
+            networkProfile,
+            budget
+        },
+        { silent: true }
+    );
+
+    return { networkProfile, budget };
+}
+
+function requestOptionalPwaShellWarmup() {
+    if (optionalShellWarmupRequested) {
+        return false;
+    }
+
+    const profile = readNetworkPerformanceProfile();
+    if (!profile.allowBackgroundWarmup || document.visibilityState === "hidden") {
+        return false;
+    }
+
+    const worker =
+        navigator.serviceWorker?.controller ||
+        pwaRegistration?.active;
+
+    if (!worker) {
+        return false;
+    }
+
+    optionalShellWarmupRequested = true;
+    worker.postMessage({ type: "WARM_OPTIONAL_SHELL" });
+    appRuntimeState.set(
+        "prefetch.optionalShellRequested",
+        true,
+        { silent: true }
+    );
+    return true;
+}
+
+function initializeAdaptivePrefetching() {
+    if (adaptivePrefetcher) {
+        return adaptivePrefetcher;
+    }
+
+    adaptivePrefetcher = createIntentPrefetcher({
+        documentObject: document,
+        navigatorObject: navigator,
+        rules: [
+            {
+                id: "home",
+                selector: '[data-app-menu="dashboard"]',
+                priority: "high",
+                run: () => ensureMenuFeatureStyles("dashboard")
+            },
+            {
+                id: "search",
+                selector: "[data-open-universal-search]",
+                priority: "high",
+                run: () => ensureUniversalSearchFeature()
+            },
+            {
+                id: "settings",
+                selector: '[data-app-menu="settings"]',
+                priority: "normal",
+                run: () => Promise.all([
+                    ensureMenuFeatureStyles("settings"),
+                    getAppHealthFeature()
+                ])
+            },
+            {
+                id: "driving",
+                selector: '[data-app-menu="driving"], [data-open-driving-queue]',
+                priority: "normal",
+                run: () => ensureMenuFeatureStyles("driving")
+            }
+        ],
+        onChange(rules) {
+            appRuntimeState.set(
+                "prefetch.rules",
+                rules,
+                { silent: true }
+            );
+        }
+    });
+
+    const connection =
+        navigator.connection ||
+        navigator.mozConnection ||
+        navigator.webkitConnection;
+
+    connection?.addEventListener?.("change", () => {
+        updateRuntimePerformanceState(
+            getRuntimePerformanceSnapshot(window.performance)
+        );
+    });
+
+    return adaptivePrefetcher;
+}
+
+function scheduleAdaptiveBackgroundWarmup() {
+    const profile = readNetworkPerformanceProfile();
+    if (!profile.allowBackgroundWarmup) {
+        return;
+    }
+
+    const run = () => {
+        const featureIds = profile.id === "fast"
+            ? ["search", "home"]
+            : ["home"];
+
+        if (isExpertExperience(experienceMode) && profile.id === "fast") {
+            featureIds.push("settings");
+        }
+
+        adaptivePrefetcher?.warm(featureIds).catch(() => {});
+        requestOptionalPwaShellWarmup();
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(run, {
+            timeout: profile.idleDelayMs
+        });
+    } else {
+        window.setTimeout(run, profile.idleDelayMs);
+    }
 }
 
 const storageMigrationReport = runStorageMigrations({
@@ -4014,7 +4165,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.1.0
+                        ✨ Apparence v9.2.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5048,7 +5199,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.1.0",
+                "./service-worker.js?v=9.2.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -5059,6 +5210,10 @@ async function registerPwa() {
             pwaRegistration
         );
         refreshPwaPanel();
+        window.setTimeout(
+            requestOptionalPwaShellWarmup,
+            0
+        );
     } catch (error) {
         console.warn(
             "Service worker non enregistré :",
@@ -5216,6 +5371,15 @@ function getBasicAppHealthFacts() {
             getSpotifyApiDiagnostics(),
         featureRuntime:
             featureLoader.getDiagnostics(),
+        prefetchRuntime:
+            adaptivePrefetcher?.diagnostics?.() || [],
+        networkProfile:
+            readNetworkPerformanceProfile(),
+        performanceBudget:
+            evaluatePerformanceBudget(
+                getRuntimePerformanceSnapshot(window.performance),
+                readNetworkPerformanceProfile()
+            ),
         runtimeStateDiagnostics:
             appRuntimeState.getDiagnostics(),
         storageMigration:
@@ -5386,7 +5550,7 @@ function renderAppHealthPanel() {
             >
                 <div class="panel-heading">
                     <div>
-                        <span class="app-health-kicker">🛠️ Shuffle+ v7</span>
+                        <span class="app-health-kicker">🛠️ Shuffle+ ${escapeHtml(APP_VERSION)}</span>
                         <h3>Centre de diagnostic</h3>
                         <p>Chargement du module de diagnostic à la demande…</p>
                     </div>
@@ -5417,6 +5581,10 @@ function renderAppHealthPanel() {
             label: "Architecture et performances"
         },
         {
+            id: "experience",
+            label: "Niveau d’interface"
+        },
+        {
             id: "optional",
             label: "Fonctions selon le navigateur"
         }
@@ -5444,7 +5612,7 @@ function renderAppHealthPanel() {
                     <span
                         class="app-health-kicker"
                     >
-                        🛠️ Shuffle+ v7
+                        🛠️ Shuffle+ ${escapeHtml(APP_VERSION)}
                     </span>
                     <h3>
                         Centre de diagnostic
@@ -5638,6 +5806,12 @@ async function exportAppHealthReport() {
             snapshot,
             {
                 loadedModules: featureLoader.getDiagnostics(),
+                prefetchRules: adaptivePrefetcher?.diagnostics?.() || [],
+                networkProfile: readNetworkPerformanceProfile(),
+                performanceBudget: evaluatePerformanceBudget(
+                    getRuntimePerformanceSnapshot(window.performance),
+                    readNetworkPerformanceProfile()
+                ),
                 storageMigration: getStorageDiagnostics(),
                 runtimeState: appRuntimeState.getDiagnostics()
             }
@@ -44864,20 +45038,21 @@ window.addEventListener(
     }
 );
 
+initializeAdaptivePrefetching();
+
 installRuntimePerformanceOptimizations({
     documentObject: document,
     globalObject: window,
     onSnapshot(snapshot) {
-        appRuntimeState.set("performance", snapshot, { silent: true });
+        updateRuntimePerformanceState(snapshot);
     }
 });
 
 window.addEventListener("load", () => {
-    appRuntimeState.set(
-        "performance",
-        getRuntimePerformanceSnapshot(window.performance),
-        { silent: true }
+    updateRuntimePerformanceState(
+        getRuntimePerformanceSnapshot(window.performance)
     );
+    scheduleAdaptiveBackgroundWarmup();
 }, { once: true });
 
 window.dispatchEvent(

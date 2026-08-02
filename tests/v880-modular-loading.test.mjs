@@ -50,8 +50,8 @@ function createFakeDocument() {
     };
 }
 
-test("la distribution active annonce Shuffle+ 9.1.0", () => {
-    assert.equal(version, "9.1.0");
+test("la distribution active annonce Shuffle+ 9.2.0", () => {
+    assert.equal(version, "9.2.0");
 });
 
 test("les feuilles de fonctionnalités sont déclarées centralement", () => {
@@ -66,12 +66,12 @@ test("le chargeur ajoute une feuille versionnée une seule fois", async () => {
     const documentObject = createFakeDocument();
     const loader = createStylesheetLoader(
         { search: "./styles/feature-search.css" },
-        { documentObject, version: "9.1.0" }
+        { documentObject, version: "9.2.0" }
     );
     await loader.load("search");
     await loader.load("search");
     assert.equal(documentObject.links.length, 1);
-    assert.match(documentObject.links[0].href, /feature-search\.css\?v=9\.1\.0$/);
+    assert.match(documentObject.links[0].href, /feature-search\.css\?v=9\.2\.0$/);
     assert.equal(loader.isLoaded("search"), true);
 });
 
@@ -82,7 +82,7 @@ test("la recherche universelle est chargée dynamiquement", () => {
 });
 
 test("les styles spécialisés ne gonflent plus la feuille initiale", () => {
-    assert.doesNotMatch(styleSource, /Shuffle\+ v9\.1\.0 — Recherche compacte/);
+    assert.doesNotMatch(styleSource, /Shuffle\+ v9\.2\.0 — Recherche compacte/);
     assert.doesNotMatch(designSource, /Mode conduite v8\.4 : progression/);
     assert.doesNotMatch(indexSource, /feature-home\.css|feature-search\.css|feature-settings\.css|feature-driving\.css/);
 });
