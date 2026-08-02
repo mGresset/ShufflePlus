@@ -9837,14 +9837,21 @@ input[type="range"] {
 }
 
 .ui-theme-accent-picker {
+    display: grid;
+    gap: 12px;
     margin: 0;
     padding: 15px;
     border: 1px solid var(--border-soft);
     border-radius: 15px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(255 255 255 / 3%),
+            rgb(12 12 27 / 95%)
+        );
 }
 
-.ui-theme-accent-picker legend {
-    padding: 0 7px;
+.ui-theme-accent-picker-title {
     color: var(--text-muted);
     font-size: 12px;
     font-weight: 800;
