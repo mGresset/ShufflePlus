@@ -29,6 +29,7 @@ export function buildDailyHomeSnapshot({
     queue = [],
     experienceMode = "essential",
     drivingAvailable = false,
+    contextualSuggestion = null,
     now = new Date()
 } = {}) {
     const track = playback?.item || null;
@@ -90,7 +91,20 @@ export function buildDailyHomeSnapshot({
             progress: clamp(guidedSetup?.progress, 0, 100),
             nextStep
         },
-        drivingAvailable: Boolean(drivingAvailable)
+        drivingAvailable: Boolean(drivingAvailable),
+        contextualSuggestion: contextualSuggestion
+            ? {
+                contextId: String(contextualSuggestion.contextId || ""),
+                name: String(contextualSuggestion.name || "Profil contextuel"),
+                icon: String(contextualSuggestion.icon || "🎧"),
+                reason: String(contextualSuggestion.reason || "Suggestion adaptée au contexte actuel."),
+                confidence: String(contextualSuggestion.confidence || "modérée"),
+                label: String(contextualSuggestion.label || "Suggestion"),
+                ready: Boolean(contextualSuggestion.ready),
+                autoplay: contextualSuggestion.autoplay !== false,
+                source: String(contextualSuggestion.source || "context")
+            }
+            : null
     };
 }
 
@@ -152,6 +166,39 @@ export function renderDailyHomeMarkup(snapshot, {
                     ${snapshot.experienceMode === "expert" ? "Mode Essentiel" : "Mode Expert"}
                 </button>
             </header>
+
+            ${snapshot.contextualSuggestion
+                ? `<section class="v9-home-contextual" aria-label="Suggestion contextuelle">
+                    <div class="v9-home-contextual-icon" aria-hidden="true">
+                        ${escapeHtml(snapshot.contextualSuggestion.icon)}
+                    </div>
+                    <div class="v9-home-contextual-copy">
+                        <span>✨ ${escapeHtml(snapshot.contextualSuggestion.label)} · confiance ${escapeHtml(snapshot.contextualSuggestion.confidence)}</span>
+                        <h3>${escapeHtml(snapshot.contextualSuggestion.name)}</h3>
+                        <p>${escapeHtml(snapshot.contextualSuggestion.reason)}</p>
+                    </div>
+                    <div class="v9-home-contextual-actions">
+                        <button
+                            type="button"
+                            class="ui-button ui-button--primary"
+                            data-contextual-suggestion="${escapeHtml(snapshot.contextualSuggestion.contextId)}"
+                        >
+                            ${snapshot.contextualSuggestion.ready
+                                ? snapshot.contextualSuggestion.autoplay
+                                    ? "▶ Lancer ce profil"
+                                    : "Préparer ce profil"
+                                : "⚙ Configurer ce profil"}
+                        </button>
+                        <button
+                            type="button"
+                            class="ui-button ui-button--ghost"
+                            data-dismiss-contextual-suggestion="${escapeHtml(snapshot.contextualSuggestion.contextId)}"
+                        >
+                            Pas maintenant
+                        </button>
+                    </div>
+                </section>`
+                : ""}
 
             <div class="v9-home-grid">
                 <article class="v9-home-launch-card">

@@ -8,7 +8,8 @@
 .v9-home-launch-card,
 .v9-home-now-playing,
 .v9-home-queue,
-.v9-home-next-step {
+.v9-home-next-step,
+.v9-home-contextual {
     border: 1px solid color-mix(in srgb, var(--accent-color) 24%, rgba(255, 255, 255, 0.1));
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
     border-radius: 24px;
@@ -391,5 +392,89 @@
 
     .v9-home-shortcuts {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Shuffle+ v9.3.0 — suggestion de profil contextuel */
+.v9-home-contextual {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1rem;
+    padding: clamp(1rem, 2.5vw, 1.35rem);
+    border: 1px solid color-mix(in srgb, var(--accent-color) 38%, rgba(255, 255, 255, 0.1));
+    border-radius: 22px;
+    background:
+        linear-gradient(
+            125deg,
+            color-mix(in srgb, var(--accent-color) 16%, rgba(255, 255, 255, 0.035)),
+            rgba(255, 255, 255, 0.025)
+        );
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.18);
+}
+
+.v9-home-contextual-icon {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--accent-color) 20%, rgba(255, 255, 255, 0.055));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    font-size: 1.75rem;
+}
+
+.v9-home-contextual-copy span {
+    color: color-mix(in srgb, var(--accent-color) 78%, white);
+    font-size: 0.75rem;
+    font-weight: 850;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.v9-home-contextual-copy h3 {
+    margin: 0.25rem 0 0.2rem;
+    font-size: clamp(1.08rem, 2.3vw, 1.4rem);
+}
+
+.v9-home-contextual-copy p {
+    margin: 0;
+    color: var(--text-muted, rgba(255, 255, 255, 0.68));
+}
+
+.v9-home-contextual-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+@media (max-width: 760px) {
+    .v9-home-contextual {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .v9-home-contextual-actions {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        width: 100%;
+    }
+}
+
+@media (max-width: 520px) {
+    .v9-home-contextual {
+        grid-template-columns: 1fr;
+        border-radius: 20px;
+    }
+
+    .v9-home-contextual-icon {
+        width: 52px;
+        height: 52px;
+    }
+
+    .v9-home-contextual-actions {
+        display: grid;
+        grid-template-columns: 1fr;
     }
 }

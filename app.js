@@ -275,6 +275,14 @@ import {
 } from "./core/daily-home.js";
 
 import {
+    DEFAULT_CONTEXTUAL_PROFILE_STATE,
+    acceptContextualProfileSuggestion,
+    buildContextualProfileSuggestion,
+    dismissContextualProfileSuggestion,
+    normalizeContextualProfileState
+} from "./core/contextual-profiles.js";
+
+import {
     buildLaunchPreflight,
     buildLaunchRecoveryActions,
     buildLaunchReliabilitySummary,
@@ -338,7 +346,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.2.0";
+const APP_VERSION = "9.3.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -471,6 +479,8 @@ const QUICK_CONTROL_ACTIONS = [
 ];
 const QUICK_CONTEXTS_KEY =
     "shuffleplus_quick_contexts_v1";
+const CONTEXTUAL_PROFILE_STATE_KEY =
+    "shuffleplus_contextual_profile_state_v1";
 const QUICK_EXTERNAL_RESULT_KEY =
     "shuffleplus_quick_external_result_v1";
 const QUICK_EXTERNAL_RESULT_TTL =
@@ -529,10 +539,34 @@ const SERVER_SYNC_REQUEST_TIMEOUT = 15000;
 const DEFAULT_QUICK_CONTEXTS = [
     {
         id: "drive",
-        name: "Trajet",
+        name: "Voiture",
         icon: "🚗",
         mixId: "",
+        profileId: "profile-decouverte",
+        autoplay: true
+    },
+    {
+        id: "home",
+        name: "Maison",
+        icon: "🏠",
+        mixId: "",
         profileId: "",
+        autoplay: true
+    },
+    {
+        id: "headphones",
+        name: "Écouteurs",
+        icon: "🎧",
+        mixId: "",
+        profileId: "",
+        autoplay: true
+    },
+    {
+        id: "morning",
+        name: "Matin",
+        icon: "☀️",
+        mixId: "",
+        profileId: "profile-concentration",
         autoplay: true
     },
     {
@@ -541,6 +575,14 @@ const DEFAULT_QUICK_CONTEXTS = [
         icon: "💼",
         mixId: "",
         profileId: "profile-concentration",
+        autoplay: true
+    },
+    {
+        id: "sport",
+        name: "Sport",
+        icon: "🔥",
+        mixId: "",
+        profileId: "profile-sport",
         autoplay: true
     },
     {
@@ -560,6 +602,9 @@ const DEFAULT_QUICK_CONTEXTS = [
         autoplay: true
     }
 ];
+const QUICK_CONTEXT_IDS = new Set(
+    DEFAULT_QUICK_CONTEXTS.map((context) => context.id)
+);
 const MIX_HISTORY_KEY = "shuffleplus_mix_history_v1";
 const MAX_MIX_HISTORY_ITEMS = 50;
 const EXCLUSION_RULES_KEY = "shuffleplus_exclusion_rules_v1";
@@ -756,7 +801,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.2.0-shell";
+    "shuffleplus-v9.3.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1483,6 +1528,7 @@ let quickControlMessage = {
     type: ""
 };
 let quickContextsState = readQuickContextsState();
+let contextualProfileState = readContextualProfileState();
 let quickExternalResult = readQuickExternalResult();
 let quickShortcutWizardContextId =
     quickContextsState[0]?.id || "drive";
@@ -4040,6 +4086,9 @@ function renderV9HomePanel() {
         queue: drivingQueueState.queue,
         experienceMode,
         drivingAvailable: DRIVING_MODE_AVAILABLE,
+        contextualSuggestion: getContextualProfileSuggestion(
+            new Date()
+        ),
         now: new Date()
     });
 
@@ -4165,7 +4214,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.2.0
+                        ✨ Apparence v9.3.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5199,7 +5248,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.2.0",
+                "./service-worker.js?v=9.3.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -9681,16 +9730,10 @@ function applyDrivingFeedback(action) {
 }
 
 function normalizeQuickContext(context = {}, fallback = {}) {
-    const allowedIds = new Set([
-        "drive",
-        "work",
-        "party",
-        "night"
-    ]);
-    const fallbackId = allowedIds.has(fallback.id)
+    const fallbackId = QUICK_CONTEXT_IDS.has(fallback.id)
         ? fallback.id
         : "drive";
-    const id = allowedIds.has(context.id)
+    const id = QUICK_CONTEXT_IDS.has(context.id)
         ? context.id
         : fallbackId;
 
@@ -9767,6 +9810,55 @@ function saveQuickContextsState() {
             error
         );
     }
+}
+
+function readContextualProfileState() {
+    try {
+        const raw = localStorage.getItem(
+            CONTEXTUAL_PROFILE_STATE_KEY
+        );
+        return normalizeContextualProfileState(
+            raw ? JSON.parse(raw) : DEFAULT_CONTEXTUAL_PROFILE_STATE
+        );
+    } catch (error) {
+        console.warn(
+            "Préférences contextuelles illisibles :",
+            error
+        );
+        return normalizeContextualProfileState(
+            DEFAULT_CONTEXTUAL_PROFILE_STATE
+        );
+    }
+}
+
+function saveContextualProfileState() {
+    try {
+        localStorage.setItem(
+            CONTEXTUAL_PROFILE_STATE_KEY,
+            JSON.stringify(contextualProfileState)
+        );
+    } catch (error) {
+        console.warn(
+            "Préférences contextuelles non enregistrées :",
+            error
+        );
+    }
+}
+
+function getContextualProfileSuggestion(now = new Date()) {
+    const deviceName =
+        quickPlaybackState?.device?.name ||
+        drivingPlaybackState?.device?.name ||
+        preferredSpotifyDevice?.name ||
+        lastWorkingSpotifyDevice?.name ||
+        "";
+
+    return buildContextualProfileSuggestion({
+        contexts: quickContextsState,
+        deviceName,
+        now,
+        state: contextualProfileState
+    });
 }
 
 
@@ -11433,16 +11525,16 @@ function saveQuickContextsFromForm(form) {
     );
     saveQuickContextsState();
     setQuickControlMessage(
-        "Profils rapides enregistrés.",
+        "Profils contextuels enregistrés.",
         "success"
     );
     renderQuickControlPage();
-    setStatus("Profils rapides enregistrés.");
+    setStatus("Profils contextuels enregistrés.");
 }
 
 function resetQuickContexts() {
     const confirmed = window.confirm(
-        "Restaurer les quatre profils rapides par défaut ?"
+        "Restaurer les huit profils contextuels par défaut ?"
     );
     if (!confirmed) {
         return;
@@ -11454,7 +11546,7 @@ function resetQuickContexts() {
         quickContextsState[0]?.id || "drive";
     saveQuickContextsState();
     setQuickControlMessage(
-        "Profils rapides restaurés.",
+        "Profils contextuels restaurés.",
         "success"
     );
     renderQuickControlPage();
@@ -12366,7 +12458,7 @@ function renderQuickControlPage() {
 
             <details class="quick-context-config-panel" open>
                 <summary>
-                    Configurer les profils rapides
+                    Configurer les profils contextuels
                 </summary>
                 <form id="quickContextsForm">
                     <div class="quick-context-config-grid">
@@ -12425,7 +12517,7 @@ function renderQuickControlPage() {
                             Restaurer les valeurs par défaut
                         </button>
                         <button type="submit">
-                            Enregistrer les profils rapides
+                            Enregistrer les profils contextuels
                         </button>
                     </div>
                 </form>
@@ -29950,6 +30042,7 @@ function buildBackupPayload() {
         musicFeedbackState,
         drivingModeSettings,
         quickContextsState,
+        contextualProfileState,
         adaptiveDjScenesState,
         adaptiveTransitionSettings,
         musicalAssistantHistory,
@@ -30153,6 +30246,11 @@ function validateBackupPayload(payload) {
                 payload.data.quickContextsState ||
                 DEFAULT_QUICK_CONTEXTS
             ),
+        contextualProfileState:
+            normalizeContextualProfileState(
+                payload.data.contextualProfileState ||
+                DEFAULT_CONTEXTUAL_PROFILE_STATE
+            ),
         adaptiveDjScenesState:
             normalizeAdaptiveDjScenesState(
                 payload.data.adaptiveDjScenesState ||
@@ -30334,6 +30432,9 @@ function applyValidatedBackupState(imported) {
     quickContextsState =
         imported.quickContextsState;
     saveQuickContextsState();
+    contextualProfileState =
+        imported.contextualProfileState;
+    saveContextualProfileState();
     adaptiveDjScenesState =
         imported.adaptiveDjScenesState;
     saveAdaptiveDjScenesState();
@@ -30659,7 +30760,8 @@ function getSyncDataUpdatedAt(data = {}) {
         Number(data.intelligenceAnalytics?.updatedAt || 0),
         Number(data.musicFeedbackState?.updatedAt || 0),
         Number(data.dynamicLyricsSettings?.updatedAt || 0),
-        Number(data.guidedSetupState?.updatedAt || 0)
+        Number(data.guidedSetupState?.updatedAt || 0),
+        Number(data.contextualProfileState?.updatedAt || 0)
     ];
 
     for (const collection of [
@@ -41669,6 +41771,73 @@ contentElement.addEventListener(
             activeAppMenu = "mixes";
             saveActiveAppMenu();
             displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const contextualSuggestionButton =
+            event.target.closest(
+                "[data-contextual-suggestion]"
+            );
+
+        if (contextualSuggestionButton) {
+            const contextId =
+                contextualSuggestionButton.dataset
+                    .contextualSuggestion || "";
+            const context = getQuickContextById(contextId);
+
+            if (!context?.mixId) {
+                activeAppMenu = "quick";
+                saveActiveAppMenu();
+                displayPlaylists(playlistsCache);
+                showToast(
+                    `Associe un mix au profil « ${context?.name || "contextuel"} ».`,
+                    "info"
+                );
+                return;
+            }
+
+            contextualProfileState =
+                acceptContextualProfileSuggestion(
+                    contextualProfileState,
+                    contextId
+                );
+            saveContextualProfileState();
+
+            try {
+                await runQuickControlAction(
+                    "quick-context",
+                    {
+                        contextId,
+                        source: "contextual-home"
+                    }
+                );
+            } catch (error) {
+                // Le message est déjà rendu par l’action rapide.
+            }
+            return;
+        }
+
+        const dismissContextualButton =
+            event.target.closest(
+                "[data-dismiss-contextual-suggestion]"
+            );
+
+        if (dismissContextualButton) {
+            contextualProfileState =
+                dismissContextualProfileSuggestion(
+                    contextualProfileState,
+                    {
+                        contextId:
+                            dismissContextualButton.dataset
+                                .dismissContextualSuggestion || ""
+                    }
+                );
+            saveContextualProfileState();
+            displayPlaylists(playlistsCache);
+            showToast(
+                "Suggestion contextuelle masquée pendant 4 heures.",
+                "info"
+            );
             return;
         }
 

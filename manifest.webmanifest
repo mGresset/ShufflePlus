@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 9.2.0 adapte le chargement au réseau et accélère les mises à jour PWA.",
+  "description": "Shuffle+ 9.3.0 suggère le bon profil selon l’appareil, l’heure et le contexte d’écoute.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

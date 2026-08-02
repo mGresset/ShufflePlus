@@ -1,21 +1,21 @@
-# Shuffle+ v9.2.0
+# Shuffle+ v9.3.0
 
 Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple sur iPhone.
 
-## Nouveautés v9.2.0
+## Nouveautés v9.3.0
 
-- profil réseau automatique : rapide, standard, économisé ou hors connexion ;
-- respect du mode **Économie de données** du navigateur ;
-- préchargement des écrans uniquement après une intention réelle : survol, focus ou toucher ;
-- préchauffage en arrière-plan réservé aux connexions suffisamment rapides ;
-- cache PWA divisé entre coque critique et ressources optionnelles ;
-- installation et mise à jour du Service Worker moins dépendantes des outils secondaires ;
-- budget de performance adapté au réseau, visible dans le Centre de diagnostic ;
-- diagnostic des modules préchargés, du profil réseau et du score de démarrage ;
-- ajout des modules `core/network-performance.js` et `core/performance-budget.js` ;
-- compatibilité maintenue avec les profils, mix, réglages et données des versions 9.1.0, 9.0.0 et 8.8.0.
+- profils contextuels étendus : **Voiture**, **Maison**, **Écouteurs**, **Matin**, **Travail**, **Sport**, **Soirée** et **Nuit** ;
+- reconnaissance locale du nom de l’appareil Spotify : voiture, AirPods/casque ou enceinte domestique ;
+- suggestions selon le moment de la journée lorsque l’appareil ne suffit pas ;
+- carte de suggestion directement sur l’accueil quotidien ;
+- aucune lecture automatique sans action explicite ;
+- bouton **Pas maintenant** qui masque la suggestion pendant quatre heures ;
+- proposition de configuration lorsqu’un profil ne possède pas encore de mix ;
+- mémorisation locale du dernier profil contextuel accepté ;
+- sauvegarde et synchronisation des préférences contextuelles ;
+- compatibilité maintenue avec les profils, mix et réglages des versions précédentes.
 
-Les améliorations de fiabilité Spotify de la v9.1.0 restent incluses : nouvelles tentatives temporaires, appareil de secours, reprise iPhone et actualisation de la file d’attente.
+Les optimisations réseau de la v9.2.0 et la fiabilité Spotify de la v9.1.0 restent incluses.
 
 ## Validation
 
@@ -27,4 +27,4 @@ npm.cmd start
 
 La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V9.2.0_NOTES.md` et `DEPLOIEMENT-V9.2.0.md` pour le détail.
+Consulte `V9.3.0_NOTES.md` et `DEPLOIEMENT-V9.3.0.md` pour le détail.

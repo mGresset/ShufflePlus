@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.2.0",
+  "version": "9.3.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.2.0 — chargement adaptatif, budget de performance et cache PWA progressif.",
+  "description": "Shuffle+ 9.3.0 — profils contextuels, suggestions selon l’appareil et moments de la journée.",
   "engines": {
     "node": ">=20"
   },

@@ -1,0 +1,17 @@
+Shuffle+ v9.3.0 — principaux fichiers modifiés
+
+- VERSION
+- package.json
+- package-lock.json
+- app.js
+- core/contextual-profiles.js
+- core/daily-home.js
+- styles/feature-home.css
+- service-worker.js
+- startup-recovery-9.3.0.js
+- index.html
+- manifest.webmanifest
+- tests/v930-contextual-profiles.test.mjs
+- V9.3.0_NOTES.md
+- DEPLOIEMENT-V9.3.0.md
+- INSTALLATION-V9.3.0.txt
