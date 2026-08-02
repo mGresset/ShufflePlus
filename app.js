@@ -152,6 +152,14 @@ import {
 } from "./core/driving-ui.js";
 
 import {
+    DEFAULT_ADVANCED_DRIVING_SETTINGS,
+    DRIVING_PRIMARY_ACTIONS,
+    DRIVING_UNLOCK_HOLD_MS,
+    normalizeDrivingAdvancedSettings,
+    orderDrivingControls
+} from "./core/driving-advanced.js";
+
+import {
     DEFAULT_DYNAMIC_LYRICS_SETTINGS,
     normalizeDynamicLyricsSettings,
     normalizeDynamicLyricsCommandOptions,
@@ -366,7 +374,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.6.1";
+const APP_VERSION = "9.7.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -454,9 +462,7 @@ const PREFERRED_SPOTIFY_DEVICE_KEY =
 const LAST_WORKING_SPOTIFY_DEVICE_KEY =
     "shuffleplus_last_working_spotify_device_v1";
 const DEFAULT_DRIVING_MODE_SETTINGS = {
-    keepScreenAwake: true,
-    autoRefresh: true,
-    showFeedback: true
+    ...DEFAULT_ADVANCED_DRIVING_SETTINGS
 };
 const QUICK_CONTROL_LANGUAGE = "fr-FR";
 const QUICK_CONTROL_ACTIONS = [
@@ -823,7 +829,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.6.1-shell";
+    "shuffleplus-v9.7.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const ADAPTIVE_DJ_MENU_KEY =
@@ -1539,6 +1545,11 @@ let drivingWakeLockStatus = {
 };
 let drivingActionBusy = false;
 let drivingExitArmedUntil = 0;
+let drivingControlsLocked = false;
+let drivingUnlockTimer = 0;
+let drivingUnlockStartedAt = 0;
+let drivingUnlockCompletedAt = 0;
+let drivingPreferencesOpen = false;
 let drivingMessage = {
     text: "",
     type: ""
@@ -4414,7 +4425,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.6.1
+                        ✨ Apparence v9.7.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5448,7 +5459,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.6.1",
+                "./service-worker.js?v=9.7.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -8869,14 +8880,7 @@ function savePreferredSpotifyDeviceFromPanel() {
 }
 
 function normalizeDrivingModeSettings(settings = {}) {
-    return {
-        keepScreenAwake:
-            settings.keepScreenAwake !== false,
-        autoRefresh:
-            settings.autoRefresh !== false,
-        showFeedback:
-            settings.showFeedback !== false
-    };
+    return normalizeDrivingAdvancedSettings(settings);
 }
 
 function readDrivingModeSettings() {
@@ -9131,7 +9135,7 @@ function renderDrivingQueuePanel() {
 
     return `
         <section
-            class="driving-queue-sheet"
+            class="driving-queue-sheet ${drivingModeSettings.fullscreenQueue ? "is-fullscreen" : ""}"
             role="dialog"
             aria-label="Liste de lecture Spotify"
             aria-live="polite"
@@ -9245,6 +9249,10 @@ async function refreshDrivingQueue({
 
 async function openDrivingQueue() {
     drivingQueueOpen = true;
+    document.body.classList.toggle(
+        "is-driving-queue-fullscreen",
+        drivingModeSettings.fullscreenQueue
+    );
     renderDrivingModePage();
     await refreshDrivingQueue({
         silent: true
@@ -9253,6 +9261,9 @@ async function openDrivingQueue() {
 
 function closeDrivingQueue() {
     drivingQueueOpen = false;
+    document.body.classList.remove(
+        "is-driving-queue-fullscreen"
+    );
     renderDrivingModePage();
 }
 
@@ -9442,6 +9453,278 @@ function getDrivingWakeLockErrorMessage(error) {
         : "Le navigateur n’a pas accordé le maintien de l’écran.";
 }
 
+
+function triggerDrivingHaptic(pattern = 18) {
+    if (
+        !drivingModeSettings.hapticFeedback ||
+        typeof navigator.vibrate !== "function"
+    ) {
+        return false;
+    }
+
+    try {
+        return navigator.vibrate(pattern);
+    } catch (error) {
+        return false;
+    }
+}
+
+function clearDrivingUnlockHold() {
+    if (drivingUnlockTimer) {
+        window.clearTimeout(drivingUnlockTimer);
+        drivingUnlockTimer = 0;
+    }
+
+    drivingUnlockStartedAt = 0;
+    document.body.classList.remove(
+        "is-driving-unlocking"
+    );
+}
+
+function setDrivingControlsLocked(
+    locked,
+    { notify = true } = {}
+) {
+    clearDrivingUnlockHold();
+    drivingControlsLocked = Boolean(locked);
+    document.body.classList.toggle(
+        "is-driving-controls-locked",
+        drivingControlsLocked
+    );
+
+    if (notify) {
+        setDrivingMessage(
+            drivingControlsLocked
+                ? "Commandes verrouillées contre les appuis accidentels."
+                : "Commandes déverrouillées.",
+            drivingControlsLocked ? "warning" : "success"
+        );
+    }
+
+    triggerDrivingHaptic(
+        drivingControlsLocked
+            ? 24
+            : [28, 35, 55]
+    );
+
+    if (activeAppMenu === "driving") {
+        renderDrivingModePage();
+    }
+}
+
+function startDrivingUnlockHold(event) {
+    const button = event.target?.closest?.(
+        "#drivingSafetyLockButton"
+    );
+
+    if (
+        !button ||
+        !drivingControlsLocked ||
+        drivingUnlockTimer
+    ) {
+        return;
+    }
+
+    event.preventDefault();
+    drivingUnlockStartedAt = Date.now();
+    document.body.classList.add(
+        "is-driving-unlocking"
+    );
+    button.setAttribute(
+        "aria-label",
+        "Maintiens encore pour déverrouiller"
+    );
+
+    drivingUnlockTimer = window.setTimeout(
+        () => {
+            drivingUnlockTimer = 0;
+            drivingUnlockCompletedAt = Date.now();
+            drivingControlsLocked = false;
+            drivingUnlockStartedAt = 0;
+            document.body.classList.remove(
+                "is-driving-unlocking",
+                "is-driving-controls-locked"
+            );
+            setDrivingMessage(
+                "Commandes déverrouillées.",
+                "success"
+            );
+            triggerDrivingHaptic([35, 35, 70]);
+            renderDrivingModePage();
+        },
+        DRIVING_UNLOCK_HOLD_MS
+    );
+}
+
+function cancelDrivingUnlockHold() {
+    if (!drivingUnlockTimer) {
+        return;
+    }
+
+    clearDrivingUnlockHold();
+}
+
+function renderDrivingMainControls({
+    adaptive,
+    isPlaying,
+    voiceSupported
+}) {
+    const disabledForLock = drivingControlsLocked;
+    const controls = [
+        {
+            id: "adaptive",
+            buttonId: "drivingAdaptiveButton",
+            icon: "🤖",
+            label: "Lancer Adaptive DJ",
+            detail: adaptive.slot.label,
+            disabled: drivingActionBusy || disabledForLock || !adaptive.mix,
+            extraClass: ""
+        },
+        {
+            id: "playpause",
+            buttonId: "drivingPlayPauseButton",
+            icon: isPlaying ? "⏸" : "▶",
+            label: isPlaying ? "Pause" : "Reprendre",
+            detail: "",
+            disabled: drivingActionBusy || disabledForLock || !drivingPlaybackState?.device,
+            extraClass: ""
+        },
+        {
+            id: "next",
+            buttonId: "drivingNextButton",
+            icon: "⏭",
+            label: "Titre suivant",
+            detail: "",
+            disabled: drivingActionBusy || disabledForLock || !drivingPlaybackState?.device,
+            extraClass: ""
+        },
+        {
+            id: "voice",
+            buttonId: "drivingVoiceButton",
+            icon: "🎙️",
+            label:
+                voiceAssistantListening && voiceAssistantSource === "driving"
+                    ? "Arrêter l’écoute"
+                    : "Commande vocale",
+            detail: "Pause, suivant, j’aime…",
+            disabled: !voiceSupported || drivingActionBusy || disabledForLock,
+            extraClass:
+                `driving-voice-control ${
+                    voiceAssistantListening && voiceAssistantSource === "driving"
+                        ? "is-listening"
+                        : ""
+                }`
+        }
+    ];
+
+    return orderDrivingControls(
+        controls,
+        drivingModeSettings.primaryAction
+    )
+        .map((control) => `
+            <button
+                id="${escapeHtml(control.buttonId)}"
+                class="driving-control ${
+                    control.id === drivingModeSettings.primaryAction
+                        ? "driving-control-primary"
+                        : ""
+                } ${escapeHtml(control.extraClass)}"
+                type="button"
+                ${control.disabled ? "disabled" : ""}
+                data-driving-control="${escapeHtml(control.id)}"
+            >
+                <span aria-hidden="true">${escapeHtml(control.icon)}</span>
+                <strong>${escapeHtml(control.label)}</strong>
+                ${control.detail
+                    ? `<small>${escapeHtml(control.detail)}</small>`
+                    : ""}
+            </button>
+        `)
+        .join("");
+}
+
+function renderDrivingPreferencesPanel() {
+    const actionLabels = {
+        adaptive: "Adaptive DJ",
+        playpause: "Pause / reprise",
+        next: "Titre suivant",
+        voice: "Commande vocale"
+    };
+
+    return `
+        <details
+            id="drivingPreferencesPanel"
+            class="driving-preferences-panel"
+            ${drivingPreferencesOpen ? "open" : ""}
+        >
+            <summary>⚙️ Personnaliser la conduite</summary>
+            <div class="driving-preferences-grid">
+                <label>
+                    <span>Action principale</span>
+                    <select id="drivingPrimaryActionInput">
+                        ${DRIVING_PRIMARY_ACTIONS.map((action) => `
+                            <option
+                                value="${escapeHtml(action)}"
+                                ${drivingModeSettings.primaryAction === action ? "selected" : ""}
+                            >
+                                ${escapeHtml(actionLabels[action])}
+                            </option>
+                        `).join("")}
+                    </select>
+                </label>
+
+                <label class="driving-preference-toggle">
+                    <input
+                        id="drivingHapticFeedbackInput"
+                        type="checkbox"
+                        ${drivingModeSettings.hapticFeedback ? "checked" : ""}
+                    >
+                    <span>
+                        <strong>Retour haptique</strong>
+                        <small>Confirme les commandes par une vibration légère.</small>
+                    </span>
+                </label>
+
+                <label class="driving-preference-toggle">
+                    <input
+                        id="drivingLockOnEntryInput"
+                        type="checkbox"
+                        ${drivingModeSettings.lockOnEntry ? "checked" : ""}
+                    >
+                    <span>
+                        <strong>Verrouiller à l’ouverture</strong>
+                        <small>Évite les commandes involontaires au démarrage.</small>
+                    </span>
+                </label>
+
+                <label class="driving-preference-toggle">
+                    <input
+                        id="drivingFullscreenQueueInput"
+                        type="checkbox"
+                        ${drivingModeSettings.fullscreenQueue ? "checked" : ""}
+                    >
+                    <span>
+                        <strong>File plein écran</strong>
+                        <small>Agrandit la liste Spotify pour une lecture rapide.</small>
+                    </span>
+                </label>
+
+                <label class="driving-preference-toggle">
+                    <input
+                        id="drivingShowFeedbackInput"
+                        type="checkbox"
+                        ${drivingModeSettings.showFeedback ? "checked" : ""}
+                    >
+                    <span>
+                        <strong>Boutons d’avis</strong>
+                        <small>Affiche « J’aime » et « Pas maintenant ».</small>
+                    </span>
+                </label>
+            </div>
+        </details>
+    `;
+}
+
 function renderDrivingModePage() {
     syncDrivingViewportHeight();
 
@@ -9477,13 +9760,29 @@ function renderDrivingModePage() {
                     <h2>Conduite</h2>
                 </div>
 
-                <button
-                    id="exitDrivingModeButton"
-                    class="driving-exit-button ${exitArmed ? "is-armed" : ""}"
-                    type="button"
-                >
-                    ${exitArmed ? "Confirmer la sortie" : "Quitter"}
-                </button>
+                <div class="driving-header-actions">
+                    <button
+                        id="drivingSafetyLockButton"
+                        class="driving-safety-lock-button ${drivingControlsLocked ? "is-locked" : "is-unlocked"}"
+                        type="button"
+                        aria-pressed="${String(drivingControlsLocked)}"
+                    >
+                        <span aria-hidden="true">${drivingControlsLocked ? "🔒" : "🔓"}</span>
+                        <strong>
+                            ${drivingControlsLocked
+                                ? "Maintenir pour déverrouiller"
+                                : "Verrouiller"}
+                        </strong>
+                    </button>
+
+                    <button
+                        id="exitDrivingModeButton"
+                        class="driving-exit-button ${exitArmed ? "is-armed" : ""}"
+                        type="button"
+                    >
+                        ${exitArmed ? "Confirmer la sortie" : "Quitter"}
+                    </button>
+                </div>
             </header>
 
             <p class="driving-safety-note">
@@ -9517,52 +9816,12 @@ function renderDrivingModePage() {
             ${renderDrivingPlaybackProgress(drivingPlaybackState)}
             ${renderDrivingQueuePreview()}
 
-            <div class="driving-main-controls">
-                <button
-                    id="drivingAdaptiveButton"
-                    class="driving-control driving-control-primary"
-                    type="button"
-                    ${drivingActionBusy || !adaptive.mix ? "disabled" : ""}
-                >
-                    <span aria-hidden="true">🤖</span>
-                    <strong>Lancer Adaptive DJ</strong>
-                    <small>${escapeHtml(adaptive.slot.label)}</small>
-                </button>
-
-                <button
-                    id="drivingPlayPauseButton"
-                    class="driving-control"
-                    type="button"
-                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
-                >
-                    <span aria-hidden="true">${isPlaying ? "⏸" : "▶"}</span>
-                    <strong>${isPlaying ? "Pause" : "Reprendre"}</strong>
-                </button>
-
-                <button
-                    id="drivingNextButton"
-                    class="driving-control"
-                    type="button"
-                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
-                >
-                    <span aria-hidden="true">⏭</span>
-                    <strong>Titre suivant</strong>
-                </button>
-
-                <button
-                    id="drivingVoiceButton"
-                    class="driving-control driving-voice-control ${voiceAssistantListening && voiceAssistantSource === "driving" ? "is-listening" : ""}"
-                    type="button"
-                    ${!voiceSupported || drivingActionBusy ? "disabled" : ""}
-                >
-                    <span aria-hidden="true">🎙️</span>
-                    <strong>
-                        ${voiceAssistantListening && voiceAssistantSource === "driving"
-                            ? "Arrêter l’écoute"
-                            : "Commande vocale"}
-                    </strong>
-                    <small>Pause, suivant, j’aime…</small>
-                </button>
+            <div class="driving-main-controls ${drivingControlsLocked ? "is-locked" : ""}">
+                ${renderDrivingMainControls({
+                    adaptive,
+                    isPlaying,
+                    voiceSupported
+                })}
             </div>
 
             ${renderDrivingQueuePanel()}
@@ -9573,7 +9832,7 @@ function renderDrivingModePage() {
                         type="button"
                         data-driving-feedback="like"
                         class="${feedbackAction === "like" ? "is-active" : ""}"
-                        ${drivingActionBusy || !track ? "disabled" : ""}
+                        ${drivingActionBusy || drivingControlsLocked || !track ? "disabled" : ""}
                     >
                         💚 J’aime
                     </button>
@@ -9582,7 +9841,7 @@ function renderDrivingModePage() {
                         type="button"
                         data-driving-feedback="not-now"
                         class="${feedbackAction === "not-now" ? "is-active" : ""}"
-                        ${drivingActionBusy || !track ? "disabled" : ""}
+                        ${drivingActionBusy || drivingControlsLocked || !track ? "disabled" : ""}
                     >
                         ⏳ Pas maintenant
                     </button>
@@ -9655,6 +9914,8 @@ function renderDrivingModePage() {
                     <small>Auto</small>
                 </label>
             </div>
+
+            ${renderDrivingPreferencesPanel()}
 
             <p
                 class="driving-message ${escapeHtml(drivingMessage.type)}"
@@ -9967,9 +10228,18 @@ async function enterDrivingMode({
     activeAppMenu = "driving";
     saveActiveAppMenu();
     drivingExitArmedUntil = 0;
+    drivingControlsLocked = Boolean(
+        drivingModeSettings.lockOnEntry
+    );
+    document.body.classList.toggle(
+        "is-driving-controls-locked",
+        drivingControlsLocked
+    );
     setDrivingMessage(
-        "Mode conduite prêt.",
-        "success"
+        drivingControlsLocked
+            ? "Mode conduite prêt · commandes verrouillées."
+            : "Mode conduite prêt.",
+        drivingControlsLocked ? "warning" : "success"
     );
     renderDrivingModePage();
     startDrivingRefreshTimer();
@@ -10008,6 +10278,12 @@ async function exitDrivingMode() {
         "is-driving-mode"
     );
     drivingExitArmedUntil = 0;
+    drivingControlsLocked = false;
+    clearDrivingUnlockHold();
+    document.body.classList.remove(
+        "is-driving-controls-locked",
+        "is-driving-queue-fullscreen"
+    );
     activeAppMenu = "music";
     saveActiveAppMenu();
     displayPlaylists(playlistsCache);
@@ -10019,6 +10295,16 @@ async function runDrivingAction(action) {
         return;
     }
 
+    if (drivingControlsLocked) {
+        setDrivingMessage(
+            "Maintiens le bouton de verrouillage pour réactiver les commandes.",
+            "warning"
+        );
+        renderDrivingModePage();
+        return;
+    }
+
+    triggerDrivingHaptic(18);
     drivingActionBusy = true;
     setDrivingMessage(
         "Commande en cours…"
@@ -42695,6 +42981,29 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
+                "#drivingSafetyLockButton"
+            )
+        ) {
+            if (
+                Date.now() - drivingUnlockCompletedAt < 700
+            ) {
+                return;
+            }
+
+            if (drivingControlsLocked) {
+                setDrivingMessage(
+                    "Maintiens ce bouton pendant une seconde pour déverrouiller.",
+                    "warning"
+                );
+                renderDrivingModePage();
+            } else {
+                setDrivingControlsLocked(true);
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
                 "#exitDrivingModeButton"
             )
         ) {
@@ -42708,6 +43017,15 @@ contentElement.addEventListener(
             );
 
         if (drivingFeedbackButton) {
+            if (drivingControlsLocked) {
+                setDrivingMessage(
+                    "Déverrouille les commandes avant d’envoyer un avis.",
+                    "warning"
+                );
+                renderDrivingModePage();
+                return;
+            }
+            triggerDrivingHaptic(16);
             applyDrivingFeedback(
                 drivingFeedbackButton.dataset
                     .drivingFeedback ||
@@ -44511,6 +44829,98 @@ contentElement.addEventListener(
 
         if (
             event.target.id ===
+            "drivingPrimaryActionInput"
+        ) {
+            drivingPreferencesOpen = true;
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    primaryAction:
+                        event.target.value
+                });
+            saveDrivingModeSettings();
+            setDrivingMessage(
+                "Action principale mise à jour.",
+                "success"
+            );
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "drivingHapticFeedbackInput"
+        ) {
+            drivingPreferencesOpen = true;
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    hapticFeedback:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+            if (event.target.checked) {
+                triggerDrivingHaptic([20, 25, 35]);
+            }
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "drivingLockOnEntryInput"
+        ) {
+            drivingPreferencesOpen = true;
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    lockOnEntry:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "drivingFullscreenQueueInput"
+        ) {
+            drivingPreferencesOpen = true;
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    fullscreenQueue:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+            document.body.classList.toggle(
+                "is-driving-queue-fullscreen",
+                drivingQueueOpen &&
+                    drivingModeSettings.fullscreenQueue
+            );
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "drivingShowFeedbackInput"
+        ) {
+            drivingPreferencesOpen = true;
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    showFeedback:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
             "drivingWakeLockInput"
         ) {
             drivingModeSettings =
@@ -45761,6 +46171,38 @@ document.addEventListener(
     }
 );
 
+
+document.addEventListener(
+    "pointerdown",
+    startDrivingUnlockHold,
+    { capture: true }
+);
+
+document.addEventListener(
+    "pointerup",
+    cancelDrivingUnlockHold,
+    { capture: true }
+);
+
+document.addEventListener(
+    "pointercancel",
+    cancelDrivingUnlockHold,
+    { capture: true }
+);
+
+document.addEventListener(
+    "toggle",
+    (event) => {
+        if (
+            event.target?.id ===
+            "drivingPreferencesPanel"
+        ) {
+            drivingPreferencesOpen =
+                Boolean(event.target.open);
+        }
+    },
+    true
+);
 
 function retryDrivingWakeLockFromUserGesture() {
     if (

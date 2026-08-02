@@ -1,20 +1,20 @@
-# Shuffle+ v9.6.1
+# Shuffle+ v9.7.0
 
-Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple sur iPhone.
+Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple et le mode conduite sur iPhone.
 
-## Nouveautés v9.6.1
+## Nouveautés v9.7.0
 
-- nouvel espace **Accès immédiat** sur l’accueil ;
-- jusqu’à quatre profils de lancement épinglés ;
-- relance en un toucher depuis les profils épinglés ;
-- affichage des trois derniers lancements réussis ;
-- accès direct aux playlists et titres Spotify favoris ;
-- recherche globale accessible depuis l’accueil ;
-- gestion des épingles depuis les cartes de profils ;
-- épingles conservées dans les sauvegardes et la synchronisation ;
-- interface responsive et liée au thème actif.
+- mode conduite avancé avec verrouillage des commandes contre les appuis accidentels ;
+- déverrouillage volontaire par maintien d’une seconde ;
+- retour haptique facultatif sur les actions musicales et les changements de verrouillage ;
+- choix de l’action principale : Adaptive DJ, pause/reprise, titre suivant ou commande vocale ;
+- option pour ouvrir le mode conduite déjà verrouillé ;
+- file d’attente Spotify plein écran, désactivable ;
+- panneau compact de personnalisation directement accessible depuis la conduite ;
+- compatibilité automatique avec les réglages et sauvegardes des versions précédentes ;
+- cache PWA mis à jour vers `shuffleplus-v9.7.0`.
 
-Le Centre de fiabilité v9.5.0, la continuité de file v9.4.0, les profils contextuels v9.3.0, les optimisations réseau v9.2.0 et la fiabilité Spotify v9.1.0 restent inclus.
+Les accès rapides v9.6, le Centre de fiabilité v9.5, la continuité de file v9.4 et les profils contextuels v9.3 restent inclus.
 
 ## Validation
 
@@ -26,4 +26,4 @@ npm.cmd start
 
 La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V9.6.1_NOTES.md` et `DEPLOIEMENT-V9.6.1.md` pour le détail.
+Consulte `V9.7.0_NOTES.md` et `DEPLOIEMENT-V9.7.0.md` pour le détail.

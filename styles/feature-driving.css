@@ -376,3 +376,222 @@ body.is-driving-mode {
         text-align: center;
     }
 }
+
+/* Shuffle+ v9.7.0 — conduite avancée, protection et personnalisation. */
+.driving-header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.55rem;
+}
+
+.driving-safety-lock-button {
+    position: relative;
+    min-height: 48px;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.62rem 0.9rem;
+    border: 1px solid rgb(var(--accent-rgb) / 34%);
+    border-radius: 999px;
+    background: rgb(var(--accent-rgb) / 9%);
+    color: var(--text-main);
+    font-weight: 820;
+    isolation: isolate;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.driving-safety-lock-button::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    width: 0;
+    background: linear-gradient(
+        90deg,
+        rgb(var(--accent-rgb) / 24%),
+        rgb(var(--accent-rgb) / 46%)
+    );
+}
+
+body.is-driving-unlocking .driving-safety-lock-button::before {
+    width: 100%;
+    transition: width 1s linear;
+}
+
+.driving-safety-lock-button.is-locked {
+    border-color: color-mix(in srgb, var(--ui-warning) 42%, transparent);
+    background: color-mix(in srgb, var(--ui-warning) 10%, #111119);
+    color: #ffe4a8;
+}
+
+.driving-main-controls.is-locked {
+    filter: saturate(0.55);
+}
+
+.driving-main-controls.is-locked .driving-control {
+    opacity: 0.42;
+}
+
+.driving-preferences-panel {
+    position: fixed;
+    z-index: 115;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    width: auto;
+    max-width: min(440px, calc(100vw - 2rem));
+    border: 1px solid rgb(var(--accent-rgb) / 30%);
+    border-radius: 16px;
+    background: rgba(10, 10, 22, 0.97);
+    box-shadow: 0 22px 60px rgb(0 0 0 / 48%);
+    backdrop-filter: blur(22px);
+}
+
+.driving-preferences-panel > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.68rem 0.9rem;
+    cursor: pointer;
+    color: color-mix(in srgb, var(--accent) 58%, white);
+    font-weight: 820;
+    list-style: none;
+}
+
+.driving-preferences-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.driving-preferences-panel[open] {
+    width: min(440px, calc(100vw - 2rem));
+    padding-bottom: 0.75rem;
+}
+
+.driving-preferences-panel[open] > summary {
+    justify-content: flex-start;
+    border-bottom: 1px solid rgb(var(--accent-rgb) / 18%);
+}
+
+.driving-preferences-grid {
+    display: grid;
+    gap: 0.65rem;
+    padding: 0.75rem;
+    max-height: min(62vh, 520px);
+    overflow-y: auto;
+}
+
+.driving-preferences-grid > label {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.72rem;
+    border: 1px solid rgb(var(--accent-rgb) / 20%);
+    border-radius: 12px;
+    background: rgb(var(--accent-rgb) / 6%);
+}
+
+.driving-preferences-grid select {
+    min-height: 44px;
+    width: 100%;
+    border-color: rgb(var(--accent-rgb) / 30%);
+    background: #151522;
+    color: var(--text-main);
+}
+
+.driving-preference-toggle {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: flex-start;
+}
+
+.driving-preference-toggle input {
+    width: 20px;
+    height: 20px;
+    margin-top: 0.1rem;
+    accent-color: var(--accent);
+}
+
+.driving-preference-toggle span {
+    display: grid;
+    gap: 0.18rem;
+}
+
+.driving-preference-toggle small {
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.driving-queue-sheet.is-fullscreen {
+    inset:
+        max(0.35rem, env(safe-area-inset-top))
+        max(0.35rem, env(safe-area-inset-right))
+        max(0.35rem, env(safe-area-inset-bottom))
+        max(0.35rem, env(safe-area-inset-left));
+    max-height: none;
+    border-radius: 1.15rem;
+}
+
+body.is-driving-queue-fullscreen {
+    overflow: hidden;
+}
+
+body.is-driving-queue-fullscreen .driving-preferences-panel {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .driving-header-actions {
+        gap: 0.35rem;
+    }
+
+    .driving-safety-lock-button,
+    body.is-driving-mode .driving-exit-button {
+        min-height: 40px;
+        padding: 0.48rem 0.62rem;
+        font-size: 0.74rem;
+    }
+
+    .driving-safety-lock-button strong {
+        max-width: 8rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .driving-preferences-panel {
+        right: max(0.45rem, env(safe-area-inset-right));
+        bottom: max(0.45rem, env(safe-area-inset-bottom));
+        max-width: calc(100vw - 0.9rem);
+    }
+
+    .driving-preferences-panel[open] {
+        left: max(0.45rem, env(safe-area-inset-left));
+        width: auto;
+        max-width: none;
+    }
+
+    .driving-queue-sheet.is-fullscreen {
+        inset: 0;
+        border-width: 0;
+        border-radius: 0;
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+@media (max-width: 430px) {
+    body.is-driving-mode .driving-mode-header {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .driving-header-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .driving-safety-lock-button strong {
+        max-width: 6.8rem;
+    }
+}

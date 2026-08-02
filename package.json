@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.6.1",
+  "version": "9.7.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.6.1 — cohérence complète du thème dans la rubrique Créer.",
+  "description": "Shuffle+ 9.7.0 — mode conduite avancé, verrouillage de sécurité et commandes personnalisables.",
   "engines": {
     "node": ">=20"
   },
