@@ -95,6 +95,7 @@ import {
 
 import {
     buildUniversalSearchIndex,
+    groupUniversalSearchResults,
     searchUniversalIndex,
     getUniversalSearchTypeLabel
 } from "./universal-search.js";
@@ -315,7 +316,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "8.7.0";
+const APP_VERSION = "8.7.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -733,7 +734,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.7.0-shell";
+    "shuffleplus-v8.7.1-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3854,7 +3855,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.7.0
+                        ✨ Apparence v8.7.1
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4880,7 +4881,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.7.0",
+                "./service-worker.js?v=8.7.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -15398,31 +15399,6 @@ function updateUniversalSearchResults() {
     return universalSearchResults;
 }
 
-function renderUniversalSearchLauncher() {
-    return `
-        <button
-            id="openUniversalSearchButton"
-            class="universal-search-launcher"
-            type="button"
-            aria-haspopup="dialog"
-        >
-            <span
-                class="universal-search-launcher__icon"
-                aria-hidden="true"
-            >
-                🔎
-            </span>
-            <span
-                class="universal-search-launcher__copy"
-            >
-                <strong>Rechercher dans Shuffle+</strong>
-                <small>Rubrique, playlist, mix, scène, profil…</small>
-            </span>
-            <kbd>⌘ K</kbd>
-        </button>
-    `;
-}
-
 function renderUniversalSearchResults() {
     updateUniversalSearchResults();
 
@@ -15476,56 +15452,74 @@ function renderUniversalSearchResults() {
         `;
     }
 
+    const groups = groupUniversalSearchResults(
+        universalSearchResults
+    );
+
     return `
         ${recent}
         <div
-            class="universal-search-result-list"
+            class="universal-search-result-groups"
             role="listbox"
             aria-label="Résultats de recherche"
         >
-            ${universalSearchResults
-                .map((item, index) => `
-                    <button
-                        type="button"
-                        class="universal-search-result
-                        ${index === universalSearchSelectedIndex
-                            ? "is-selected"
-                            : ""}"
-                        data-universal-search-result-index="${index}"
-                        role="option"
-                        aria-selected="${index === universalSearchSelectedIndex
-                            ? "true"
-                            : "false"}"
-                    >
-                        <span
-                            class="universal-search-result__icon"
-                            aria-hidden="true"
-                        >
-                            ${escapeHtml(item.icon)}
-                        </span>
-                        <span
-                            class="universal-search-result__copy"
-                        >
-                            <span>
-                                <strong>${escapeHtml(item.title)}</strong>
-                                <small>${escapeHtml(
-                                    getUniversalSearchTypeLabel(
-                                        item.type
-                                    )
-                                )}</small>
-                            </span>
-                            <em>${escapeHtml(item.subtitle)}</em>
-                            <span>${escapeHtml(item.description)}</span>
-                        </span>
-                        <span
-                            class="universal-search-result__arrow"
-                            aria-hidden="true"
-                        >
-                            ›
-                        </span>
-                    </button>
-                `)
-                .join("")}
+            ${groups.map((group) => `
+                <section
+                    class="universal-search-result-group"
+                    aria-label="${escapeHtml(group.label)}"
+                >
+                    <h4>
+                        <span>${escapeHtml(group.label)}</span>
+                        <small>${group.items.length}</small>
+                    </h4>
+                    <div class="universal-search-result-list">
+                        ${group.items.map((item) => {
+                            const index = item.resultIndex;
+                            return `
+                                <button
+                                    type="button"
+                                    class="universal-search-result
+                                    ${index === universalSearchSelectedIndex
+                                        ? "is-selected"
+                                        : ""}"
+                                    data-universal-search-result-index="${index}"
+                                    role="option"
+                                    aria-selected="${index === universalSearchSelectedIndex
+                                        ? "true"
+                                        : "false"}"
+                                >
+                                    <span
+                                        class="universal-search-result__icon"
+                                        aria-hidden="true"
+                                    >
+                                        ${escapeHtml(item.icon)}
+                                    </span>
+                                    <span
+                                        class="universal-search-result__copy"
+                                    >
+                                        <span>
+                                            <strong>${escapeHtml(item.title)}</strong>
+                                            <small>${escapeHtml(
+                                                getUniversalSearchTypeLabel(
+                                                    item.type
+                                                )
+                                            )}</small>
+                                        </span>
+                                        <em>${escapeHtml(item.subtitle)}</em>
+                                        <span>${escapeHtml(item.description)}</span>
+                                    </span>
+                                    <span
+                                        class="universal-search-result__arrow"
+                                        aria-hidden="true"
+                                    >
+                                        ›
+                                    </span>
+                                </button>
+                            `;
+                        }).join("")}
+                    </div>
+                </section>
+            `).join("")}
         </div>
     `;
 }
@@ -15541,6 +15535,7 @@ function renderUniversalSearchDialog() {
             data-universal-search-backdrop
         >
             <section
+                id="universalSearchDialog"
                 class="universal-search-dialog"
                 role="dialog"
                 aria-modal="true"
@@ -15548,9 +15543,9 @@ function renderUniversalSearchDialog() {
             >
                 <header>
                     <div>
-                        <span>🔎 Recherche universelle</span>
+                        <span>🔎 Recherche Shuffle+</span>
                         <h3 id="universalSearchTitle">
-                            Retrouver n’importe quoi
+                            Rechercher
                         </h3>
                     </div>
                     <button
@@ -17451,6 +17446,34 @@ function renderAppMenu() {
                             `;
                             }
                         ).join("")}
+
+                        ${group.id === "primary"
+                            ? `
+                                <button
+                                    type="button"
+                                    class="app-menu-button app-menu-search-button"
+                                    data-open-universal-search
+                                    aria-label="Rechercher dans Shuffle+"
+                                    title="Rechercher dans Shuffle+ · Ctrl/⌘ K"
+                                    aria-haspopup="dialog"
+                                    aria-controls="universalSearchDialog"
+                                    aria-keyshortcuts="Control+K Meta+K"
+                                >
+                                    <span
+                                        class="app-menu-search-button__icon"
+                                        aria-hidden="true"
+                                    >
+                                        🔎
+                                    </span>
+                                    <span
+                                        class="app-menu-search-button__label"
+                                    >
+                                        Rechercher
+                                    </span>
+                                    <kbd aria-hidden="true">Ctrl/⌘ K</kbd>
+                                </button>
+                            `
+                            : ""}
                     </div>
                 </div>
             `).join("")}
@@ -36604,7 +36627,6 @@ function displayPlaylists(playlists) {
                 </div>
             </div>
 
-            ${renderUniversalSearchLauncher()}
             ${renderAppMenu()}
             ${renderAppSectionMenu()}
 

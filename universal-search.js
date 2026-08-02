@@ -226,6 +226,28 @@ export function searchUniversalIndex(
         .slice(0, normalizedLimit);
 }
 
+export function groupUniversalSearchResults(results = []) {
+    const groups = new Map();
+
+    (Array.isArray(results) ? results : []).forEach((item, index) => {
+        const type = String(item?.type || "section").trim() || "section";
+        if (!groups.has(type)) {
+            groups.set(type, {
+                type,
+                label: getUniversalSearchTypeLabel(type),
+                items: []
+            });
+        }
+
+        groups.get(type).items.push({
+            ...item,
+            resultIndex: index
+        });
+    });
+
+    return [...groups.values()];
+}
+
 export function getUniversalSearchTypeLabel(type = "") {
     const labels = {
         section: "Rubrique",

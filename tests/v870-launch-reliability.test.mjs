@@ -170,14 +170,14 @@ test("la mémoire du dernier appareil ignore les objets sans device_id", () => {
 });
 
 test("Shuffle+ 8.7 branche le précontrôle, les six étapes et la récupération", () => {
-    assert.equal(versionSource, "8.7.0");
-    assert.match(packageSource, /"version": "8\.7\.0"/);
+    assert.equal(versionSource, "8.7.1");
+    assert.match(packageSource, /"version": "8\.7\.1"/);
     assert.match(appSource, /buildLaunchPreflight\(/);
     assert.match(appSource, /prioritizeLaunchDevices\(/);
     assert.match(appSource, /rememberLastWorkingSpotifyDevice\(/);
     assert.match(appSource, /data-launch-recovery-action/);
     assert.match(appSource, /\["verification", "Vérification"/);
     assert.match(workerSource, /\.\/core\/launch-reliability\.js/);
-    assert.match(styleSource, /Shuffle\+ 8\.7\.0 — lancement fiable/);
+    assert.match(styleSource, /Shuffle\+ 8\.7\.1 — lancement fiable/);
     assert.match(styleSource, /\.launch-recovery-grid/);
 });

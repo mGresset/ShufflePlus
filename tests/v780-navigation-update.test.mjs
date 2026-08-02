@@ -18,7 +18,7 @@ const appSource = await readFile("app.js", "utf8");
 const styleSource = await readFile("style.css", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 
-test("la navigation principale contient exactement cinq rubriques", () => {
+test("la navigation principale conserve cinq destinations", () => {
     assert.deepEqual(APP_PRIMARY_MENU_IDS, [
         "dashboard",
         "music",
@@ -57,7 +57,7 @@ test("l’interface rend le sous-menu et masque les fonctions avancées derrièr
     assert.match(appSource, /function renderAppSectionMenu\(/);
     assert.match(appSource, /class="app-section-more"/);
     assert.match(appSource, /Voir plus/);
-    assert.match(styleSource, /grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
+    assert.match(styleSource, /grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\)/);
 });
 
 test("la même version de Service Worker ne réaffiche pas la bannière", () => {

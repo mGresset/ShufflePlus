@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.7.0",
+  "version": "8.7.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.7.0 — lancement Apple et Spotify plus fiable, diagnostic actionnable et mémorisation du dernier appareil opérationnel.",
+  "description": "Shuffle+ 8.7.1 — recherche globale compacte dans le menu, palette catégorisée et raccourci Ctrl/⌘ K.",
   "engines": {
     "node": ">=20"
   },

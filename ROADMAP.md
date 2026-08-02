@@ -11,5 +11,6 @@
 - **v8.5.0 — Découpage progressif, performances et sécurité CSP : terminée**
 - **v8.6.0 — Palette stricte des réglages PWA : terminée**
 - **v8.7.0 — Fiabilité du raccourci Apple et de Spotify Connect : terminée**
+- **v8.7.1 — Recherche globale compacte intégrée au menu : terminée**
 - **v8.8.0 — Découpage supplémentaire d’app.js, styles par fonction et tests navigateur : prévue**
 - **v9.0.0 — Parcours final Essentiel/Expert et nettoyage des compatibilités historiques : prévue**

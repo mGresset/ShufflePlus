@@ -1,0 +1,36 @@
+# Patch Shuffle+ v8.7.0 vers v8.7.1
+
+Fichiers ajoutés ou remplacés :
+- BUILD_REPORT_V8.7.1.json
+- DEPLOIEMENT-V8.7.1.md
+- README.md
+- ROADMAP.md
+- V8.7.1_NOTES.md
+- VERSION
+- app.js
+- config.js
+- index.html
+- manifest.webmanifest
+- package-lock.json
+- package.json
+- service-worker.js
+- startup-recovery-8.7.1.js
+- style.css
+- tests/v780-navigation-update.test.mjs
+- tests/v800-public-experience.test.mjs
+- tests/v830-launch-center.test.mjs
+- tests/v831-design-system.test.mjs
+- tests/v832-ui-fixes.test.mjs
+- tests/v840-ui-driving.test.mjs
+- tests/v841-spotify-pwa-theme.test.mjs
+- tests/v850-performance-security.test.mjs
+- tests/v860-settings-theme.test.mjs
+- tests/v870-launch-reliability.test.mjs
+- tests/v871-menu-search.test.mjs
+- universal-search.js
+
+Fichiers à supprimer après extraction :
+- startup-recovery-8.7.0.js
+
+Commande PowerShell :
+Remove-Item .\startup-recovery-8.7.0.js -ErrorAction SilentlyContinue
