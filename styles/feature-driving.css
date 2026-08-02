@@ -304,7 +304,7 @@ body.is-driving-mode {
     }
 }
 
-/* Shuffle+ v9.4.0 — diagnostic de continuité de la file */
+/* Shuffle+ v9.4.1 — diagnostic de continuité de la file */
 .queue-continuity-badges {
     display: flex;
     flex-wrap: wrap;

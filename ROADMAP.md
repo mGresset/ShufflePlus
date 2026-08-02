@@ -16,6 +16,6 @@
 - **v9.1.0 — Fiabilité Spotify, reprise iPhone et appareils de secours : terminée**
 - **v9.2.0 — Chargement adaptatif, budget de performance et cache PWA progressif : terminée**
 - **v9.3.0 — Profils contextuels et suggestions appareil/moment : terminée**
-- **v9.4.0 — File Spotify intelligente et continuité de lecture : terminée**
+- **v9.4.1 — File Spotify intelligente et continuité de lecture : terminée**
 - **v9.5.0 — Tests navigateur Safari/iPhone et scénarios Spotify réels : prévue**
 - **v9.6.0 — Découpage progressif des contrôleurs métier hors de `app.js` : prévue**
