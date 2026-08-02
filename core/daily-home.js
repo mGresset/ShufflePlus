@@ -246,7 +246,7 @@ export function renderDailyHomeMarkup(snapshot, {
                 <header>
                     <div>
                         <span>≡ À suivre</span>
-                        <h3>${snapshot.upcoming.length ? `${snapshot.upcoming.length} prochains titres` : "File d'attente Spotify"}</h3>
+                        <h3>${snapshot.upcoming.length ? `${snapshot.upcoming.length} prochains titres` : "File d’attente Spotify"}</h3>
                     </div>
                     <button type="button" class="ui-button ui-button--ghost" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>
                         ${snapshot.drivingAvailable && snapshot.upcoming.length ? "Voir toute la liste" : snapshot.upcoming.length ? "Actualiser" : "Charger la liste"}

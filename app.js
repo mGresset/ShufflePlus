@@ -268,9 +268,14 @@ import {
 import {
     buildLaunchPreflight,
     buildLaunchRecoveryActions,
+    buildLaunchReliabilitySummary,
     classifyLaunchError,
+    getSpotifyPlaybackRetryDelay,
+    isLaunchDeviceFailoverEligible,
     normalizeLastWorkingSpotifyDevice,
     prioritizeLaunchDevices,
+    shouldResumePendingLaunch,
+    shouldRetrySpotifyPlayback,
     upsertLaunchStep
 } from "./core/launch-reliability.js";
 
@@ -324,7 +329,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.0.0";
+const APP_VERSION = "9.1.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -742,7 +747,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.0.0-shell";
+    "shuffleplus-v9.1.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1596,7 +1601,7 @@ async function copyTextToClipboard(
     if (
         navigator.clipboard &&
         typeof navigator.clipboard.writeText ===
-        "function"
+            "function"
     ) {
         await navigator.clipboard.writeText(
             text
@@ -1845,12 +1850,12 @@ function renderContextualHelpDialog() {
 
                 <ul>
                     ${section.tips.map(
-        (tip) => `
+                        (tip) => `
                             <li>
                                 ${escapeHtml(tip)}
                             </li>
                         `
-    ).join("")}
+                    ).join("")}
                 </ul>
 
                 <div
@@ -1957,11 +1962,11 @@ function renderContextualOnboarding() {
                     <span>Rubrique affichée</span>
                     <strong>
                         ${escapeHtml(
-        getContextualHelpSection(
-            step.menuId,
-            runtime
-        ).title
-    )}
+                            getContextualHelpSection(
+                                step.menuId,
+                                runtime
+                            ).title
+                        )}
                     </strong>
                 </div>
 
@@ -1970,8 +1975,8 @@ function renderContextualOnboarding() {
                         type="button"
                         data-previous-contextual-onboarding
                         ${stepIndex === 0
-            ? "disabled"
-            : ""}
+                            ? "disabled"
+                            : ""}
                     >
                         Précédent
                     </button>
@@ -2192,8 +2197,8 @@ function renderContextualHelpSettingsPanel() {
                         id="contextualTourEnabledInput"
                         type="checkbox"
                         ${contextualHelpState.tourEnabled
-            ? "checked"
-            : ""}
+                            ? "checked"
+                            : ""}
                     >
                     <span>
                         Proposer la visite sur une nouvelle installation
@@ -2204,8 +2209,8 @@ function renderContextualHelpSettingsPanel() {
                         id="contextualHintsEnabledInput"
                         type="checkbox"
                         ${contextualHelpState.hintsEnabled
-            ? "checked"
-            : ""}
+                            ? "checked"
+                            : ""}
                     >
                     <span>
                         Afficher les conseils rapides dans les rubriques
@@ -2431,24 +2436,22 @@ function renderMusicalGoalsPage() {
     `;
 }
 
-function readMusicalDashboardSettings() { try { const raw = localStorage.getItem(MUSICAL_DASHBOARD_SETTINGS_KEY); return normalizeMusicalDashboardSettings(raw ? JSON.parse(raw) : DEFAULT_MUSICAL_DASHBOARD_SETTINGS); } catch (error) { console.warn("Dashboard illisible", error); return normalizeMusicalDashboardSettings(DEFAULT_MUSICAL_DASHBOARD_SETTINGS); } }
-function saveMusicalDashboardSettings() { musicalDashboardSettings = normalizeMusicalDashboardSettings({ ...musicalDashboardSettings, updatedAt: Date.now() }); localStorage.setItem(MUSICAL_DASHBOARD_SETTINGS_KEY, JSON.stringify(musicalDashboardSettings)); }
-function getMusicalDashboardNextSchedule() { const item = mixSchedules.filter(x => x.enabled).map(schedule => ({ schedule, date: getNextScheduleDate(schedule) })).filter(x => x.date).sort((a, b) => a.date - b.date)[0]; if (!item) return null; const t = getScheduleTarget(item.schedule); return { date: item.date, name: item.schedule.name || "Routine musicale", targetLabel: t.label, targetIcon: t.icon, autoPlay: item.schedule.autoPlay !== false }; }
-function getMusicalDashboardSnapshot() { const f = getMusicFeedbackSummary(), scene = getAdaptiveDjSceneById(), sceneState = normalizeAdaptiveDjScenesState(adaptiveDjScenesState), rec = getPersonalizedRecommendations().items.find(x => x.ready !== false) || null; return buildMusicalDashboardSnapshot({ settings: musicalDashboardSettings, playback: quickPlaybackState || drivingPlaybackState, activeScene: scene ? { ...scene, mixName: scene.mixId ? getSavedMixName(scene.mixId) : "" } : null, nextSchedule: getMusicalDashboardNextSchedule(), recommendation: rec, statistics: getAdvancedListeningStatistics(), feedback: { liked: f.liked.length, notNow: f.notNow.length, repetitive: f.repetitive.length, total: f.liked.length + f.notNow.length + f.repetitive.length }, library: { playlistCount: playlistsCache.length + 1, mixCount: savedMixes.length, sceneCount: sceneState.scenes.filter(x => x.mixId).length, scheduleCount: mixSchedules.filter(x => x.enabled).length }, now: Date.now() }); }
-function stopMusicalDashboardRefreshTimer() { if (musicalDashboardRefreshTimer) { clearInterval(musicalDashboardRefreshTimer); musicalDashboardRefreshTimer = 0; } }
-function startMusicalDashboardRefreshTimer() { stopMusicalDashboardRefreshTimer(); if (activeAppMenu !== "dashboard" || !musicalDashboardSettings.autoRefreshSeconds) return; musicalDashboardRefreshTimer = setInterval(() => { if (document.visibilityState === "visible") refreshMusicalDashboardPlayback({ silent: true }); }, musicalDashboardSettings.autoRefreshSeconds * 1000); }
-async function refreshMusicalDashboardPlayback({ silent = false } = {}) { if (musicalDashboardRefreshing) return quickPlaybackState; musicalDashboardRefreshing = true; try { quickPlaybackState = await getCurrentPlayback(); if (!silent) setStatus(quickPlaybackState?.item ? "Tableau de bord actualisé." : "Actualisé · aucune lecture active."); } catch (error) { if (!silent) setStatus(getPlaybackErrorMessage(error), "error"); } finally { musicalDashboardRefreshing = false; } if (activeAppMenu === "dashboard") displayPlaylists(playlistsCache); return quickPlaybackState; }
-function openDashboardSection(id) { return navigateToAppMenu(id); }
-function saveMusicalDashboardSettingsFromForm(form) { const d = new FormData(form); musicalDashboardSettings = normalizeMusicalDashboardSettings({ ...musicalDashboardSettings, autoRefreshSeconds: Number(d.get("autoRefreshSeconds") || 0), showNowPlaying: d.get("showNowPlaying") === "on", showRecommendation: d.get("showRecommendation") === "on", showScene: d.get("showScene") === "on", showSchedule: d.get("showSchedule") === "on", showStatistics: d.get("showStatistics") === "on", showQuickAccess: d.get("showQuickAccess") === "on" }); saveMusicalDashboardSettings(); displayPlaylists(playlistsCache); setStatus("Tableau de bord personnalisé."); }
-function exportMusicalDashboardSnapshot() { const d = new Date().toISOString().slice(0, 10); downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()), `shuffleplus-dashboard-${d}.json`); setStatus("Instantané exporté."); }
-function renderMusicalDashboardPage() {
-    const s = getMusicalDashboardSnapshot(), rawSet = s.settings, set = isExpertExperience(experienceMode) ? rawSet : { ...rawSet, showScene: false, showStatistics: false }, p = s.playback, r = s.recommendation, sc = s.activeScene, sch = s.nextSchedule, st = s.statistics, card = (on, html) => on ? html : ""; return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ 8</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long" }).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
-${card(set.showNowPlaying, `<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available ? `<div class="musical-dashboard-track">${p.imageUrl ? `<img src="${escapeHtml(p.imageUrl)}" alt="">` : `<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>` : `<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying ? "⏸ Pause" : "▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
-${card(set.showRecommendation, `<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence || 0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle || "")}</p><p>${escapeHtml(r.reason || "")}</p><footer>${r.available ? `<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel || "Lancer")}</button>` : `<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
-${card(set.showScene, `<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon || "🎵")} ${escapeHtml(sc.label || "Aucune scène")}</h4><p>${escapeHtml(sc.description || sc.mixName || "Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget || 0}%</b>Énergie</span><span><b>${sc.varietyTarget || 0}%</b>Variété</span><span><b>${sc.discoveryTarget || 0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id || "")}" ${sc.mixId ? "" : "disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
-${card(set.showSchedule, `<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name || "Aucune routine")}</h4>${sch.available ? `<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon || "🎵")}</b><div><strong>${escapeHtml(sch.targetLabel || "")}</strong><small>${escapeHtml(sch.dateLabel || "")}</small></div></div><p>${sch.autoPlay ? "Lecture automatique prévue." : "Préparation sans lecture automatique."}</p>` : `<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
-</div>${card(set.showStatistics, `<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length ? `<ul>${st.insights.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>` : ""}</section>`)}${card(set.showQuickAccess, `<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id, icon, label]) => `<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x => `<span class="${x.ready ? "ready" : ""}"><b>${x.ready ? "✓" : "○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0, "Manuelle"], [10, "10 secondes"], [20, "20 secondes"], [30, "30 secondes"], [60, "1 minute"]].map(([v, l]) => `<option value="${v}" ${set.autoRefreshSeconds === v ? "selected" : ""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying", "Lecture", set.showNowPlaying], ["showRecommendation", "Recommandation", set.showRecommendation], ["showScene", "Scène", set.showScene], ["showSchedule", "Routine", set.showSchedule], ["showStatistics", "Statistiques", set.showStatistics], ["showQuickAccess", "Accès rapides", set.showQuickAccess]].map(([n, l, c]) => `<label><input type="checkbox" name="${n}" ${c ? "checked" : ""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;
-}
+function readMusicalDashboardSettings(){try{const raw=localStorage.getItem(MUSICAL_DASHBOARD_SETTINGS_KEY);return normalizeMusicalDashboardSettings(raw?JSON.parse(raw):DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}catch(error){console.warn("Dashboard illisible",error);return normalizeMusicalDashboardSettings(DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}}
+function saveMusicalDashboardSettings(){musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,updatedAt:Date.now()});localStorage.setItem(MUSICAL_DASHBOARD_SETTINGS_KEY,JSON.stringify(musicalDashboardSettings));}
+function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.enabled).map(schedule=>({schedule,date:getNextScheduleDate(schedule)})).filter(x=>x.date).sort((a,b)=>a.date-b.date)[0];if(!item)return null;const t=getScheduleTarget(item.schedule);return{date:item.date,name:item.schedule.name||"Routine musicale",targetLabel:t.label,targetIcon:t.icon,autoPlay:item.schedule.autoPlay!==false};}
+function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:quickPlaybackState||drivingPlaybackState,activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
+function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
+function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
+async function refreshMusicalDashboardPlayback({silent=false}={}){if(musicalDashboardRefreshing)return quickPlaybackState;musicalDashboardRefreshing=true;try{quickPlaybackState=await getCurrentPlayback();if(!silent)setStatus(quickPlaybackState?.item?"Tableau de bord actualisé.":"Actualisé · aucune lecture active.");}catch(error){if(!silent)setStatus(getPlaybackErrorMessage(error),"error");}finally{musicalDashboardRefreshing=false;}if(activeAppMenu==="dashboard")displayPlaylists(playlistsCache);return quickPlaybackState;}
+function openDashboardSection(id){return navigateToAppMenu(id);}
+function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
+function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
+function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),rawSet=s.settings,set=isExpertExperience(experienceMode)?rawSet:{...rawSet,showScene:false,showStatistics:false},p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ 8</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
+${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
+${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
+${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
+${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
+</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
 
 function readPersonalizedRecommendationsState() {
     try {
@@ -2506,7 +2509,7 @@ function updatePersonalizedRecommendationRating(key, value) {
         ...personalizedRecommendationsState,
         ratings: {
             ...personalizedRecommendationsState.ratings,
-            [key]: { value: Math.max(-1, Math.min(1, Number(value) || 0)), updatedAt: Date.now() }
+            [key]: {value: Math.max(-1, Math.min(1, Number(value) || 0)), updatedAt: Date.now()}
         }
     });
     savePersonalizedRecommendationsState();
@@ -2516,7 +2519,7 @@ function dismissPersonalizedRecommendation(key) {
     if (!key) return;
     personalizedRecommendationsState = normalizePersonalizedRecommendationState({
         ...personalizedRecommendationsState,
-        dismissed: { ...personalizedRecommendationsState.dismissed, [key]: Date.now() }
+        dismissed: {...personalizedRecommendationsState.dismissed, [key]: Date.now()}
     });
     savePersonalizedRecommendationsState();
     displayPlaylists(playlistsCache);
@@ -2566,9 +2569,9 @@ async function runPersonalizedRecommendation(key) {
         return recommendation;
     }
     if (recommendation.type === "scene") {
-        await runAdaptiveDjScene(recommendation.targetId, { autoplay: personalizedRecommendationsState.autoplay });
+        await runAdaptiveDjScene(recommendation.targetId, {autoplay: personalizedRecommendationsState.autoplay});
     } else if (recommendation.type === "mix") {
-        await executeAutomationCommand({ action: "launch", mixId: recommendation.targetId, autoplay: personalizedRecommendationsState.autoplay });
+        await executeAutomationCommand({action:"launch", mixId:recommendation.targetId, autoplay:personalizedRecommendationsState.autoplay});
     } else {
         throw new Error("Cette recommandation ne peut pas être lancée.");
     }
@@ -2582,7 +2585,7 @@ function renderPersonalizedRecommendationsPage() {
     const context = result.context || getPersonalizedRecommendationContext();
     const state = normalizePersonalizedRecommendationState(personalizedRecommendationsState);
     const feedback = getMusicFeedbackSummary();
-    const cards = result.items.map((item, index) => `
+    const cards = result.items.map((item,index) => `
         <article class="personal-recommendation-card ${index === 0 ? "is-featured" : ""}">
             <div class="personal-recommendation-card__top">
                 <span class="personal-recommendation-card__icon" aria-hidden="true">${escapeHtml(item.icon)}</span>
@@ -2633,7 +2636,7 @@ function renderPersonalizedRecommendationsPage() {
                 <div><h4>Préférences</h4><p>Le calcul reste dans ton navigateur. Aucun historique n’est envoyé à un service externe.</p></div>
                 <label class="personal-recommendations-settings__toggle"><input name="enabled" type="checkbox" ${state.enabled ? "checked" : ""}><span>Activer les recommandations</span></label>
                 <label><span>Niveau de découverte : <strong id="personalizedDiscoveryValue">${state.discoveryLevel} %</strong></span><input name="discoveryLevel" type="range" min="0" max="100" step="5" value="${state.discoveryLevel}" data-personalized-discovery></label>
-                <label><span>Nombre de suggestions</span><select name="maxItems">${[3, 4, 5, 6, 7, 8].map(value => `<option value="${value}" ${state.maxItems === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+                <label><span>Nombre de suggestions</span><select name="maxItems">${[3,4,5,6,7,8].map(value => `<option value="${value}" ${state.maxItems === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
                 <div class="personal-recommendations-settings__checks">
                     <label><input name="includeScenes" type="checkbox" ${state.includeScenes ? "checked" : ""}><span>Inclure les scènes</span></label>
                     <label><input name="includeMixes" type="checkbox" ${state.includeMixes ? "checked" : ""}><span>Inclure les mix</span></label>
@@ -2708,7 +2711,7 @@ function formatListeningStatisticsDuration(
     const minutes = totalMinutes % 60;
     if (!hours) return `${minutes} min`;
     if (!minutes) return `${hours} h`;
-    return `${hours} h ${String(minutes).padStart(2, "0")}`;
+    return `${hours} h ${String(minutes).padStart(2,"0")}`;
 }
 
 function getListeningStatisticsRangeLabel(
@@ -2743,23 +2746,23 @@ function renderListeningStatisticsRanking(
             <h4>${escapeHtml(title)}</h4>
             <ol>
                 ${values.length
-            ? values.map((item) => {
-                const value = Number(
-                    item.count ||
-                    item.sessions ||
-                    0
-                );
-                return `
+                    ? values.map((item) => {
+                        const value = Number(
+                            item.count ||
+                            item.sessions ||
+                            0
+                        );
+                        return `
                             <li>
                                 <div>
                                     <strong>${escapeHtml(item.name || item.label || "Élément")}</strong>
                                     <small>${value} ${escapeHtml(valueLabel)}${value > 1 ? "s" : ""}</small>
                                 </div>
-                                <span class="listening-statistics-ranking__bar"><i style="width:${Math.max(5, Math.round(value / maximum * 100))}%"></i></span>
+                                <span class="listening-statistics-ranking__bar"><i style="width:${Math.max(5,Math.round(value/maximum*100))}%"></i></span>
                             </li>
                         `;
-            }).join("")
-            : "<li class=\"is-empty\">Pas encore assez de données.</li>"}
+                    }).join("")
+                    : "<li class=\"is-empty\">Pas encore assez de données.</li>"}
             </ol>
         </section>
     `;
@@ -2831,7 +2834,7 @@ function renderAdvancedListeningStatisticsPage() {
                 <div class="listening-statistics-timeline" role="img" aria-label="Activité quotidienne">
                     ${summary.timeline.map((item) => `
                         <div title="${escapeHtml(item.label)} · ${item.sessions} session(s)">
-                            <span><i style="height:${Math.max(4, Math.round(item.sessions / timelineMaximum * 100))}%"></i></span>
+                            <span><i style="height:${Math.max(4,Math.round(item.sessions/timelineMaximum*100))}%"></i></span>
                             <small>${escapeHtml(item.label)}</small>
                         </div>
                     `).join("")}
@@ -2843,7 +2846,7 @@ function renderAdvancedListeningStatisticsPage() {
                     <div class="listening-statistics-heading"><div><h4>Moments préférés</h4><p>Répartition des sessions.</p></div></div>
                     <div class="listening-statistics-horizontal-bars">
                         ${summary.dayparts.map((item) => `
-                            <div><span>${escapeHtml(item.icon)} ${escapeHtml(item.label)}</span><b><i style="width:${Math.max(item.sessions ? 6 : 0, Math.round(item.sessions / daypartMaximum * 100))}%"></i></b><strong>${item.sessions}</strong></div>
+                            <div><span>${escapeHtml(item.icon)} ${escapeHtml(item.label)}</span><b><i style="width:${Math.max(item.sessions ? 6 : 0,Math.round(item.sessions/daypartMaximum*100))}%"></i></b><strong>${item.sessions}</strong></div>
                         `).join("")}
                     </div>
                 </section>
@@ -2852,7 +2855,7 @@ function renderAdvancedListeningStatisticsPage() {
                     <div class="listening-statistics-heading"><div><h4>Jours de la semaine</h4><p>Habitudes selon le calendrier.</p></div></div>
                     <div class="listening-statistics-horizontal-bars">
                         ${summary.weekdays.map((item) => `
-                            <div><span>${escapeHtml(item.label)}</span><b><i style="width:${Math.max(item.sessions ? 6 : 0, Math.round(item.sessions / weekdayMaximum * 100))}%"></i></b><strong>${item.sessions}</strong></div>
+                            <div><span>${escapeHtml(item.label)}</span><b><i style="width:${Math.max(item.sessions ? 6 : 0,Math.round(item.sessions/weekdayMaximum*100))}%"></i></b><strong>${item.sessions}</strong></div>
                         `).join("")}
                     </div>
                 </section>
@@ -2862,8 +2865,8 @@ function renderAdvancedListeningStatisticsPage() {
                 <div class="listening-statistics-heading"><div><h4>Ce que Shuffle+ observe</h4><p>Constats calculés uniquement à partir des données locales.</p></div></div>
                 <div>
                     ${summary.insights.length
-            ? summary.insights.map((item) => `<p>${escapeHtml(item)}</p>`).join("")
-            : "<p>Utilise et confirme quelques mix pour faire apparaître les tendances.</p>"}
+                        ? summary.insights.map((item) => `<p>${escapeHtml(item)}</p>`).join("")
+                        : "<p>Utilise et confirme quelques mix pour faire apparaître les tendances.</p>"}
                 </div>
             </section>
 
@@ -2877,15 +2880,15 @@ function renderAdvancedListeningStatisticsPage() {
                 <div class="listening-statistics-heading"><div><h4>Origine des lancements</h4><p>Commandes manuelles, Adaptive DJ, planificateur et iOS.</p></div></div>
                 <div class="listening-statistics-source-grid">
                     ${summary.sourceDistribution.length
-            ? summary.sourceDistribution.map((item) => `<article><strong>${item.count}</strong><span>${escapeHtml(item.label)}</span></article>`).join("")
-            : "<p>Aucun lancement envoyé sur cette période.</p>"}
+                        ? summary.sourceDistribution.map((item) => `<article><strong>${item.count}</strong><span>${escapeHtml(item.label)}</span></article>`).join("")
+                        : "<p>Aucun lancement envoyé sur cette période.</p>"}
                 </div>
             </section>
 
             <form id="listeningStatisticsSettingsForm" class="listening-statistics-settings">
                 <div><h4>Réglages et export</h4><p>Les préférences sont enregistrées dans la sauvegarde Shuffle+.</p></div>
                 <label><span>Période</span><select name="rangeDays">
-                    ${[[7, "7 jours"], [30, "30 jours"], [90, "90 jours"], [365, "12 mois"], [0, "Toutes les données"]].map(([value, label]) => `<option value="${value}" ${Number(settings.rangeDays) === value ? "selected" : ""}>${label}</option>`).join("")}
+                    ${[[7,"7 jours"],[30,"30 jours"],[90,"90 jours"],[365,"12 mois"],[0,"Toutes les données"]].map(([value,label]) => `<option value="${value}" ${Number(settings.rangeDays) === value ? "selected" : ""}>${label}</option>`).join("")}
                 </select></label>
                 <label><span>Vue principale</span><select name="primaryMode">
                     <option value="sent" ${settings.primaryMode === "sent" ? "selected" : ""}>Lancements envoyés</option>
@@ -2936,7 +2939,7 @@ function downloadListeningStatisticsFile(
 
 function exportListeningStatistics(format = "json") {
     const summary = getAdvancedListeningStatistics();
-    const datePart = new Date().toISOString().slice(0, 10);
+    const datePart = new Date().toISOString().slice(0,10);
     if (format === "csv") {
         downloadListeningStatisticsFile(
             buildListeningStatisticsCsv(summary),
@@ -3349,9 +3352,9 @@ function renderExperienceModePanel() {
 
             <div class="experience-mode-options">
                 ${["essential", "expert"].map((modeId) => {
-        const item = getExperienceModeDefinition(modeId);
-        const selected = experienceMode === modeId;
-        return `
+                    const item = getExperienceModeDefinition(modeId);
+                    const selected = experienceMode === modeId;
+                    return `
                         <button
                             type="button"
                             class="experience-mode-option
@@ -3364,16 +3367,16 @@ function renderExperienceModePanel() {
                             <small>${escapeHtml(item.description)}</small>
                         </button>
                     `;
-    }).join("")}
+                }).join("")}
             </div>
 
             ${expert
-            ? `
+                ? `
                     <p class="experience-mode-note">
                         Toutes les fonctions historiques de Shuffle+ sont visibles.
                     </p>
                 `
-            : `
+                : `
                     <p class="experience-mode-note">
                         Les fonctions avancées restent enregistrées et réapparaissent
                         immédiatement en repassant en mode Expert.
@@ -3481,6 +3484,10 @@ function renderPrimaryLaunchPanel() {
             command.commandType === "adaptive"
         )
     );
+    const reliability = buildLaunchReliabilitySummary(
+        iosCommandHistory,
+        { commandId: command?.id || "" }
+    );
 
     return `
         <section class="primary-launch-panel">
@@ -3491,12 +3498,25 @@ function renderPrimaryLaunchPanel() {
                     ${escapeHtml(deviceLabel)} ·
                     ${command?.shuffle === false ? "Ordre normal" : "Shuffle activé"}
                     ${command?.openDrivingMode && DRIVING_MODE_AVAILABLE
-            ? " · Mode conduite"
-            : ""}
+                        ? " · Mode conduite"
+                        : ""}
                     ${command?.openDynamicLyrics
-            ? " · Dynamic Lyrics"
-            : ""}
+                        ? " · Dynamic Lyrics"
+                        : ""}
                 </p>
+
+                <div class="primary-launch-reliability is-${escapeHtml(reliability.state)}">
+                    <span aria-hidden="true">
+                        ${reliability.state === "healthy" ? "✓" : reliability.state === "warning" ? "!" : "●"}
+                    </span>
+                    <div>
+                        <strong>${escapeHtml(reliability.label)}</strong>
+                        <small>${escapeHtml(reliability.message)}</small>
+                    </div>
+                    ${reliability.lastDeviceName
+                        ? `<em>${escapeHtml(reliability.lastDeviceName)}</em>`
+                        : ""}
+                </div>
 
                 <div class="primary-launch-actions">
                     <button
@@ -3528,7 +3548,7 @@ function renderPrimaryLaunchPanel() {
                     ${iosCommands.length ? "" : "disabled"}
                 >
                     ${iosCommands.length
-            ? iosCommands.map((item) => `
+                        ? iosCommands.map((item) => `
                             <option
                                 value="${escapeHtml(item.id)}"
                                 ${command?.id === item.id ? "selected" : ""}
@@ -3536,7 +3556,7 @@ function renderPrimaryLaunchPanel() {
                                 ${escapeHtml(item.icon || "▶️")} ${escapeHtml(item.name)}
                             </option>
                         `).join("")
-            : `<option value="">Aucun profil enregistré</option>`}
+                        : `<option value="">Aucun profil enregistré</option>`}
                 </select>
                 <button
                     type="submit"
@@ -3589,8 +3609,8 @@ function renderGuidedSetupPanel() {
                     <small>🚀 Installation Shuffle+</small>
                     <strong>
                         ${snapshot.complete
-            ? "Tout est prêt"
-            : `Étape ${nextStepIndex} sur ${snapshot.totalCount} · ${escapeHtml(nextStep?.label || "Configuration")}`}
+                            ? "Tout est prêt"
+                            : `Étape ${nextStepIndex} sur ${snapshot.totalCount} · ${escapeHtml(nextStep?.label || "Configuration")}`}
                     </strong>
                 </span>
                 <span class="guided-setup-progress-label">
@@ -3603,7 +3623,7 @@ function renderGuidedSetupPanel() {
             </div>
 
             ${snapshot.complete
-            ? `
+                ? `
                     <div class="guided-setup-current-step is-ready">
                         <span>✓</span>
                         <div>
@@ -3612,7 +3632,7 @@ function renderGuidedSetupPanel() {
                         </div>
                     </div>
                 `
-            : `
+                : `
                     <div class="guided-setup-current-step">
                         <span>${nextStepIndex}</span>
                         <div>
@@ -3640,8 +3660,8 @@ function renderGuidedSetupPanel() {
                                 <small>${step.ready ? "Terminé" : "À configurer"}</small>
                             </div>
                             ${step.ready
-                    ? ""
-                    : `<button type="button" data-guided-step="${escapeHtml(step.id)}" data-guided-nav="${escapeHtml(step.menuId)}">Ouvrir</button>`}
+                                ? ""
+                                : `<button type="button" data-guided-step="${escapeHtml(step.id)}" data-guided-nav="${escapeHtml(step.menuId)}">Ouvrir</button>`}
                         </li>
                     `).join("")}
                 </ol>
@@ -3657,8 +3677,8 @@ function renderGuidedSetupPanel() {
                     aria-pressed="${String(guidedSetupState.shortcutConfirmed)}"
                 >
                     ${guidedSetupState.shortcutConfirmed
-            ? "✓ Raccourci iPhone confirmé"
-            : "J’ai créé le raccourci iPhone"}
+                        ? "✓ Raccourci iPhone confirmé"
+                        : "J’ai créé le raccourci iPhone"}
                 </button>
                 <button
                     type="button"
@@ -3666,14 +3686,14 @@ function renderGuidedSetupPanel() {
                     aria-pressed="${String(snapshot.installationReady)}"
                 >
                     ${snapshot.installationReady
-            ? "✓ Application installée"
-            : "J’ai installé Shuffle+"}
+                        ? "✓ Application installée"
+                        : "J’ai installé Shuffle+"}
                 </button>
             </div>
 
             ${snapshot.complete
-            ? `<p class="guided-setup-success">Tout est prêt pour lancer ta playlist en une seule action.</p>`
-            : `<button type="button" class="guided-setup-dismiss" data-guided-dismiss>Masquer pour le moment</button>`}
+                ? `<p class="guided-setup-success">Tout est prêt pour lancer ta playlist en une seule action.</p>`
+                : `<button type="button" class="guided-setup-dismiss" data-guided-dismiss>Masquer pour le moment</button>`}
         </details>
     `;
 }
@@ -3783,13 +3803,13 @@ function renderV8WelcomePanel() {
                 </span>
                 <h3>
                     ${expert
-            ? "Toute la puissance de Shuffle+"
-            : "Ta musique, sans menus inutiles"}
+                        ? "Toute la puissance de Shuffle+"
+                        : "Ta musique, sans menus inutiles"}
                 </h3>
                 <p>
                     ${expert
-            ? "Les outils avancés sont actifs. Tu peux revenir à une interface plus légère à tout moment."
-            : "Lance un raccourci iPhone, retrouve ta musique ou crée un mix. Les outils avancés restent disponibles dans le mode Expert."}
+                        ? "Les outils avancés sont actifs. Tu peux revenir à une interface plus légère à tout moment."
+                        : "Lance un raccourci iPhone, retrouve ta musique ou crée un mix. Les outils avancés restent disponibles dans le mode Expert."}
                 </p>
             </div>
             <div class="v8-welcome-actions">
@@ -3949,8 +3969,8 @@ function renderUiThemeSettingsPanel() {
                     <button
                         class="ui-theme-swatch
                         ${selected
-                        ? "is-selected"
-                        : ""}"
+                            ? "is-selected"
+                            : ""}"
                         type="button"
                         data-ui-accent="${escapeHtml(
                             preset.id
@@ -3964,12 +3984,12 @@ function renderUiThemeSettingsPanel() {
                         style="
                             --swatch-primary:
                                 ${escapeHtml(
-                            preset.primary
-                        )};
+                                    preset.primary
+                                )};
                             --swatch-secondary:
                                 ${escapeHtml(
-                            preset.secondary
-                        )};
+                                    preset.secondary
+                                )};
                         "
                     >
                         <span
@@ -3978,8 +3998,8 @@ function renderUiThemeSettingsPanel() {
                         ></span>
                         <span>
                             ${escapeHtml(
-                            preset.label
-                        )}
+                                preset.label
+                            )}
                         </span>
                     </button>
                 `;
@@ -3994,7 +4014,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.0.0
+                        ✨ Apparence v9.1.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4007,10 +4027,10 @@ function renderUiThemeSettingsPanel() {
 
                 <span class="ui-theme-active-badge">
                     ${escapeHtml(
-        palette.id === "custom"
-            ? `Personnalisée · ${palette.primary.toUpperCase()}`
-            : palette.label
-    )}
+                        palette.id === "custom"
+                            ? `Personnalisée · ${palette.primary.toUpperCase()}`
+                            : palette.label
+                    )}
                 </span>
             </div>
 
@@ -4041,26 +4061,26 @@ function renderUiThemeSettingsPanel() {
             </div>
 
             <section
-    class="ui-theme-accent-picker"
-    aria-labelledby="uiThemeAccentPickerTitle"
->
-    <div
-        class="ui-theme-accent-picker-title"
-        id="uiThemeAccentPickerTitle"
-    >
-        Couleurs prédéfinies
-    </div>
-    <div class="ui-theme-swatches">
-        ${accentButtons}
-    </div>
-</section>
+                class="ui-theme-accent-picker"
+                aria-labelledby="uiThemeAccentPickerTitle"
+            >
+                <div
+                    class="ui-theme-accent-picker-title"
+                    id="uiThemeAccentPickerTitle"
+                >
+                    Couleurs prédéfinies
+                </div>
+                <div class="ui-theme-swatches">
+                    ${accentButtons}
+                </div>
+            </section>
 
             <section
                 id="uiThemeCustomPicker"
                 class="ui-theme-custom-picker
                 ${uiThemeSettings.accent === "custom"
-            ? "is-selected"
-            : ""}"
+                    ? "is-selected"
+                    : ""}"
                 style="
                     --custom-preview-primary:
                         ${escapeHtml(customPreview.primary)};
@@ -4090,8 +4110,8 @@ function renderUiThemeSettingsPanel() {
                             id="uiThemeCustomColorInput"
                             type="color"
                             value="${escapeHtml(
-                uiThemeSettings.customColor
-            )}"
+                                uiThemeSettings.customColor
+                            )}"
                             aria-label="Choisir une couleur personnalisée"
                         >
                     </label>
@@ -4102,8 +4122,8 @@ function renderUiThemeSettingsPanel() {
                             id="uiThemeCustomHexInput"
                             type="text"
                             value="${escapeHtml(
-                uiThemeSettings.customColor.toUpperCase()
-            )}"
+                                uiThemeSettings.customColor.toUpperCase()
+                            )}"
                             inputmode="text"
                             maxlength="7"
                             pattern="#?[0-9A-Fa-f]{6}"
@@ -4135,8 +4155,8 @@ function renderUiThemeSettingsPanel() {
                         id="uiThemeMotionInput"
                         type="checkbox"
                         ${uiThemeSettings.motionEnabled
-            ? "checked"
-            : ""}
+                            ? "checked"
+                            : ""}
                     >
                     <span>
                         <strong>
@@ -4154,8 +4174,8 @@ function renderUiThemeSettingsPanel() {
                         id="uiThemeContrastInput"
                         type="checkbox"
                         ${uiThemeSettings.highContrast
-            ? "checked"
-            : ""}
+                            ? "checked"
+                            : ""}
                     >
                     <span>
                         <strong>
@@ -4648,7 +4668,7 @@ function renderOfflinePerformancePanel() {
                     <label>
                         <span>Actualiser la bibliothèque après</span>
                         <select name="libraryTtlMinutes">
-                            ${[[15, "15 minutes"], [60, "1 heure"], [180, "3 heures"], [720, "12 heures"], [1440, "24 heures"]].map(([value, label]) => `
+                            ${[[15,"15 minutes"],[60,"1 heure"],[180,"3 heures"],[720,"12 heures"],[1440,"24 heures"]].map(([value,label]) => `
                                 <option value="${value}" ${settings.libraryTtlMinutes === value ? "selected" : ""}>${label}</option>
                             `).join("")}
                         </select>
@@ -4656,7 +4676,7 @@ function renderOfflinePerformancePanel() {
                     <label>
                         <span>Conserver les morceaux</span>
                         <select name="trackTtlDays">
-                            ${[[7, "7 jours"], [30, "30 jours"], [90, "90 jours"]].map(([value, label]) => `
+                            ${[[7,"7 jours"],[30,"30 jours"],[90,"90 jours"]].map(([value,label]) => `
                                 <option value="${value}" ${settings.trackTtlDays === value ? "selected" : ""}>${label}</option>
                             `).join("")}
                         </select>
@@ -4992,7 +5012,7 @@ function watchPwaWorker(worker) {
                 navigator.serviceWorker.controller
             ) {
                 showPwaUpdateBanner(worker).catch(
-                    () => { }
+                    () => {}
                 );
             }
         }
@@ -5004,7 +5024,7 @@ function watchPwaRegistration(registration) {
         navigator.serviceWorker.controller) {
         showPwaUpdateBanner(
             registration.waiting
-        ).catch(() => { });
+        ).catch(() => {});
     }
 
     watchPwaWorker(registration.installing);
@@ -5028,7 +5048,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.0.0",
+                "./service-worker.js?v=9.1.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -5125,7 +5145,7 @@ function initializePwa() {
                 !pwaUpdateApplying
             ) {
                 pwaRegistration.update().catch(
-                    () => { }
+                    () => {}
                 );
             }
         }
@@ -5307,7 +5327,7 @@ async function collectAppHealthSnapshot({
         if (notify) {
             setStatus(
                 appHealthSnapshot.overall.id ===
-                    "healthy"
+                "healthy"
                     ? "Diagnostic terminé : Shuffle+ est opérationnel."
                     : "Diagnostic terminé : certains points sont à vérifier."
             );
@@ -5439,15 +5459,15 @@ function renderAppHealthPanel() {
                 <span
                     class="app-health-status
                     app-health-status--${escapeHtml(
-        snapshot.overall.id
-    )}"
+                        snapshot.overall.id
+                    )}"
                 >
                     ${escapeHtml(
-        snapshot.overall.icon
-    )}
+                        snapshot.overall.icon
+                    )}
                     ${escapeHtml(
-        snapshot.overall.label
-    )}
+                        snapshot.overall.label
+                    )}
                 </span>
             </div>
 
@@ -5473,8 +5493,8 @@ function renderAppHealthPanel() {
                 <article>
                     <strong>
                         ${escapeHtml(
-        snapshot.appVersion
-    )}
+                            snapshot.appVersion
+                        )}
                     </strong>
                     <span>
                         version active
@@ -5501,55 +5521,55 @@ function renderAppHealthPanel() {
                     >
                         <h4>
                             ${escapeHtml(
-        group.label
-    )}
+                                group.label
+                            )}
                         </h4>
 
                         <div
                             class="app-health-checks"
                         >
                             ${snapshot.checks
-            .filter(
-                (check) =>
-                    check.category ===
-                    group.id
-            )
-            .map((check) => `
+                                .filter(
+                                    (check) =>
+                                        check.category ===
+                                        group.id
+                                )
+                                .map((check) => `
                                     <article
                                         class="app-health-check
                                         app-health-check--${escapeHtml(
-                check.level
-            )}"
+                                            check.level
+                                        )}"
                                     >
                                         <span
                                             aria-hidden="true"
                                         >
                                             ${check.available
-                    ? "✓"
-                    : check.level === "critical"
-                        ? "×"
-                        : "!"}
+                                                ? "✓"
+                                                : check.level === "critical"
+                                                    ? "×"
+                                                    : "!"}
                                         </span>
                                         <div>
                                             <strong>
                                                 ${escapeHtml(
-                            check.label
-                        )}
+                                                    check.label
+                                                )}
                                             </strong>
                                             <small>
                                                 ${escapeHtml(
-                            check.value
-                        )}
+                                                    check.value
+                                                )}
                                             </small>
                                             <p>
                                                 ${escapeHtml(
-                            check.description
-                        )}
+                                                    check.description
+                                                )}
                                             </p>
                                         </div>
                                     </article>
                                 `)
-            .join("")}
+                                .join("")}
                         </div>
                     </section>
                 `).join("")}
@@ -5562,12 +5582,12 @@ function renderAppHealthPanel() {
                     id="runAppHealthCheckButton"
                     type="button"
                     ${appHealthRunning
-            ? "disabled"
-            : ""}
+                        ? "disabled"
+                        : ""}
                 >
                     ${appHealthRunning
-            ? "Analyse en cours…"
-            : "↻ Relancer le diagnostic"}
+                        ? "Analyse en cours…"
+                        : "↻ Relancer le diagnostic"}
                 </button>
 
                 <button
@@ -5581,8 +5601,8 @@ function renderAppHealthPanel() {
                     id="repairPwaCacheButton"
                     type="button"
                     ${navigator.onLine
-            ? ""
-            : "disabled"}
+                        ? ""
+                        : "disabled"}
                 >
                     🧹 Réparer le cache PWA
                 </button>
@@ -5787,7 +5807,7 @@ function normalizeMusicFeedbackRecord(
 ) {
     const key =
         typeof record.key === "string" &&
-            record.key.trim()
+        record.key.trim()
             ? record.key.trim().slice(0, 180)
             : String(fallbackKey || "")
                 .trim()
@@ -5881,7 +5901,7 @@ function normalizeMusicFeedbackState(state = {}) {
     const records = {};
     const inputRecords =
         state.records &&
-            typeof state.records === "object"
+        typeof state.records === "object"
             ? Object.entries(state.records)
             : [];
 
@@ -6136,7 +6156,7 @@ function buildMusicFeedbackRecord(
         normalizedAction;
     const finalAction =
         sameActiveAction &&
-            normalizedAction !== "neutral"
+        normalizedAction !== "neutral"
             ? "neutral"
             : normalizedAction;
     let activeUntil = 0;
@@ -6355,7 +6375,7 @@ function renderMusicFeedbackIntelligenceSection() {
         .map((item) => {
             const record =
                 musicFeedbackState.records[
-                item.trackKey
+                    item.trackKey
                 ] || null;
             const activeAction =
                 getActiveMusicFeedbackAction(record);
@@ -6375,8 +6395,8 @@ function renderMusicFeedbackIntelligenceSection() {
                             ${escapeHtml(item.artists || "Artiste inconnu")}
                             · ${getMusicFeedbackLabel(item.action)}
                             ${activeAction === item.action && expiry
-                    ? ` · jusqu’au ${escapeHtml(expiry)}`
-                    : ""}
+                                ? ` · jusqu’au ${escapeHtml(expiry)}`
+                                : ""}
                         </small>
                     </div>
                     <time>
@@ -6401,8 +6421,8 @@ function renderMusicFeedbackIntelligenceSection() {
                     class="is-danger"
                     type="button"
                     ${Object.keys(musicFeedbackState.records).length
-            ? ""
-            : "disabled"}
+                        ? ""
+                        : "disabled"}
                 >
                     Réinitialiser
                 </button>
@@ -6853,7 +6873,7 @@ function normalizeLastAdaptiveProposal(
     if (
         !createdAt ||
         Date.now() - createdAt >
-        ADAPTIVE_CORRECTION_WINDOW
+            ADAPTIVE_CORRECTION_WINDOW
     ) {
         return null;
     }
@@ -7017,7 +7037,7 @@ function confirmIntelligenceListening(
         intelligenceAnalytics.events.some(
             (item) =>
                 item.type ===
-                "listening-confirmed" &&
+                    "listening-confirmed" &&
                 item.relatedEventId === eventId
         );
 
@@ -7262,7 +7282,7 @@ function getIntelligenceQualityScore({
                 100 -
                 (Math.max(0, value) /
                     Math.max(1, total)) *
-                100
+                    100
             )
         );
     const artistScore = toScore(
@@ -7295,7 +7315,7 @@ function getIntelligenceQualityScore({
         Math.round(
             (uniqueArtists /
                 Math.max(1, trackCount)) *
-            140
+                140
         )
     );
     const albumDiversity = Math.min(
@@ -7303,7 +7323,7 @@ function getIntelligenceQualityScore({
         Math.round(
             (uniqueAlbums /
                 Math.max(1, trackCount)) *
-            125
+                125
         )
     );
     const diversityScore = Math.round(
@@ -7355,7 +7375,7 @@ function getIntelligenceSummary() {
     const confirmedEvents = events.filter(
         (item) =>
             item.type ===
-            "listening-confirmed"
+                "listening-confirmed"
     );
     const confirmedRelatedIds = new Set(
         confirmedEvents.map(
@@ -7547,10 +7567,10 @@ function renderIntelligenceRanking(
         <section class="intelligence-ranking-card">
             <h4>${escapeHtml(title)}</h4>
             ${values.length
-            ? `
+                ? `
                     <ol>
                         ${values.map(
-                (item, index) => `
+                            (item, index) => `
                                 <li>
                                     <span class="intelligence-ranking-index">
                                         ${index + 1}
@@ -7563,10 +7583,10 @@ function renderIntelligenceRanking(
                                     </strong>
                                 </li>
                             `
-            ).join("")}
+                        ).join("")}
                     </ol>
                 `
-            : `
+                : `
                     <p class="intelligence-empty">
                         ${escapeHtml(emptyText)}
                     </p>
@@ -7623,16 +7643,16 @@ function renderIntelligenceDashboard() {
                     <span>${escapeHtml(pattern.slot.label)}</span>
                     <strong>
                         ${pattern.candidateMix
-                ? escapeHtml(pattern.candidateMix.name)
-                : "Aucune habitude fiable"}
+                            ? escapeHtml(pattern.candidateMix.name)
+                            : "Aucune habitude fiable"}
                     </strong>
                     <small>
                         ${pattern.observationCount} observation${pattern.observationCount > 1 ? "s" : ""}
                         ${pattern.dominantDayType === "weekday"
-                ? " · surtout en semaine"
-                : pattern.dominantDayType === "weekend"
-                    ? " · surtout le week-end"
-                    : ""}
+                            ? " · surtout en semaine"
+                            : pattern.dominantDayType === "weekend"
+                                ? " · surtout le week-end"
+                                : ""}
                     </small>
                 </div>
                 <span class="intelligence-confidence ${pattern.confidence >= 70 ? "is-high" : pattern.confidence >= 45 ? "is-medium" : "is-low"}">
@@ -7646,14 +7666,14 @@ function renderIntelligenceDashboard() {
             <span>${icon} ${title}</span>
             <strong>
                 ${trend.topMixName
-            ? escapeHtml(trend.topMixName)
-            : "Pas encore de tendance"}
+                    ? escapeHtml(trend.topMixName)
+                    : "Pas encore de tendance"}
             </strong>
             <small>
                 ${trend.launchCount} lancement${trend.launchCount > 1 ? "s" : ""}
                 ${trend.topMixCount
-            ? ` · ${trend.topMixCount} pour le mix dominant`
-            : ""}
+                    ? ` · ${trend.topMixCount} pour le mix dominant`
+                    : ""}
             </small>
         </article>
     `;
@@ -7696,18 +7716,18 @@ function renderIntelligenceDashboard() {
                     <strong>${correctionText}</strong>
                     <small>
                         ${item.trackCount
-                    ? `${item.trackCount} titre${item.trackCount > 1 ? "s" : ""} · `
-                    : ""}
+                            ? `${item.trackCount} titre${item.trackCount > 1 ? "s" : ""} · `
+                            : ""}
                         ${item.durationMs
-                    ? `${formatIntelligenceDuration(item.durationMs)} · `
-                    : ""}
+                            ? `${formatIntelligenceDuration(item.durationMs)} · `
+                            : ""}
                         ${item.dayType === "weekend" ? "week-end" : "semaine"}
                         · ${String(item.hour).padStart(2, "0")} h
                         · ${getIntelligenceEvidenceLabel(item)}
                         · ${formatHistoryDate(item.createdAt)}
                     </small>
                     ${canConfirm
-                    ? `
+                        ? `
                             <button
                                 type="button"
                                 class="intelligence-confirm-button"
@@ -7716,7 +7736,7 @@ function renderIntelligenceDashboard() {
                                 ✓ Confirmer l’écoute
                             </button>
                         `
-                    : ""}
+                        : ""}
                 </li>
             `;
         }).join("");
@@ -7885,15 +7905,15 @@ function renderIntelligenceDashboard() {
                         <h4>Santé du mélange</h4>
                         <p>
                             ${summary.qualitySource
-            ? escapeHtml(summary.qualitySource.label)
-            : "Génère un mix pour obtenir une analyse."}
+                                ? escapeHtml(summary.qualitySource.label)
+                                : "Génère un mix pour obtenir une analyse."}
                         </p>
                     </div>
                     ${quality ? `<strong class="intelligence-quality-score">${quality.overall}/100</strong>` : ""}
                 </div>
                 ${quality
-            ? `<div class="intelligence-quality-list">${qualityBars}</div>`
-            : `<p class="intelligence-empty">Aucune analyse de qualité disponible.</p>`}
+                    ? `<div class="intelligence-quality-list">${qualityBars}</div>`
+                    : `<p class="intelligence-empty">Aucune analyse de qualité disponible.</p>`}
             </section>
 
             <details class="intelligence-activity-log" open>
@@ -8333,8 +8353,8 @@ function renderDrivingQueueItem(item, index) {
         <li class="driving-queue-item">
             <span class="driving-queue-index">${index + 1}</span>
             ${item.imageUrl
-            ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
-            : `<span class="driving-queue-placeholder" aria-hidden="true">🎵</span>`}
+                ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
+                : `<span class="driving-queue-placeholder" aria-hidden="true">🎵</span>`}
             <div>
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${escapeHtml(item.artist)}</span>
@@ -8404,8 +8424,8 @@ function renderDrivingQueuePreview() {
                     <span>À suivre</span>
                     <strong>
                         ${upcoming.length
-            ? `${upcoming.length} prochain${upcoming.length > 1 ? "s" : ""} titre${upcoming.length > 1 ? "s" : ""}`
-            : "File d'attente Spotify"}
+                            ? `${upcoming.length} prochain${upcoming.length > 1 ? "s" : ""} titre${upcoming.length > 1 ? "s" : ""}`
+                            : "File d’attente Spotify"}
                     </strong>
                 </div>
                 <span class="driving-queue-freshness is-${escapeHtml(freshness.state)}">
@@ -8417,20 +8437,20 @@ function renderDrivingQueuePreview() {
                     ${drivingQueueBusy ? "disabled" : ""}
                 >
                     ${drivingQueueBusy
-            ? "Chargement…"
-            : upcoming.length
-                ? "Voir la liste"
-                : "Charger la liste"}
+                        ? "Chargement…"
+                        : upcoming.length
+                            ? "Voir la liste"
+                            : "Charger la liste"}
                 </button>
             </header>
             ${upcoming.length
-            ? `
+                ? `
                     <ol>
                         ${upcoming.map((item) => `
                             <li>
                                 ${item.imageUrl
-                    ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
-                    : `<span class="driving-queue-preview-index">${item.index}</span>`}
+                                    ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
+                                    : `<span class="driving-queue-preview-index">${item.index}</span>`}
                                 <div>
                                     <strong>${escapeHtml(item.name)}</strong>
                                     <small>${escapeHtml(item.artist)}</small>
@@ -8440,7 +8460,7 @@ function renderDrivingQueuePreview() {
                         `).join("")}
                     </ol>
                 `
-            : `
+                : `
                     <p class="driving-queue-preview-empty">
                         Charge la file pour voir immédiatement les prochains morceaux.
                     </p>
@@ -8499,28 +8519,28 @@ function renderDrivingQueuePanel() {
                 </div>
             </header>
             ${drivingQueueBusy
-            ? `<p class="driving-queue-status">Chargement de la liste Spotify…</p>`
-            : drivingQueueError
-                ? `<p class="driving-queue-status error">${escapeHtml(drivingQueueError)}</p>`
-                : ""}
+                ? `<p class="driving-queue-status">Chargement de la liste Spotify…</p>`
+                : drivingQueueError
+                    ? `<p class="driving-queue-status error">${escapeHtml(drivingQueueError)}</p>`
+                    : ""}
             ${current
-            ? `
+                ? `
                     <article class="driving-queue-current">
                         <span>En cours</span>
                         ${current.imageUrl
-                ? `<img src="${escapeHtml(current.imageUrl)}" alt="">`
-                : `<span class="driving-queue-placeholder" aria-hidden="true">🎵</span>`}
+                            ? `<img src="${escapeHtml(current.imageUrl)}" alt="">`
+                            : `<span class="driving-queue-placeholder" aria-hidden="true">🎵</span>`}
                         <div>
                             <strong>${escapeHtml(current.name)}</strong>
                             <small>${escapeHtml(current.artist)}</small>
                         </div>
                     </article>
                 `
-            : ""}
+                : ""}
             <ol class="driving-queue-list">
                 ${queue.length
-            ? queue.map(renderDrivingQueueItem).join("")
-            : `<li class="driving-queue-empty">Aucun prochain morceau renvoyé par Spotify.</li>`}
+                    ? queue.map(renderDrivingQueueItem).join("")
+                    : `<li class="driving-queue-empty">Aucun prochain morceau renvoyé par Spotify.</li>`}
             </ol>
             <p class="driving-queue-hint">
                 Cette liste provient de la file Spotify active et peut évoluer si le shuffle ou Spotify Connect modifie l’ordre.
@@ -8826,15 +8846,15 @@ function renderDrivingModePage() {
                 <strong>${escapeHtml(adaptive.slot.label)}</strong>
                 <small>
                     ${adaptive.mix
-            ? `Mix : ${escapeHtml(adaptive.mix.name)}`
-            : "Aucun mix associé à ce créneau"}
+                        ? `Mix : ${escapeHtml(adaptive.mix.name)}`
+                        : "Aucun mix associé à ce créneau"}
                 </small>
             </section>
 
             <section class="driving-now-playing ${track ? "has-track" : "is-empty"}">
                 ${imageUrl
-            ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="eager">`
-            : `<div class="driving-cover-placeholder" aria-hidden="true">🎵</div>`}
+                    ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="eager">`
+                    : `<div class="driving-cover-placeholder" aria-hidden="true">🎵</div>`}
 
                 <div>
                     <span>${isPlaying ? "Lecture en cours" : "Lecture en pause"}</span>
@@ -8888,8 +8908,8 @@ function renderDrivingModePage() {
                     <span aria-hidden="true">🎙️</span>
                     <strong>
                         ${voiceAssistantListening && voiceAssistantSource === "driving"
-            ? "Arrêter l’écoute"
-            : "Commande vocale"}
+                            ? "Arrêter l’écoute"
+                            : "Commande vocale"}
                     </strong>
                     <small>Pause, suivant, j’aime…</small>
                 </button>
@@ -8990,18 +9010,18 @@ function renderDrivingModePage() {
                 class="driving-message ${escapeHtml(drivingMessage.type)}"
                 aria-live="polite"
                 title="${escapeHtml(
-                drivingMessage.text ||
-                (drivingActionBusy
-                    ? "Commande en cours…"
-                    : "Prêt.")
-            )}"
+                    drivingMessage.text ||
+                    (drivingActionBusy
+                        ? "Commande en cours…"
+                        : "Prêt.")
+                )}"
             >
                 ${escapeHtml(
-                drivingMessage.text ||
-                (drivingActionBusy
-                    ? "Commande en cours…"
-                    : "Prêt.")
-            )}
+                    drivingMessage.text ||
+                    (drivingActionBusy
+                        ? "Commande en cours…"
+                        : "Prêt.")
+                )}
             </p>
         </section>
     `;
@@ -9036,7 +9056,7 @@ function startDrivingRefreshTimer() {
                 if (
                     drivingQueueOpen &&
                     Date.now() - Number(drivingQueueState.updatedAt || 0) >=
-                    DRIVING_QUEUE_REFRESH_MS
+                        DRIVING_QUEUE_REFRESH_MS
                 ) {
                     refreshDrivingQueue({
                         silent: true,
@@ -9128,7 +9148,7 @@ async function requestDrivingWakeLock({
             drivingWakeLockRequestSequence
         ) {
             await sentinel.release().catch(
-                () => { }
+                () => {}
             );
             return false;
         }
@@ -9504,12 +9524,12 @@ function normalizeQuickContext(context = {}, fallback = {}) {
         id,
         name:
             typeof context.name === "string" &&
-                context.name.trim()
+            context.name.trim()
                 ? context.name.trim().slice(0, 40)
                 : fallback.name || "Contexte",
         icon:
             typeof context.icon === "string" &&
-                context.icon.trim()
+            context.icon.trim()
                 ? context.icon.trim().slice(0, 8)
                 : fallback.icon || "🎧",
         mixId:
@@ -10564,13 +10584,13 @@ async function applyAdaptiveTransition(form) {
         saveAdaptiveTransitionSettings();
         const plan =
             adaptiveTransitionPreview &&
-                adaptiveTransitionPreview.targetSceneId ===
+            adaptiveTransitionPreview.targetSceneId ===
                 settings.targetSceneId &&
-                adaptiveTransitionPreview.settings.bridgeTrackCount ===
+            adaptiveTransitionPreview.settings.bridgeTrackCount ===
                 settings.bridgeTrackCount &&
-                adaptiveTransitionPreview.settings.energyCurve ===
+            adaptiveTransitionPreview.settings.energyCurve ===
                 settings.energyCurve &&
-                adaptiveTransitionPreview.settings.preserveSentTracks ===
+            adaptiveTransitionPreview.settings.preserveSentTracks ===
                 settings.preserveSentTracks
                 ? adaptiveTransitionPreview
                 : await createAdaptiveTransitionPlan(
@@ -10601,7 +10621,7 @@ async function applyAdaptiveTransition(form) {
             sourceNames: [
                 adaptiveTransitionUndoSnapshot
                     .selectedPlaylist?.name ||
-                "File actuelle",
+                    "File actuelle",
                 getAdaptiveDjSceneMixName(
                     plan.targetScene
                 )
@@ -10732,8 +10752,8 @@ function renderAdaptiveTransitionPanel() {
                 </div>
                 <span class="adaptive-transition-status">
                     ${hasCurrentQueue
-            ? `${selectedTracks.length} titres dans la file`
-            : "Aucune file préparée"}
+                        ? `${selectedTracks.length} titres dans la file`
+                        : "Aucune file préparée"}
                 </span>
             </div>
 
@@ -10746,22 +10766,22 @@ function renderAdaptiveTransitionPanel() {
                         <span>Scène cible</span>
                         <select name="targetSceneId">
                             ${adaptiveDjScenesState.scenes.map(
-                (scene) => `
+                                (scene) => `
                                     <option
                                         value="${escapeHtml(scene.id)}"
                                         ${scene.id === settings.targetSceneId
-                        ? "selected"
-                        : ""}
+                                            ? "selected"
+                                            : ""}
                                         ${scene.mixId ? "" : "disabled"}
                                     >
                                         ${escapeHtml(scene.icon)}
                                         ${escapeHtml(scene.label)}
                                         ${scene.mixId
-                        ? ""
-                        : " · mix requis"}
+                                            ? ""
+                                            : " · mix requis"}
                                     </option>
                                 `
-            ).join("")}
+                            ).join("")}
                         </select>
                     </label>
 
@@ -10769,13 +10789,13 @@ function renderAdaptiveTransitionPanel() {
                         <span>Courbe</span>
                         <select name="energyCurve">
                             ${Object.values(
-                ADAPTIVE_TRANSITION_CURVES
-            ).map((curve) => `
+                                ADAPTIVE_TRANSITION_CURVES
+                            ).map((curve) => `
                                 <option
                                     value="${escapeHtml(curve.id)}"
                                     ${curve.id === settings.energyCurve
-                    ? "selected"
-                    : ""}
+                                        ? "selected"
+                                        : ""}
                                 >
                                     ${escapeHtml(curve.label)}
                                 </option>
@@ -10808,8 +10828,8 @@ function renderAdaptiveTransitionPanel() {
                             name="preserveSentTracks"
                             type="checkbox"
                             ${settings.preserveSentTracks
-            ? "checked"
-            : ""}
+                                ? "checked"
+                                : ""}
                         >
                         <span>
                             Conserver les titres déjà envoyés à Spotify
@@ -10835,12 +10855,12 @@ function renderAdaptiveTransitionPanel() {
                         <span>Mix</span>
                         <strong>
                             ${escapeHtml(
-                targetScene
-                    ? getAdaptiveDjSceneMixName(
-                        targetScene
-                    )
-                    : "Aucun"
-            )}
+                                targetScene
+                                    ? getAdaptiveDjSceneMixName(
+                                        targetScene
+                                    )
+                                    : "Aucun"
+                            )}
                         </strong>
                     </div>
                 </div>
@@ -10890,8 +10910,8 @@ function renderAdaptiveTransitionPanel() {
                         type="button"
                         class="adaptive-menu-primary"
                         ${hasCurrentQueue && targetScene?.mixId
-            ? ""
-            : "disabled"}
+                            ? ""
+                            : "disabled"}
                     >
                         🌊 Appliquer à la file
                     </button>
@@ -10900,8 +10920,8 @@ function renderAdaptiveTransitionPanel() {
                         type="button"
                         class="adaptive-menu-secondary"
                         ${adaptiveTransitionUndoSnapshot
-            ? ""
-            : "disabled"}
+                            ? ""
+                            : "disabled"}
                     >
                         ↶ Annuler
                     </button>
@@ -11281,14 +11301,14 @@ function renderQuickExternalResult() {
                 </strong>
                 <small>
                     ${escapeHtml(
-        result.message ||
-        (result.mixName
-            ? `Mix « ${result.mixName} » traité.`
-            : "Commande traitée.")
-    )}
+                        result.message ||
+                        (result.mixName
+                            ? `Mix « ${result.mixName} » traité.`
+                            : "Commande traitée.")
+                    )}
                     ${result.deviceName
-            ? ` · ${escapeHtml(result.deviceName)}`
-            : ""}
+                        ? ` · ${escapeHtml(result.deviceName)}`
+                        : ""}
                 </small>
             </div>
             <button
@@ -11605,8 +11625,8 @@ function renderShortcutProfileDiagnosticSteps(lastRun) {
                     <div>
                         <strong>${escapeHtml(step.label)}</strong>
                         ${step.message
-            ? `<small>${escapeHtml(step.message)}</small>`
-            : ""}
+                            ? `<small>${escapeHtml(step.message)}</small>`
+                            : ""}
                     </div>
                 </li>
             `).join("")}
@@ -11682,8 +11702,8 @@ function renderLaunchCenter() {
                     📤 Envoyer vers l’iPhone
                 </button>
                 ${DRIVING_MODE_AVAILABLE
-            ? `<button type="button" class="ui-button ui-button--secondary" data-guided-nav="driving">🚗 Mode conduite</button>`
-            : ""}
+                    ? `<button type="button" class="ui-button ui-button--secondary" data-guided-nav="driving">🚗 Mode conduite</button>`
+                    : ""}
             </div>
 
             <form id="primaryLaunchSettingsForm" class="launch-center-profile-form">
@@ -11694,7 +11714,7 @@ function renderLaunchCenter() {
                     ${iosCommands.length ? "" : "disabled"}
                 >
                     ${iosCommands.length
-            ? iosCommands.map((item) => `
+                        ? iosCommands.map((item) => `
                             <option
                                 value="${escapeHtml(item.id)}"
                                 ${command?.id === item.id ? "selected" : ""}
@@ -11702,7 +11722,7 @@ function renderLaunchCenter() {
                                 ${escapeHtml(item.icon || "▶️")} ${escapeHtml(item.name)}
                             </option>
                         `).join("")
-            : `<option value="">Aucun profil enregistré</option>`}
+                        : `<option value="">Aucun profil enregistré</option>`}
                 </select>
                 <button
                     type="submit"
@@ -11741,16 +11761,16 @@ function renderLaunchCenter() {
                     <span>Diagnostic du dernier lancement</span>
                     <strong>
                         ${lastRun
-            ? `${lastRun.status === "success" ? "Réussi" : "En erreur"} · ${escapeHtml(formatShortcutRunDuration(lastRun.durationMs))}`
-            : "Aucun lancement enregistré"}
+                            ? `${lastRun.status === "success" ? "Réussi" : "En erreur"} · ${escapeHtml(formatShortcutRunDuration(lastRun.durationMs))}`
+                            : "Aucun lancement enregistré"}
                     </strong>
                     ${lastRun
-            ? `<small>${escapeHtml(lastRun.message || "Aucun détail")}</small>`
-            : `<small>Lance le profil pour vérifier l’appareil et la lecture Spotify.</small>`}
+                        ? `<small>${escapeHtml(lastRun.message || "Aucun détail")}</small>`
+                        : `<small>Lance le profil pour vérifier l’appareil et la lecture Spotify.</small>`}
                 </div>
                 ${lastRun
-            ? `<button type="button" class="ui-button ui-button--ghost" data-copy-last-launch-diagnostic>Copier le diagnostic</button>`
-            : ""}
+                    ? `<button type="button" class="ui-button ui-button--ghost" data-copy-last-launch-diagnostic>Copier le diagnostic</button>`
+                    : ""}
             </div>
             ${lastRun ? renderShortcutProfileDiagnosticSteps(lastRun) : ""}
         </section>
@@ -11820,14 +11840,14 @@ function renderShortcutProfilesDashboard() {
             </div>
 
             ${iosCommands.length
-            ? `
+                ? `
                     <div class="shortcut-profile-grid">
                         ${diagnostics.map(({ command, diagnostic }) => {
-                const lastRun = diagnostic.lastRun;
-                const statusClass = diagnostic.status;
-                const sourceLabel = getShortcutProfileSourceLabel(command);
-                const url = buildIosCommandUrl(command);
-                return `
+                            const lastRun = diagnostic.lastRun;
+                            const statusClass = diagnostic.status;
+                            const sourceLabel = getShortcutProfileSourceLabel(command);
+                            const url = buildIosCommandUrl(command);
+                            return `
                                 <article class="shortcut-profile-card ${escapeHtml(statusClass)}">
                                     <header>
                                         <span class="shortcut-profile-icon">${escapeHtml(command.icon || "▶️")}</span>
@@ -11877,11 +11897,11 @@ function renderShortcutProfilesDashboard() {
                                         <summary>
                                             Diagnostic
                                             ${lastRun
-                        ? `· ${lastRun.status === "success" ? "réussi" : "en erreur"} · ${escapeHtml(formatShortcutRunDuration(lastRun.durationMs))}`
-                        : "· aucun lancement"}
+                                                ? `· ${lastRun.status === "success" ? "réussi" : "en erreur"} · ${escapeHtml(formatShortcutRunDuration(lastRun.durationMs))}`
+                                                : "· aucun lancement"}
                                         </summary>
                                         ${lastRun
-                        ? `
+                                            ? `
                                                 <div class="shortcut-profile-last-run ${escapeHtml(lastRun.status)}">
                                                     <strong>${lastRun.status === "success" ? "Dernier lancement réussi" : "Dernier lancement en erreur"}</strong>
                                                     <span>${escapeHtml(new Date(lastRun.createdAt).toLocaleString("fr-FR"))}</span>
@@ -11889,15 +11909,15 @@ function renderShortcutProfilesDashboard() {
                                                 </div>
                                                 ${renderShortcutProfileDiagnosticSteps(lastRun)}
                                             `
-                        : `<p class="shortcut-profile-diagnostic-empty">Teste ce profil pour obtenir un diagnostic étape par étape.</p>`}
+                                            : `<p class="shortcut-profile-diagnostic-empty">Teste ce profil pour obtenir un diagnostic étape par étape.</p>`}
                                         <code>${escapeHtml(url)}</code>
                                     </details>
                                 </article>
                             `;
-            }).join("")}
+                        }).join("")}
                     </div>
                 `
-            : `
+                : `
                     <div class="shortcut-profiles-empty">
                         <span>📱</span>
                         <h4>Aucun profil de raccourci</h4>
@@ -11907,7 +11927,7 @@ function renderShortcutProfilesDashboard() {
                 `}
 
             ${iosCommandHistory.length
-            ? `
+                ? `
                     <details class="shortcut-profile-history">
                         <summary>Historique récent des raccourcis</summary>
                         <div>
@@ -11927,7 +11947,7 @@ function renderShortcutProfilesDashboard() {
                         </div>
                     </details>
                 `
-            : ""}
+                : ""}
         </section>
     `;
 }
@@ -12031,13 +12051,13 @@ function renderQuickControlPage() {
 
                 <div class="quick-context-grid">
                     ${quickContextsState.map((context) => {
-        const mix = savedMixes.find(
-            (item) => item.id === context.mixId
-        );
-        const profile = getProfileById(
-            context.profileId
-        );
-        return `
+                        const mix = savedMixes.find(
+                            (item) => item.id === context.mixId
+                        );
+                        const profile = getProfileById(
+                            context.profileId
+                        );
+                        return `
                             <article class="quick-context-card" data-quick-context-card-id="${escapeHtml(context.id)}">
                                 <span class="quick-context-icon">
                                     ${escapeHtml(context.icon)}
@@ -12046,11 +12066,11 @@ function renderQuickControlPage() {
                                     <strong>${escapeHtml(context.name)}</strong>
                                     <small>
                                         ${mix
-                ? escapeHtml(mix.name)
-                : "Aucun mix associé"}
+                                            ? escapeHtml(mix.name)
+                                            : "Aucun mix associé"}
                                         ${profile
-                ? ` · ${escapeHtml(profile.name)}`
-                : ""}
+                                            ? ` · ${escapeHtml(profile.name)}`
+                                            : ""}
                                     </small>
                                 </div>
                                 <button
@@ -12062,18 +12082,18 @@ function renderQuickControlPage() {
                                 </button>
                             </article>
                         `;
-    }).join("")}
+                    }).join("")}
                 </div>
             </section>
 
             <section class="quick-now-playing">
                 <div class="quick-now-playing-cover">
                     ${track?.album?.images?.[0]?.url
-            ? `<img
+                        ? `<img
                             src="${escapeHtml(track.album.images[0].url)}"
                             alt=""
                         >`
-            : "🎵"}
+                        : "🎵"}
                 </div>
                 <div>
                     <span>
@@ -12081,16 +12101,16 @@ function renderQuickControlPage() {
                     </span>
                     <strong>
                         ${escapeHtml(
-                track?.name ||
-                "Aucun morceau actif"
-            )}
+                            track?.name ||
+                            "Aucun morceau actif"
+                        )}
                     </strong>
                     <small>
                         ${escapeHtml(
-                track
-                    ? getQuickTrackArtists(track)
-                    : deviceName
-            )}
+                            track
+                                ? getQuickTrackArtists(track)
+                                : deviceName
+                        )}
                     </small>
                 </div>
                 <span class="quick-device-pill">
@@ -12100,11 +12120,11 @@ function renderQuickControlPage() {
 
             <div class="quick-action-grid">
                 ${QUICK_CONTROL_ACTIONS
-            .filter((action) =>
-                DRIVING_MODE_AVAILABLE || action.id !== "driving"
-            )
-            .map(
-                (action) => `
+                    .filter((action) =>
+                        DRIVING_MODE_AVAILABLE || action.id !== "driving"
+                    )
+                    .map(
+                    (action) => `
                         <button
                             type="button"
                             class="quick-action-button"
@@ -12122,7 +12142,7 @@ function renderQuickControlPage() {
                             </small>
                         </button>
                     `
-            ).join("")}
+                ).join("")}
             </div>
 
             <section class="voice-control-card">
@@ -12132,8 +12152,8 @@ function renderQuickControlPage() {
                     </span>
                     <h4>
                         ${voiceSupported
-            ? "Parle à Shuffle+"
-            : "Reconnaissance vocale indisponible"}
+                            ? "Parle à Shuffle+"
+                            : "Reconnaissance vocale indisponible"}
                     </h4>
                     <p>
                         Exemples : « lance le trajet », « pause »,
@@ -12148,12 +12168,12 @@ function renderQuickControlPage() {
                     ${voiceAssistantListening && voiceAssistantSource === "quick" ? "is-listening" : ""}"
                     type="button"
                     ${!voiceSupported || quickControlBusy
-            ? "disabled"
-            : ""}
+                        ? "disabled"
+                        : ""}
                 >
                     ${voiceAssistantListening && voiceAssistantSource === "quick"
-            ? "■ Arrêter"
-            : "🎙️ Écouter"}
+                        ? "■ Arrêter"
+                        : "🎙️ Écouter"}
                 </button>
             </section>
 
@@ -12163,11 +12183,11 @@ function renderQuickControlPage() {
                 aria-live="polite"
             >
                 ${escapeHtml(
-                quickControlMessage.text ||
-                (quickControlBusy
-                    ? "Commande en cours…"
-                    : "Prêt.")
-            )}
+                    quickControlMessage.text ||
+                    (quickControlBusy
+                        ? "Commande en cours…"
+                        : "Prêt.")
+                )}
             </p>
 
             <details class="quick-context-config-panel" open>
@@ -12288,7 +12308,7 @@ function renderQuickControlPage() {
                 </summary>
                 <div class="quick-shortcut-list">
                     ${shortcutActions.map(
-                ([action, label]) => `
+                        ([action, label]) => `
                             <div class="quick-shortcut-row">
                                 <div>
                                     <strong>
@@ -12296,8 +12316,8 @@ function renderQuickControlPage() {
                                     </strong>
                                     <code>
                                         ${escapeHtml(
-                    buildQuickControlUrl(action)
-                )}
+                                            buildQuickControlUrl(action)
+                                        )}
                                     </code>
                                 </div>
                                 <button
@@ -12308,7 +12328,7 @@ function renderQuickControlPage() {
                                 </button>
                             </div>
                         `
-            ).join("")}
+                    ).join("")}
                 </div>
             </details>
                 </div>
@@ -12820,7 +12840,7 @@ function restoreAppMenuScrollPosition(
         0,
         Number(
             appMenuScrollPositions[
-            normalizedMenu
+                normalizedMenu
             ] || 0
         )
     );
@@ -12860,7 +12880,7 @@ function normalizeAdaptiveDjMenuSettings(
 ) {
     const sourceSlots =
         settings?.slots &&
-            typeof settings.slots === "object"
+        typeof settings.slots === "object"
             ? settings.slots
             : {};
 
@@ -13376,7 +13396,7 @@ function recordAdaptiveLearningObservation({
 
     const resolvedDate =
         date instanceof Date &&
-            !Number.isNaN(date.getTime())
+        !Number.isNaN(date.getTime())
             ? date
             : new Date();
     const slot = getAdaptiveSlotById(
@@ -13572,10 +13592,10 @@ function getAdaptiveLearningPatterns() {
             winner.weekendCount;
         const dominantDayType =
             dayTotal &&
-                Math.max(
-                    winner.weekdayCount,
-                    winner.weekendCount
-                ) / dayTotal >= 0.7
+            Math.max(
+                winner.weekdayCount,
+                winner.weekendCount
+            ) / dayTotal >= 0.7
                 ? winner.weekendCount >
                     winner.weekdayCount
                     ? "weekend"
@@ -13608,7 +13628,7 @@ function getAdaptiveLearningSummary() {
         (pattern) =>
             pattern.candidateMix &&
             pattern.observationCount >=
-            ADAPTIVE_LEARNING_MIN_OBSERVATIONS &&
+                ADAPTIVE_LEARNING_MIN_OBSERVATIONS &&
             pattern.preferenceCount >= 2
     );
     const suggestions = eligiblePatterns
@@ -13648,9 +13668,9 @@ function getAdaptiveLearningSummary() {
 
             return !dismissed ||
                 pattern.preferenceCount >=
-                dismissed.evidenceCount + 2 ||
+                    dismissed.evidenceCount + 2 ||
                 pattern.confidence >=
-                dismissed.confidence + 10;
+                    dismissed.confidence + 10;
         })
         .sort(
             (first, second) =>
@@ -13730,11 +13750,11 @@ function getAdaptiveLearningAutoCandidate(
     if (
         !pattern?.candidateMix ||
         pattern.confidence <
-        adaptiveLearningState
-            .autoApplyMinConfidence ||
+            adaptiveLearningState
+                .autoApplyMinConfidence ||
         pattern.preferenceCount <
-        adaptiveLearningState
-            .autoApplyMinObservations
+            adaptiveLearningState
+                .autoApplyMinObservations
     ) {
         return null;
     }
@@ -13761,9 +13781,9 @@ function getAdaptiveLearningAutoCandidate(
     if (
         dismissed &&
         pattern.preferenceCount <
-        dismissed.evidenceCount + 2 &&
+            dismissed.evidenceCount + 2 &&
         pattern.confidence <
-        dismissed.confidence + 10
+            dismissed.confidence + 10
     ) {
         return null;
     }
@@ -13918,10 +13938,10 @@ function rollbackAdaptiveLearningAutoChange(
 
     const restoredMixId =
         change.previousMixId &&
-            savedMixes.some(
-                (item) =>
-                    item.id === change.previousMixId
-            )
+        savedMixes.some(
+            (item) =>
+                item.id === change.previousMixId
+        )
             ? change.previousMixId
             : "";
 
@@ -13983,7 +14003,7 @@ function renderAdaptiveAutomaticPanel() {
                     change.status === "applied" &&
                     (adaptiveDjMenuSettings
                         .slots[change.slotId] || "") ===
-                    change.nextMixId;
+                        change.nextMixId;
                 const status =
                     change.status === "reverted"
                         ? "annulé"
@@ -14006,17 +14026,17 @@ function renderAdaptiveAutomaticPanel() {
                                 ${change.confidence}% ·
                                 ${change.evidenceCount} choix ·
                                 ${new Intl.DateTimeFormat(
-                    "fr-FR",
-                    {
-                        dateStyle: "short",
-                        timeStyle: "short"
-                    }
-                ).format(new Date(change.createdAt))}
+                                    "fr-FR",
+                                    {
+                                        dateStyle: "short",
+                                        timeStyle: "short"
+                                    }
+                                ).format(new Date(change.createdAt))}
                                 · ${status}
                             </small>
                         </div>
                         ${canUndo
-                        ? `
+                            ? `
                                 <button
                                     type="button"
                                     class="adaptive-auto-undo"
@@ -14025,7 +14045,7 @@ function renderAdaptiveAutomaticPanel() {
                                     ↶ Annuler
                                 </button>
                             `
-                        : ""}
+                            : ""}
                     </li>
                 `;
             })
@@ -14043,12 +14063,12 @@ function renderAdaptiveAutomaticPanel() {
                 </div>
                 <span>
                     ${!adaptiveLearningState.enabled
-            ? "Apprentissage désactivé"
-            : !adaptiveLearningState.autoApplyEnabled
-                ? "Automatique désactivé"
-                : candidate
-                    ? `Prêt : ${escapeHtml(candidate.candidateMix.name)}`
-                    : "Actif, aucun changement prêt"}
+                        ? "Apprentissage désactivé"
+                        : !adaptiveLearningState.autoApplyEnabled
+                            ? "Automatique désactivé"
+                            : candidate
+                                ? `Prêt : ${escapeHtml(candidate.candidateMix.name)}`
+                                : "Actif, aucun changement prêt"}
                 </span>
             </div>
 
@@ -14057,11 +14077,11 @@ function renderAdaptiveAutomaticPanel() {
                     id="adaptiveLearningAutoApplyInput"
                     type="checkbox"
                     ${adaptiveLearningState.autoApplyEnabled
-            ? "checked"
-            : ""}
+                        ? "checked"
+                        : ""}
                     ${adaptiveLearningState.enabled
-            ? ""
-            : "disabled"}
+                        ? ""
+                        : "disabled"}
                 >
                 <span>
                     Autoriser les changements automatiques
@@ -14074,19 +14094,19 @@ function renderAdaptiveAutomaticPanel() {
                     <select
                         id="adaptiveLearningAutoConfidenceInput"
                         ${adaptiveLearningState.enabled
-            ? ""
-            : "disabled"}
+                            ? ""
+                            : "disabled"}
                     >
                         ${[60, 65, 70, 75, 80, 85, 90, 95]
-            .map((value) => `
+                            .map((value) => `
                                 <option
                                     value="${value}"
                                     ${value === Number(
-                adaptiveLearningState
-                    .autoApplyMinConfidence
-            )
-                    ? "selected"
-                    : ""}
+                                        adaptiveLearningState
+                                            .autoApplyMinConfidence
+                                    )
+                                        ? "selected"
+                                        : ""}
                                 >
                                     ${value}%
                                 </option>
@@ -14099,19 +14119,19 @@ function renderAdaptiveAutomaticPanel() {
                     <select
                         id="adaptiveLearningAutoObservationsInput"
                         ${adaptiveLearningState.enabled
-            ? ""
-            : "disabled"}
+                            ? ""
+                            : "disabled"}
                     >
                         ${[3, 4, 5, 6, 7, 8, 10, 12]
-            .map((value) => `
+                            .map((value) => `
                                 <option
                                     value="${value}"
                                     ${value === Number(
-                adaptiveLearningState
-                    .autoApplyMinObservations
-            )
-                    ? "selected"
-                    : ""}
+                                        adaptiveLearningState
+                                            .autoApplyMinObservations
+                                    )
+                                        ? "selected"
+                                        : ""}
                                 >
                                     ${value}
                                 </option>
@@ -14122,7 +14142,7 @@ function renderAdaptiveAutomaticPanel() {
 
             <div class="adaptive-auto-preview ${candidate ? "is-ready" : ""}">
                 ${candidate
-            ? `
+                    ? `
                         <strong>Prochain changement possible</strong>
                         <span>
                             ${escapeHtml(candidate.slot.label)}
@@ -14134,7 +14154,7 @@ function renderAdaptiveAutomaticPanel() {
                             ${candidate.preferenceCount} choix concordants
                         </small>
                     `
-            : `
+                    : `
                         <strong>Aucun changement automatique prêt</strong>
                         <span>
                             Le mix actuel reste utilisé tant que
@@ -14150,7 +14170,7 @@ function renderAdaptiveAutomaticPanel() {
                 </summary>
                 <ul>
                     ${history ||
-        "<li>Aucun changement automatique.</li>"}
+                    "<li>Aucun changement automatique.</li>"}
                 </ul>
             </details>
         </section>
@@ -14171,25 +14191,26 @@ function renderAdaptiveLearningPanel() {
                         </span>
                         <h5>
                             ${escapeHtml(
-                suggestion.slot.label
-            )}
+                                suggestion.slot.label
+                            )}
                             →
                             ${escapeHtml(
-                suggestion.candidateMix.name
-            )}
+                                suggestion.candidateMix.name
+                            )}
                         </h5>
                         <p>
                             Choisi
                             ${suggestion.preferenceCount}
                             fois sur
                             ${suggestion.observationCount}
-                            observation${suggestion.observationCount > 1
-                    ? "s"
-                    : ""
-                },
+                            observation${
+                                suggestion.observationCount > 1
+                                    ? "s"
+                                    : ""
+                            },
                             ${getAdaptiveLearningDayLabel(
-                    suggestion.dominantDayType
-                )}.
+                                suggestion.dominantDayType
+                            )}.
                         </p>
                     </div>
 
@@ -14199,11 +14220,11 @@ function renderAdaptiveLearningPanel() {
                             class="adaptive-learning-apply"
                             data-adaptive-learning-action="apply"
                             data-adaptive-learning-slot-id="${escapeHtml(
-                    suggestion.slot.id
-                )}"
+                                suggestion.slot.id
+                            )}"
                             data-adaptive-learning-mix-id="${escapeHtml(
-                    suggestion.candidateMixId
-                )}"
+                                suggestion.candidateMixId
+                            )}"
                         >
                             ✓ Appliquer
                         </button>
@@ -14213,11 +14234,11 @@ function renderAdaptiveLearningPanel() {
                             class="adaptive-learning-ignore"
                             data-adaptive-learning-action="ignore"
                             data-adaptive-learning-slot-id="${escapeHtml(
-                    suggestion.slot.id
-                )}"
+                                suggestion.slot.id
+                            )}"
                             data-adaptive-learning-mix-id="${escapeHtml(
-                    suggestion.candidateMixId
-                )}"
+                                suggestion.candidateMixId
+                            )}"
                         >
                             Ignorer
                         </button>
@@ -14244,13 +14265,13 @@ function renderAdaptiveLearningPanel() {
                 <li>
                     <span>
                         ${escapeHtml(
-                pattern.slot.label
-            )}
+                            pattern.slot.label
+                        )}
                     </span>
                     <strong>
                         ${escapeHtml(
-                pattern.candidateMix.name
-            )}
+                            pattern.candidateMix.name
+                        )}
                     </strong>
                     <small>
                         ${pattern.confidence}% ·
@@ -14310,10 +14331,11 @@ function renderAdaptiveLearningPanel() {
                     <strong>
                         ${summary.suggestions.length}
                     </strong>
-                    <span>suggestion${summary.suggestions.length > 1
-            ? "s"
-            : ""
-        }</span>
+                    <span>suggestion${
+                        summary.suggestions.length > 1
+                            ? "s"
+                            : ""
+                    }</span>
                 </div>
             </div>
 
@@ -14322,8 +14344,8 @@ function renderAdaptiveLearningPanel() {
                     id="adaptiveLearningEnabledInput"
                     type="checkbox"
                     ${adaptiveLearningState.enabled
-            ? "checked"
-            : ""}
+                        ? "checked"
+                        : ""}
                 >
                 <span>
                     Activer l’apprentissage local
@@ -14336,15 +14358,15 @@ function renderAdaptiveLearningPanel() {
                 ${suggestionsHtml || `
                     <div class="adaptive-learning-empty">
                         ${adaptiveLearningState.enabled
-            ? summary.preferenceObservationCount <
-                ADAPTIVE_LEARNING_MIN_OBSERVATIONS
-                ? `Encore ${Math.max(
-                    0,
-                    ADAPTIVE_LEARNING_MIN_OBSERVATIONS -
-                    summary.preferenceObservationCount
-                )} choix à observer avant la première suggestion.`
-                : "Aucune nouvelle modification n’est suggérée pour le moment."
-            : "Active l’apprentissage pour enregistrer les prochains choix."}
+                            ? summary.preferenceObservationCount <
+                                ADAPTIVE_LEARNING_MIN_OBSERVATIONS
+                                ? `Encore ${Math.max(
+                                    0,
+                                    ADAPTIVE_LEARNING_MIN_OBSERVATIONS -
+                                    summary.preferenceObservationCount
+                                )} choix à observer avant la première suggestion.`
+                                : "Aucune nouvelle modification n’est suggérée pour le moment."
+                            : "Active l’apprentissage pour enregistrer les prochains choix."}
                     </div>
                 `}
             </div>
@@ -14356,7 +14378,7 @@ function renderAdaptiveLearningPanel() {
                 </summary>
                 <ul>
                     ${insightsHtml ||
-        "<li>Aucune habitude détectée.</li>"}
+                    "<li>Aucune habitude détectée.</li>"}
                 </ul>
             </details>
 
@@ -14374,12 +14396,12 @@ function renderAdaptiveLearningPanel() {
                     type="button"
                     class="adaptive-learning-reset"
                     ${summary.totalObservationCount ||
-            adaptiveLearningState
-                .dismissedSuggestions.length ||
-            adaptiveLearningState
-                .acceptedSuggestions.length
-            ? ""
-            : "disabled"}
+                    adaptiveLearningState
+                        .dismissedSuggestions.length ||
+                    adaptiveLearningState
+                        .acceptedSuggestions.length
+                        ? ""
+                        : "disabled"}
                 >
                     Réinitialiser l’apprentissage
                 </button>
@@ -14983,13 +15005,13 @@ async function applyUsageProfile(
 
     const suffix =
         actions.sceneId &&
-            !sceneStatus.configured
+        !sceneStatus.configured
             ? " Configure d’abord la scène associée."
             : "";
     setStatus(
         `Mode ${profile.icon} ${profile.label} activé.${suffix}`,
         actions.sceneId &&
-            !sceneStatus.configured
+        !sceneStatus.configured
             ? "warning"
             : ""
     );
@@ -15056,14 +15078,14 @@ function renderUsageProfilesPage() {
                             <h4>${escapeHtml(profile.label)}</h4>
                         </div>
                         ${isActive
-                    ? '<span class="usage-profile-card__active">Actif</span>'
-                    : ''}
+                            ? '<span class="usage-profile-card__active">Actif</span>'
+                            : ''}
                     </div>
                     <p>${escapeHtml(profile.description)}</p>
                     <ul>
                         ${profile.highlights.map(
-                        (item) => `<li>${escapeHtml(item)}</li>`
-                    ).join("")}
+                            (item) => `<li>${escapeHtml(item)}</li>`
+                        ).join("")}
                     </ul>
                     <div class="usage-profile-card__status
                         ${status.configured ? "is-ready" : "is-warning"}">
@@ -15083,8 +15105,8 @@ function renderUsageProfilesPage() {
                             data-launch-usage-profile="${escapeHtml(profile.id)}"
                         >
                             ${profile.id === "daily" || profile.id === "discovery"
-                    ? "Ouvrir"
-                    : "Démarrer"}
+                                ? "Ouvrir"
+                                : "Démarrer"}
                         </button>
                     </div>
                 </article>
@@ -15559,7 +15581,7 @@ function renderUniversalSearchResults() {
 
     const recent =
         !universalSearchQuery &&
-            universalSearchHistory.length
+        universalSearchHistory.length
             ? `
                 <section
                     class="universal-search-recents"
@@ -15576,7 +15598,7 @@ function renderUniversalSearchResults() {
                     </div>
                     <div>
                         ${universalSearchHistory
-                .map((query) => `
+                            .map((query) => `
                                 <button
                                     type="button"
                                     data-universal-search-recent="${escapeHtml(query)}"
@@ -15584,7 +15606,7 @@ function renderUniversalSearchResults() {
                                     ${escapeHtml(query)}
                                 </button>
                             `)
-                .join("")}
+                            .join("")}
                     </div>
                 </section>
             `
@@ -15629,19 +15651,19 @@ function renderUniversalSearchResults() {
                     </h4>
                     <div class="universal-search-result-list">
                         ${group.items.map((item) => {
-        const index = item.resultIndex;
-        return `
+                            const index = item.resultIndex;
+                            return `
                                 <button
                                     type="button"
                                     class="universal-search-result
                                     ${index === universalSearchSelectedIndex
-                ? "is-selected"
-                : ""}"
+                                        ? "is-selected"
+                                        : ""}"
                                     data-universal-search-result-index="${index}"
                                     role="option"
                                     aria-selected="${index === universalSearchSelectedIndex
-                ? "true"
-                : "false"}"
+                                        ? "true"
+                                        : "false"}"
                                 >
                                     <span
                                         class="universal-search-result__icon"
@@ -15655,10 +15677,10 @@ function renderUniversalSearchResults() {
                                         <span>
                                             <strong>${escapeHtml(item.title)}</strong>
                                             <small>${escapeHtml(
-                    getLoadedUniversalSearchFeature().getUniversalSearchTypeLabel(
-                        item.type
-                    )
-                )}</small>
+                                                getLoadedUniversalSearchFeature().getUniversalSearchTypeLabel(
+                                                    item.type
+                                                )
+                                            )}</small>
                                         </span>
                                         <em>${escapeHtml(item.subtitle)}</em>
                                         <span>${escapeHtml(item.description)}</span>
@@ -15671,7 +15693,7 @@ function renderUniversalSearchResults() {
                                     </span>
                                 </button>
                             `;
-    }).join("")}
+                        }).join("")}
                     </div>
                 </section>
             `).join("")}
@@ -15728,7 +15750,7 @@ function renderUniversalSearchDialog() {
                         enterkeyhint="go"
                     >
                     ${universalSearchQuery
-            ? `
+                        ? `
                             <button
                                 type="button"
                                 data-clear-universal-search-query
@@ -15737,7 +15759,7 @@ function renderUniversalSearchDialog() {
                                 ×
                             </button>
                         `
-            : ""}
+                        : ""}
                 </label>
 
                 <div
@@ -15950,7 +15972,7 @@ async function runUniversalSearchResult(
 ) {
     const result =
         universalSearchResults[
-        Number(resultIndex)
+            Number(resultIndex)
         ];
 
     if (!result) {
@@ -16802,10 +16824,10 @@ async function executeMusicalAssistantPlan() {
         if (plan.type === "goals") {
             activeAppMenu = "goals";
             saveActiveAppMenu();
-            addMusicalAssistantHistory({ request: plan.request, plan, status: "success", message: "Objectifs musicaux ouverts." });
-            setVoiceAssistantMessage("Objectifs ouverts.", "success");
+            addMusicalAssistantHistory({request:plan.request,plan,status:"success",message:"Objectifs musicaux ouverts."});
+            setVoiceAssistantMessage("Objectifs ouverts.","success");
             speakVoiceAssistantText("J’ouvre tes objectifs musicaux de la semaine.");
-            vibrateVoiceAssistant([30, 40, 30]);
+            vibrateVoiceAssistant([30,40,30]);
             displayPlaylists(playlistsCache);
             return;
         }
@@ -16828,7 +16850,7 @@ async function executeMusicalAssistantPlan() {
         }
 
         if (plan.type === "dashboard") {
-            activeAppMenu = "dashboard"; saveActiveAppMenu(); addMusicalAssistantHistory({ request: plan.request, plan, status: "success", message: "Tableau de bord musical ouvert." }); setVoiceAssistantMessage("Tableau de bord ouvert.", "success"); speakVoiceAssistantText("J’ouvre ton tableau de bord musical."); vibrateVoiceAssistant([30, 40, 30]); displayPlaylists(playlistsCache); await refreshMusicalDashboardPlayback({ silent: true }); return;
+            activeAppMenu="dashboard";saveActiveAppMenu();addMusicalAssistantHistory({request:plan.request,plan,status:"success",message:"Tableau de bord musical ouvert."});setVoiceAssistantMessage("Tableau de bord ouvert.","success");speakVoiceAssistantText("J’ouvre ton tableau de bord musical.");vibrateVoiceAssistant([30,40,30]);displayPlaylists(playlistsCache);await refreshMusicalDashboardPlayback({silent:true});return;
         }
 
         if (plan.type === "statistics") {
@@ -16873,8 +16895,8 @@ async function executeMusicalAssistantPlan() {
                 message: recommendation.reason
             });
             setVoiceAssistantMessage("Recommandation lancée.", "success");
-            speakVoiceAssistantText(buildVoiceExecutionAnnouncement(musicalAssistantPlan, { success: true, message: "Recommandation lancée." }));
-            vibrateVoiceAssistant([30, 45, 30]);
+            speakVoiceAssistantText(buildVoiceExecutionAnnouncement(musicalAssistantPlan, {success:true, message:"Recommandation lancée."}));
+            vibrateVoiceAssistant([30,45,30]);
             return;
         }
 
@@ -17158,13 +17180,13 @@ function renderMusicalAssistantPlan(plan) {
                 </span>
             </div>
             ${details.length
-            ? `<ul>${details.map((detail) =>
-                `<li>${escapeHtml(detail)}</li>`
-            ).join("")}</ul>`
-            : ""}
+                ? `<ul>${details.map((detail) =>
+                    `<li>${escapeHtml(detail)}</li>`
+                ).join("")}</ul>`
+                : ""}
             ${plan.warning
-            ? `<p class="musical-assistant-warning">⚠ ${escapeHtml(plan.warning)}</p>`
-            : ""}
+                ? `<p class="musical-assistant-warning">⚠ ${escapeHtml(plan.warning)}</p>`
+                : ""}
             <div class="musical-assistant-plan__actions">
                 <button
                     id="executeMusicalAssistantButton"
@@ -17173,12 +17195,12 @@ function renderMusicalAssistantPlan(plan) {
                     ${plan.ready ? "" : "disabled"}
                 >
                     ${escapeHtml(
-                plan.voiceOrigin &&
-                    voiceAssistantSettings.confirmBeforeAction &&
-                    isSensitiveVoicePlan(plan)
-                    ? `Confirmer · ${plan.actionLabel || "Exécuter"}`
-                    : plan.actionLabel || "Exécuter"
-            )}
+                        plan.voiceOrigin &&
+                        voiceAssistantSettings.confirmBeforeAction &&
+                        isSensitiveVoicePlan(plan)
+                            ? `Confirmer · ${plan.actionLabel || "Exécuter"}`
+                            : plan.actionLabel || "Exécuter"
+                    )}
                 </button>
             </div>
         </article>
@@ -17196,14 +17218,14 @@ function renderMusicalAssistantPage() {
                 </div>
                 <small>
                     ${new Intl.DateTimeFormat("fr-FR", {
-            dateStyle: "short",
-            timeStyle: "short"
-        }).format(new Date(item.createdAt))}
+                        dateStyle: "short",
+                        timeStyle: "short"
+                    }).format(new Date(item.createdAt))}
                     · ${item.status === "success"
-                ? "réussi"
-                : item.status === "error"
-                    ? "échec"
-                    : "analysé"}
+                        ? "réussi"
+                        : item.status === "error"
+                            ? "échec"
+                            : "analysé"}
                 </small>
             </li>
         `)
@@ -17250,8 +17272,8 @@ function renderMusicalAssistantPage() {
                         ${isVoiceAssistantSupported() ? "" : "disabled"}
                     >
                         ${voiceAssistantListening && voiceAssistantSource === "assistant"
-            ? "■ Arrêter l’écoute"
-            : "🎙️ Parler à Shuffle+"}
+                            ? "■ Arrêter l’écoute"
+                            : "🎙️ Parler à Shuffle+"}
                     </button>
                     <button class="primary-button" type="submit">
                         ✨ Analyser la demande
@@ -17261,11 +17283,11 @@ function renderMusicalAssistantPage() {
 
             <p class="voice-assistant-message ${escapeHtml(voiceAssistantMessage.type)}" aria-live="polite">
                 ${escapeHtml(
-                voiceAssistantMessage.text ||
-                (isVoiceAssistantSupported()
-                    ? "Appuie sur le micro et parle naturellement."
-                    : "Le microphone vocal n’est pas pris en charge par ce navigateur.")
-            )}
+                    voiceAssistantMessage.text ||
+                    (isVoiceAssistantSupported()
+                        ? "Appuie sur le micro et parle naturellement."
+                        : "Le microphone vocal n’est pas pris en charge par ce navigateur.")
+                )}
             </p>
 
             ${renderVoiceAssistantSettingsPanel()}
@@ -17589,22 +17611,22 @@ function renderAppMenu() {
                         class="app-menu-group__buttons"
                     >
                         ${group.items.map(
-        ([id, icon, label]) => {
-            const selected =
-                activePrimaryMenu === id;
-            return `
+                            ([id, icon, label]) => {
+                                const selected =
+                                    activePrimaryMenu === id;
+                                return `
                                 <button
                                     type="button"
                                     class="app-menu-button
                                     ${selected
-                    ? "is-active"
-                    : ""}"
+                                        ? "is-active"
+                                        : ""}"
                                     data-app-menu="${id}"
                                     aria-label="${escapeHtml(label)}"
                                     title="${escapeHtml(label)}"
                                     aria-current="${selected
-                    ? "page"
-                    : "false"}"
+                                        ? "page"
+                                        : "false"}"
                                 >
                                     <span aria-hidden="true">
                                         ${icon}
@@ -17612,11 +17634,11 @@ function renderAppMenu() {
                                     <span>${label}</span>
                                 </button>
                             `;
-        }
-    ).join("")}
+                            }
+                        ).join("")}
 
                         ${group.id === "primary"
-            ? `
+                            ? `
                                 <button
                                     type="button"
                                     class="app-menu-button app-menu-search-button"
@@ -17641,7 +17663,7 @@ function renderAppMenu() {
                                     <kbd aria-hidden="true">Ctrl/⌘ K</kbd>
                                 </button>
                             `
-            : ""}
+                            : ""}
                     </div>
                 </div>
             `).join("")}
@@ -17675,8 +17697,8 @@ function renderAppSectionMenu() {
                 ${selected ? "is-active" : ""}"
                 data-app-menu="${id}"
                 aria-current="${selected
-                ? "page"
-                : "false"}"
+                    ? "page"
+                    : "false"}"
             >
                 <span aria-hidden="true">${icon}</span>
                 <span>${escapeHtml(label)}</span>
@@ -17703,12 +17725,12 @@ function renderAppSectionMenu() {
         >
             <div class="app-section-menu__featured">
                 ${visibleFeaturedItems.map(
-        (item) => renderButton(item)
-    ).join("")}
+                    (item) => renderButton(item)
+                ).join("")}
             </div>
 
             ${section.more.length
-            ? `
+                ? `
                 <details class="app-section-more">
                     <summary>
                         <span aria-hidden="true">•••</span>
@@ -17716,15 +17738,15 @@ function renderAppSectionMenu() {
                     </summary>
                     <div class="app-section-more__items">
                         ${section.more.map(
-                (item) => renderButton(
-                    item,
-                    true
-                )
-            ).join("")}
+                            (item) => renderButton(
+                                item,
+                                true
+                            )
+                        ).join("")}
                     </div>
                 </details>
                 `
-            : ""}
+                : ""}
         </nav>
     `;
 }
@@ -17742,8 +17764,8 @@ function renderAdaptiveDjMenu() {
                 <option
                     value="${escapeHtml(mix.id)}"
                     ${mix.id === selectedId
-                    ? "selected"
-                    : ""}
+                        ? "selected"
+                        : ""}
                 >
                     ${escapeHtml(mix.name)}
                 </option>
@@ -17759,26 +17781,26 @@ function renderAdaptiveDjMenu() {
                 </span>
                 <strong>
                     ${escapeHtml(
-            item.mixName ||
-            "Mix non défini"
-        )}
+                        item.mixName ||
+                        "Mix non défini"
+                    )}
                 </strong>
                 <small>
                     ${new Intl.DateTimeFormat(
-            "fr-FR",
-            {
-                dateStyle: "short",
-                timeStyle: "short"
-            }
-        ).format(
-            new Date(item.createdAt)
-        )}
+                        "fr-FR",
+                        {
+                            dateStyle: "short",
+                            timeStyle: "short"
+                        }
+                    ).format(
+                        new Date(item.createdAt)
+                    )}
                     · ${item.status === "success"
-                ? "réussi"
-                : "échec"}
+                        ? "réussi"
+                        : "échec"}
                     ${item.deviceName
-                ? ` · ${escapeHtml(item.deviceName)}`
-                : ""}
+                        ? ` · ${escapeHtml(item.deviceName)}`
+                        : ""}
                 </small>
             </li>
         `)
@@ -17797,10 +17819,10 @@ function renderAdaptiveDjMenu() {
                     <p>
                         Il est
                         ${String(
-        new Date().getHours()
-    ).padStart(2, "0")}h${String(
-        new Date().getMinutes()
-    ).padStart(2, "0")}
+                            new Date().getHours()
+                        ).padStart(2, "0")}h${String(
+                            new Date().getMinutes()
+                        ).padStart(2, "0")}
                         · mix sélectionné :
                         <strong>
                             ${escapeHtml(currentMixName)}
@@ -17810,12 +17832,12 @@ function renderAdaptiveDjMenu() {
 
                 <span class="adaptive-menu-status
                     ${adaptiveDjMenuSettings.enabled
-            ? "is-enabled"
-            : "is-disabled"}"
+                        ? "is-enabled"
+                        : "is-disabled"}"
                 >
                     ${adaptiveDjMenuSettings.enabled
-            ? "Actif"
-            : "Désactivé"}
+                        ? "Actif"
+                        : "Désactivé"}
                 </span>
             </div>
 
@@ -17825,9 +17847,9 @@ function renderAdaptiveDjMenu() {
                     class="adaptive-menu-primary"
                     type="button"
                     ${adaptiveDjMenuSettings.enabled &&
-            current.mix
-            ? ""
-            : "disabled"}
+                    current.mix
+                        ? ""
+                        : "disabled"}
                 >
                     ▶ Lancer maintenant
                 </button>
@@ -17850,8 +17872,8 @@ function renderAdaptiveDjMenu() {
                         name="enabled"
                         type="checkbox"
                         ${adaptiveDjMenuSettings.enabled
-            ? "checked"
-            : ""}
+                            ? "checked"
+                            : ""}
                     >
                     <span>
                         Activer Adaptive DJ
@@ -17866,10 +17888,10 @@ function renderAdaptiveDjMenu() {
                             </span>
                             <small>
                                 ${String(slot.start)
-                    .padStart(2, "0")}h
+                                    .padStart(2, "0")}h
                                 →
                                 ${String(slot.end)
-                    .padStart(2, "0")}h
+                                    .padStart(2, "0")}h
                             </small>
                             <select
                                 name="slot-${escapeHtml(slot.id)}"
@@ -17878,10 +17900,10 @@ function renderAdaptiveDjMenu() {
                                     Aucun mix
                                 </option>
                                 ${mixOptions(
-                        adaptiveDjMenuSettings
-                            .slots[slot.id] ||
-                        ""
-                    )}
+                                    adaptiveDjMenuSettings
+                                        .slots[slot.id] ||
+                                    ""
+                                )}
                             </select>
                         </label>
                     `).join("")}
@@ -17892,14 +17914,14 @@ function renderAdaptiveDjMenu() {
                         <span>Simuler un contexte</span>
                         <select name="testSlotId">
                             ${ADAPTIVE_SLOTS.map(
-                        (slot) => `
+                                (slot) => `
                                     <option
                                         value="${escapeHtml(slot.id)}"
                                     >
                                         ${escapeHtml(slot.label)}
                                     </option>
                                 `
-                    ).join("")}
+                            ).join("")}
                         </select>
                     </label>
 
@@ -17933,7 +17955,7 @@ function renderAdaptiveDjMenu() {
                 </summary>
                 <ul>
                     ${history ||
-        "<li>Aucun lancement enregistré.</li>"}
+                    "<li>Aucun lancement enregistré.</li>"}
                 </ul>
             </details>
         </section>
@@ -18463,17 +18485,17 @@ function normalizeIosCommand(command = {}) {
     return {
         id:
             typeof command.id === "string" &&
-                command.id.trim()
+            command.id.trim()
                 ? command.id.trim().slice(0, 120)
                 : createIosCommandId(),
         name:
             typeof command.name === "string" &&
-                command.name.trim()
+            command.name.trim()
                 ? command.name.trim().slice(0, 80)
                 : "Lecture iOS",
         icon:
             typeof command.icon === "string" &&
-                command.icon.trim()
+            command.icon.trim()
                 ? command.icon.trim().slice(0, 8)
                 : "▶️",
         commandType,
@@ -19221,9 +19243,9 @@ function renderIosCommandsPanel() {
                 ${playlist.id === formCommand.playlistId ? "selected" : ""}
             >
                 ${escapeHtml(
-            playlist.name ||
-            "Playlist sans nom"
-        )}
+                    playlist.name ||
+                    "Playlist sans nom"
+                )}
             </option>
         `)
         .join("");
@@ -19248,41 +19270,41 @@ function renderIosCommandsPanel() {
                             </h4>
                             <p>
                                 ${command.commandType === "smartmix"
-                    ? escapeHtml(
-                        savedMixes.find(
-                            (mix) => mix.id === command.mixId
-                        )?.name || "Mix indisponible"
-                    )
-                    : escapeHtml(
-                        command.playlistName ||
-                        "Playlist indisponible"
-                    )}
+                                    ? escapeHtml(
+                                        savedMixes.find(
+                                            (mix) => mix.id === command.mixId
+                                        )?.name || "Mix indisponible"
+                                    )
+                                    : escapeHtml(
+                                        command.playlistName ||
+                                        "Playlist indisponible"
+                                    )}
                             </p>
                             <small>
                                 ${command.commandType === "smartmix"
-                    ? "Mix intelligent"
-                    : "Playlist fixe"}
+                                    ? "Mix intelligent"
+                                    : "Playlist fixe"}
                                 · ${command.deviceMode === "preferred"
-                    ? "iPhone enregistré"
-                    : command.deviceMode === "iphone"
-                        ? "iPhone prioritaire"
-                        : command.deviceMode === "named"
-                            ? `Appareil : ${escapeHtml(command.deviceName || "nom à définir")}`
-                            : command.deviceMode === "active"
-                                ? "Appareil actif"
-                                : "Premier appareil"}
+                                    ? "iPhone enregistré"
+                                    : command.deviceMode === "iphone"
+                                    ? "iPhone prioritaire"
+                                    : command.deviceMode === "named"
+                                        ? `Appareil : ${escapeHtml(command.deviceName || "nom à définir")}`
+                                        : command.deviceMode === "active"
+                                            ? "Appareil actif"
+                                            : "Premier appareil"}
                                 · ${command.shuffle
-                    ? "shuffle activé"
-                    : "ordre normal"}
+                                    ? "shuffle activé"
+                                    : "ordre normal"}
                                 ${command.openDrivingMode
-                    ? " · conduite auto"
-                    : ""}
+                                    ? " · conduite auto"
+                                    : ""}
                                 ${command.openDynamicLyrics
-                    ? " · paroles auto"
-                    : ""}
+                                    ? " · paroles auto"
+                                    : ""}
                                 ${lastRun
-                    ? ` · dernier : ${escapeHtml(lastRun.deviceName || lastRun.status)}`
-                    : ""}
+                                    ? ` · dernier : ${escapeHtml(lastRun.deviceName || lastRun.status)}`
+                                    : ""}
                             </small>
                         </div>
                     </div>
@@ -19353,14 +19375,14 @@ function renderIosCommandsPanel() {
                         <span>📱 Appareil Spotify prioritaire</span>
                         <strong>
                             ${escapeHtml(
-        preferredSpotifyDevice.name ||
-        "Aucun iPhone enregistré"
-    )}
+                                preferredSpotifyDevice.name ||
+                                "Aucun iPhone enregistré"
+                            )}
                         </strong>
                         <small>
                             ${preferredSpotifyDevice.id
-            ? `device_id : ${escapeHtml(preferredSpotifyDevice.id)}`
-            : "Ouvre Spotify sur l’iPhone puis actualise la liste."}
+                                ? `device_id : ${escapeHtml(preferredSpotifyDevice.id)}`
+                                : "Ouvre Spotify sur l’iPhone puis actualise la liste."}
                         </small>
                     </div>
                     <button
@@ -19468,12 +19490,12 @@ function renderIosCommandsPanel() {
                         <span>Délai après le lancement Spotify</span>
                         <select name="launchDelayMs">
                             ${[
-            [0, "Immédiat"],
-            [700, "0,7 seconde"],
-            [1200, "1,2 seconde"],
-            [2000, "2 secondes"],
-            [3000, "3 secondes"]
-        ].map(([value, label]) => `
+                                [0, "Immédiat"],
+                                [700, "0,7 seconde"],
+                                [1200, "1,2 seconde"],
+                                [2000, "2 secondes"],
+                                [3000, "3 secondes"]
+                            ].map(([value, label]) => `
                                 <option
                                     value="${value}"
                                     ${dynamicLyricsSettings.launchDelayMs === value ? "selected" : ""}
@@ -19714,8 +19736,8 @@ function renderIosCommandsPanel() {
                     <span>
                         Ouvrir Dynamic Lyrics après le lancement
                         ${dynamicLyricsSettings.enabled
-            ? ""
-            : " · active d’abord l’intégration ci-dessus"}
+                            ? ""
+                            : " · active d’abord l’intégration ci-dessus"}
                     </span>
                 </label>
 
@@ -19751,7 +19773,7 @@ function renderIosCommandsPanel() {
 
                 <div class="ios-command-form-actions">
                     ${editingCommand
-            ? `
+                        ? `
                             <button
                                 id="cancelIosCommandEditButton"
                                 class="ios-command-secondary"
@@ -19760,14 +19782,14 @@ function renderIosCommandsPanel() {
                                 Annuler
                             </button>
                         `
-            : ""}
+                        : ""}
                     <button
                         class="ios-command-save"
                         type="submit"
                     >
                         ${editingCommand
-            ? "Enregistrer les modifications"
-            : "+ Ajouter un raccourci"}
+                            ? "Enregistrer les modifications"
+                            : "+ Ajouter un raccourci"}
                     </button>
                 </div>
             </form>
@@ -19787,8 +19809,8 @@ function renderIosCommandsPanel() {
                 </summary>
                 <div>
                     ${iosCommandHistory
-            .slice(0, 12)
-            .map((item) => `
+                        .slice(0, 12)
+                        .map((item) => `
                             <p>
                                 <strong>
                                     ${escapeHtml(item.commandName)}
@@ -19797,8 +19819,8 @@ function renderIosCommandsPanel() {
                                 · ${item.status === "success" ? "réussi" : "échec"}
                             </p>
                         `)
-            .join("") ||
-        "<p>Aucun lancement enregistré.</p>"}
+                        .join("") ||
+                        "<p>Aucun lancement enregistré.</p>"}
                 </div>
             </details>
         </section>
@@ -20006,10 +20028,10 @@ function findAutomationDevice(
         {
             mode:
                 settings.deviceMode === "iphone" &&
-                    preferredSpotifyDevice.id
+                preferredSpotifyDevice.id
                     ? "preferred"
                     : settings.deviceMode ||
-                    "preferred",
+                        "preferred",
             preferredDevice:
                 preferredSpotifyDevice,
             deviceName:
@@ -20092,7 +20114,12 @@ async function getAutomationDeviceWithRetry(
                     device,
                     message: `${device.name || "Appareil Spotify"} détecté${device.selectionReason ? ` · ${device.selectionReason}` : ""}`
                 });
-                return device;
+                return {
+                    ...device,
+                    fallbackCandidates: candidates
+                        .slice(1, 4)
+                        .map((candidate) => ({ ...candidate }))
+                };
             }
 
             onAttempt?.({
@@ -20179,7 +20206,7 @@ async function verifyPlaybackOnDevice(
         const rightContext =
             !expectedPlaylistId ||
             contextUri ===
-            `spotify:playlist:${expectedPlaylistId}`;
+                `spotify:playlist:${expectedPlaylistId}`;
 
         if (rightDevice && playing && rightContext) {
             return lastState;
@@ -20210,6 +20237,89 @@ function getRandomPlaylistStartPosition(playlistId) {
     }
 
     return Math.floor(Math.random() * total);
+}
+
+
+async function sendSpotifyPlaylistPlaybackRequest({
+    url,
+    accessToken,
+    body,
+    onProgress = null,
+    maxAttempts = 3
+} = {}) {
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        if (attempt > 1) {
+            onProgress?.({
+                stage: "playback",
+                status: "pending",
+                attempt,
+                message: `Nouvel envoi automatique ${attempt}/${maxAttempts}…`
+            });
+        }
+
+        let response;
+        try {
+            response = await fetch(url, {
+                method: "PUT",
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(body)
+            });
+        } catch (networkError) {
+            lastError = networkError instanceof Error
+                ? networkError
+                : new Error("La commande Spotify n’a pas pu être envoyée.");
+            if (!shouldRetrySpotifyPlayback(lastError, { attempt, maxAttempts })) {
+                throw lastError;
+            }
+            await wait(getSpotifyPlaybackRetryDelay(lastError, { attempt }));
+            continue;
+        }
+
+        if (response.ok) {
+            return response;
+        }
+
+        let payload = null;
+        try {
+            payload = await response.json();
+        } catch (error) {
+            payload = null;
+        }
+
+        const spotifyError = new Error(
+            payload?.error?.message ||
+            `Lecture Spotify refusée par /me/player/play (${response.status}).`
+        );
+        spotifyError.status = response.status;
+        spotifyError.reason = payload?.error?.reason || "";
+        spotifyError.code = payload?.error?.status
+            ? `SPOTIFY_${payload.error.status}`
+            : `SPOTIFY_${response.status}`;
+        spotifyError.retryAfter = response.headers.get("Retry-After") || "";
+        lastError = spotifyError;
+
+        if (!shouldRetrySpotifyPlayback(spotifyError, { attempt, maxAttempts })) {
+            throw spotifyError;
+        }
+
+        const delayMs = getSpotifyPlaybackRetryDelay(spotifyError, { attempt });
+        onProgress?.({
+            stage: "playback",
+            status: "pending",
+            attempt,
+            message: response.status === 429
+                ? `Spotify limite les commandes · nouvel essai dans ${Math.ceil(delayMs / 1000)} s`
+                : "Spotify Connect se réveille · nouvel essai automatique…"
+        });
+        await wait(delayMs);
+    }
+
+    throw lastError || new Error("La lecture Spotify n’a pas pu démarrer.");
 }
 
 async function startPlaylistContextPlayback(
@@ -20323,46 +20433,13 @@ async function startPlaylistContextPlayback(
         message: "Envoi de la playlist à Spotify…"
     });
 
-    const response = await fetch(
-        url.toString(),
-        {
-            method: "PUT",
-            headers: {
-                Authorization:
-                    `Bearer ${accessToken}`,
-                "Content-Type":
-                    "application/json"
-            },
-            body: JSON.stringify(body)
-        }
-    );
-
-    if (!response.ok) {
-        let spotifyReason = "";
-
-        try {
-            const payload =
-                await response.json();
-            spotifyReason =
-                payload?.error?.reason ||
-                payload?.error?.message ||
-                "";
-        } catch (error) {
-            // Réponse sans JSON.
-        }
-
-        const message =
-            `Lecture Spotify refusée par /me/player/play (${response.status})` +
-            (spotifyReason ? ` : ${spotifyReason}` : ".");
-
-        if (response.status === 403) {
-            throw new Error(
-                `${message} Vérifie Spotify Premium, l’autorisation user-modify-playback-state et l’accès du compte à l’application.`
-            );
-        }
-
-        throw new Error(message);
-    }
+    await sendSpotifyPlaylistPlaybackRequest({
+        url: url.toString(),
+        accessToken,
+        body,
+        onProgress,
+        maxAttempts: 3
+    });
 
     onProgress?.({
         stage: "playback",
@@ -20437,25 +20514,13 @@ async function startPlaylistContextPlayback(
             attempt: 2,
             message: "Nouvel envoi de la playlist…"
         });
-        const retryResponse = await fetch(
-            url.toString(),
-            {
-                method: "PUT",
-                headers: {
-                    Authorization:
-                        `Bearer ${accessToken}`,
-                    "Content-Type":
-                        "application/json"
-                },
-                body: JSON.stringify(body)
-            }
-        );
-
-        if (!retryResponse.ok) {
-            throw new Error(
-                `Spotify n’a pas pu relancer la playlist sur l’iPhone (${retryResponse.status}).`
-            );
-        }
+        await sendSpotifyPlaylistPlaybackRequest({
+            url: url.toString(),
+            accessToken,
+            body,
+            onProgress,
+            maxAttempts: 2
+        });
 
         onProgress?.({
             stage: "playback",
@@ -20467,7 +20532,7 @@ async function startPlaylistContextPlayback(
         await setPlaybackShuffle(
             shuffle,
             deviceId
-        ).catch(() => { });
+        ).catch(() => {});
         playback = await verifyPlaybackOnDevice(
             deviceId,
             {
@@ -20632,9 +20697,9 @@ function renderIosLaunchProgress({
             <p>${escapeHtml(message)}</p>
             <ol class="launch-progress-steps">
                 ${stepDefinitions.map(([id, label, description]) => {
-        const savedStep = stepMap.get(id);
-        const status = savedStep?.status || (activeStep === id ? "pending" : "waiting");
-        return `
+                    const savedStep = stepMap.get(id);
+                    const status = savedStep?.status || (activeStep === id ? "pending" : "waiting");
+                    return `
                         <li class="${escapeHtml(status)}">
                             <span aria-hidden="true">
                                 ${status === "success" ? "✓" : status === "error" ? "!" : status === "pending" ? "…" : "○"}
@@ -20645,7 +20710,7 @@ function renderIosLaunchProgress({
                             </div>
                         </li>
                     `;
-    }).join("")}
+                }).join("")}
             </ol>
             <div class="launch-progress-spinner" aria-hidden="true"></div>
             <small class="launch-progress-note">
@@ -20728,6 +20793,7 @@ async function runIosQuickPlay(
     let activeLaunchStep = "configuration";
     let selectedDevice = null;
     let deviceSearchAttempts = 0;
+    let playbackDeviceAttempts = 0;
 
     const updateStep = ({
         id,
@@ -20900,35 +20966,80 @@ async function runIosQuickPlay(
         });
         setStatus(`Lancement sur ${selectedDevice.name}…`);
 
-        drivingPlaybackState = await startPlaylistContextPlayback(
-            resolvedPlaylistId,
-            selectedDevice.id,
-            {
-                shuffle: command.shuffle,
-                startFromBeginning: command.startFromBeginning,
-                onProgress: ({
-                    stage,
-                    status,
-                    message,
-                    attempt = 0
-                }) => {
-                    const labels = {
-                        connection: "Connexion Spotify",
-                        activation: "Activation de l’appareil",
-                        playback: "Lecture Spotify",
-                        verification: "Vérification"
-                    };
-                    updateStep({
-                        id: stage,
-                        label: labels[stage] || "Lancement",
-                        status,
-                        message,
-                        attempt,
-                        renderMessage: message
-                    });
-                }
+        const launchCandidates = [
+            selectedDevice,
+            ...(Array.isArray(selectedDevice.fallbackCandidates)
+                ? selectedDevice.fallbackCandidates
+                : [])
+        ].filter((device, index, items) =>
+            device?.id && items.findIndex((item) => item?.id === device.id) === index
+        ).slice(0, 4);
+        let playbackError = null;
+
+        for (let index = 0; index < launchCandidates.length; index += 1) {
+            selectedDevice = launchCandidates[index];
+            playbackDeviceAttempts = index + 1;
+
+            if (index > 0) {
+                updateStep({
+                    id: "device",
+                    label: "Appareil Spotify",
+                    status: "pending",
+                    attempt: playbackDeviceAttempts,
+                    message: `Bascule automatique vers ${selectedDevice.name || "un appareil de secours"}`,
+                    renderMessage: `Le premier appareil n’a pas répondu. Essai sur ${selectedDevice.name || "un appareil de secours"}…`
+                });
+                await wait(350);
             }
-        );
+
+            try {
+                drivingPlaybackState = await startPlaylistContextPlayback(
+                    resolvedPlaylistId,
+                    selectedDevice.id,
+                    {
+                        shuffle: command.shuffle,
+                        startFromBeginning: command.startFromBeginning,
+                        onProgress: ({
+                            stage,
+                            status,
+                            message,
+                            attempt = 0
+                        }) => {
+                            const labels = {
+                                connection: "Connexion Spotify",
+                                activation: "Activation de l’appareil",
+                                playback: "Lecture Spotify",
+                                verification: "Vérification"
+                            };
+                            updateStep({
+                                id: stage,
+                                label: labels[stage] || "Lancement",
+                                status,
+                                message,
+                                attempt,
+                                renderMessage: message
+                            });
+                        }
+                    }
+                );
+                playbackError = null;
+                break;
+            } catch (error) {
+                playbackError = error;
+                const hasFallback = index < launchCandidates.length - 1;
+                if (!hasFallback || !isLaunchDeviceFailoverEligible(error)) {
+                    throw error;
+                }
+                console.warn(
+                    `Appareil Spotify indisponible (${selectedDevice.name || selectedDevice.id}), bascule automatique :`,
+                    error
+                );
+            }
+        }
+
+        if (playbackError || !drivingPlaybackState) {
+            throw playbackError || new Error("La lecture Spotify n’a pas été confirmée.");
+        }
 
         const operationalDevice = {
             ...selectedDevice,
@@ -20936,6 +21047,15 @@ async function runIosQuickPlay(
         };
         rememberPreferredSpotifyDevice(operationalDevice);
         rememberLastWorkingSpotifyDevice(operationalDevice);
+        refreshDrivingQueue({
+            silent: true,
+            render: false
+        }).catch((queueError) => {
+            console.warn(
+                "File d’attente non actualisée après le lancement :",
+                queueError
+            );
+        });
 
         launchSteps = upsertLaunchStep(launchSteps, {
             id: "verification",
@@ -20988,12 +21108,13 @@ async function runIosQuickPlay(
                 <p class="launch-result-meta">
                     ${escapeHtml(formatShortcutRunDuration(launchDurationMs))}
                     · ${deviceSearchAttempts || 1} recherche${deviceSearchAttempts > 1 ? "s" : ""} d’appareil
+                    · ${playbackDeviceAttempts || 1} appareil${playbackDeviceAttempts > 1 ? "s" : ""} tenté${playbackDeviceAttempts > 1 ? "s" : ""}
                     · ${command.shuffle ? "shuffle actif" : "ordre normal"}
                 </p>
                 ${renderShortcutProfileDiagnosticSteps({ steps: launchSteps })}
                 <div class="launch-result-actions">
                     ${dynamicLyricsLaunch.requested
-                ? `
+                        ? `
                             <button
                                 id="openDynamicLyricsButton"
                                 class="primary-button"
@@ -21003,7 +21124,7 @@ async function runIosQuickPlay(
                                 🎤 Ouvrir Dynamic Lyrics
                             </button>
                         `
-                : ""}
+                        : ""}
                     <button
                         id="backToPlaylists"
                         class="${dynamicLyricsLaunch.requested ? "secondary-button" : "primary-button"}"
@@ -21039,7 +21160,7 @@ async function runIosQuickPlay(
             errorCode: "",
             recoveryAction: "",
             online: navigator.onLine,
-            attempts: deviceSearchAttempts
+            attempts: Math.max(deviceSearchAttempts, playbackDeviceAttempts)
         });
 
         setStatus(
@@ -21094,7 +21215,7 @@ async function runIosQuickPlay(
 
         if (
             classification.keepPending &&
-            source === "automation-url"
+            ["automation-url", "recovery"].includes(source)
         ) {
             savePendingAutomationCommand({
                 action: "quickplay",
@@ -21116,8 +21237,8 @@ async function runIosQuickPlay(
                 <h2>${escapeHtml(classification.title)}</h2>
                 <p>${escapeHtml(classification.message)}</p>
                 ${selectedDevice?.name
-                ? `<p class="launch-result-meta">Appareil tenté : ${escapeHtml(selectedDevice.name)}</p>`
-                : ""}
+                    ? `<p class="launch-result-meta">Appareil tenté : ${escapeHtml(selectedDevice.name)}</p>`
+                    : ""}
                 ${renderShortcutProfileDiagnosticSteps({ steps: launchSteps })}
                 ${renderLaunchRecoveryActions(
                     recoveryActions,
@@ -21156,7 +21277,7 @@ async function runIosQuickPlay(
             errorCode: classification.code,
             recoveryAction: classification.action,
             online: navigator.onLine,
-            attempts: deviceSearchAttempts
+            attempts: Math.max(deviceSearchAttempts, playbackDeviceAttempts)
         });
 
         setStatus(
@@ -21173,8 +21294,44 @@ async function runIosQuickPlay(
     }
 }
 
+
+async function resumePendingAutomationLaunch(trigger = "recovery") {
+    const command = pendingAutomationCommand;
+
+    if (
+        automationRunInProgress ||
+        !shouldResumePendingLaunch(command, {
+            online: navigator.onLine,
+            visible: document.visibilityState === "visible"
+        })
+    ) {
+        return false;
+    }
+
+    showToast(
+        trigger === "online"
+            ? "Connexion revenue · reprise du lancement Spotify…"
+            : "Reprise du lancement Spotify interrompu…",
+        "success"
+    );
+
+    try {
+        await executeAutomationCommand(command, {
+            source: "recovery"
+        });
+        return true;
+    } catch (error) {
+        console.warn(
+            `Reprise automatique impossible (${trigger}) :`,
+            error
+        );
+        return false;
+    }
+}
+
 async function executeAutomationCommand(
-    command
+    command,
+    { source = "automation-url" } = {}
 ) {
     if (
         !command ||
@@ -21218,7 +21375,7 @@ async function executeAutomationCommand(
             }
         } else {
             const launchResult = await runGuidedPrimaryLaunch({
-                source: "automation-url"
+                source
             });
             if (!launchResult?.keepPending) {
                 savePendingAutomationCommand(null);
@@ -21232,7 +21389,7 @@ async function executeAutomationCommand(
     if (
         normalized.action === "quickplay" ||
         normalized.action ===
-        "play-playlist"
+            "play-playlist"
     ) {
         await runIosQuickPlay(
             normalized.playlistId,
@@ -21244,7 +21401,7 @@ async function executeAutomationCommand(
                     normalized.openDynamicLyrics,
                 dynamicLyricsShortcutName:
                     normalized.dynamicLyricsShortcutName,
-                source: "automation-url"
+                source
             }
         );
         return;
@@ -21582,9 +21739,9 @@ function renderIosQuickPlayPanel() {
                 ${playlist.id === settings.playlistId ? "selected" : ""}
             >
                 ${escapeHtml(
-            playlist.name ||
-            "Playlist sans nom"
-        )}
+                    playlist.name ||
+                    "Playlist sans nom"
+                )}
             </option>
         `)
         .join("");
@@ -21703,8 +21860,8 @@ function renderIosQuickPlayPanel() {
                 </span>
                 <code>
                     ${escapeHtml(
-        buildIosQuickPlayUrl()
-    )}
+                        buildIosQuickPlayUrl()
+                    )}
                 </code>
             </div>
         </section>
@@ -21797,12 +21954,12 @@ function normalizeMixSchedule(schedule = {}) {
     return {
         id:
             typeof schedule.id === "string" &&
-                schedule.id.trim()
+            schedule.id.trim()
                 ? schedule.id.trim().slice(0, 120)
                 : createSavedMixId(),
         name:
             typeof schedule.name === "string" &&
-                schedule.name.trim()
+            schedule.name.trim()
                 ? schedule.name.trim().slice(0, 80)
                 : "Routine Shuffle+",
         targetType,
@@ -22234,7 +22391,7 @@ function getScheduleDueState(
         missed:
             difference > gracePeriod &&
             difference <=
-            SCHEDULE_MISSED_WARNING_PERIOD,
+                SCHEDULE_MISSED_WARNING_PERIOD,
         difference,
         runKey,
         target
@@ -22304,8 +22461,8 @@ function renderMixSchedulesSection() {
                     ${escapeHtml(scene.icon)}
                     ${escapeHtml(scene.label)}
                     ${scene.mixId
-                    ? ""
-                    : " · aucun mix"}
+                        ? ""
+                        : " · aucun mix"}
                 </option>
             `)
             .join("");
@@ -22385,40 +22542,40 @@ function renderMixSchedulesSection() {
                                 <h4>${escapeHtml(schedule.name)}</h4>
                                 <span class="schedule-priority-badge">
                                     ${escapeHtml(
-                getSchedulePriorityLabel(
-                    schedule.priority
-                )
-            )}
+                                        getSchedulePriorityLabel(
+                                            schedule.priority
+                                        )
+                                    )}
                                 </span>
                             </div>
                             <p>
                                 ${escapeHtml(target.label)}
                                 · ${escapeHtml(target.detail)}
                                 ${profile
-                    ? ` · Profil ${escapeHtml(profile.name)}`
-                    : ""}
+                                    ? ` · Profil ${escapeHtml(profile.name)}`
+                                    : ""}
                             </p>
                             <small>
                                 ${escapeHtml(
-                        getScheduleTimingLabel(schedule)
-                    )}
+                                    getScheduleTimingLabel(schedule)
+                                )}
                                 ${schedule.deviceName
-                    ? ` · ${escapeHtml(schedule.deviceName)}`
-                    : " · appareil automatique"}
+                                    ? ` · ${escapeHtml(schedule.deviceName)}`
+                                    : " · appareil automatique"}
                                 ${nextDate
-                    ? ` · prochain : ${escapeHtml(formatScheduleDateTime(nextDate))}`
-                    : ""}
+                                    ? ` · prochain : ${escapeHtml(formatScheduleDateTime(nextDate))}`
+                                    : ""}
                             </small>
                             <div class="schedule-smart-flags">
                                 <span>⏱ Rattrapage ${schedule.catchUpMinutes} min</span>
                                 <span>${schedule.autoPlay ? "▶ Lecture auto" : "🧩 Préparation"}</span>
                                 ${schedule.requireActiveDevice
-                    ? "<span>📱 Appareil actif requis</span>"
-                    : ""}
+                                    ? "<span>📱 Appareil actif requis</span>"
+                                    : ""}
                             </div>
                             ${schedule.lastResult
-                    ? `<span class="schedule-last-result">${escapeHtml(schedule.lastResult)}</span>`
-                    : ""}
+                                ? `<span class="schedule-last-result">${escapeHtml(schedule.lastResult)}</span>`
+                                : ""}
                         </div>
                     </div>
                     <div class="schedule-actions">
@@ -22494,13 +22651,13 @@ function renderMixSchedulesSection() {
                 </div>
                 <ol>
                     ${nextOccurrences.length
-            ? nextOccurrences.map(({ schedule, date }) => `
+                        ? nextOccurrences.map(({ schedule, date }) => `
                             <li>
                                 <time>${escapeHtml(formatScheduleDateTime(date))}</time>
                                 <span>${escapeHtml(schedule.name)}</span>
                             </li>
                         `).join("")
-            : "<li>Aucune occurrence à venir.</li>"}
+                        : "<li>Aucune occurrence à venir.</li>"}
                 </ol>
             </div>
 
@@ -22580,9 +22737,9 @@ function renderMixSchedulesSection() {
                 <fieldset class="schedule-weekdays" data-schedule-weekly-field hidden>
                     <legend>Jours personnalisés</legend>
                     ${[
-            [1, "Lun"], [2, "Mar"], [3, "Mer"],
-            [4, "Jeu"], [5, "Ven"], [6, "Sam"], [0, "Dim"]
-        ].map(([value, label]) => `
+                        [1, "Lun"], [2, "Mar"], [3, "Mer"],
+                        [4, "Jeu"], [5, "Ven"], [6, "Sam"], [0, "Dim"]
+                    ].map(([value, label]) => `
                         <label>
                             <input type="checkbox" name="weekdays" value="${value}">
                             <span>${label}</span>
@@ -22711,7 +22868,7 @@ function createMixScheduleFromForm(form) {
                 new Date(dateTime).getTime()
             ) ||
             new Date(dateTime).getTime() <=
-            Date.now()
+                Date.now()
         )
     ) {
         setStatus(
@@ -22840,9 +22997,9 @@ async function refreshScheduleDevices() {
         setStatus(
             availableDevices.length
                 ? `${availableDevices.length} appareil` +
-                `${availableDevices.length > 1 ? "s" : ""}` +
-                ` Spotify disponible` +
-                `${availableDevices.length > 1 ? "s" : ""}.`
+                    `${availableDevices.length > 1 ? "s" : ""}` +
+                    ` Spotify disponible` +
+                    `${availableDevices.length > 1 ? "s" : ""}.`
                 : "Aucun appareil Spotify disponible."
         );
     } catch (error) {
@@ -23558,8 +23715,8 @@ function renderCleanupPanel() {
                     <h3>Nettoyage intelligent</h3>
                     <p>
                         ${escapeHtml(
-        getCleanupSummary(settings)
-    )}
+                            getCleanupSummary(settings)
+                        )}
                     </p>
                 </div>
 
@@ -23965,7 +24122,7 @@ function limitTracksToAdaptiveTarget(
         if (
             result.length &&
             totalMs + durationMs >
-            targetMs + 2 * 60 * 1000
+                targetMs + 2 * 60 * 1000
         ) {
             break;
         }
@@ -24076,8 +24233,8 @@ function renderAdaptivePanel() {
                     <h3>Mix adaptatif</h3>
                     <p>
                         ${escapeHtml(
-        getAdaptiveSummary(settings)
-    )}
+                            getAdaptiveSummary(settings)
+                        )}
                     </p>
                 </div>
 
@@ -24101,9 +24258,9 @@ function renderAdaptivePanel() {
                     <span>
                         Profil suggéré :
                         ${escapeHtml(
-        getProfileById(context.profileId)?.name ||
-        "Automatique"
-    )}
+                            getProfileById(context.profileId)?.name ||
+                            "Automatique"
+                        )}
                     </span>
                 </div>
             </div>
@@ -24393,7 +24550,7 @@ function getIntensityTargetAtProgress(
             return x <= 0.5
                 ? start + (peak - start) * (x * 2)
                 : peak + (end - peak) *
-                ((x - 0.5) * 2);
+                    ((x - 0.5) * 2);
         case "stable":
         default:
             return start + (end - start) * x;
@@ -24428,7 +24585,7 @@ function getIntensitySummary(
     return [
         getIntensityCurveLabel(normalized.curve),
         `${normalized.startIntensity}% → ` +
-        `${normalized.endIntensity}%`,
+            `${normalized.endIntensity}%`,
         `pic ${normalized.peakIntensity}%`,
         `influence ${getIntensityStrengthLabel(
             normalized.strength
@@ -24477,8 +24634,8 @@ function renderIntensityPanel() {
                     <h3>Courbe d’intensité</h3>
                     <p>
                         ${escapeHtml(
-        getIntensitySummary(settings)
-    )}
+                            getIntensitySummary(settings)
+                        )}
                     </p>
                 </div>
 
@@ -24534,10 +24691,10 @@ function renderIntensityPanel() {
                 </label>
 
                 ${[
-            ["startIntensity", "Intensité de départ", settings.startIntensity],
-            ["endIntensity", "Intensité de fin", settings.endIntensity],
-            ["peakIntensity", "Intensité du pic", settings.peakIntensity]
-        ].map(([name, label, value]) => `
+                    ["startIntensity", "Intensité de départ", settings.startIntensity],
+                    ["endIntensity", "Intensité de fin", settings.endIntensity],
+                    ["peakIntensity", "Intensité du pic", settings.peakIntensity]
+                ].map(([name, label, value]) => `
                     <label class="intensity-field">
                         <span>
                             ${label} :
@@ -24769,8 +24926,8 @@ function renderCoherencePanel() {
                     <h3>Transitions intelligentes</h3>
                     <p>
                         ${escapeHtml(
-        getCoherenceSummary(settings)
-    )}
+                            getCoherenceSummary(settings)
+                        )}
                     </p>
                 </div>
 
@@ -25082,8 +25239,8 @@ function renderPriorityPanel() {
                     <h3>Priorités intelligentes</h3>
                     <p>
                         ${escapeHtml(
-        getPriorityRulesSummary(rules)
-    )}
+                            getPriorityRulesSummary(rules)
+                        )}
                     </p>
                 </div>
 
@@ -25107,8 +25264,8 @@ function renderPriorityPanel() {
                         rows="3"
                         placeholder="Un artiste par ligne ou séparé par une virgule"
                     >${escapeHtml(
-        rules.favoredArtists.join("\n")
-    )}</textarea>
+                        rules.favoredArtists.join("\n")
+                    )}</textarea>
                 </label>
 
                 <label class="priority-field">
@@ -25118,8 +25275,8 @@ function renderPriorityPanel() {
                         rows="3"
                         placeholder="Un album par ligne ou séparé par une virgule"
                     >${escapeHtml(
-        rules.favoredAlbums.join("\n")
-    )}</textarea>
+                        rules.favoredAlbums.join("\n")
+                    )}</textarea>
                 </label>
 
                 <label class="priority-field">
@@ -25720,8 +25877,8 @@ function renderMixProfilesSection() {
                     <h3>Profils de mix intelligents</h3>
                     <p>
                         ${activeProfile
-            ? `Profil actif : ${escapeHtml(activeProfile.name)}`
-            : "Aucun profil actif"}
+                            ? `Profil actif : ${escapeHtml(activeProfile.name)}`
+                            : "Aucun profil actif"}
                         · ${mixProfiles.length}/${MAX_MIX_PROFILES}
                     </p>
                 </div>
@@ -26326,10 +26483,10 @@ function getShuffleEngineOptions(settings = DEFAULT_SHUFFLE_SETTINGS) {
         albumGap: normalized.albumGap,
         artistPenalty:
             normalized.preset === "strict" ? 210 :
-                normalized.preset === "soft" ? 90 : 140,
+            normalized.preset === "soft" ? 90 : 140,
         albumPenalty:
             normalized.preset === "strict" ? 110 :
-                normalized.preset === "soft" ? 45 : 70,
+            normalized.preset === "soft" ? 45 : 70,
         priorityRules: effectivePriorityRules,
         coherenceSettings:
             normalizeCoherenceSettings(
@@ -26460,12 +26617,12 @@ function normalizeMixStudioTemplate(template = {}) {
     return {
         id:
             typeof template.id === "string" &&
-                template.id.trim()
+            template.id.trim()
                 ? template.id.trim().slice(0, 120)
                 : createMixStudioTemplateId(),
         name:
             typeof template.name === "string" &&
-                template.name.trim()
+            template.name.trim()
                 ? template.name.trim().slice(0, 60)
                 : "Modèle Mix Studio",
         defaultMixName:
@@ -27519,7 +27676,7 @@ function renderMixStudioVariantComparison(form) {
     container.hidden = false;
     container.innerHTML = `
         ${mixStudioVariantOptions.map(
-        (variant, index) => `
+            (variant, index) => `
                 <article class="mix-studio-variant-card">
                     <span class="mix-studio-variant-icon">
                         ${escapeHtml(variant.icon)}
@@ -27538,10 +27695,10 @@ function renderMixStudioVariantComparison(form) {
                     </dl>
                     <small>
                         ${escapeHtml(
-            getMixStudioWeightSummary(
-                variant.sourceWeights
-            )
-        )}
+                            getMixStudioWeightSummary(
+                                variant.sourceWeights
+                            )
+                        )}
                     </small>
                     <div class="mix-studio-variant-actions">
                         <button
@@ -27561,7 +27718,7 @@ function renderMixStudioVariantComparison(form) {
                     </div>
                 </article>
             `
-    ).join("")}
+        ).join("")}
     `;
     container.scrollIntoView({
         behavior: "smooth",
@@ -27575,7 +27732,7 @@ function applyMixStudioVariantToForm(
 ) {
     const variant =
         mixStudioVariantOptions[
-        Number(variantIndex)
+            Number(variantIndex)
         ];
 
     if (!variant || !form) {
@@ -28224,11 +28381,11 @@ function saveSavedMixSettings(mixId) {
 
     mix.shuffleSettings = normalizeShuffleSettings(
         selectedProfile?.shuffleSettings || {
-            preset: formData.get("preset"),
-            artistGap: formData.get("artistGap"),
-            albumGap: formData.get("albumGap"),
-            recentAvoidance: formData.get("recentAvoidance")
-        });
+        preset: formData.get("preset"),
+        artistGap: formData.get("artistGap"),
+        albumGap: formData.get("albumGap"),
+        recentAvoidance: formData.get("recentAvoidance")
+    });
 
     mix.exclusionRules = normalizeExclusionRules(
         selectedProfile?.exclusionRules ||
@@ -28486,10 +28643,10 @@ function renderSavedMixSettings(mix) {
             </label>
 
             ${[
-            ["startIntensity", "Départ", intensity.startIntensity],
-            ["endIntensity", "Fin", intensity.endIntensity],
-            ["peakIntensity", "Pic", intensity.peakIntensity]
-        ].map(([name, label, value]) => `
+                ["startIntensity", "Départ", intensity.startIntensity],
+                ["endIntensity", "Fin", intensity.endIntensity],
+                ["peakIntensity", "Pic", intensity.peakIntensity]
+            ].map(([name, label, value]) => `
                 <label class="saved-mix-setting-field">
                     <span>
                         Intensité ${label.toLowerCase()} :
@@ -28649,7 +28806,7 @@ function renderSavedMixesSection() {
         const studioSummary =
             studioSettings.enabled
                 ? ` · ${studioMood.icon} ${studioMood.label}` +
-                ` · ${formatMixStudioDuration(studioSettings.durationMinutes)}`
+                  ` · ${formatMixStudioDuration(studioSettings.durationMinutes)}`
                 : "";
 
         return `
@@ -28667,47 +28824,47 @@ function renderSavedMixesSection() {
                         <p>
                             ${totalCount} source${totalCount > 1 ? "s" : ""}
                             ${validCount < totalCount
-                ? ` · ${totalCount - validCount} indisponible${totalCount - validCount > 1 ? "s" : ""}`
-                : ""}
+                                ? ` · ${totalCount - validCount} indisponible${totalCount - validCount > 1 ? "s" : ""}`
+                                : ""}
                             ${assignedProfile
-                ? ` · Profil ${escapeHtml(assignedProfile.name)}`
-                : ""}
+                                ? ` · Profil ${escapeHtml(assignedProfile.name)}`
+                                : ""}
                             ${escapeHtml(studioSummary)}
                             · ${getShufflePresetLabel(shuffleSettings)}
                             · ${escapeHtml(
-                    getExclusionRulesSummary(
-                        normalizeExclusionRules(
-                            mix.exclusionRules
-                        )
-                    )
-                )}
+                                getExclusionRulesSummary(
+                                    normalizeExclusionRules(
+                                        mix.exclusionRules
+                                    )
+                                )
+                            )}
                             · ${escapeHtml(
-                    getPriorityRulesSummary(
-                        normalizePriorityRules(
-                            mix.priorityRules
-                        )
-                    )
-                )}
+                                getPriorityRulesSummary(
+                                    normalizePriorityRules(
+                                        mix.priorityRules
+                                    )
+                                )
+                            )}
                             · ${escapeHtml(
-                    getCoherenceSummary(
-                        normalizeCoherenceSettings(
-                            mix.coherenceSettings
-                        )
-                    )
-                )}
+                                getCoherenceSummary(
+                                    normalizeCoherenceSettings(
+                                        mix.coherenceSettings
+                                    )
+                                )
+                            )}
                             · ${escapeHtml(
-                    getIntensitySummary(
-                        normalizeIntensitySettings(
-                            mix.intensitySettings
-                        )
-                    )
-                )}
+                                getIntensitySummary(
+                                    normalizeIntensitySettings(
+                                        mix.intensitySettings
+                                    )
+                                )
+                            )}
                         </p>
                         <small title="${escapeHtml(
-                    mix.sourceKeys
-                        .map(getSourceDisplayName)
-                        .join(" · ")
-                )}">
+                            mix.sourceKeys
+                                .map(getSourceDisplayName)
+                                .join(" · ")
+                        )}">
                             ${escapeHtml(sourcePreview)}
                             ${totalCount > 3 ? "…" : ""}
                         </small>
@@ -29038,8 +29195,8 @@ function addTracksSentToHistory(
 
     const eventTracks = Array.isArray(tracks) &&
         tracks.length
-        ? tracks.slice(0, count)
-        : selectedTracks.slice(0, count);
+            ? tracks.slice(0, count)
+            : selectedTracks.slice(0, count);
     const type = source === "adaptive"
         ? "adaptive"
         : source === "schedule"
@@ -29184,17 +29341,17 @@ function renderMixHistorySection() {
 
                 <div class="mix-history-rankings">
                     ${renderHistoryRanking(
-            "Artistes les plus présents",
-            item.topArtists
-        )}
+                        "Artistes les plus présents",
+                        item.topArtists
+                    )}
                     ${renderHistoryRanking(
-            "Albums les plus présents",
-            item.topAlbums
-        )}
+                        "Albums les plus présents",
+                        item.topAlbums
+                    )}
                     ${renderHistoryRanking(
-            "Titres souvent dans les 20 premiers",
-            item.topFirstTwentyTracks
-        )}
+                        "Titres souvent dans les 20 premiers",
+                        item.topFirstTwentyTracks
+                    )}
                 </div>
 
                 <div class="mix-history-actions">
@@ -29719,7 +29876,7 @@ function validateBackupPayload(payload) {
         ),
         playbackQueueStates:
             payload.data.playbackQueueStates &&
-                typeof payload.data.playbackQueueStates === "object"
+            typeof payload.data.playbackQueueStates === "object"
                 ? payload.data.playbackQueueStates
                 : {},
         mixHistory:
@@ -30066,8 +30223,8 @@ async function importBackupFile(file) {
 
         const accountWarning =
             imported.spotifyUserId &&
-                currentUserId &&
-                imported.spotifyUserId !== currentUserId
+            currentUserId &&
+            imported.spotifyUserId !== currentUserId
                 ? "\n\nAttention : cette sauvegarde vient d’un autre compte Spotify."
                 : "";
 
@@ -30278,7 +30435,7 @@ function hashSyncContent(value = "") {
 function getSyncDataSummary(data = {}) {
     const feedbackRecords =
         data.musicFeedbackState?.records &&
-            typeof data.musicFeedbackState.records === "object"
+        typeof data.musicFeedbackState.records === "object"
             ? Object.keys(
                 data.musicFeedbackState.records
             ).length
@@ -30510,7 +30667,7 @@ function validateSyncPackage(payload) {
         typeof payload !== "object" ||
         payload.format !== SYNC_PACKAGE_FORMAT ||
         Number(payload.schemaVersion) !==
-        SYNC_PACKAGE_SCHEMA_VERSION ||
+            SYNC_PACKAGE_SCHEMA_VERSION ||
         !payload.backup ||
         typeof payload.backup !== "object"
     ) {
@@ -30527,10 +30684,10 @@ function validateSyncPackage(payload) {
     );
     const summary = payload.summary &&
         typeof payload.summary === "object"
-        ? payload.summary
-        : getSyncDataSummary(
-            payload.backup.data || {}
-        );
+            ? payload.summary
+            : getSyncDataSummary(
+                payload.backup.data || {}
+            );
 
     return {
         raw: payload,
@@ -30586,7 +30743,7 @@ async function analyzeSyncPackageFile(file) {
 
         if (
             payload?.format ===
-            SYNC_ENCRYPTED_PACKAGE_FORMAT
+                SYNC_ENCRYPTED_PACKAGE_FORMAT
         ) {
             const passphrase = window.prompt(
                 "Ce paquet est chiffré. Saisis son mot de passe."
@@ -30743,7 +30900,7 @@ function mergeSyncArrays(
         if (
             !previous ||
             getSyncMergeItemTimestamp(item) >=
-            getSyncMergeItemTimestamp(previous)
+                getSyncMergeItemTimestamp(previous)
         ) {
             merged.set(key, item);
         }
@@ -30790,7 +30947,7 @@ function mergeSyncRecordMaps(
         if (
             !localRecord ||
             getSyncMergeItemTimestamp(remoteRecord) >=
-            getSyncMergeItemTimestamp(localRecord)
+                getSyncMergeItemTimestamp(localRecord)
         ) {
             output[key] = remoteRecord;
         }
@@ -30851,7 +31008,7 @@ function normalizeLastSyncMergeUndo(value = null) {
     if (
         !createdAt ||
         Date.now() - createdAt >
-        SYNC_LAST_MERGE_UNDO_TTL
+            SYNC_LAST_MERGE_UNDO_TTL
     ) {
         return null;
     }
@@ -30864,7 +31021,7 @@ function normalizeLastSyncMergeUndo(value = null) {
                 : "Appareil distant",
         choices:
             value.choices &&
-                typeof value.choices === "object"
+            typeof value.choices === "object"
                 ? value.choices
                 : {},
         backup: value.backup
@@ -31363,7 +31520,7 @@ function compareSyncCategoryItems(
             };
             return (
                 priority[first.status] -
-                priority[second.status] ||
+                    priority[second.status] ||
                 first.label.localeCompare(
                     second.label,
                     "fr",
@@ -31402,14 +31559,14 @@ function renderSyncDetailedDiff(rows = []) {
                         <small>
                             ${escapeHtml(row.kind)}
                             ${row.detail
-            ? ` · ${escapeHtml(row.detail)}`
-            : ""}
+                                ? ` · ${escapeHtml(row.detail)}`
+                                : ""}
                         </small>
                     </div>
                     <span class="sync-diff-status">
                         ${escapeHtml(
-                getSyncDiffStatusLabel(row.status)
-            )}
+                            getSyncDiffStatusLabel(row.status)
+                        )}
                     </span>
                     <div class="sync-diff-presence">
                         <span class="${row.local ? "is-present" : "is-missing"}">
@@ -31579,9 +31736,9 @@ async function decryptSyncPackagePayload(
     if (
         !envelope ||
         envelope.format !==
-        SYNC_ENCRYPTED_PACKAGE_FORMAT ||
+            SYNC_ENCRYPTED_PACKAGE_FORMAT ||
         Number(envelope.schemaVersion) !==
-        SYNC_ENCRYPTION_SCHEMA_VERSION ||
+            SYNC_ENCRYPTION_SCHEMA_VERSION ||
         !envelope.encryption ||
         typeof envelope.ciphertext !== "string"
     ) {
@@ -31872,14 +32029,14 @@ function renderSelectiveSyncMerge() {
 
             <div class="sync-category-comparison">
                 ${getSelectiveSyncCategoryDefinitions()
-            .map((category) => {
-                const rows =
-                    detailedDiffs[category.id] || [];
-                const changedCount = rows.filter(
-                    (row) => row.status !== "same"
-                ).length;
+                    .map((category) => {
+                        const rows =
+                            detailedDiffs[category.id] || [];
+                        const changedCount = rows.filter(
+                            (row) => row.status !== "same"
+                        ).length;
 
-                return `
+                        return `
                         <article class="sync-category-row">
                             <div class="sync-category-title">
                                 <span>${category.icon}</span>
@@ -31925,8 +32082,8 @@ function renderSelectiveSyncMerge() {
                             </details>
                         </article>
                     `;
-            })
-            .join("")}
+                    })
+                    .join("")}
             </div>
 
             <div class="sync-selective-footer">
@@ -32245,8 +32402,8 @@ function applySelectiveLearningCategory(
             : localRecommendations;
         personalizedRecommendationsState = normalizePersonalizedRecommendationState({
             ...newest,
-            ratings: { ...localRecommendations.ratings, ...remoteRecommendations.ratings },
-            dismissed: { ...localRecommendations.dismissed, ...remoteRecommendations.dismissed },
+            ratings: {...localRecommendations.ratings, ...remoteRecommendations.ratings},
+            dismissed: {...localRecommendations.dismissed, ...remoteRecommendations.dismissed},
             refreshSeed: Math.max(localRecommendations.refreshSeed, remoteRecommendations.refreshSeed),
             updatedAt: Date.now()
         });
@@ -32506,15 +32663,15 @@ function renderSyncConflictAnalysis() {
                     <p>
                         Exporté le
                         ${new Intl.DateTimeFormat("fr-FR", {
-        dateStyle: "medium",
-        timeStyle: "short"
-    }).format(new Date(remote.exportedAt))}
+                            dateStyle: "medium",
+                            timeStyle: "short"
+                        }).format(new Date(remote.exportedAt))}
                     </p>
                 </div>
                 <span class="sync-state-badge ${sameFingerprint ? "is-same" : "is-conflict"}">
                     ${sameFingerprint
-            ? "Données identiques"
-            : "Différences détectées"}
+                        ? "Données identiques"
+                        : "Différences détectées"}
                 </span>
             </div>
 
@@ -32531,10 +32688,10 @@ function renderSyncConflictAnalysis() {
             <p class="sync-recommendation">
                 Politique active :
                 <strong>${escapeHtml(
-                getSyncPolicyLabel(
-                    syncSettings.conflictPolicy
-                )
-            )}</strong><br>
+                    getSyncPolicyLabel(
+                        syncSettings.conflictPolicy
+                    )
+                )}</strong><br>
                 Recommandation :
                 <strong>${escapeHtml(recommendation.label)}</strong>
             </p>
@@ -32562,8 +32719,8 @@ function renderSyncConflictAnalysis() {
                     class="sync-primary-button"
                     type="button"
                     ${sameFingerprint || recommendation.action === "manual"
-            ? "disabled"
-            : ""}
+                        ? "disabled"
+                        : ""}
                 >
                     Appliquer la politique
                 </button>
@@ -32587,7 +32744,7 @@ function normalizeSyncPairedDevice(value = {}) {
         id,
         label:
             typeof value.label === "string" &&
-                value.label.trim()
+            value.label.trim()
                 ? value.label.trim().slice(0, 80)
                 : "Appareil Shuffle+",
         spotifyUserId:
@@ -32618,7 +32775,7 @@ function normalizeSyncPairedDevice(value = {}) {
                 : "",
         lastSummary:
             value.lastSummary &&
-                typeof value.lastSummary === "object"
+            typeof value.lastSummary === "object"
                 ? value.lastSummary
                 : {},
         trustKey:
@@ -33022,7 +33179,7 @@ function validateSyncPairingInvitation(payload) {
         !payload ||
         payload.format !== SYNC_PAIRING_INVITE_FORMAT ||
         Number(payload.schemaVersion) !==
-        SYNC_PAIRING_SCHEMA_VERSION
+            SYNC_PAIRING_SCHEMA_VERSION
     ) {
         throw new Error(
             "Invitation d’appairage Shuffle+ invalide."
@@ -33188,7 +33345,7 @@ function validateSyncPairingAcceptance(payload) {
         !payload ||
         payload.format !== SYNC_PAIRING_ACCEPT_FORMAT ||
         Number(payload.schemaVersion) !==
-        SYNC_PAIRING_SCHEMA_VERSION
+            SYNC_PAIRING_SCHEMA_VERSION
     ) {
         throw new Error(
             "Confirmation d’appairage Shuffle+ invalide."
@@ -33271,7 +33428,7 @@ function applySyncPairingAcceptancePayload(payload) {
     syncPairingInvites = syncPairingInvites.map(
         (invite) =>
             invite.invitationId ===
-                acceptance.invite.invitationId
+            acceptance.invite.invitationId
                 ? {
                     ...invite,
                     acceptedAt: Date.now(),
@@ -33433,7 +33590,7 @@ function simulateSyncWithPeer(peerId) {
     const sameFingerprint = Boolean(
         peer.lastFingerprint &&
         peer.lastFingerprint ===
-        localPackage.fingerprint
+            localPackage.fingerprint
     );
 
     let recommendation = "Échange requis";
@@ -33621,12 +33778,12 @@ function renderSyncSessionHistory() {
                 </div>
                 <time datetime="${new Date(item.createdAt).toISOString()}">
                     ${new Intl.DateTimeFormat(
-            "fr-FR",
-            {
-                dateStyle: "short",
-                timeStyle: "short"
-            }
-        ).format(new Date(item.createdAt))}
+                        "fr-FR",
+                        {
+                            dateStyle: "short",
+                            timeStyle: "short"
+                        }
+                    ).format(new Date(item.createdAt))}
                 </time>
             </li>
         `)
@@ -33673,12 +33830,12 @@ function renderSyncPairingPanel() {
                     <span>
                         Dernier contact :
                         ${new Intl.DateTimeFormat(
-            "fr-FR",
-            {
-                dateStyle: "short",
-                timeStyle: "short"
-            }
-        ).format(new Date(peer.lastSeenAt))}
+                            "fr-FR",
+                            {
+                                dateStyle: "short",
+                                timeStyle: "short"
+                            }
+                        ).format(new Date(peer.lastSeenAt))}
                     </span>
                     <span>
                         Empreinte :
@@ -34090,7 +34247,7 @@ function parseServerSyncLinkCode(value = "") {
         if (
             payload?.format !== SERVER_SYNC_LINK_FORMAT ||
             Number(payload.schemaVersion) !==
-            SERVER_SYNC_SCHEMA_VERSION ||
+                SERVER_SYNC_SCHEMA_VERSION ||
             !normalizeServerSyncUrl(payload.serverUrl) ||
             !payload.spaceId ||
             !payload.rootSecret
@@ -34614,7 +34771,7 @@ async function synchronizeServerNow() {
         const local = buildSyncPackage();
         if (
             local.fingerprint !==
-            serverSyncState.lastSyncedFingerprint
+                serverSyncState.lastSyncedFingerprint
         ) {
             const pushed = await pushServerSync({
                 force: true,
@@ -34698,7 +34855,7 @@ async function pushServerSync({
         if (
             !force &&
             localPackage.fingerprint ===
-            serverSyncState.lastSyncedFingerprint
+                serverSyncState.lastSyncedFingerprint
         ) {
             return false;
         }
@@ -35201,7 +35358,7 @@ async function runServerAutoSync(
         const local = buildSyncPackage();
         if (
             local.fingerprint !==
-            serverSyncState.lastSyncedFingerprint
+                serverSyncState.lastSyncedFingerprint
         ) {
             await pushServerSync({
                 silent: true
@@ -35236,7 +35393,7 @@ function startServerSyncWatcher() {
     const delay = Math.max(
         60 * 1000,
         serverSyncState.intervalMinutes *
-        60 * 1000
+            60 * 1000
     );
 
     serverSyncTimer = window.setInterval(
@@ -35280,15 +35437,15 @@ function renderSimpleServerConflictCard() {
             </div>
 
             ${pendingSyncPackage.raw?.spotifyUserId &&
-            currentUserId &&
-            pendingSyncPackage.raw.spotifyUserId !== currentUserId
-            ? `
+                currentUserId &&
+                pendingSyncPackage.raw.spotifyUserId !== currentUserId
+                ? `
                     <p class="sync-warning">
                         ⚠ Cette sauvegarde provient d’un autre compte Spotify.
                         La combinaison automatique est désactivée.
                     </p>
                 `
-            : ""}
+                : ""}
 
             <div class="simple-sync-version-grid">
                 <article>
@@ -35309,10 +35466,10 @@ function renderSimpleServerConflictCard() {
                     class="sync-primary-button"
                     type="button"
                     ${pendingSyncPackage.raw?.spotifyUserId &&
-            currentUserId &&
-            pendingSyncPackage.raw.spotifyUserId !== currentUserId
-            ? "disabled"
-            : ""}
+                        currentUserId &&
+                        pendingSyncPackage.raw.spotifyUserId !== currentUserId
+                        ? "disabled"
+                        : ""}
                 >
                     Combiner les deux — recommandé
                 </button>
@@ -35351,13 +35508,13 @@ function renderServerDeviceList() {
                     <strong>${escapeHtml(device.label || "Appareil Shuffle+")}</strong>
                     <small>
                         ${device.installationId === syncInstallation.id
-                ? "Cet appareil · "
-                : ""}
+                            ? "Cet appareil · "
+                            : ""}
                         vu ${escapeHtml(formatServerSyncDate(device.lastSeenAt))}
                     </small>
                 </div>
                 ${device.installationId !== syncInstallation.id
-                ? `
+                    ? `
                         <button
                             class="sync-danger-button"
                             type="button"
@@ -35366,7 +35523,7 @@ function renderServerDeviceList() {
                             Retirer
                         </button>
                     `
-                : ""}
+                    : ""}
             </div>
         `)
         .join("");
@@ -35539,8 +35696,8 @@ function renderServerSyncPanel() {
                 ${serverSyncBusy ? "disabled" : ""}
             >
                 ${serverSyncBusy
-            ? "Synchronisation en cours…"
-            : "Synchroniser maintenant"}
+                    ? "Synchronisation en cours…"
+                    : "Synchroniser maintenant"}
             </button>
 
             ${message}
@@ -35593,8 +35750,8 @@ function renderServerSyncPanel() {
 
             <p class="server-sync-recovery-note is-protected">
                 ${recoveryDiagnostics.recoveryAvailable
-            ? "✓ La liaison est sauvegardée localement pour une restauration automatique."
-            : "⚠ La copie de récupération sera créée au prochain enregistrement."}
+                    ? "✓ La liaison est sauvegardée localement pour une restauration automatique."
+                    : "⚠ La copie de récupération sera créée au prochain enregistrement."}
             </p>
         </section>
     `;
@@ -35636,8 +35793,8 @@ function renderServerSyncAdvancedPanel(localPackage) {
                                     <option
                                         value="${value}"
                                         ${serverSyncState.intervalMinutes === value
-            ? "selected"
-            : ""}
+                                            ? "selected"
+                                            : ""}
                                     >
                                         ${value === 1 ? "1 minute" : `${value} minutes`}
                                     </option>
@@ -35685,16 +35842,16 @@ function renderServerSyncAdvancedPanel(localPackage) {
                         <span>Comportement en cas de différence</span>
                         <select name="conflictPolicy">
                             ${[
-            ["manual", "Toujours demander"],
-            ["newest", "Conserver la version la plus récente"],
-            ["prefer-local", "Préférer cet appareil"],
-            ["prefer-remote", "Préférer la sauvegarde en ligne"]
-        ].map(([value, label]) => `
+                                ["manual", "Toujours demander"],
+                                ["newest", "Conserver la version la plus récente"],
+                                ["prefer-local", "Préférer cet appareil"],
+                                ["prefer-remote", "Préférer la sauvegarde en ligne"]
+                            ].map(([value, label]) => `
                                 <option
                                     value="${value}"
                                     ${syncSettings.conflictPolicy === value
-                ? "selected"
-                : ""}
+                                        ? "selected"
+                                        : ""}
                                 >
                                     ${escapeHtml(label)}
                                 </option>
@@ -36803,29 +36960,29 @@ function displayPlaylists(playlists) {
             </div>
 
             ${activeAppMenu === "dashboard"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "dashboard"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="dashboard"
             >
                 ${renderV9HomePanel()}
                 ${isExpertExperience(experienceMode)
-                ? renderMusicalDashboardPage()
-                : ""}
+                    ? renderMusicalDashboardPage()
+                    : ""}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "music"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "music"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="music"
             >
             <section class="library-toolbar" aria-label="Recherche et filtres">
@@ -36896,9 +37053,9 @@ function displayPlaylists(playlists) {
                 aria-live="polite"
             >
                 ${modificationDatesLoading
-                ? `Analyse des playlists : ${modificationDatesProgress.completed}/${modificationDatesProgress.total}`
-                : ""
-            }
+            ? `Analyse des playlists : ${modificationDatesProgress.completed}/${modificationDatesProgress.total}`
+            : ""
+        }
             </p>
 
             <section id="mixBuilder" class="mix-builder ${editingSavedMixId ? "is-editing" : ""}" aria-label="Créateur de mix">
@@ -36978,15 +37135,15 @@ function displayPlaylists(playlists) {
             ${emptyState}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "mixes"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "mixes"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="mixes"
             >
                 ${renderIosCommandsPanel()}
@@ -36996,142 +37153,142 @@ function displayPlaylists(playlists) {
                 ${renderMixHistorySection()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "adaptive"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "adaptive"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="adaptive"
             >
                 ${renderAdaptiveDjMenu()}
                 ${renderAdaptivePanel()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "assistant"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "assistant"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="assistant"
             >
                 ${renderMusicalAssistantPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "recommendations"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "recommendations"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="recommendations"
             >
                 ${renderPersonalizedRecommendationsPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "statistics"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "statistics"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="statistics"
             >
                 ${renderAdvancedListeningStatisticsPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "goals"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "goals"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="goals"
             >
                 ${renderMusicalGoalsPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "intelligence"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "intelligence"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="intelligence"
             >
                 ${renderIntelligenceDashboard()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "quick"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "quick"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="quick"
             >
                 ${renderQuickControlPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "modes"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "modes"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="modes"
             >
                 ${renderUsageProfilesPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "guide"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "guide"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="guide"
             >
                 ${renderSimpleManualPage()}
             </div>
                 `
-            : ""}
+                : ""}
 
             ${activeAppMenu === "settings"
-            ? `
+                ? `
             <div
                 class="app-menu-page
                 ${activeAppMenu === "settings"
-                ? "is-active"
-                : ""}"
+                    ? "is-active"
+                    : ""}"
                 data-app-menu-page="settings"
             >
                 ${renderSpotifyConnectionSettingsPanel()}
@@ -37141,7 +37298,7 @@ function displayPlaylists(playlists) {
                 ${renderBackupPanel()}
                 ${renderSyncPreparationPanel()}
                 ${isExpertExperience(experienceMode)
-                ? `
+                    ? `
                         ${renderContextualHelpSettingsPanel()}
                         ${renderAppHealthPanel()}
                         ${renderOfflinePerformancePanel()}
@@ -37152,10 +37309,10 @@ function displayPlaylists(playlists) {
                         ${renderIntensityPanel()}
                         ${renderExclusionPanel()}
                     `
-                : renderEssentialAdvancedSettingsCallout()}
+                    : renderEssentialAdvancedSettingsCallout()}
             </div>
                 `
-            : ""}
+                : ""}
 
             <div data-universal-search-layer>
                 ${renderUniversalSearchDialog()}
@@ -37842,7 +37999,7 @@ function renderSmartQueuePanel() {
             <strong>Prochains morceaux</strong>
             <ol>
                 ${preview.length
-            ? preview.map((track, offset) => `
+                    ? preview.map((track, offset) => `
                         <li>
                             <span>${cursor + offset + 1}</span>
                             <div>
@@ -37851,11 +38008,11 @@ function renderSmartQueuePanel() {
                                 </strong>
                                 <small>
                                     ${escapeHtml(
-                (track?.artists || [])
-                    .map((artist) => artist?.name)
-                    .filter(Boolean)
-                    .join(", ") || "Artiste inconnu"
-            )}
+                                        (track?.artists || [])
+                                            .map((artist) => artist?.name)
+                                            .filter(Boolean)
+                                            .join(", ") || "Artiste inconnu"
+                                    )}
                                 </small>
                             </div>
                             <button
@@ -37868,7 +38025,7 @@ function renderSmartQueuePanel() {
                             </button>
                         </li>
                     `).join("")
-            : `
+                    : `
                         <li class="smart-queue-empty">
                             Aucun morceau restant dans la file.
                         </li>
@@ -37886,13 +38043,13 @@ function renderSmartQueuePanel() {
 
             <div class="smart-queue-chips">
                 ${avoids.length
-            ? avoids.map((entry) => `
+                    ? avoids.map((entry) => `
                         <span>
                             ${entry.icon}
                             ${escapeHtml(entry.label)}
                         </span>
                     `).join("")
-            : "<em>Aucun</em>"}
+                    : "<em>Aucun</em>"}
             </div>
 
             <button
@@ -38002,36 +38159,36 @@ function createTrackRow(track, index) {
                 </span>
 
                 ${feedbackAction !== "neutral"
-            ? `
+                    ? `
                         <span class="track-feedback-badge feedback-${feedbackAction}">
                             ${getMusicFeedbackIcon(feedbackAction)}
                             ${getMusicFeedbackLabel(feedbackAction)}
                             ${feedbackExpiry
-                ? ` · jusqu’au ${escapeHtml(feedbackExpiry)}`
-                : ""}
+                                ? ` · jusqu’au ${escapeHtml(feedbackExpiry)}`
+                                : ""}
                         </span>
                     `
-            : ""}
+                    : ""}
 
                 ${(() => {
-            const explanation = getShufflePlacementExplanation(
-                track,
-                index
-            );
+                    const explanation = getShufflePlacementExplanation(
+                        track,
+                        index
+                    );
 
-            return explanation
-                ? `
+                    return explanation
+                        ? `
                             <details class="track-placement-explanation">
                                 <summary>Pourquoi ici ?</summary>
                                 <span>
                                     ${escapeHtml(
-                    explanation.reasons.join(" · ")
-                )}
+                                        explanation.reasons.join(" · ")
+                                    )}
                                 </span>
                             </details>
                         `
-                : "";
-        })()}
+                        : "";
+                })()}
             </div>
 
             <span class="track-album">
@@ -38114,7 +38271,7 @@ function createTrackRow(track, index) {
                             🔁 Trop répétitif
                         </button>
                         ${feedbackAction !== "neutral"
-            ? `
+                            ? `
                                 <button
                                     type="button"
                                     class="track-feedback-button is-neutral"
@@ -38124,7 +38281,7 @@ function createTrackRow(track, index) {
                                     ○ Retirer le feedback
                                 </button>
                             `
-            : ""}
+                            : ""}
                         <span class="track-smart-menu-label">
                             Smart Queue
                         </span>
@@ -39272,7 +39429,7 @@ function displayPlaylistDetails(playlist, tracks) {
             </section>
 
             ${activeAdaptiveContext
-            ? `
+                ? `
                     <div class="adaptive-result-banner">
                         <span>
                             ${activeAdaptiveContext.icon}
@@ -39280,32 +39437,32 @@ function displayPlaylistDetails(playlist, tracks) {
                         <div>
                             <strong>
                                 Contexte ${escapeHtml(
-                activeAdaptiveContext.label
-            )}
+                                    activeAdaptiveContext.label
+                                )}
                             </strong>
                             <small>
                                 ${escapeHtml(
-                getAdaptiveDurationLabel(
-                    currentAdaptiveSettings
-                )
-            )}
+                                    getAdaptiveDurationLabel(
+                                        currentAdaptiveSettings
+                                    )
+                                )}
                                 · ${selectedTracks.length}
                                 morceau${selectedTracks.length > 1 ? "x" : ""}
                                 · ${escapeHtml(
-                formatLongDuration(
-                    estimateTracksDurationMs(
-                        selectedTracks
-                    )
-                )
-            )}
+                                    formatLongDuration(
+                                        estimateTracksDurationMs(
+                                            selectedTracks
+                                        )
+                                    )
+                                )}
                             </small>
                         </div>
                     </div>
                 `
-            : ""}
+                : ""}
 
             ${getActiveProfile()
-            ? `
+                ? `
                     <div class="active-profile-banner">
                         <span class="active-profile-banner-icon">
                             ${escapeHtml(getActiveProfile().icon)}
@@ -39320,10 +39477,10 @@ function displayPlaylistDetails(playlist, tracks) {
                         </div>
                     </div>
                 `
-            : ""}
+                : ""}
 
             ${lastCleanupSummary?.removedCount
-            ? `
+                ? `
                     <div class="cleanup-result-banner">
                         <div>
                             <strong>
@@ -39337,10 +39494,10 @@ function displayPlaylistDetails(playlist, tracks) {
                                 chargés → ${lastCleanupSummary.outputCount}
                                 conservés ·
                                 ${escapeHtml(
-                formatLongDuration(
-                    lastCleanupSummary.durationSavedMs
-                )
-            )}
+                                    formatLongDuration(
+                                        lastCleanupSummary.durationSavedMs
+                                    )
+                                )}
                                 économisées
                             </span>
                         </div>
@@ -39353,10 +39510,10 @@ function displayPlaylistDetails(playlist, tracks) {
                         </button>
                     </div>
                 `
-            : ""}
+                : ""}
 
             ${lastPrioritySummary?.favoredTotal
-            ? `
+                ? `
                     <div class="priority-result-banner">
                         <strong>
                             ${lastPrioritySummary.favoredInFirstTwenty}
@@ -39371,10 +39528,10 @@ function displayPlaylistDetails(playlist, tracks) {
                         </span>
                     </div>
                 `
-            : ""}
+                : ""}
 
             ${lastExclusionSummary?.excludedCount
-            ? `
+                ? `
                     <div class="exclusion-result-banner">
                         <strong>
                             ${lastExclusionSummary.excludedCount}
@@ -39383,18 +39540,18 @@ function displayPlaylistDetails(playlist, tracks) {
                         </strong>
                         <span>
                             ${escapeHtml(
-                Object.entries(
-                    lastExclusionSummary.reasons
-                )
-                    .map(([reason, count]) =>
-                        `${count} ${reason}`
-                    )
-                    .join(" · ")
-            )}
+                                Object.entries(
+                                    lastExclusionSummary.reasons
+                                )
+                                    .map(([reason, count]) =>
+                                        `${count} ${reason}`
+                                    )
+                                    .join(" · ")
+                            )}
                         </span>
                     </div>
                 `
-            : ""}
+                : ""}
 
             <p class="shuffle-explanation">
                 Mode <strong>${getShufflePresetLabel(currentShuffleSettings)}</strong> :
@@ -39406,22 +39563,22 @@ function displayPlaylistDetails(playlist, tracks) {
                 Transitions
                 <strong>
                     ${getCoherenceLevelLabel(
-                currentCoherenceSettings.level
-            ).toLowerCase()}
+                        currentCoherenceSettings.level
+                    ).toLowerCase()}
                 </strong>
                 avec un écart de durée surveillé à partir de
                 ${currentCoherenceSettings.durationJumpSeconds}s.
                 Courbe d’intensité
                 <strong>
                     ${getIntensityCurveLabel(
-                currentIntensitySettings.curve
-            ).toLowerCase()}
+                        currentIntensitySettings.curve
+                    ).toLowerCase()}
                 </strong>
                 de ${currentIntensitySettings.startIntensity}%
                 à ${currentIntensitySettings.endIntensity}%.
                 ${currentAdaptiveSettings.enabled
-            ? `Mode adaptatif ${getTimeContext().label.toLowerCase()} actif, durée cible ${getAdaptiveDurationLabel(currentAdaptiveSettings)}.`
-            : ""}
+                    ? `Mode adaptatif ${getTimeContext().label.toLowerCase()} actif, durée cible ${getAdaptiveDurationLabel(currentAdaptiveSettings)}.`
+                    : ""}
             </p>
 
             ${renderShuffleExplainabilityReport()}
@@ -39562,8 +39719,8 @@ function updatePlaybackQueueUI() {
     if (progressElement) {
         progressElement.textContent = !total ? "Aucun morceau disponible."
             : sent >= total ? `${sent}/${total} morceaux envoyés · file terminée`
-                : sent > 0 ? `${sent}/${total} morceaux envoyés · prochain bloc : ${sent + 1} à ${nextEnd}`
-                    : `0/${total} morceaux envoyés · premier bloc : 1 à ${nextEnd}`;
+            : sent > 0 ? `${sent}/${total} morceaux envoyés · prochain bloc : ${sent + 1} à ${nextEnd}`
+            : `0/${total} morceaux envoyés · premier bloc : 1 à ${nextEnd}`;
     }
     if (progressBar) {
         progressBar.style.width = `${percent}%`;
@@ -40132,11 +40289,11 @@ async function openPlaylist(playlist) {
             : `playlist:${playlist.id}`;
         const cachedTracks = offlinePerformanceSettings.enabled &&
             offlinePerformanceSettings.cacheOpenedTracks
-            ? await readOfflineTrackCache(cacheKey, {
-                allowExpired: !navigator.onLine,
-                maxAgeMs: getOfflineTrackMaxAgeMs()
-            })
-            : null;
+                ? await readOfflineTrackCache(cacheKey, {
+                    allowExpired: !navigator.onLine,
+                    maxAgeMs: getOfflineTrackMaxAgeMs()
+                })
+                : null;
         let tracks = [];
         let devices = [];
         let usedLocalTracks = false;
@@ -40176,7 +40333,7 @@ async function openPlaylist(playlist) {
                         ttlDays: offlinePerformanceSettings.trackTtlDays,
                         label: playlist.name
                     });
-                    refreshOfflineCacheSummary().catch(() => { });
+                    refreshOfflineCacheSummary().catch(() => {});
                 }
             } catch (networkError) {
                 if (!cachedTracks) throw networkError;
@@ -40416,7 +40573,7 @@ async function initializeApp() {
 
         refreshOfflineCacheSummary({
             rerender: activeAppMenu === "settings"
-        }).catch(() => { });
+        }).catch(() => {});
 
         startServerSyncWatcher();
 
@@ -40451,10 +40608,10 @@ async function initializeApp() {
             });
             await requestDrivingWakeLock();
         } else if (activeAppMenu === "quick") {
-            await refreshQuickControlPlayback({ silent: true });
+            await refreshQuickControlPlayback({silent:true});
         } else if (activeAppMenu === "dashboard") {
-            await refreshMusicalDashboardPlayback({ silent: true });
-            await refreshDrivingQueue({ silent: true });
+            await refreshMusicalDashboardPlayback({silent:true});
+            await refreshDrivingQueue({silent:true});
         }
 
         startScheduleWatcher();
@@ -40468,22 +40625,7 @@ async function initializeApp() {
         }
 
         if (pendingAutomationCommand) {
-            try {
-                await executeAutomationCommand(
-                    pendingAutomationCommand
-                );
-            } catch (automationError) {
-                console.error(
-                    "Échec de l’automatisation :",
-                    automationError
-                );
-                savePendingAutomationCommand(null);
-                setStatus(
-                    automationError.message ||
-                    "La lecture automatique a échoué.",
-                    "error"
-                );
-            }
+            await resumePendingAutomationLaunch("startup");
         } else {
             setStatus("");
         }
@@ -40528,251 +40670,276 @@ async function initializeApp() {
 }
 
 if (installAppButton) {
-    installAppButton.addEventListener(
-        "click",
-        requestPwaInstallation
-    );
+installAppButton.addEventListener(
+    "click",
+    requestPwaInstallation
+);
 }
 
 if (pwaInstallGuideElement) {
-    pwaInstallGuideElement.addEventListener(
-        "click",
-        (event) => {
-            if (
-                event.target.closest(
-                    "[data-close-pwa-guide]"
-                )
-            ) {
-                pwaInstallGuideElement.hidden = true;
-            }
+pwaInstallGuideElement.addEventListener(
+    "click",
+    (event) => {
+        if (
+            event.target.closest(
+                "[data-close-pwa-guide]"
+            )
+        ) {
+            pwaInstallGuideElement.hidden = true;
         }
-    );
+    }
+);
 }
 
 if (applyPwaUpdateButton) {
-    applyPwaUpdateButton.addEventListener(
-        "click",
-        async () => {
-            if (pwaUpdateApplying) {
-                return;
-            }
-
-            const waitingWorker =
-                pwaRegistration?.waiting;
-
-            if (!waitingWorker) {
-                hidePwaUpdateBanner();
-                return;
-            }
-
-            const targetVersion =
-                pwaPendingUpdateVersion ||
-                await requestPwaWorkerVersion(
-                    waitingWorker
-                );
-
-            pwaUpdateApplying = true;
-            pwaReloadRequested = true;
-            pwaPendingUpdateVersion =
-                targetVersion;
-
-            rememberAppliedPwaVersion(
-                getPwaUpdateStorage(),
-                targetVersion,
-                PWA_UPDATE_APPLIED_VERSION_KEY
-            );
-
-            setPwaUpdateBannerState({
-                applying: true,
-                version: targetVersion
-            });
-
-            waitingWorker.postMessage({
-                type: "SKIP_WAITING"
-            });
-
-            window.clearTimeout(
-                pwaUpdateReloadFallbackTimer
-            );
-            pwaUpdateReloadFallbackTimer =
-                window.setTimeout(() => {
-                    if (pwaReloadRequested) {
-                        window.location.reload();
-                    }
-                }, 12000);
+applyPwaUpdateButton.addEventListener(
+    "click",
+    async () => {
+        if (pwaUpdateApplying) {
+            return;
         }
-    );
+
+        const waitingWorker =
+            pwaRegistration?.waiting;
+
+        if (!waitingWorker) {
+            hidePwaUpdateBanner();
+            return;
+        }
+
+        const targetVersion =
+            pwaPendingUpdateVersion ||
+            await requestPwaWorkerVersion(
+                waitingWorker
+            );
+
+        pwaUpdateApplying = true;
+        pwaReloadRequested = true;
+        pwaPendingUpdateVersion =
+            targetVersion;
+
+        rememberAppliedPwaVersion(
+            getPwaUpdateStorage(),
+            targetVersion,
+            PWA_UPDATE_APPLIED_VERSION_KEY
+        );
+
+        setPwaUpdateBannerState({
+            applying: true,
+            version: targetVersion
+        });
+
+        waitingWorker.postMessage({
+            type: "SKIP_WAITING"
+        });
+
+        window.clearTimeout(
+            pwaUpdateReloadFallbackTimer
+        );
+        pwaUpdateReloadFallbackTimer =
+            window.setTimeout(() => {
+                if (pwaReloadRequested) {
+                    window.location.reload();
+                }
+            }, 12000);
+    }
+);
 }
 
 if (dismissPwaUpdateButton) {
-    dismissPwaUpdateButton.addEventListener(
-        "click",
-        hidePwaUpdateBanner
-    );
+dismissPwaUpdateButton.addEventListener(
+    "click",
+    hidePwaUpdateBanner
+);
 }
 
 if (spotifySetupForm) {
-    spotifySetupForm.addEventListener("submit", (event) => {
-        event.preventDefault();
+spotifySetupForm.addEventListener("submit", (event) => {
+    event.preventDefault();
 
-        try {
-            const configuration = savePersonalSpotifyClientId(
-                new FormData(spotifySetupForm).get("clientId")
-            );
-            spotifySetupClientIdInput.value = "";
-            updateSpotifySetupInterface();
-            setStatus(
-                `Client ID ${maskSpotifyClientId(configuration.clientId)} enregistré. Tu peux maintenant te connecter à Spotify.`,
-                "success"
-            );
-            loginButton?.focus();
-        } catch (error) {
-            console.error(error);
-            setStatus(error.message, "error");
-        }
-    });
+    try {
+        const configuration = savePersonalSpotifyClientId(
+            new FormData(spotifySetupForm).get("clientId")
+        );
+        spotifySetupClientIdInput.value = "";
+        updateSpotifySetupInterface();
+        setStatus(
+            `Client ID ${maskSpotifyClientId(configuration.clientId)} enregistré. Tu peux maintenant te connecter à Spotify.`,
+            "success"
+        );
+        loginButton?.focus();
+    } catch (error) {
+        console.error(error);
+        setStatus(error.message, "error");
+    }
+});
 }
 
 if (copySpotifySetupRedirectButton) {
-    copySpotifySetupRedirectButton.addEventListener(
-        "click",
-        copySpotifyRedirectUri
-    );
+copySpotifySetupRedirectButton.addEventListener(
+    "click",
+    copySpotifyRedirectUri
+);
 }
 
 if (openSpotifyDeveloperButton) {
-    openSpotifyDeveloperButton.addEventListener(
-        "click",
-        openSpotifyDeveloperDashboard
-    );
+openSpotifyDeveloperButton.addEventListener(
+    "click",
+    openSpotifyDeveloperDashboard
+);
 }
 
 if (loginButton) {
-    loginButton.addEventListener("click", async () => {
-        if (!hasConfiguredSpotifyApplication()) {
-            updateSpotifySetupInterface({ focus: true });
-            setStatus(
-                "Configure d’abord ton Client ID Spotify personnel.",
-                "error"
-            );
-            return;
-        }
-        loginButton.disabled = true;
+loginButton.addEventListener("click", async () => {
+    if (!hasConfiguredSpotifyApplication()) {
+        updateSpotifySetupInterface({ focus: true });
+        setStatus(
+            "Configure d’abord ton Client ID Spotify personnel.",
+            "error"
+        );
+        return;
+    }
+    loginButton.disabled = true;
+    loginButton.textContent =
+        "Redirection vers Spotify…";
+
+    setStatus("");
+
+    try {
+        await loginWithSpotify();
+    } catch (error) {
+        console.error(error);
+
+        loginButton.disabled = false;
         loginButton.textContent =
-            "Redirection vers Spotify…";
+            "Se connecter à Spotify";
 
-        setStatus("");
-
-        try {
-            await loginWithSpotify();
-        } catch (error) {
-            console.error(error);
-
-            loginButton.disabled = false;
-            loginButton.textContent =
-                "Se connecter à Spotify";
-
-            setStatus(error.message, "error");
-        }
-    });
+        setStatus(error.message, "error");
+    }
+});
 }
 
 if (logoutButton) {
-    logoutButton.addEventListener("click", () => {
-        stopServerSyncWatcher();
-        stopMusicalDashboardRefreshTimer();
+logoutButton.addEventListener("click", () => {
+    stopServerSyncWatcher();
+    stopMusicalDashboardRefreshTimer();
 
-        if (scheduleCheckTimer) {
-            window.clearInterval(
-                scheduleCheckTimer
-            );
-            scheduleCheckTimer = 0;
-        }
+    if (scheduleCheckTimer) {
+        window.clearInterval(
+            scheduleCheckTimer
+        );
+        scheduleCheckTimer = 0;
+    }
 
-        logoutSpotify();
+    logoutSpotify();
 
-        currentUserId = "";
-        currentUserProduct = "";
-        welcomeElement.textContent = "Bienvenue 👋";
+    currentUserId = "";
+    currentUserProduct = "";
+    welcomeElement.textContent = "Bienvenue 👋";
 
-        setDisconnectedInterface();
-    });
+    setDisconnectedInterface();
+});
 }
 
 if (contentElement) {
-    contentElement.addEventListener(
-        "click",
-        async (event) => {
-            const experienceModeButton =
-                event.target.closest(
-                    "button[data-select-experience-mode]"
+contentElement.addEventListener(
+    "click",
+    async (event) => {
+        const experienceModeButton =
+            event.target.closest(
+                "button[data-select-experience-mode]"
+            );
+
+        if (experienceModeButton) {
+            event.preventDefault();
+            applyExperienceMode(
+                experienceModeButton.dataset.selectExperienceMode ||
+                "essential"
+            );
+            return;
+        }
+
+        if (event.target.closest("[data-guided-primary-launch]")) {
+            await runGuidedPrimaryLaunch();
+            return;
+        }
+
+        if (event.target.closest("[data-guided-copy-shortcut]")) {
+            const command = getGuidedPrimaryCommand();
+            if (!command) {
+                setStatus("Aucun raccourci principal n’est configuré.", "error");
+                return;
+            }
+            await copyIosCommandUrl(command.id);
+            return;
+        }
+
+        if (event.target.closest("[data-copy-universal-launch]")) {
+            await copyUniversalLaunchUrl();
+            return;
+        }
+
+        if (event.target.closest("[data-share-universal-launch]")) {
+            await shareUniversalLaunchUrl();
+            return;
+        }
+
+        if (event.target.closest("[data-copy-last-launch-diagnostic]")) {
+            const diagnostic = getLastPrimaryLaunchDiagnosticText();
+            try {
+                await copyTextToClipboard(diagnostic);
+                showToast("✅ Diagnostic copié.", "success");
+            } catch (error) {
+                console.error(error);
+                window.prompt("Copie le diagnostic :", diagnostic);
+            }
+            return;
+        }
+
+        if (event.target.closest("[data-copy-current-launch-diagnostic]")) {
+            const diagnostic = lastLaunchDiagnosticText ||
+                getLastPrimaryLaunchDiagnosticText();
+            try {
+                await copyTextToClipboard(diagnostic);
+                showToast("✅ Diagnostic copié.", "success");
+            } catch (error) {
+                console.error(error);
+                window.prompt("Copie le diagnostic :", diagnostic);
+            }
+            return;
+        }
+
+        if (event.target.closest("[data-launch-open-spotify]")) {
+            openTrustedExternalUrl("https://open.spotify.com/");
+            return;
+        }
+
+        if (event.target.closest("[data-launch-reconnect-spotify]")) {
+            try {
+                await loginWithSpotify();
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message || "Reconnexion Spotify impossible.",
+                    "error"
                 );
-
-            if (experienceModeButton) {
-                event.preventDefault();
-                applyExperienceMode(
-                    experienceModeButton.dataset.selectExperienceMode ||
-                    "essential"
-                );
-                return;
             }
+            return;
+        }
 
-            if (event.target.closest("[data-guided-primary-launch]")) {
-                await runGuidedPrimaryLaunch();
-                return;
-            }
+        const launchRecoveryButton = event.target.closest(
+            "[data-launch-recovery-action]"
+        );
 
-            if (event.target.closest("[data-guided-copy-shortcut]")) {
-                const command = getGuidedPrimaryCommand();
-                if (!command) {
-                    setStatus("Aucun raccourci principal n’est configuré.", "error");
-                    return;
-                }
-                await copyIosCommandUrl(command.id);
-                return;
-            }
+        if (launchRecoveryButton) {
+            const action = launchRecoveryButton.dataset.launchRecoveryAction || "";
 
-            if (event.target.closest("[data-copy-universal-launch]")) {
-                await copyUniversalLaunchUrl();
-                return;
-            }
-
-            if (event.target.closest("[data-share-universal-launch]")) {
-                await shareUniversalLaunchUrl();
-                return;
-            }
-
-            if (event.target.closest("[data-copy-last-launch-diagnostic]")) {
-                const diagnostic = getLastPrimaryLaunchDiagnosticText();
-                try {
-                    await copyTextToClipboard(diagnostic);
-                    showToast("✅ Diagnostic copié.", "success");
-                } catch (error) {
-                    console.error(error);
-                    window.prompt("Copie le diagnostic :", diagnostic);
-                }
-                return;
-            }
-
-            if (event.target.closest("[data-copy-current-launch-diagnostic]")) {
-                const diagnostic = lastLaunchDiagnosticText ||
-                    getLastPrimaryLaunchDiagnosticText();
-                try {
-                    await copyTextToClipboard(diagnostic);
-                    showToast("✅ Diagnostic copié.", "success");
-                } catch (error) {
-                    console.error(error);
-                    window.prompt("Copie le diagnostic :", diagnostic);
-                }
-                return;
-            }
-
-            if (event.target.closest("[data-launch-open-spotify]")) {
+            if (action === "open-spotify") {
                 openTrustedExternalUrl("https://open.spotify.com/");
                 return;
             }
 
-            if (event.target.closest("[data-launch-reconnect-spotify]")) {
+            if (action === "reconnect") {
                 try {
                     await loginWithSpotify();
                 } catch (error) {
@@ -40785,3752 +40952,3727 @@ if (contentElement) {
                 return;
             }
 
-            const launchRecoveryButton = event.target.closest(
-                "[data-launch-recovery-action]"
-            );
+            if (action === "settings") {
+                await navigateToAppMenu("mixes");
+                return;
+            }
 
-            if (launchRecoveryButton) {
-                const action = launchRecoveryButton.dataset.launchRecoveryAction || "";
-
-                if (action === "open-spotify") {
-                    openTrustedExternalUrl("https://open.spotify.com/");
-                    return;
+            if (action === "copy-diagnostic") {
+                const diagnostic = lastLaunchDiagnosticText ||
+                    getLastPrimaryLaunchDiagnosticText();
+                try {
+                    await copyTextToClipboard(diagnostic);
+                    showToast("✅ Diagnostic copié.", "success");
+                } catch (error) {
+                    console.error(error);
+                    window.prompt("Copie le diagnostic :", diagnostic);
                 }
+                return;
+            }
 
-                if (action === "reconnect") {
-                    try {
-                        await loginWithSpotify();
-                    } catch (error) {
-                        console.error(error);
-                        setStatus(
-                            error.message || "Reconnexion Spotify impossible.",
-                            "error"
-                        );
+            if (action === "retry") {
+                await runIosQuickPlay(
+                    launchRecoveryButton.dataset.playlistId || "",
+                    launchRecoveryButton.dataset.commandId || "",
+                    {
+                        openDrivingMode:
+                            launchRecoveryButton.dataset.openDriving === "1",
+                        openDynamicLyrics:
+                            launchRecoveryButton.dataset.openLyrics === "1",
+                        dynamicLyricsShortcutName:
+                            launchRecoveryButton.dataset.lyricsShortcut || ""
                     }
-                    return;
-                }
-
-                if (action === "settings") {
-                    await navigateToAppMenu("mixes");
-                    return;
-                }
-
-                if (action === "copy-diagnostic") {
-                    const diagnostic = lastLaunchDiagnosticText ||
-                        getLastPrimaryLaunchDiagnosticText();
-                    try {
-                        await copyTextToClipboard(diagnostic);
-                        showToast("✅ Diagnostic copié.", "success");
-                    } catch (error) {
-                        console.error(error);
-                        window.prompt("Copie le diagnostic :", diagnostic);
-                    }
-                    return;
-                }
-
-                if (action === "retry") {
-                    await runIosQuickPlay(
-                        launchRecoveryButton.dataset.playlistId || "",
-                        launchRecoveryButton.dataset.commandId || "",
-                        {
-                            openDrivingMode:
-                                launchRecoveryButton.dataset.openDriving === "1",
-                            openDynamicLyrics:
-                                launchRecoveryButton.dataset.openLyrics === "1",
-                            dynamicLyricsShortcutName:
-                                launchRecoveryButton.dataset.lyricsShortcut || ""
-                        }
-                    );
-                    return;
-                }
-            }
-
-            if (event.target.closest("[data-guided-test-installation]")) {
-                testGuidedInstallation();
-                return;
-            }
-
-            if (event.target.closest("[data-guided-confirm-shortcut]")) {
-                saveGuidedSetupPreferences({
-                    shortcutConfirmed: !guidedSetupState.shortcutConfirmed,
-                    dismissedAt: 0
-                });
-                displayPlaylists(playlistsCache);
-                return;
-            }
-
-            if (event.target.closest("[data-guided-confirm-installation]")) {
-                saveGuidedSetupPreferences({
-                    installationConfirmed:
-                        !getGuidedSetupSnapshot().installationReady,
-                    dismissedAt: 0
-                });
-                displayPlaylists(playlistsCache);
-                return;
-            }
-
-            if (event.target.closest("[data-guided-dismiss]")) {
-                saveGuidedSetupPreferences({
-                    dismissedAt: Date.now()
-                });
-                displayPlaylists(playlistsCache);
-                return;
-            }
-
-            const guidedStepButton = event.target.closest("[data-guided-step]");
-            if (guidedStepButton) {
-                const stepId = guidedStepButton.dataset.guidedStep || "";
-                if (stepId === "launch-test") {
-                    await runGuidedPrimaryLaunch();
-                    return;
-                }
-                if (stepId === "pwa-install") {
-                    await requestPwaInstallation();
-                    return;
-                }
-                await navigateToAppMenu(
-                    guidedStepButton.dataset.guidedNav || "dashboard"
                 );
                 return;
             }
-
-            const guidedNavigationButton = event.target.closest("[data-guided-nav]");
-            if (guidedNavigationButton) {
-                await navigateToAppMenu(
-                    guidedNavigationButton.dataset.guidedNav || "dashboard"
-                );
-                return;
-            }
-
-            if (event.target.closest("[data-copy-spotify-redirect]")) {
-                await copySpotifyRedirectUri();
-                return;
-            }
-
-            if (event.target.closest("[data-open-spotify-developer]")) {
-                openSpotifyDeveloperDashboard();
-                return;
-            }
-
-            if (event.target.closest("[data-test-spotify-configuration]")) {
-                await testSpotifyApplicationConfiguration();
-                return;
-            }
-
-            if (event.target.closest("[data-reset-spotify-configuration]")) {
-                const confirmed = window.confirm(
-                    "Réinitialiser le Client ID et déconnecter Spotify ? Les mix, raccourcis et réglages locaux seront conservés."
-                );
-
-                if (!confirmed) {
-                    return;
-                }
-
-                logoutSpotify();
-                clearSpotifyAppConfiguration(localStorage);
-                currentUserId = "";
-                currentUserProduct = "";
-                welcomeElement.textContent = "Bienvenue 👋";
-                setDisconnectedInterface();
-                updateSpotifySetupInterface({ focus: true });
-                setStatus(
-                    "Configuration Spotify réinitialisée. Renseigne un nouveau Client ID.",
-                    "success"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#refreshOfflineLibraryButton"
-                )
-            ) {
-                try {
-                    await refreshLiveLibrary({ force: true });
-                } catch (error) {
-                    console.error(error);
-                    setStatus(error.message || "Actualisation impossible.", "error");
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearOfflineMusicCacheButton"
-                )
-            ) {
-                await clearOfflinePerformanceData();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#runAppHealthCheckButton"
-                )
-            ) {
-                await collectAppHealthSnapshot({
-                    notify: true
-                });
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportAppHealthButton"
-                )
-            ) {
-                await exportAppHealthReport();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#repairPwaCacheButton"
-                )
-            ) {
-                await repairPwaCache();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#applyUiThemeCustomColorButton"
-                )
-            ) {
-                const value =
-                    document.getElementById(
-                        "uiThemeCustomHexInput"
-                    )?.value ||
-                    document.getElementById(
-                        "uiThemeCustomColorInput"
-                    )?.value ||
-                    "";
-                updateUiThemeCustomColor(value);
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#resetUiThemeButton"
-                )
-            ) {
-                updateUiThemeAccent("violet");
-                return;
-            }
-
-            const uiAccentButton =
-                event.target.closest(
-                    "[data-ui-accent]"
-                );
-
-            if (uiAccentButton) {
-                updateUiThemeAccent(
-                    uiAccentButton.dataset.uiAccent ||
-                    ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#openUniversalSearchButton, [data-open-universal-search]"
-                )
-            ) {
-                await openUniversalSearch();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-close-universal-search]"
-                ) ||
-                event.target.matches(
-                    "[data-universal-search-backdrop]"
-                )
-            ) {
-                closeUniversalSearch();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-clear-universal-search-query]"
-                )
-            ) {
-                setUniversalSearchQuery("");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-clear-universal-search-history]"
-                )
-            ) {
-                universalSearchHistory = [];
-                saveUniversalSearchHistory();
-                refreshUniversalSearchResultsDom();
-                return;
-            }
-
-            const recentUniversalSearchButton =
-                event.target.closest(
-                    "[data-universal-search-recent]"
-                );
-            if (recentUniversalSearchButton) {
-                setUniversalSearchQuery(
-                    recentUniversalSearchButton.dataset
-                        .universalSearchRecent || ""
-                );
-                return;
-            }
-
-            const universalSearchResultButton =
-                event.target.closest(
-                    "[data-universal-search-result-index]"
-                );
-            if (universalSearchResultButton) {
-                await runUniversalSearchResult(
-                    universalSearchResultButton.dataset
-                        .universalSearchResultIndex || 0
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-open-contextual-help]"
-                )
-            ) {
-                openContextualHelp();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-close-contextual-help]"
-                )
-            ) {
-                closeContextualHelp();
-                return;
-            }
-
-            const contextualHelpMenuButton =
-                event.target.closest(
-                    "[data-contextual-help-menu]"
-                );
-            if (contextualHelpMenuButton) {
-                contextualHelpDialogOpen = false;
-                await navigateToAppMenu(
-                    contextualHelpMenuButton
-                        .dataset
-                        .contextualHelpMenu ||
-                    "guide"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#startContextualOnboardingButton"
-                )
-            ) {
-                startContextualOnboarding();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#resetContextualHelpProgressButton"
-                )
-            ) {
-                resetContextualHelpProgress();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-next-contextual-onboarding]"
-                )
-            ) {
-                moveContextualOnboarding(1);
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-previous-contextual-onboarding]"
-                )
-            ) {
-                moveContextualOnboarding(-1);
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "[data-skip-contextual-onboarding]"
-                )
-            ) {
-                skipContextualOnboarding();
-                return;
-            }
-
-            if (event.target.closest("#refreshMusicalDashboardButton")) { await refreshMusicalDashboardPlayback(); return; }
-            if (event.target.closest("#exportMusicalDashboardButton")) { exportMusicalDashboardSnapshot(); return; }
-            if (event.target.closest("#exportMusicalGoalsButton")) { exportMusicalGoalsSummary(); return; }
-            if (event.target.closest("#resetMusicalGoalsButton")) { resetMusicalGoalsSettings(); return; }
-            const goalsNavigationButton = event.target.closest("[data-goals-navigation]");
-            if (goalsNavigationButton) {
-                activeAppMenu = normalizeActiveAppMenu(goalsNavigationButton.dataset.goalsNavigation || "dashboard");
-                saveActiveAppMenu();
-                displayPlaylists(playlistsCache);
-                return;
-            }
-            const dnav = event.target.closest("[data-dashboard-nav]"); if (dnav) { await openDashboardSection(dnav.dataset.dashboardNav || ""); return; }
-            const dplay = event.target.closest("[data-dashboard-playback]"); if (dplay) { try { await runQuickControlAction(dplay.dataset.dashboardPlayback || ""); await refreshMusicalDashboardPlayback({ silent: true }); } catch (error) { setStatus(error.message || "Commande Spotify impossible.", "error"); } return; }
-            const drec = event.target.closest("[data-dashboard-recommendation]"); if (drec) { try { await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation || ""); } catch (error) { setStatus(error.message || "Recommandation impossible.", "error"); } return; }
-            const dscene = event.target.closest("[data-dashboard-scene]"); if (dscene) { try { await runAdaptiveDjScene(dscene.dataset.dashboardScene || ""); } catch (error) { setStatus(error.message || "Scène impossible.", "error"); } return; }
-
-            const applyUsageProfileButton =
-                event.target.closest(
-                    "[data-apply-usage-profile]"
-                );
-            if (applyUsageProfileButton) {
-                try {
-                    await applyUsageProfile(
-                        applyUsageProfileButton.dataset
-                            .applyUsageProfile || "",
-                        { launch: false }
-                    );
-                } catch (error) {
-                    console.error(error);
-                    setStatus(
-                        error.message ||
-                        "Le mode n’a pas pu être activé.",
-                        "error"
-                    );
-                }
-                return;
-            }
-
-            const launchUsageProfileButton =
-                event.target.closest(
-                    "[data-launch-usage-profile]"
-                );
-            if (launchUsageProfileButton) {
-                try {
-                    await applyUsageProfile(
-                        launchUsageProfileButton.dataset
-                            .launchUsageProfile || "",
-                        { launch: true }
-                    );
-                } catch (error) {
-                    console.error(error);
-                    setStatus(
-                        error.message ||
-                        "Le mode n’a pas pu démarrer.",
-                        "error"
-                    );
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#resetUsageProfilesButton"
-                )
-            ) {
-                resetUsageProfileState();
-                return;
-            }
-
-            const assistantExampleButton =
-                event.target.closest(
-                    "[data-musical-assistant-example]"
-                );
-
-            if (assistantExampleButton) {
-                analyzeMusicalAssistantRequest(
-                    assistantExampleButton.dataset
-                        .musicalAssistantExample || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#executeMusicalAssistantButton"
-                )
-            ) {
-                await executeMusicalAssistantPlan();
-                return;
-            }
-
-
-            const runRecommendationButton = event.target.closest("[data-run-personal-recommendation]");
-            if (runRecommendationButton) {
-                try {
-                    await runPersonalizedRecommendation(runRecommendationButton.dataset.runPersonalRecommendation || "");
-                } catch (error) {
-                    console.error(error);
-                    setStatus(error.message || "La recommandation n’a pas pu être lancée.", "error");
-                }
-                return;
-            }
-
-            const rateRecommendationButton = event.target.closest("[data-rate-personal-recommendation]");
-            if (rateRecommendationButton) {
-                updatePersonalizedRecommendationRating(
-                    rateRecommendationButton.dataset.ratePersonalRecommendation || "",
-                    Number(rateRecommendationButton.dataset.personalRecommendationRating || 0)
-                );
-                displayPlaylists(playlistsCache);
-                showToast("Préférence enregistrée.", "success");
-                return;
-            }
-
-            const dismissRecommendationButton = event.target.closest("[data-dismiss-personal-recommendation]");
-            if (dismissRecommendationButton) {
-                dismissPersonalizedRecommendation(dismissRecommendationButton.dataset.dismissPersonalRecommendation || "");
-                return;
-            }
-
-            if (event.target.closest("#refreshPersonalizedRecommendationsButton")) {
-                refreshPersonalizedRecommendations();
-                return;
-            }
-            if (event.target.closest("#resetPersonalizedRecommendationsButton")) {
-                resetPersonalizedRecommendations();
-                return;
-            }
-
-
-            if (
-                event.target.closest(
-                    "#exportListeningStatisticsCsvButton"
-                )
-            ) {
-                exportListeningStatistics("csv");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportListeningStatisticsJsonButton"
-                )
-            ) {
-                exportListeningStatistics("json");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearMusicalAssistantHistoryButton"
-                )
-            ) {
-                musicalAssistantHistory = [];
-                saveMusicalAssistantHistory();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    "Historique de l’assistant effacé."
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#createShortcutProfileButton, #createFirstShortcutProfileButton"
-                )
-            ) {
-                openShortcutProfileEditor("");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#openShortcutProfilesConfigButton"
-                )
-            ) {
-                activeAppMenu = "mixes";
-                saveActiveAppMenu();
-                displayPlaylists(playlistsCache);
-                return;
-            }
-
-            const quickContextButton =
-                event.target.closest(
-                    "[data-launch-quick-context]"
-                );
-
-            if (quickContextButton) {
-                try {
-                    await runQuickControlAction(
-                        "quick-context",
-                        {
-                            contextId:
-                                quickContextButton.dataset
-                                    .launchQuickContext || "",
-                            source: "quick-context-card"
-                        }
-                    );
-                } catch (error) {
-                    // Message déjà affiché.
-                }
-                return;
-            }
-
-            const copyQuickContextButton =
-                event.target.closest(
-                    "[data-copy-quick-context-url]"
-                );
-
-            if (copyQuickContextButton) {
-                await copyQuickContextUrl(
-                    copyQuickContextButton.dataset
-                        .copyQuickContextUrl || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#dismissQuickExternalResultButton"
-                )
-            ) {
-                saveQuickExternalResult(null);
-                renderQuickControlPage();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#resetQuickContextsButton"
-                )
-            ) {
-                resetQuickContexts();
-                return;
-            }
-
-            const quickActionButton =
-                event.target.closest(
-                    "[data-quick-action]"
-                );
-
-            if (quickActionButton) {
-                try {
-                    await runQuickControlAction(
-                        quickActionButton.dataset
-                            .quickAction || ""
-                    );
-                } catch (error) {
-                    // Message déjà affiché dans l’interface rapide.
-                }
-                return;
-            }
-
-            const copyQuickUrlButton =
-                event.target.closest(
-                    "[data-copy-quick-url]"
-                );
-
-            if (copyQuickUrlButton) {
-                await copyQuickControlUrl(
-                    copyQuickUrlButton.dataset
-                        .copyQuickUrl || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#quickRefreshButton"
-                )
-            ) {
-                await refreshQuickControlPlayback();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#musicalAssistantVoiceButton"
-                )
-            ) {
-                startVoiceAssistantRecognition(
-                    "assistant"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#testVoiceAssistantButton"
-                )
-            ) {
-                speakVoiceAssistantText(
-                    "Shuffle plus est prêt à recevoir tes commandes vocales.",
-                    { force: true }
-                );
-                vibrateVoiceAssistant([25, 40, 25]);
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#quickVoiceButton"
-                )
-            ) {
-                startQuickVoiceRecognition();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#drivingVoiceButton"
-                )
-            ) {
-                startDrivingVoiceRecognition();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#drivingAdaptiveButton"
-                )
-            ) {
-                await launchDrivingAdaptiveDj();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#drivingPlayPauseButton"
-                )
-            ) {
-                await toggleDrivingPlayback();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#drivingNextButton"
-                )
-            ) {
-                await skipDrivingTrack();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#drivingQueueButton, [data-open-driving-queue]"
-                )
-            ) {
-                if (activeAppMenu !== "driving") {
-                    await navigateToAppMenu("driving");
-                    if (activeAppMenu !== "driving") {
-                        return;
-                    }
-                }
-                await openDrivingQueue();
-                return;
-            }
-
-            if (event.target.closest("[data-refresh-home-queue]")) {
-                await refreshDrivingQueue({
-                    silent: false,
-                    render: false
-                });
-                if (activeAppMenu === "dashboard") {
-                    displayPlaylists(playlistsCache);
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#closeDrivingQueueButton"
-                )
-            ) {
-                closeDrivingQueue();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#refreshDrivingQueueButton"
-                )
-            ) {
-                await refreshDrivingQueue();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#drivingRefreshButton"
-                )
-            ) {
-                await refreshDrivingPlayback();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exitDrivingModeButton"
-                )
-            ) {
-                await exitDrivingMode();
-                return;
-            }
-
-            const drivingFeedbackButton =
-                event.target.closest(
-                    "[data-driving-feedback]"
-                );
-
-            if (drivingFeedbackButton) {
-                applyDrivingFeedback(
-                    drivingFeedbackButton.dataset
-                        .drivingFeedback ||
-                    "neutral"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#installPwaSettingsButton"
-                )
-            ) {
+        }
+
+        if (event.target.closest("[data-guided-test-installation]")) {
+            testGuidedInstallation();
+            return;
+        }
+
+        if (event.target.closest("[data-guided-confirm-shortcut]")) {
+            saveGuidedSetupPreferences({
+                shortcutConfirmed: !guidedSetupState.shortcutConfirmed,
+                dismissedAt: 0
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (event.target.closest("[data-guided-confirm-installation]")) {
+            saveGuidedSetupPreferences({
+                installationConfirmed:
+                    !getGuidedSetupSnapshot().installationReady,
+                dismissedAt: 0
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (event.target.closest("[data-guided-dismiss]")) {
+            saveGuidedSetupPreferences({
+                dismissedAt: Date.now()
+            });
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const guidedStepButton = event.target.closest("[data-guided-step]");
+        if (guidedStepButton) {
+            const stepId = guidedStepButton.dataset.guidedStep || "";
+            if (stepId === "launch-test") {
+                await runGuidedPrimaryLaunch();
+                return;
+            }
+            if (stepId === "pwa-install") {
                 await requestPwaInstallation();
                 return;
             }
-
-            if (
-                event.target.closest(
-                    "#showPwaInstructionsButton"
-                )
-            ) {
-                showPwaInstallGuide();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#checkPwaUpdateButton"
-                )
-            ) {
-                await checkForPwaUpdate();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#replaceNextSmartQueueButton"
-                )
-            ) {
-                replaceSmartQueueTrackAt(
-                    playbackQueueCursor
-                );
-                return;
-            }
-
-            const smartQueuePreviewReplace =
-                event.target.closest(
-                    "[data-smart-queue-replace-index]"
-                );
-
-            if (smartQueuePreviewReplace) {
-                replaceSmartQueueTrackAt(
-                    Number(
-                        smartQueuePreviewReplace.dataset
-                            .smartQueueReplaceIndex
-                    )
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#reshuffleSmartQueueButton"
-                )
-            ) {
-                reshuffleSmartQueueRemaining();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#undoSmartQueueButton"
-                )
-            ) {
-                undoLastSmartQueueAction();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearSmartQueueAvoidsButton"
-                )
-            ) {
-                clearSmartQueueAvoids();
-                return;
-            }
-
-            const appMenuButton =
-                event.target.closest(
-                    "[data-app-menu]"
-                );
-
-            if (appMenuButton) {
-                await navigateToAppMenu(
-                    appMenuButton.dataset.appMenu ||
-                    "dashboard"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportIntelligenceButton"
-                )
-            ) {
-                downloadIntelligenceReport();
-                return;
-            }
-
-            const confirmIntelligenceButton =
-                event.target.closest(
-                    "[data-confirm-intelligence-event]"
-                );
-
-            if (confirmIntelligenceButton) {
-                confirmIntelligenceListening(
-                    confirmIntelligenceButton.dataset
-                        .confirmIntelligenceEvent || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearIntelligenceButton"
-                )
-            ) {
-                clearIntelligenceAnalytics();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#runAdaptiveDjNowButton"
-                )
-            ) {
-                try {
-                    await runAdaptiveDj();
-                } catch (error) {
-                    console.error(error);
-                    setStatus(
-                        error.message ||
-                        "Adaptive DJ n’a pas pu démarrer.",
-                        "error"
-                    );
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#testAdaptiveDjButton"
-                )
-            ) {
-                const form =
-                    event.target.closest(
-                        "#adaptiveDjMenuForm"
-                    );
-                const slotId =
-                    form?.elements?.testSlotId
-                        ?.value || "";
-
-                try {
-                    await runAdaptiveDj({
-                        forcedSlotId: slotId,
-                        autoplay: false
-                    });
-                } catch (error) {
-                    console.error(error);
-                    setStatus(
-                        error.message ||
-                        "Test Adaptive DJ impossible.",
-                        "error"
-                    );
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#copyAdaptiveDjUrlButton"
-                )
-            ) {
-                await copyAdaptiveDjShortcutUrl();
-                return;
-            }
-
-
-            const runAdaptiveSceneButton =
-                event.target.closest(
-                    "[data-run-adaptive-scene]"
-                );
-
-            if (runAdaptiveSceneButton) {
-                try {
-                    await runAdaptiveDjScene(
-                        runAdaptiveSceneButton.dataset
-                            .runAdaptiveScene || ""
-                    );
-                } catch (error) {
-                    console.error(error);
-                    setStatus(
-                        error.message ||
-                        "La scène Adaptive DJ n’a pas pu démarrer.",
-                        "error"
-                    );
-                }
-                return;
-            }
-
-            const copyAdaptiveSceneUrlButton =
-                event.target.closest(
-                    "[data-copy-adaptive-scene-url]"
-                );
-
-            if (copyAdaptiveSceneUrlButton) {
-                await copyAdaptiveDjSceneUrl(
-                    copyAdaptiveSceneUrlButton.dataset
-                        .copyAdaptiveSceneUrl || ""
-                );
-                return;
-            }
-
-            const activateAdaptiveSceneButton =
-                event.target.closest(
-                    "[data-activate-adaptive-scene]"
-                );
-
-            if (activateAdaptiveSceneButton) {
-                const form = event.target.closest(
-                    "#adaptiveDjSceneStudioForm"
-                );
-                const activeInput = form?.elements?.activeSceneId;
-                const sceneId = activateAdaptiveSceneButton.dataset
-                    .activateAdaptiveScene || "";
-
-                if (activeInput) {
-                    activeInput.value = sceneId;
-                }
-
-                setActiveAdaptiveDjScene(sceneId);
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#previewAdaptiveTransitionButton"
-                )
-            ) {
-                const form = event.target.closest(
-                    "#adaptiveTransitionForm"
-                );
-                if (form) {
-                    await previewAdaptiveTransition(form);
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#applyAdaptiveTransitionButton"
-                )
-            ) {
-                const form = event.target.closest(
-                    "#adaptiveTransitionForm"
-                );
-                if (form) {
-                    await applyAdaptiveTransition(form);
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#undoAdaptiveTransitionButton"
-                )
-            ) {
-                undoAdaptiveTransition();
-                return;
-            }
-
-            const adaptiveLearningActionButton =
-                event.target.closest(
-                    "[data-adaptive-learning-action]"
-                );
-
-            if (adaptiveLearningActionButton) {
-                const action =
-                    adaptiveLearningActionButton.dataset
-                        .adaptiveLearningAction || "";
-                const slotId =
-                    adaptiveLearningActionButton.dataset
-                        .adaptiveLearningSlotId || "";
-                const mixId =
-                    adaptiveLearningActionButton.dataset
-                        .adaptiveLearningMixId || "";
-
-                if (action === "apply") {
-                    applyAdaptiveLearningSuggestion(
-                        slotId,
-                        mixId
-                    );
-                } else if (action === "ignore") {
-                    ignoreAdaptiveLearningSuggestion(
-                        slotId,
-                        mixId
-                    );
-                }
-
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#resetAdaptiveLearningButton"
-                )
-            ) {
-                resetAdaptiveLearning();
-                return;
-            }
-
-            const adaptiveAutoUndoButton =
-                event.target.closest(
-                    "[data-adaptive-auto-undo-id]"
-                );
-
-            if (adaptiveAutoUndoButton) {
-                rollbackAdaptiveLearningAutoChange(
-                    adaptiveAutoUndoButton.dataset
-                        .adaptiveAutoUndoId || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#refreshPreferredSpotifyDevicesButton"
-                )
-            ) {
-                await refreshPreferredSpotifyDevices();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#savePreferredSpotifyDeviceButton"
-                )
-            ) {
-                savePreferredSpotifyDeviceFromPanel();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearPreferredSpotifyDeviceButton"
-                )
-            ) {
-                clearPreferredSpotifyDevice();
-                displayPlaylists(playlistsCache);
-                setStatus("Appareil Spotify préféré oublié.");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#copyDynamicLyricsTestUrlButton"
-                )
-            ) {
-                await copyDynamicLyricsTestUrl();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#testDynamicLyricsShortcutButton"
-                )
-            ) {
-                openDynamicLyricsTestShortcut();
-                return;
-            }
-
-            const openDynamicLyricsButton =
-                event.target.closest(
-                    "#openDynamicLyricsButton"
-                );
-
-            if (openDynamicLyricsButton) {
-                const shortcutUrl =
-                    openDynamicLyricsButton.dataset
-                        .shortcutUrl || "";
-
-                if (shortcutUrl.startsWith("shortcuts://")) {
-                    window.location.href = shortcutUrl;
-                }
-                return;
-            }
-
-            const iosCommandActionButton =
-                event.target.closest(
-                    "[data-ios-command-action]"
-                );
-
-            if (iosCommandActionButton) {
-                const action =
-                    iosCommandActionButton.dataset
-                        .iosCommandAction || "";
-                const commandId =
-                    iosCommandActionButton.dataset
-                        .iosCommandId || "";
-
-                if (action === "run") {
-                    const command =
-                        getIosCommandById(commandId);
-                    if (command?.commandType === "smartmix") {
-                        await executeAutomationCommand({
-                            action: "smartmix",
-                            commandId,
-                            autoplay: command.autoplay,
-                            openDrivingMode:
-                                command.openDrivingMode
-                        });
-                    } else {
-                        await runIosQuickPlay(
-                            command?.playlistId || "",
-                            commandId
-                        );
-                    }
-                } else if (action === "copy") {
-                    await copyIosCommandUrl(
-                        commandId
-                    );
-                } else if (action === "edit") {
-                    editIosCommand(commandId);
-                } else if (
-                    action === "duplicate"
-                ) {
-                    duplicateIosCommand(commandId);
-                } else if (
-                    action === "delete"
-                ) {
-                    deleteIosCommand(commandId);
-                }
-
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#cancelIosCommandEditButton"
-                )
-            ) {
-                cancelIosCommandEdit();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#testIosQuickPlayButton"
-                )
-            ) {
-                await runIosQuickPlay(
-                    "",
-                    getPrincipalIosCommand()?.id || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#copyIosShortcutUrlButton"
-                )
-            ) {
-                await copyIosQuickPlayUrl();
-                return;
-            }
-
-            const retryIosButton =
-                event.target.closest(
-                    "#retryIosQuickPlayButton"
-                );
-
-            if (retryIosButton) {
-                await runIosQuickPlay(
-                    retryIosButton.dataset.playlistId || "",
-                    retryIosButton.dataset.commandId || "",
-                    {
-                        openDrivingMode:
-                            retryIosButton.dataset.openDriving === "1",
-                        openDynamicLyrics:
-                            retryIosButton.dataset.openLyrics === "1",
-                        dynamicLyricsShortcutName:
-                            retryIosButton.dataset.lyricsShortcut || ""
-                    }
-                );
-                return;
-            }
-
-            const scheduleActionButton =
-                event.target.closest(
-                    "[data-schedule-action]"
-                );
-
-            if (scheduleActionButton) {
-                const scheduleId =
-                    scheduleActionButton.dataset.scheduleId || "";
-                const action =
-                    scheduleActionButton.dataset.scheduleAction || "";
-
-                if (action === "run") {
-                    await runMixSchedule(
-                        scheduleId
-                    );
-                } else if (action === "toggle") {
-                    toggleMixSchedule(
-                        scheduleId
-                    );
-                } else if (action === "delete") {
-                    deleteMixSchedule(
-                        scheduleId
-                    );
-                }
-
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#createSmartSchedulePresetsButton"
-                )
-            ) {
-                createSmartSchedulePresets();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#refreshScheduleDevicesButton"
-                )
-            ) {
-                await refreshScheduleDevices();
-                return;
-            }
-
-            const profileActionButton =
-                event.target.closest("[data-profile-action]");
-
-            if (profileActionButton) {
-                const profileId =
-                    profileActionButton.dataset.profileId || "";
-                const action =
-                    profileActionButton.dataset.profileAction || "";
-
-                if (action === "apply") {
-                    applyMixProfile(profileId);
-                } else if (action === "duplicate") {
-                    duplicateMixProfile(profileId);
-                } else if (action === "rename") {
-                    renameMixProfile(profileId);
-                } else if (action === "delete") {
-                    deleteMixProfile(profileId);
-                }
-
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#createProfileFromCurrentButton"
-                )
-            ) {
-                createProfileFromCurrentSettings();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#restoreDefaultProfilesButton"
-                )
-            ) {
-                restoreDefaultMixProfiles();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearActiveProfileButton"
-                )
-            ) {
-                clearActiveProfile();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#restoreLastCleanupButton"
-                )
-            ) {
-                restoreLastCleanup();
-                return;
-            }
-
-            const resetCleanupSettingsButton =
-                event.target.closest(
-                    "#resetCleanupSettingsButton"
-                );
-
-            if (resetCleanupSettingsButton) {
-                resetCleanupSettings();
-                return;
-            }
-
-            const resetAdaptiveSettingsButton =
-                event.target.closest(
-                    "#resetAdaptiveSettingsButton"
-                );
-
-            if (resetAdaptiveSettingsButton) {
-                resetAdaptiveSettings();
-                return;
-            }
-
-            const resetIntensitySettingsButton =
-                event.target.closest(
-                    "#resetIntensitySettingsButton"
-                );
-
-            if (resetIntensitySettingsButton) {
-                resetIntensitySettings();
-                return;
-            }
-
-            const resetCoherenceSettingsButton =
-                event.target.closest(
-                    "#resetCoherenceSettingsButton"
-                );
-
-            if (resetCoherenceSettingsButton) {
-                resetCoherenceSettings();
-                return;
-            }
-
-            const resetPriorityRulesButton =
-                event.target.closest("#resetPriorityRulesButton");
-
-            if (resetPriorityRulesButton) {
-                resetPriorityRules();
-                return;
-            }
-
-            const resetExclusionRulesButton =
-                event.target.closest("#resetExclusionRulesButton");
-
-            if (resetExclusionRulesButton) {
-                resetExclusionRules();
-                return;
-            }
-
-            const historyActionButton =
-                event.target.closest("[data-history-action]");
-
-            if (historyActionButton) {
-                const historyId =
-                    historyActionButton.dataset.historyId || "";
-                const action =
-                    historyActionButton.dataset.historyAction || "";
-
-                if (action === "relaunch") {
-                    await relaunchHistoryItem(historyId);
-                } else if (action === "delete") {
-                    deleteHistoryItem(historyId);
-                }
-
-                return;
-            }
-
-            const clearMixHistoryButton =
-                event.target.closest("#clearMixHistoryButton");
-
-            if (clearMixHistoryButton) {
-                clearMixHistory();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#simpleServerSyncButton"
-                )
-            ) {
-                await synchronizeServerNow();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#combineServerSyncButton"
-                )
-            ) {
-                const before = getSimpleSyncSummarySnapshot();
-                const merged = await mergePendingServerSyncAutomatically();
-                if (merged) {
-                    const pushed = await pushServerSync({
-                        force: true,
-                        silent: true
-                    });
-                    if (!pushed && serverSyncState.lastError) {
-                        setServerSyncMessage(
-                            serverSyncState.lastError,
-                            "error"
-                        );
-                        refreshSyncPreparationPanel();
-                        return;
-                    }
-                    serverSyncLastSimpleResult = buildSimpleSyncSummary({
-                        before,
-                        after: getSimpleSyncSummarySnapshot(),
-                        merged: true
-                    });
-                    setServerSyncMessage(
-                        serverSyncLastSimpleResult,
-                        "success"
-                    );
-                    refreshSyncPreparationPanel();
-                }
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#serverSyncSetupBackButton"
-                )
-            ) {
-                serverSyncSetupStep = normalizeServerSetupStep(1);
-                setServerSyncMessage("");
-                refreshSyncPreparationPanel();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#testServerSyncButton"
-                )
-            ) {
-                await testServerSyncConnection();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#pushServerSyncButton"
-                )
-            ) {
-                await pushServerSync({ force: true });
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#pullServerSyncButton"
-                )
-            ) {
-                await pullServerSync({ force: true });
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#copyServerSyncLinkButton"
-                )
-            ) {
-                await copyServerSyncLinkCode();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#refreshServerDevicesButton"
-                )
-            ) {
-                await refreshServerSyncDevices();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#disconnectServerSyncButton"
-                )
-            ) {
-                disconnectServerSync();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#deleteServerSyncSpaceButton"
-                )
-            ) {
-                await deleteServerSyncSpace();
-                return;
-            }
-
-            const revokeServerDeviceButton =
-                event.target.closest(
-                    "[data-revoke-server-device]"
-                );
-            if (revokeServerDeviceButton) {
-                await revokeServerSyncDevice(
-                    revokeServerDeviceButton.dataset
-                        .revokeServerDevice || ""
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#createSyncPairingInvitationButton"
-                )
-            ) {
-                createSyncPairingInvitation();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#copySyncPairingInvitationButton"
-                )
-            ) {
-                await copySyncPairingInvitation();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportSyncPairingInvitationButton"
-                )
-            ) {
-                exportSyncPairingInvitation();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#importSyncPairingFileButton"
-                )
-            ) {
-                document.getElementById(
-                    "syncPairingFileInput"
-                )?.click();
-                return;
-            }
-
-            const simulateSyncPeerButton =
-                event.target.closest(
-                    "[data-simulate-sync-peer]"
-                );
-            if (simulateSyncPeerButton) {
-                simulateSyncWithPeer(
-                    simulateSyncPeerButton.dataset
-                        .simulateSyncPeer || ""
-                );
-                return;
-            }
-
-            const exportSyncPeerButton =
-                event.target.closest(
-                    "[data-export-sync-peer]"
-                );
-            if (exportSyncPeerButton) {
-                exportSyncPackageForPeer(
-                    exportSyncPeerButton.dataset
-                        .exportSyncPeer || ""
-                );
-                return;
-            }
-
-            const removeSyncPeerButton =
-                event.target.closest(
-                    "[data-remove-sync-peer]"
-                );
-            if (removeSyncPeerButton) {
-                removeSyncPairedDevice(
-                    removeSyncPeerButton.dataset
-                        .removeSyncPeer || ""
-                );
-                return;
-            }
-
-            const syncMergePresetButton =
-                event.target.closest(
-                    "[data-sync-merge-preset]"
-                );
-
-            if (syncMergePresetButton) {
-                setSelectiveSyncMergePreset(
-                    syncMergePresetButton.dataset
-                        .syncMergePreset || "merge"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#undoLastSyncMergeButton"
-                )
-            ) {
-                await undoLastSelectiveSyncMerge();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportSyncPackageButton"
-                )
-            ) {
-                downloadSyncPackage();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportEncryptedSyncPackageButton"
-                )
-            ) {
-                await downloadEncryptedSyncPackage();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#analyzeSyncPackageButton"
-                )
-            ) {
-                document.getElementById(
-                    "syncPackageFileInput"
-                )?.click();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#exportSyncDiagnosticButton"
-                )
-            ) {
-                await downloadSyncDiagnostic();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#copySyncInstallationIdButton"
-                )
-            ) {
-                await copySyncInstallationId();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#resetSyncInstallationIdButton"
-                )
-            ) {
-                resetSyncInstallationId();
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#keepLocalSyncButton"
-                )
-            ) {
-                await applyPendingSyncPackage("local");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#applyRemoteSyncButton"
-                )
-            ) {
-                await applyPendingSyncPackage("remote");
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#applySyncPolicyButton"
-                )
-            ) {
-                await applyPendingSyncPackage("policy");
-                return;
-            }
-
-            const exportBackupButton =
-                event.target.closest("#exportBackupButton");
-
-            if (exportBackupButton) {
-                downloadBackupFile();
-                return;
-            }
-
-            const importBackupButton =
-                event.target.closest("#importBackupButton");
-
-            if (importBackupButton) {
-                document.getElementById("backupFileInput")?.click();
-                return;
-            }
-
-            const musicFeedbackButton =
-                event.target.closest(
-                    "[data-music-feedback-action]"
-                );
-
-            if (musicFeedbackButton) {
-                applyMusicFeedbackAt(
-                    Number(
-                        musicFeedbackButton.dataset
-                            .trackIndex
-                    ),
-                    musicFeedbackButton.dataset
-                        .musicFeedbackAction ||
-                    "neutral"
-                );
-                return;
-            }
-
-            if (
-                event.target.closest(
-                    "#clearMusicFeedbackButton"
-                )
-            ) {
-                clearMusicFeedback();
-                return;
-            }
-
-            const trackActionButton =
-                event.target.closest("[data-track-action]");
-
-            if (trackActionButton) {
-                const action =
-                    trackActionButton.dataset.trackAction || "";
-                const index = Number(
-                    trackActionButton.dataset.trackIndex
-                );
-
-                if (action === "up") {
-                    moveTrack(index, index - 1);
-                } else if (action === "down") {
-                    moveTrack(index, index + 1);
-                } else if (action === "remove") {
-                    removeTrackAt(index);
-                } else if (action === "exclude") {
-                    excludeTrackAt(index);
-                } else if (action === "favorite") {
-                    toggleFavoredTrackAt(index);
-                } else if (action === "replace") {
-                    replaceSmartQueueTrackAt(index);
-                } else if (action === "avoid-artist") {
-                    avoidSmartQueueArtistAt(index);
-                } else if (action === "avoid-album") {
-                    avoidSmartQueueAlbumAt(index);
-                }
-
-                return;
-            }
-
-            const resetGeneratedOrderButton =
-                event.target.closest("#resetGeneratedOrderButton");
-
-            if (resetGeneratedOrderButton) {
-                resetGeneratedOrder();
-                return;
-            }
-
-            const mixStudioTemplateButton =
-                event.target.closest(
-                    "[data-mix-studio-template-action]"
-                );
-
-            if (mixStudioTemplateButton) {
-                const form = mixStudioTemplateButton.closest(
-                    "#mixStudioForm"
-                );
-                const action =
-                    mixStudioTemplateButton.dataset
-                        .mixStudioTemplateAction;
-
-                if (action === "save") {
-                    saveMixStudioTemplateFromForm(form);
-                } else if (action === "delete") {
-                    deleteMixStudioTemplate(
-                        form?.elements?.templateId?.value || "",
-                        form
-                    );
-                }
-                return;
-            }
-
-            const mixStudioCompareButton =
-                event.target.closest(
-                    "#mixStudioCompareVariants"
-                );
-
-            if (mixStudioCompareButton) {
-                renderMixStudioVariantComparison(
-                    mixStudioCompareButton.closest(
-                        "#mixStudioForm"
-                    )
-                );
-                return;
-            }
-
-            const mixStudioVariantButton =
-                event.target.closest(
-                    "[data-mix-studio-variant-action]"
-                );
-
-            if (mixStudioVariantButton) {
-                const form = mixStudioVariantButton.closest(
-                    "#mixStudioForm"
-                );
-                const applied =
-                    applyMixStudioVariantToForm(
-                        mixStudioVariantButton.dataset
-                            .mixStudioVariantIndex,
-                        form
-                    );
-
-                if (
-                    applied &&
-                    mixStudioVariantButton.dataset
-                        .mixStudioVariantAction === "preview"
-                ) {
-                    await submitMixStudioForm(
-                        form,
-                        "preview"
-                    );
-                }
-                return;
-            }
-
-            const mixStudioClearButton =
-                event.target.closest(
-                    "#mixStudioClearSources"
-                );
-
-            if (mixStudioClearButton) {
-                const form = mixStudioClearButton.closest(
-                    "#mixStudioForm"
-                );
-                form?.querySelectorAll(
-                    ".mix-studio-source-checkbox"
-                ).forEach((checkbox) => {
-                    checkbox.checked = false;
-                });
-                selectedSourceKeys.clear();
-                updateMixStudioFormPreview(form);
-                return;
-            }
-
-            const favoriteButton = event.target.closest(
-                ".source-favorite-button"
+            await navigateToAppMenu(
+                guidedStepButton.dataset.guidedNav || "dashboard"
+            );
+            return;
+        }
+
+        const guidedNavigationButton = event.target.closest("[data-guided-nav]");
+        if (guidedNavigationButton) {
+            await navigateToAppMenu(
+                guidedNavigationButton.dataset.guidedNav || "dashboard"
+            );
+            return;
+        }
+
+        if (event.target.closest("[data-copy-spotify-redirect]")) {
+            await copySpotifyRedirectUri();
+            return;
+        }
+
+        if (event.target.closest("[data-open-spotify-developer]")) {
+            openSpotifyDeveloperDashboard();
+            return;
+        }
+
+        if (event.target.closest("[data-test-spotify-configuration]")) {
+            await testSpotifyApplicationConfiguration();
+            return;
+        }
+
+        if (event.target.closest("[data-reset-spotify-configuration]")) {
+            const confirmed = window.confirm(
+                "Réinitialiser le Client ID et déconnecter Spotify ? Les mix, raccourcis et réglages locaux seront conservés."
             );
 
-            if (favoriteButton) {
-                const sourceKey =
-                    favoriteButton.dataset.favoriteSourceKey || "";
-                toggleFavoriteSource(sourceKey);
-                displayPlaylists(playlistsCache);
+            if (!confirmed) {
+                return;
+            }
+
+            logoutSpotify();
+            clearSpotifyAppConfiguration(localStorage);
+            currentUserId = "";
+            currentUserProduct = "";
+            welcomeElement.textContent = "Bienvenue 👋";
+            setDisconnectedInterface();
+            updateSpotifySetupInterface({ focus: true });
+            setStatus(
+                "Configuration Spotify réinitialisée. Renseigne un nouveau Client ID.",
+                "success"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshOfflineLibraryButton"
+            )
+        ) {
+            try {
+                await refreshLiveLibrary({ force: true });
+            } catch (error) {
+                console.error(error);
+                setStatus(error.message || "Actualisation impossible.", "error");
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearOfflineMusicCacheButton"
+            )
+        ) {
+            await clearOfflinePerformanceData();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#runAppHealthCheckButton"
+            )
+        ) {
+            await collectAppHealthSnapshot({
+                notify: true
+            });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportAppHealthButton"
+            )
+        ) {
+            await exportAppHealthReport();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#repairPwaCacheButton"
+            )
+        ) {
+            await repairPwaCache();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applyUiThemeCustomColorButton"
+            )
+        ) {
+            const value =
+                document.getElementById(
+                    "uiThemeCustomHexInput"
+                )?.value ||
+                document.getElementById(
+                    "uiThemeCustomColorInput"
+                )?.value ||
+                "";
+            updateUiThemeCustomColor(value);
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetUiThemeButton"
+            )
+        ) {
+            updateUiThemeAccent("violet");
+            return;
+        }
+
+        const uiAccentButton =
+            event.target.closest(
+                "[data-ui-accent]"
+            );
+
+        if (uiAccentButton) {
+            updateUiThemeAccent(
+                uiAccentButton.dataset.uiAccent ||
+                ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#openUniversalSearchButton, [data-open-universal-search]"
+            )
+        ) {
+            await openUniversalSearch();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-close-universal-search]"
+            ) ||
+            event.target.matches(
+                "[data-universal-search-backdrop]"
+            )
+        ) {
+            closeUniversalSearch();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-clear-universal-search-query]"
+            )
+        ) {
+            setUniversalSearchQuery("");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-clear-universal-search-history]"
+            )
+        ) {
+            universalSearchHistory = [];
+            saveUniversalSearchHistory();
+            refreshUniversalSearchResultsDom();
+            return;
+        }
+
+        const recentUniversalSearchButton =
+            event.target.closest(
+                "[data-universal-search-recent]"
+            );
+        if (recentUniversalSearchButton) {
+            setUniversalSearchQuery(
+                recentUniversalSearchButton.dataset
+                    .universalSearchRecent || ""
+            );
+            return;
+        }
+
+        const universalSearchResultButton =
+            event.target.closest(
+                "[data-universal-search-result-index]"
+            );
+        if (universalSearchResultButton) {
+            await runUniversalSearchResult(
+                universalSearchResultButton.dataset
+                    .universalSearchResultIndex || 0
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-open-contextual-help]"
+            )
+        ) {
+            openContextualHelp();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-close-contextual-help]"
+            )
+        ) {
+            closeContextualHelp();
+            return;
+        }
+
+        const contextualHelpMenuButton =
+            event.target.closest(
+                "[data-contextual-help-menu]"
+            );
+        if (contextualHelpMenuButton) {
+            contextualHelpDialogOpen = false;
+            await navigateToAppMenu(
+                contextualHelpMenuButton
+                    .dataset
+                    .contextualHelpMenu ||
+                "guide"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#startContextualOnboardingButton"
+            )
+        ) {
+            startContextualOnboarding();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetContextualHelpProgressButton"
+            )
+        ) {
+            resetContextualHelpProgress();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-next-contextual-onboarding]"
+            )
+        ) {
+            moveContextualOnboarding(1);
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-previous-contextual-onboarding]"
+            )
+        ) {
+            moveContextualOnboarding(-1);
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-skip-contextual-onboarding]"
+            )
+        ) {
+            skipContextualOnboarding();
+            return;
+        }
+
+        if (event.target.closest("#refreshMusicalDashboardButton")) { await refreshMusicalDashboardPlayback(); return; }
+        if (event.target.closest("#exportMusicalDashboardButton")) { exportMusicalDashboardSnapshot(); return; }
+        if (event.target.closest("#exportMusicalGoalsButton")) { exportMusicalGoalsSummary(); return; }
+        if (event.target.closest("#resetMusicalGoalsButton")) { resetMusicalGoalsSettings(); return; }
+        const goalsNavigationButton = event.target.closest("[data-goals-navigation]");
+        if (goalsNavigationButton) {
+            activeAppMenu = normalizeActiveAppMenu(goalsNavigationButton.dataset.goalsNavigation || "dashboard");
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+            return;
+        }
+        const dnav=event.target.closest("[data-dashboard-nav]"); if(dnav){await openDashboardSection(dnav.dataset.dashboardNav||"");return;}
+        const dplay=event.target.closest("[data-dashboard-playback]"); if(dplay){try{await runQuickControlAction(dplay.dataset.dashboardPlayback||"");await refreshMusicalDashboardPlayback({silent:true});}catch(error){setStatus(error.message||"Commande Spotify impossible.","error");}return;}
+        const drec=event.target.closest("[data-dashboard-recommendation]"); if(drec){try{await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation||"");}catch(error){setStatus(error.message||"Recommandation impossible.","error");}return;}
+        const dscene=event.target.closest("[data-dashboard-scene]"); if(dscene){try{await runAdaptiveDjScene(dscene.dataset.dashboardScene||"");}catch(error){setStatus(error.message||"Scène impossible.","error");}return;}
+
+        const applyUsageProfileButton =
+            event.target.closest(
+                "[data-apply-usage-profile]"
+            );
+        if (applyUsageProfileButton) {
+            try {
+                await applyUsageProfile(
+                    applyUsageProfileButton.dataset
+                        .applyUsageProfile || "",
+                    { launch: false }
+                );
+            } catch (error) {
+                console.error(error);
                 setStatus(
-                    favoriteSourceKeys.has(sourceKey)
-                        ? "Source ajoutée aux favoris."
-                        : "Source retirée des favoris."
+                    error.message ||
+                    "Le mode n’a pas pu être activé.",
+                    "error"
                 );
-                return;
             }
+            return;
+        }
 
-            const savedMixActionButton =
-                event.target.closest("[data-saved-mix-action]");
-
-            if (savedMixActionButton) {
-                const mixId =
-                    savedMixActionButton.dataset.savedMixId || "";
-                const action =
-                    savedMixActionButton.dataset.savedMixAction || "";
-
-                if (action === "launch") {
-                    const prepared =
-                        await launchSavedMix(mixId);
-
-                    if (prepared) {
-                        recordManualAdaptiveCorrection(
-                            mixId
-                        );
-                        recordAdaptiveLearningObservation({
-                            mixId,
-                            source: "manual"
-                        });
-                    }
-                } else if (action === "settings") {
-                    startConfiguringSavedMix(mixId);
-                } else if (action === "edit") {
-                    startEditingSavedMix(mixId);
-                } else if (action === "rename") {
-                    renameSavedMix(mixId);
-                } else if (action === "delete") {
-                    deleteSavedMix(mixId);
-                }
-
-                return;
-            }
-
-            const savedMixSettingsAction =
-                event.target.closest(
-                    "[data-saved-mix-settings-action]"
+        const launchUsageProfileButton =
+            event.target.closest(
+                "[data-launch-usage-profile]"
+            );
+        if (launchUsageProfileButton) {
+            try {
+                await applyUsageProfile(
+                    launchUsageProfileButton.dataset
+                        .launchUsageProfile || "",
+                    { launch: true }
                 );
-
-            if (savedMixSettingsAction) {
-                if (
-                    savedMixSettingsAction.dataset
-                        .savedMixSettingsAction === "cancel"
-                ) {
-                    cancelSavedMixSettings();
-                }
-
-                return;
-            }
-
-            const saveSourceSelectionButton =
-                event.target.closest("#saveSourceSelectionButton");
-
-            if (saveSourceSelectionButton) {
-                saveCurrentSourceSelection();
-                return;
-            }
-
-            const saveEditedMixButton =
-                event.target.closest("#saveEditedMixButton");
-
-            if (saveEditedMixButton) {
-                saveEditedMix();
-                return;
-            }
-
-            const cancelEditSavedMixButton =
-                event.target.closest("#cancelEditSavedMixButton");
-
-            if (cancelEditSavedMixButton) {
-                cancelEditingSavedMix();
-                return;
-            }
-
-            const openSourceButton =
-                event.target.closest(".source-open-button");
-
-            if (openSourceButton) {
-                if (openSourceButton.dataset.librarySource === "liked") {
-                    await openPlaylist({
-                        id: "liked-tracks",
-                        name: "Morceaux aimés",
-                        sourceType: "liked",
-                        owner: {
-                            display_name: "Ta bibliothèque"
-                        },
-                        images: [],
-                        external_urls: {}
-                    });
-
-                    return;
-                }
-
-                const playlistId =
-                    openSourceButton.dataset.playlistId;
-
-                const playlist = playlistsCache.find(
-                    (item) => item.id === playlistId
-                );
-
-                if (playlist) {
-                    await openPlaylist(playlist);
-                }
-
-                return;
-            }
-
-            const selectAllSourcesButton =
-                event.target.closest("#selectAllSources");
-
-            if (selectAllSourcesButton) {
-                selectedSourceKeys.clear();
-
-                if (isLikedSourceVisible()) {
-                    selectedSourceKeys.add("liked");
-                }
-
-                for (const playlist of getFilteredAndSortedPlaylists(playlistsCache)) {
-                    if (
-                        canReadPlaylist(playlist) &&
-                        selectedSourceKeys.size < MAX_MIX_SOURCES
-                    ) {
-                        selectedSourceKeys.add(
-                            getPlaylistSourceKey(playlist.id)
-                        );
-                    }
-                }
-
+            } catch (error) {
+                console.error(error);
                 setStatus(
-                    `${selectedSourceKeys.size} source${selectedSourceKeys.size > 1 ? "s" : ""} visible${selectedSourceKeys.size > 1 ? "s" : ""} sélectionnée${selectedSourceKeys.size > 1 ? "s" : ""}.`
+                    error.message ||
+                    "Le mode n’a pas pu démarrer.",
+                    "error"
                 );
-                displayPlaylists(playlistsCache);
-                return;
             }
+            return;
+        }
 
-            const clearSourceSelectionButton =
-                event.target.closest("#clearSourceSelection");
+        if (
+            event.target.closest(
+                "#resetUsageProfilesButton"
+            )
+        ) {
+            resetUsageProfileState();
+            return;
+        }
 
-            if (clearSourceSelectionButton) {
-                selectedSourceKeys.clear();
-                displayPlaylists(playlistsCache);
-                return;
+        const assistantExampleButton =
+            event.target.closest(
+                "[data-musical-assistant-example]"
+            );
+
+        if (assistantExampleButton) {
+            analyzeMusicalAssistantRequest(
+                assistantExampleButton.dataset
+                    .musicalAssistantExample || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#executeMusicalAssistantButton"
+            )
+        ) {
+            await executeMusicalAssistantPlan();
+            return;
+        }
+
+
+        const runRecommendationButton = event.target.closest("[data-run-personal-recommendation]");
+        if (runRecommendationButton) {
+            try {
+                await runPersonalizedRecommendation(runRecommendationButton.dataset.runPersonalRecommendation || "");
+            } catch (error) {
+                console.error(error);
+                setStatus(error.message || "La recommandation n’a pas pu être lancée.", "error");
             }
+            return;
+        }
 
-            const createMixButton =
-                event.target.closest("#createMixButton");
+        const rateRecommendationButton = event.target.closest("[data-rate-personal-recommendation]");
+        if (rateRecommendationButton) {
+            updatePersonalizedRecommendationRating(
+                rateRecommendationButton.dataset.ratePersonalRecommendation || "",
+                Number(rateRecommendationButton.dataset.personalRecommendationRating || 0)
+            );
+            displayPlaylists(playlistsCache);
+            showToast("Préférence enregistrée.", "success");
+            return;
+        }
 
-            if (createMixButton) {
-                const activeProfile = getActiveProfile();
+        const dismissRecommendationButton = event.target.closest("[data-dismiss-personal-recommendation]");
+        if (dismissRecommendationButton) {
+            dismissPersonalizedRecommendation(dismissRecommendationButton.dataset.dismissPersonalRecommendation || "");
+            return;
+        }
 
-                if (activeProfile) {
-                    currentShuffleSettings =
-                        normalizeShuffleSettings(
-                            activeProfile.shuffleSettings
-                        );
-                    currentExclusionRules =
-                        normalizeExclusionRules(
-                            activeProfile.exclusionRules
-                        );
-                    currentPriorityRules =
-                        normalizePriorityRules(
-                            activeProfile.priorityRules
-                        );
-                    currentCoherenceSettings =
-                        normalizeCoherenceSettings(
-                            activeProfile.coherenceSettings
-                        );
-                    currentIntensitySettings =
-                        normalizeIntensitySettings(
-                            activeProfile.intensitySettings
-                        );
-                } else {
-                    currentShuffleSettings = {
-                        ...DEFAULT_SHUFFLE_SETTINGS
-                    };
-                }
+        if (event.target.closest("#refreshPersonalizedRecommendationsButton")) {
+            refreshPersonalizedRecommendations();
+            return;
+        }
+        if (event.target.closest("#resetPersonalizedRecommendationsButton")) {
+            resetPersonalizedRecommendations();
+            return;
+        }
 
-                await createSelectedMix();
-                return;
-            }
 
-            const resetLibraryFiltersButton =
-                event.target.closest("#resetLibraryFilters");
+        if (
+            event.target.closest(
+                "#exportListeningStatisticsCsvButton"
+            )
+        ) {
+            exportListeningStatistics("csv");
+            return;
+        }
 
-            if (resetLibraryFiltersButton) {
-                librarySearchTerm = "";
-                libraryFilter = "all";
-                librarySort = "modified-desc";
-                saveLibraryPreferences();
-                displayPlaylists(playlistsCache);
-                await ensureLibrarySortDataLoaded({
-                    rerender: true
-                });
-                return;
-            }
+        if (
+            event.target.closest(
+                "#exportListeningStatisticsJsonButton"
+            )
+        ) {
+            exportListeningStatistics("json");
+            return;
+        }
 
-            const backButton =
-                event.target.closest("#backToPlaylists");
+        if (
+            event.target.closest(
+                "#clearMusicalAssistantHistoryButton"
+            )
+        ) {
+            musicalAssistantHistory = [];
+            saveMusicalAssistantHistory();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Historique de l’assistant effacé."
+            );
+            return;
+        }
 
-            if (backButton) {
-                const targetMenu = normalizeActiveAppMenu(
-                    backButton.dataset.backMenu || activeAppMenu
-                );
-                activeAppMenu = targetMenu;
-                saveActiveAppMenu();
-                setStatus("");
-                displayPlaylists(playlistsCache);
+        if (
+            event.target.closest(
+                "#createShortcutProfileButton, #createFirstShortcutProfileButton"
+            )
+        ) {
+            openShortcutProfileEditor("");
+            return;
+        }
 
-                contentElement.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start"
-                });
+        if (
+            event.target.closest(
+                "#openShortcutProfilesConfigButton"
+            )
+        ) {
+            activeAppMenu = "mixes";
+            saveActiveAppMenu();
+            displayPlaylists(playlistsCache);
+            return;
+        }
 
-                return;
-            }
+        const quickContextButton =
+            event.target.closest(
+                "[data-launch-quick-context]"
+            );
 
-            const showSavePlaylistButton =
-                event.target.closest("#showSavePlaylistButton");
-
-            if (showSavePlaylistButton) {
-                const savePanel = document.getElementById(
-                    "savePlaylistForm"
-                );
-                const nameInput = document.getElementById(
-                    "savePlaylistName"
-                );
-
-                if (savePanel) {
-                    savePanel.hidden = false;
-                    savePanel.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center"
-                    });
-                }
-
-                if (nameInput) {
-                    window.setTimeout(() => {
-                        nameInput.focus();
-                        nameInput.select();
-                    }, 250);
-                }
-
-                return;
-            }
-
-            const cancelSavePlaylistButton =
-                event.target.closest("#cancelSavePlaylistButton");
-
-            if (cancelSavePlaylistButton) {
-                const savePanel = document.getElementById(
-                    "savePlaylistForm"
-                );
-
-                if (savePanel) {
-                    savePanel.hidden = true;
-                }
-
-                return;
-            }
-
-            const resetPlaybackQueueButton =
-                event.target.closest("#resetPlaybackQueueButton");
-
-            if (resetPlaybackQueueButton) {
-                resetPlaybackQueueProgress();
-                setStatus("File d’attente replacée au début.");
-                return;
-            }
-
-            const refreshDevicesButton =
-                event.target.closest("#refreshDevicesButton");
-
-            if (refreshDevicesButton) {
-                await refreshPlaybackDevices();
-                return;
-            }
-
-            const playSpotifyButton =
-                event.target.closest("#playSpotifyButton");
-
-            if (playSpotifyButton) {
-                await playSelectedOrder();
-                return;
-            }
-
-            const copyShuffleSeedButton =
-                event.target.closest("#copyShuffleSeedButton");
-
-            if (copyShuffleSeedButton && lastShuffleReport?.seed) {
-                await copyTextToClipboard(lastShuffleReport.seed);
-                showToast("Graine du mélange copiée.", "success");
-                return;
-            }
-
-            const replayShuffleSeedButton =
-                event.target.closest("#replayShuffleSeedButton");
-
-            if (
-                replayShuffleSeedButton &&
-                lastShuffleReport?.seed &&
-                sourceTracks.length > 1
-            ) {
-                const seed = lastShuffleReport.seed;
-                selectedTracks = generateExplainedShuffleOrder(
-                    sourceTracks,
+        if (quickContextButton) {
+            try {
+                await runQuickControlAction(
+                    "quick-context",
                     {
-                        seed,
-                        recentTrackUris:
-                            lastShuffleReport.recentTrackUris
+                        contextId:
+                            quickContextButton.dataset
+                                .launchQuickContext || "",
+                        source: "quick-context-card"
                     }
                 );
-                selectedTracks = limitTracksToAdaptiveTarget(
-                    selectedTracks,
-                    currentAdaptiveSettings
-                );
-                buildPrioritySummary(
-                    selectedTracks,
-                    currentPriorityRules
-                );
-                originalGeneratedOrder = [...selectedTracks];
-                trackSearchTerm = "";
-                markQueueChanged();
-                renderTrackList();
-                refreshShuffleExplainabilityReport();
-                renderShuffleStats(
-                    lastShuffleReport?.after || null
-                );
-                showToast(
-                    `Mélange ${seed} reproduit exactement.`,
-                    "success"
-                );
-                return;
+            } catch (error) {
+                // Message déjà affiché.
             }
-
-            const shuffleButton =
-                event.target.closest("#shuffleButton");
-
-            if (
-                shuffleButton &&
-                selectedTracks.length > 1
-            ) {
-                selectedTracks = generateExplainedShuffleOrder(
-                    sourceTracks
-                );
-                selectedTracks = limitTracksToAdaptiveTarget(
-                    selectedTracks,
-                    currentAdaptiveSettings
-                );
-                buildPrioritySummary(
-                    selectedTracks,
-                    currentPriorityRules
-                );
-                originalGeneratedOrder = [...selectedTracks];
-                trackSearchTerm = "";
-                markQueueChanged();
-
-                const trackSearchInput = document.getElementById(
-                    "trackOrderSearchInput"
-                );
-
-                if (trackSearchInput) {
-                    trackSearchInput.value = "";
-                }
-
-                renderTrackList();
-                refreshShuffleExplainabilityReport();
-                renderShuffleStats(
-                    lastShuffleReport?.after || analyzeShuffleOrder(
-                        selectedTracks,
-                        getShuffleEngineOptions(
-                            currentShuffleSettings
-                        )
-                    )
-                );
-
-                shuffleButton.textContent =
-                    "✅ Ordre intelligent créé";
-
-                window.setTimeout(() => {
-                    if (
-                        document.body.contains(shuffleButton)
-                    ) {
-                        shuffleButton.textContent =
-                            "🧠 Mélanger à nouveau";
-                    }
-                }, 1200);
-            }
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "input",
-        (event) => {
-            if (
-                event.target.id ===
-                "uiThemeCustomColorInput"
-            ) {
-                const customHexInput =
-                    document.getElementById(
-                        "uiThemeCustomHexInput"
-                    );
+        const copyQuickContextButton =
+            event.target.closest(
+                "[data-copy-quick-context-url]"
+            );
 
-                if (customHexInput) {
-                    customHexInput.value =
-                        event.target.value.toUpperCase();
-                }
-
-                previewUiThemeCustomColor(
-                    event.target.value
-                );
-                return;
-            }
-
-            if (
-                event.target.id ===
-                "uiThemeCustomHexInput"
-            ) {
-                const normalized = normalizeHexColor(
-                    event.target.value
-                );
-                const customColorInput =
-                    document.getElementById(
-                        "uiThemeCustomColorInput"
-                    );
-
-                if (normalized && customColorInput) {
-                    customColorInput.value = normalized;
-                }
-
-                previewUiThemeCustomColor(
-                    event.target.value
-                );
-            }
+        if (copyQuickContextButton) {
+            await copyQuickContextUrl(
+                copyQuickContextButton.dataset
+                    .copyQuickContextUrl || ""
+            );
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "change",
-        (event) => {
-            if (event.target.name === "autoSync" &&
-                event.target.closest("#serverSyncSimpleOptionsForm")) {
-                saveSimpleServerSyncOptions(event.target.form);
-                return;
-            }
+        if (
+            event.target.closest(
+                "#dismissQuickExternalResultButton"
+            )
+        ) {
+            saveQuickExternalResult(null);
+            renderQuickControlPage();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "contextualTourEnabledInput"
-            ) {
-                contextualHelpState =
-                    normalizeContextualHelpState({
-                        ...contextualHelpState,
-                        tourEnabled:
-                            event.target.checked
-                    });
-                if (!event.target.checked) {
-                    contextualOnboardingOpen = false;
-                }
-                saveContextualHelpState();
-                showToast(
-                    event.target.checked
-                        ? "Visite guidée activée."
-                        : "Visite guidée automatique désactivée.",
-                    "success"
+        if (
+            event.target.closest(
+                "#resetQuickContextsButton"
+            )
+        ) {
+            resetQuickContexts();
+            return;
+        }
+
+        const quickActionButton =
+            event.target.closest(
+                "[data-quick-action]"
+            );
+
+        if (quickActionButton) {
+            try {
+                await runQuickControlAction(
+                    quickActionButton.dataset
+                        .quickAction || ""
                 );
-                refreshContextualHelpDom();
-                return;
+            } catch (error) {
+                // Message déjà affiché dans l’interface rapide.
             }
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "contextualHintsEnabledInput"
-            ) {
-                contextualHelpState =
-                    normalizeContextualHelpState({
-                        ...contextualHelpState,
-                        hintsEnabled:
-                            event.target.checked
-                    });
-                saveContextualHelpState();
-                displayPlaylists(
-                    playlistsCache
-                );
-                showToast(
-                    event.target.checked
-                        ? "Conseils rapides affichés."
-                        : "Conseils rapides masqués.",
-                    "success"
-                );
-                return;
-            }
+        const copyQuickUrlButton =
+            event.target.closest(
+                "[data-copy-quick-url]"
+            );
 
-            if (
-                event.target.id ===
-                "voiceAssistantLanguageInput"
-            ) {
-                voiceAssistantSettings =
-                    normalizeVoiceAssistantSettings({
-                        ...voiceAssistantSettings,
-                        language:
-                            event.target.value
-                    });
-                saveVoiceAssistantSettings();
-                setVoiceAssistantMessage(
-                    "Langue vocale mise à jour.",
-                    "success"
-                );
-                displayPlaylists(playlistsCache);
-                return;
-            }
+        if (copyQuickUrlButton) {
+            await copyQuickControlUrl(
+                copyQuickUrlButton.dataset
+                    .copyQuickUrl || ""
+            );
+            return;
+        }
 
-            const voiceSettingMap = {
-                voiceAssistantResponsesInput:
-                    "voiceResponses",
-                voiceAssistantVibrationInput:
-                    "vibration",
-                voiceAssistantConfirmInput:
-                    "confirmBeforeAction",
-                voiceAssistantAutoStatusInput:
-                    "autoExecuteStatus",
-                voiceAssistantCompactInput:
-                    "compactListening"
-            };
-            const voiceSettingKey =
-                voiceSettingMap[event.target.id];
+        if (
+            event.target.closest(
+                "#quickRefreshButton"
+            )
+        ) {
+            await refreshQuickControlPlayback();
+            return;
+        }
 
-            if (voiceSettingKey) {
-                voiceAssistantSettings =
-                    normalizeVoiceAssistantSettings({
-                        ...voiceAssistantSettings,
-                        [voiceSettingKey]:
-                            event.target.checked
-                    });
-                saveVoiceAssistantSettings();
-                setVoiceAssistantMessage(
-                    "Réglages vocaux enregistrés.",
-                    "success"
-                );
-                displayPlaylists(playlistsCache);
-                return;
-            }
+        if (
+            event.target.closest(
+                "#musicalAssistantVoiceButton"
+            )
+        ) {
+            startVoiceAssistantRecognition(
+                "assistant"
+            );
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "uiThemeContrastInput"
-            ) {
-                uiThemeSettings =
-                    normalizeUiThemeSettings({
-                        ...uiThemeSettings,
-                        highContrast:
-                            event.target.checked
-                    });
+        if (
+            event.target.closest(
+                "#testVoiceAssistantButton"
+            )
+        ) {
+            speakVoiceAssistantText(
+                "Shuffle plus est prêt à recevoir tes commandes vocales.",
+                { force: true }
+            );
+            vibrateVoiceAssistant([25, 40, 25]);
+            return;
+        }
 
-                saveUiThemeSettings();
-                applyUiThemeSettings();
+        if (
+            event.target.closest(
+                "#quickVoiceButton"
+            )
+        ) {
+            startQuickVoiceRecognition();
+            return;
+        }
 
-                showToast(
-                    event.target.checked
-                        ? "◐ Contraste renforcé activé."
-                        : "◑ Contraste standard restauré.",
-                    "success"
-                );
-                return;
-            }
+        if (
+            event.target.closest(
+                "#drivingVoiceButton"
+            )
+        ) {
+            startDrivingVoiceRecognition();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "uiThemeMotionInput"
-            ) {
-                uiThemeSettings =
-                    normalizeUiThemeSettings({
-                        ...uiThemeSettings,
-                        motionEnabled:
-                            event.target.checked
-                    });
+        if (
+            event.target.closest(
+                "#drivingAdaptiveButton"
+            )
+        ) {
+            await launchDrivingAdaptiveDj();
+            return;
+        }
 
-                saveUiThemeSettings();
-                applyUiThemeSettings();
+        if (
+            event.target.closest(
+                "#drivingPlayPauseButton"
+            )
+        ) {
+            await toggleDrivingPlayback();
+            return;
+        }
 
-                showToast(
-                    event.target.checked
-                        ? "✨ Animations fluides activées."
-                        : "🌙 Animations réduites.",
-                    "success"
-                );
-                return;
-            }
+        if (
+            event.target.closest(
+                "#drivingNextButton"
+            )
+        ) {
+            await skipDrivingTrack();
+            return;
+        }
 
-            if (
-                event.target.closest(
-                    "#mixStudioForm"
-                )
-            ) {
-                if (
-                    event.target.id ===
-                    "mixStudioTemplateSelect" &&
-                    event.target.value
-                ) {
-                    applyMixStudioTemplateToForm(
-                        event.target.value,
-                        event.target.closest(
-                            "#mixStudioForm"
-                        )
-                    );
+        if (
+            event.target.closest(
+                "#drivingQueueButton, [data-open-driving-queue]"
+            )
+        ) {
+            if (activeAppMenu !== "driving") {
+                await navigateToAppMenu("driving");
+                if (activeAppMenu !== "driving") {
                     return;
                 }
-
-                if (
-                    event.target.matches(
-                        ".mix-studio-source-checkbox"
-                    )
-                ) {
-                    const checked = [
-                        ...event.target
-                            .closest("#mixStudioForm")
-                            .querySelectorAll(
-                                ".mix-studio-source-checkbox:checked"
-                            )
-                    ];
-
-                    if (checked.length > MAX_MIX_SOURCES) {
-                        event.target.checked = false;
-                        setStatus(
-                            `Mix Studio accepte jusqu’à ${MAX_MIX_SOURCES} sources.`,
-                            "error"
-                        );
-                    }
-                }
-
-                updateMixStudioFormPreview(
-                    event.target.closest(
-                        "#mixStudioForm"
-                    )
-                );
             }
+            await openDrivingQueue();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "drivingWakeLockInput"
-            ) {
-                drivingModeSettings =
-                    normalizeDrivingModeSettings({
-                        ...drivingModeSettings,
-                        keepScreenAwake:
-                            event.target.checked
-                    });
-                saveDrivingModeSettings();
-
-                if (event.target.checked) {
-                    requestDrivingWakeLock({
-                        notify: true,
-                        source: "checkbox"
-                    });
-                } else {
-                    releaseDrivingWakeLock();
-                    setDrivingMessage(
-                        "Maintien de l’écran désactivé.",
-                        "warning"
-                    );
-                    renderDrivingModePage();
-                }
-                return;
-            }
-
-            if (
-                event.target.id ===
-                "drivingAutoRefreshInput"
-            ) {
-                drivingModeSettings =
-                    normalizeDrivingModeSettings({
-                        ...drivingModeSettings,
-                        autoRefresh:
-                            event.target.checked
-                    });
-                saveDrivingModeSettings();
-                startDrivingRefreshTimer();
-                renderDrivingModePage();
-                return;
-            }
-
-            if (
-                event.target.id ===
-                "intelligenceRangeInput"
-            ) {
-                intelligenceAnalytics =
-                    normalizeIntelligenceAnalytics({
-                        ...intelligenceAnalytics,
-                        rangeDays:
-                            Number(event.target.value)
-                    });
-                saveIntelligenceAnalytics();
+        if (event.target.closest("[data-refresh-home-queue]")) {
+            await refreshDrivingQueue({
+                silent: false,
+                render: false
+            });
+            if (activeAppMenu === "dashboard") {
                 displayPlaylists(playlistsCache);
-                setStatus(
-                    "Période du tableau Intelligence mise à jour."
-                );
-                return;
             }
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "intelligenceTypeInput"
-            ) {
-                intelligenceAnalytics =
-                    normalizeIntelligenceAnalytics({
-                        ...intelligenceAnalytics,
-                        eventTypeFilter:
-                            event.target.value
-                    });
-                saveIntelligenceAnalytics();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    "Filtre d’événements mis à jour."
-                );
-                return;
-            }
+        if (
+            event.target.closest(
+                "#closeDrivingQueueButton"
+            )
+        ) {
+            closeDrivingQueue();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "intelligenceDayTypeInput"
-            ) {
-                intelligenceAnalytics =
-                    normalizeIntelligenceAnalytics({
-                        ...intelligenceAnalytics,
-                        dayTypeFilter:
-                            event.target.value
-                    });
-                saveIntelligenceAnalytics();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    "Filtre semaine / week-end mis à jour."
-                );
-                return;
-            }
+        if (
+            event.target.closest(
+                "#refreshDrivingQueueButton"
+            )
+        ) {
+            await refreshDrivingQueue();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "adaptiveLearningEnabledInput"
-            ) {
-                adaptiveLearningState =
-                    normalizeAdaptiveLearningState({
-                        ...adaptiveLearningState,
-                        enabled:
-                            event.target.checked
-                    });
-                saveAdaptiveLearningState();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    event.target.checked
-                        ? "Adaptive Learning activé."
-                        : "Adaptive Learning désactivé."
-                );
-                return;
-            }
+        if (
+            event.target.closest(
+                "#drivingRefreshButton"
+            )
+        ) {
+            await refreshDrivingPlayback();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "adaptiveLearningAutoApplyInput"
-            ) {
-                adaptiveLearningState =
-                    normalizeAdaptiveLearningState({
-                        ...adaptiveLearningState,
-                        autoApplyEnabled:
-                            event.target.checked
-                    });
-                saveAdaptiveLearningState();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    event.target.checked
-                        ? "Adaptation automatique autorisée."
-                        : "Adaptation automatique désactivée."
-                );
-                return;
-            }
+        if (
+            event.target.closest(
+                "#exitDrivingModeButton"
+            )
+        ) {
+            await exitDrivingMode();
+            return;
+        }
 
-            if (
-                event.target.id ===
-                "adaptiveLearningAutoConfidenceInput"
-            ) {
-                adaptiveLearningState =
-                    normalizeAdaptiveLearningState({
-                        ...adaptiveLearningState,
-                        autoApplyMinConfidence:
-                            Number(event.target.value)
-                    });
-                saveAdaptiveLearningState();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    `Seuil automatique réglé à ${adaptiveLearningState.autoApplyMinConfidence}%.`
-                );
-                return;
-            }
+        const drivingFeedbackButton =
+            event.target.closest(
+                "[data-driving-feedback]"
+            );
 
-            if (
-                event.target.id ===
-                "adaptiveLearningAutoObservationsInput"
-            ) {
-                adaptiveLearningState =
-                    normalizeAdaptiveLearningState({
-                        ...adaptiveLearningState,
-                        autoApplyMinObservations:
-                            Number(event.target.value)
-                    });
-                saveAdaptiveLearningState();
-                displayPlaylists(playlistsCache);
-                setStatus(
-                    `Minimum automatique : ${adaptiveLearningState.autoApplyMinObservations} choix concordants.`
-                );
-                return;
-            }
+        if (drivingFeedbackButton) {
+            applyDrivingFeedback(
+                drivingFeedbackButton.dataset
+                    .drivingFeedback ||
+                "neutral"
+            );
+            return;
+        }
 
-            if (
-                !event.target.matches(
-                    "[data-ios-command-type]"
+        if (
+            event.target.closest(
+                "#installPwaSettingsButton"
+            )
+        ) {
+            await requestPwaInstallation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#showPwaInstructionsButton"
+            )
+        ) {
+            showPwaInstallGuide();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#checkPwaUpdateButton"
+            )
+        ) {
+            await checkForPwaUpdate();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#replaceNextSmartQueueButton"
+            )
+        ) {
+            replaceSmartQueueTrackAt(
+                playbackQueueCursor
+            );
+            return;
+        }
+
+        const smartQueuePreviewReplace =
+            event.target.closest(
+                "[data-smart-queue-replace-index]"
+            );
+
+        if (smartQueuePreviewReplace) {
+            replaceSmartQueueTrackAt(
+                Number(
+                    smartQueuePreviewReplace.dataset
+                        .smartQueueReplaceIndex
                 )
-            ) {
-                return;
-            }
+            );
+            return;
+        }
 
+        if (
+            event.target.closest(
+                "#reshuffleSmartQueueButton"
+            )
+        ) {
+            reshuffleSmartQueueRemaining();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#undoSmartQueueButton"
+            )
+        ) {
+            undoLastSmartQueueAction();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearSmartQueueAvoidsButton"
+            )
+        ) {
+            clearSmartQueueAvoids();
+            return;
+        }
+
+        const appMenuButton =
+            event.target.closest(
+                "[data-app-menu]"
+            );
+
+        if (appMenuButton) {
+            await navigateToAppMenu(
+                appMenuButton.dataset.appMenu ||
+                "dashboard"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportIntelligenceButton"
+            )
+        ) {
+            downloadIntelligenceReport();
+            return;
+        }
+
+        const confirmIntelligenceButton =
+            event.target.closest(
+                "[data-confirm-intelligence-event]"
+            );
+
+        if (confirmIntelligenceButton) {
+            confirmIntelligenceListening(
+                confirmIntelligenceButton.dataset
+                    .confirmIntelligenceEvent || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearIntelligenceButton"
+            )
+        ) {
+            clearIntelligenceAnalytics();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#runAdaptiveDjNowButton"
+            )
+        ) {
+            try {
+                await runAdaptiveDj();
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "Adaptive DJ n’a pas pu démarrer.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testAdaptiveDjButton"
+            )
+        ) {
             const form =
                 event.target.closest(
-                    "#iosCommandForm"
+                    "#adaptiveDjMenuForm"
                 );
-            const isSmartMix =
-                event.target.value === "smartmix";
+            const slotId =
+                form?.elements?.testSlotId
+                    ?.value || "";
 
-            form
-                ?.querySelectorAll(
-                    "[data-ios-fixed-field]"
-                )
-                .forEach((element) => {
-                    element.hidden = isSmartMix;
+            try {
+                await runAdaptiveDj({
+                    forcedSlotId: slotId,
+                    autoplay: false
                 });
-
-            form
-                ?.querySelectorAll(
-                    "[data-ios-smartmix-field]"
-                )
-                .forEach((element) => {
-                    element.hidden = !isSmartMix;
-                });
-
-            const playlistSelect =
-                form?.elements?.playlistId;
-            const mixSelect =
-                form?.elements?.mixId;
-
-            if (playlistSelect) {
-                playlistSelect.required =
-                    !isSmartMix;
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "Test Adaptive DJ impossible.",
+                    "error"
+                );
             }
-
-            if (mixSelect) {
-                mixSelect.required =
-                    isSmartMix;
-            }
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "submit",
-        async (event) => {
-            if (event.target.id === "primaryLaunchSettingsForm") {
-                event.preventDefault();
-                const commandId = String(
-                    new FormData(event.target).get("commandId") || ""
-                );
-                const command = getIosCommandById(commandId);
-
-                if (!command) {
-                    setStatus("Ce profil de lancement est introuvable.", "error");
-                    return;
-                }
-
-                saveGuidedSetupPreferences({
-                    primaryCommandId: command.id,
-                    dismissedAt: 0
-                });
-                displayPlaylists(playlistsCache);
-                showToast(
-                    `⭐ « ${command.name} » devient le lancement principal.`,
-                    "success"
-                );
-                return;
-            }
-
-            if (event.target.id === "spotifyClientIdSettingsForm") {
-                event.preventDefault();
-                const nextClientId = String(
-                    new FormData(event.target).get("clientId") || ""
-                ).trim();
-
-                try {
-                    const current = getSpotifyApplicationConfiguration();
-                    const updated = savePersonalSpotifyClientId(nextClientId);
-
-                    if (updated.clientId !== current.clientId) {
-                        logoutSpotify();
-                        currentUserId = "";
-                        currentUserProduct = "";
-                        welcomeElement.textContent = "Bienvenue 👋";
-                        setDisconnectedInterface();
-                        updateSpotifySetupInterface();
-                        setStatus(
-                            "Nouveau Client ID enregistré. Reconnecte-toi à Spotify.",
-                            "success"
-                        );
-                    } else {
-                        displayPlaylists(playlistsCache);
-                        setStatus("Client ID Spotify confirmé.", "success");
-                    }
-                } catch (error) {
-                    console.error(error);
-                    setStatus(error.message, "error");
-                }
-                return;
-            }
-
-            if (
-                event.target.id === "offlinePerformanceSettingsForm"
-            ) {
-                event.preventDefault();
-                saveOfflinePerformanceSettingsFromForm(event.target);
-                return;
-            }
-
-            if (
-                event.target.id === "musicalAssistantForm"
-            ) {
-                event.preventDefault();
-                const data = new FormData(event.target);
-                analyzeMusicalAssistantRequest(
-                    String(data.get("request") || "")
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "mixStudioForm"
-            ) {
-                event.preventDefault();
-                const action =
-                    event.submitter?.value === "save"
-                        ? "save"
-                        : "preview";
-                await submitMixStudioForm(
-                    event.target,
-                    action
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "serverSyncSetupUrlForm"
-            ) {
-                event.preventDefault();
-                const data = new FormData(event.target);
-                await testServerSyncConnection({
-                    continueSetup: true,
-                    serverUrl: String(data.get("serverUrl") || "")
-                });
-                return;
-            }
-
-            if (
-                event.target.id === "serverSyncSimpleOptionsForm"
-            ) {
-                event.preventDefault();
-                saveSimpleServerSyncOptions(event.target);
-                return;
-            }
-
-            if (
-                event.target.id === "serverSyncCreateForm"
-            ) {
-                event.preventDefault();
-                await createServerSyncSpace(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "serverSyncJoinForm"
-            ) {
-                event.preventDefault();
-                await joinServerSyncSpace(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "serverSyncOptionsForm"
-            ) {
-                event.preventDefault();
-                saveServerSyncOptions(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "syncPairingTokenForm"
-            ) {
-                event.preventDefault();
-                const data = new FormData(event.target);
-                acceptSyncPairingToken(
-                    String(data.get("pairingToken") || "")
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "selectiveSyncMergeForm"
-            ) {
-                event.preventDefault();
-                await applySelectiveSyncPackage(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "syncPreparationForm"
-            ) {
-                event.preventDefault();
-                saveSyncPreparationFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "quickContextsForm"
-            ) {
-                event.preventDefault();
-                saveQuickContextsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "adaptiveDjMenuForm"
-            ) {
-                event.preventDefault();
-                saveAdaptiveDjMenuFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "personalizedRecommendationsSettingsForm"
-            ) {
-                event.preventDefault();
-                savePersonalizedRecommendationSettings(event.target);
-                return;
-            }
-
-
-            if (
-                event.target.id ===
-                "listeningStatisticsSettingsForm"
-            ) {
-                event.preventDefault();
-                saveListeningStatisticsSettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (event.target.id === "musicalDashboardSettingsForm") { event.preventDefault(); saveMusicalDashboardSettingsFromForm(event.target); return; }
-
-            if (event.target.id === "musicalGoalsSettingsForm") {
-                event.preventDefault();
-                saveMusicalGoalsSettingsFromForm(event.target);
-                return;
-            }
-
-            if (event.target.id === "usageProfileSettingsForm") {
-                event.preventDefault();
-                saveUsageProfileSettingsFromForm(event.target);
-                return;
-            }
-
-            if (
-                event.target.id === "adaptiveDjSceneStudioForm"
-            ) {
-                event.preventDefault();
-                saveAdaptiveDjScenesFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "adaptiveTransitionForm"
-            ) {
-                event.preventDefault();
-                saveAdaptiveTransitionSettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "dynamicLyricsSettingsForm"
-            ) {
-                event.preventDefault();
-                saveDynamicLyricsSettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "iosCommandForm"
-            ) {
-                event.preventDefault();
-                saveIosCommandFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "iosQuickPlayForm"
-            ) {
-                event.preventDefault();
-                saveIosQuickPlayFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "mixScheduleForm"
-            ) {
-                event.preventDefault();
-                createMixScheduleFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "cleanupSettingsForm"
-            ) {
-                event.preventDefault();
-                saveCleanupSettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "adaptiveSettingsForm"
-            ) {
-                event.preventDefault();
-                saveAdaptiveSettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "intensitySettingsForm"
-            ) {
-                event.preventDefault();
-                saveIntensitySettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (
-                event.target.id === "coherenceSettingsForm"
-            ) {
-                event.preventDefault();
-                saveCoherenceSettingsFromForm(
-                    event.target
-                );
-                return;
-            }
-
-            if (event.target.id === "priorityRulesForm") {
-                event.preventDefault();
-                savePriorityRulesFromForm(event.target);
-                return;
-            }
-
-            if (event.target.id === "exclusionRulesForm") {
-                event.preventDefault();
-                saveExclusionRulesFromForm(event.target);
-                return;
-            }
-
-            if (
-                event.target.matches(
-                    "[data-saved-mix-settings-id]"
-                )
-            ) {
-                event.preventDefault();
-                saveSavedMixSettings(
-                    event.target.dataset.savedMixSettingsId || ""
-                );
-                return;
-            }
-
-            if (event.target.id !== "savePlaylistForm") {
-                return;
-            }
-
-            event.preventDefault();
-            await saveCurrentOrderToSpotify();
+        if (
+            event.target.closest(
+                "#copyAdaptiveDjUrlButton"
+            )
+        ) {
+            await copyAdaptiveDjShortcutUrl();
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "change",
-        async (event) => {
-            if (
-                event.target.closest(
-                    "#adaptiveTransitionForm"
-                ) &&
-                [
-                    "targetSceneId",
-                    "energyCurve",
-                    "preserveSentTracks"
-                ].includes(event.target.name)
-            ) {
-                adaptiveTransitionPreview = null;
-                return;
-            }
-            if (
-                event.target.id ===
-                "quickShortcutContextSelect"
-            ) {
-                quickShortcutWizardContextId =
-                    event.target.value;
-                renderQuickControlPage();
-                return;
-            }
 
-            if (
-                event.target.matches(
-                    "[data-adaptive-duration-mode]"
-                )
-            ) {
-                const form = event.target.closest(
-                    "#adaptiveSettingsForm"
-                );
-                const customField = form?.querySelector(
-                    "[data-adaptive-custom-duration]"
-                );
-
-                if (customField) {
-                    customField.hidden =
-                        event.target.value !== "custom";
-                }
-
-                return;
-            }
-
-            if (
-                event.target.matches(
-                    "[data-schedule-target-type]"
-                )
-            ) {
-                const form = event.target.closest(
-                    "#mixScheduleForm"
-                );
-                const isScene =
-                    event.target.value === "scene";
-
-                form?.querySelectorAll(
-                    "[data-schedule-scene-field]"
-                ).forEach((element) => {
-                    element.hidden = !isScene;
-                });
-                form?.querySelectorAll(
-                    "[data-schedule-mix-field]"
-                ).forEach((element) => {
-                    element.hidden = isScene;
-                });
-                return;
-            }
-
-            if (
-                event.target.matches(
-                    "[data-schedule-recurrence]"
-                )
-            ) {
-                const form = event.target.closest(
-                    "#mixScheduleForm"
-                );
-                const recurrence =
-                    event.target.value;
-                const once = recurrence === "once";
-                const weekly = recurrence === "weekly";
-
-                form?.querySelectorAll(
-                    "[data-schedule-once-field]"
-                ).forEach((element) => {
-                    element.hidden = !once;
-                });
-                form?.querySelectorAll(
-                    "[data-schedule-recurring-field]"
-                ).forEach((element) => {
-                    element.hidden = once;
-                });
-                form?.querySelectorAll(
-                    "[data-schedule-weekly-field]"
-                ).forEach((element) => {
-                    element.hidden = !weekly;
-                });
-
-                return;
-            }
-
-            if (
-                event.target.id === "syncPairingFileInput"
-            ) {
-                const [file] = event.target.files || [];
-                await analyzeSyncPairingFile(file);
-                event.target.value = "";
-                return;
-            }
-
-            if (
-                event.target.id === "syncPackageFileInput"
-            ) {
-                const [file] = event.target.files || [];
-                await analyzeSyncPackageFile(file);
-                event.target.value = "";
-                return;
-            }
-
-            if (event.target.id === "backupFileInput") {
-                const [file] = event.target.files || [];
-                await importBackupFile(file);
-                event.target.value = "";
-                return;
-            }
-
-            if (
-                event.target.name === "profileId" &&
-                event.target.closest(
-                    "[data-saved-mix-settings-id]"
-                )
-            ) {
-                const form = event.target.closest(
-                    "[data-saved-mix-settings-id]"
-                );
-                const profile = getProfileById(
-                    event.target.value
-                );
-
-                if (form && profile) {
-                    const settings =
-                        normalizeShuffleSettings(
-                            profile.shuffleSettings
-                        );
-
-                    form.elements.preset.value =
-                        settings.preset;
-                    form.elements.artistGap.value =
-                        settings.artistGap;
-                    form.elements.albumGap.value =
-                        settings.albumGap;
-                    form.elements.recentAvoidance.value =
-                        settings.recentAvoidance;
-
-                    for (const input of [
-                        form.elements.artistGap,
-                        form.elements.albumGap,
-                        form.elements.recentAvoidance
-                    ]) {
-                        input.dispatchEvent(
-                            new Event("input", {
-                                bubbles: true
-                            })
-                        );
-                    }
-                }
-
-                return;
-            }
-
-            if (event.target.matches("[data-shuffle-preset]")) {
-                const form = event.target.closest(
-                    "[data-saved-mix-settings-id]"
-                );
-                const preset =
-                    SHUFFLE_PRESETS[event.target.value] ||
-                    SHUFFLE_PRESETS.balanced;
-
-                if (form && event.target.value !== "custom") {
-                    const artistInput = form.elements.artistGap;
-                    const albumInput = form.elements.albumGap;
-                    const recentInput = form.elements.recentAvoidance;
-
-                    artistInput.value = preset.artistGap;
-                    albumInput.value = preset.albumGap;
-                    recentInput.value = preset.recentAvoidance;
-
-                    artistInput.dispatchEvent(
-                        new Event("input", { bubbles: true })
-                    );
-                    albumInput.dispatchEvent(
-                        new Event("input", { bubbles: true })
-                    );
-                    recentInput.dispatchEvent(
-                        new Event("input", { bubbles: true })
-                    );
-                }
-
-                return;
-            }
-
-            if (event.target.id === "libraryFilterSelect") {
-                libraryFilter = event.target.value;
-                saveLibraryPreferences();
-                displayPlaylists(playlistsCache);
-                return;
-            }
-
-            if (event.target.id === "librarySortSelect") {
-                librarySort = event.target.value;
-                saveLibraryPreferences();
-                displayPlaylists(playlistsCache);
-
-                if (librarySort.startsWith("modified")) {
-                    await ensureModificationDatesLoaded();
-                    displayPlaylists(playlistsCache);
-                }
-
-                if (librarySort.startsWith("recent")) {
-                    try {
-                        await ensureRecentActivityLoaded();
-                        displayPlaylists(playlistsCache);
-                    } catch (error) {
-                        console.error(error);
-                        setStatus(
-                            error.message ||
-                            "Impossible d’analyser les écoutes récentes.",
-                            "error"
-                        );
-                    }
-                }
-
-                return;
-            }
-
-            const checkbox = event.target.closest(
-                ".source-checkbox"
+        const runAdaptiveSceneButton =
+            event.target.closest(
+                "[data-run-adaptive-scene]"
             );
 
-            if (!checkbox) {
-                return;
+        if (runAdaptiveSceneButton) {
+            try {
+                await runAdaptiveDjScene(
+                    runAdaptiveSceneButton.dataset
+                        .runAdaptiveScene || ""
+                );
+            } catch (error) {
+                console.error(error);
+                setStatus(
+                    error.message ||
+                    "La scène Adaptive DJ n’a pas pu démarrer.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        const copyAdaptiveSceneUrlButton =
+            event.target.closest(
+                "[data-copy-adaptive-scene-url]"
+            );
+
+        if (copyAdaptiveSceneUrlButton) {
+            await copyAdaptiveDjSceneUrl(
+                copyAdaptiveSceneUrlButton.dataset
+                    .copyAdaptiveSceneUrl || ""
+            );
+            return;
+        }
+
+        const activateAdaptiveSceneButton =
+            event.target.closest(
+                "[data-activate-adaptive-scene]"
+            );
+
+        if (activateAdaptiveSceneButton) {
+            const form = event.target.closest(
+                "#adaptiveDjSceneStudioForm"
+            );
+            const activeInput = form?.elements?.activeSceneId;
+            const sceneId = activateAdaptiveSceneButton.dataset
+                .activateAdaptiveScene || "";
+
+            if (activeInput) {
+                activeInput.value = sceneId;
             }
 
-            const sourceKey = checkbox.dataset.sourceKey || "";
+            setActiveAdaptiveDjScene(sceneId);
+            return;
+        }
 
-            if (!sourceKey) {
-                return;
+        if (
+            event.target.closest(
+                "#previewAdaptiveTransitionButton"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveTransitionForm"
+            );
+            if (form) {
+                await previewAdaptiveTransition(form);
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applyAdaptiveTransitionButton"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveTransitionForm"
+            );
+            if (form) {
+                await applyAdaptiveTransition(form);
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#undoAdaptiveTransitionButton"
+            )
+        ) {
+            undoAdaptiveTransition();
+            return;
+        }
+
+        const adaptiveLearningActionButton =
+            event.target.closest(
+                "[data-adaptive-learning-action]"
+            );
+
+        if (adaptiveLearningActionButton) {
+            const action =
+                adaptiveLearningActionButton.dataset
+                    .adaptiveLearningAction || "";
+            const slotId =
+                adaptiveLearningActionButton.dataset
+                    .adaptiveLearningSlotId || "";
+            const mixId =
+                adaptiveLearningActionButton.dataset
+                    .adaptiveLearningMixId || "";
+
+            if (action === "apply") {
+                applyAdaptiveLearningSuggestion(
+                    slotId,
+                    mixId
+                );
+            } else if (action === "ignore") {
+                ignoreAdaptiveLearningSuggestion(
+                    slotId,
+                    mixId
+                );
             }
 
-            if (checkbox.checked) {
-                if (selectedSourceKeys.size >= MAX_MIX_SOURCES) {
-                    checkbox.checked = false;
-                    setStatus(
-                        `Tu peux sélectionner jusqu’à ${MAX_MIX_SOURCES} sources dans cette version.`,
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetAdaptiveLearningButton"
+            )
+        ) {
+            resetAdaptiveLearning();
+            return;
+        }
+
+        const adaptiveAutoUndoButton =
+            event.target.closest(
+                "[data-adaptive-auto-undo-id]"
+            );
+
+        if (adaptiveAutoUndoButton) {
+            rollbackAdaptiveLearningAutoChange(
+                adaptiveAutoUndoButton.dataset
+                    .adaptiveAutoUndoId || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshPreferredSpotifyDevicesButton"
+            )
+        ) {
+            await refreshPreferredSpotifyDevices();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#savePreferredSpotifyDeviceButton"
+            )
+        ) {
+            savePreferredSpotifyDeviceFromPanel();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearPreferredSpotifyDeviceButton"
+            )
+        ) {
+            clearPreferredSpotifyDevice();
+            displayPlaylists(playlistsCache);
+            setStatus("Appareil Spotify préféré oublié.");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copyDynamicLyricsTestUrlButton"
+            )
+        ) {
+            await copyDynamicLyricsTestUrl();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testDynamicLyricsShortcutButton"
+            )
+        ) {
+            openDynamicLyricsTestShortcut();
+            return;
+        }
+
+        const openDynamicLyricsButton =
+            event.target.closest(
+                "#openDynamicLyricsButton"
+            );
+
+        if (openDynamicLyricsButton) {
+            const shortcutUrl =
+                openDynamicLyricsButton.dataset
+                    .shortcutUrl || "";
+
+            if (shortcutUrl.startsWith("shortcuts://")) {
+                window.location.href = shortcutUrl;
+            }
+            return;
+        }
+
+        const iosCommandActionButton =
+            event.target.closest(
+                "[data-ios-command-action]"
+            );
+
+        if (iosCommandActionButton) {
+            const action =
+                iosCommandActionButton.dataset
+                    .iosCommandAction || "";
+            const commandId =
+                iosCommandActionButton.dataset
+                    .iosCommandId || "";
+
+            if (action === "run") {
+                const command =
+                    getIosCommandById(commandId);
+                if (command?.commandType === "smartmix") {
+                    await executeAutomationCommand({
+                        action: "smartmix",
+                        commandId,
+                        autoplay: command.autoplay,
+                        openDrivingMode:
+                            command.openDrivingMode
+                    });
+                } else {
+                    await runIosQuickPlay(
+                        command?.playlistId || "",
+                        commandId
+                    );
+                }
+            } else if (action === "copy") {
+                await copyIosCommandUrl(
+                    commandId
+                );
+            } else if (action === "edit") {
+                editIosCommand(commandId);
+            } else if (
+                action === "duplicate"
+            ) {
+                duplicateIosCommand(commandId);
+            } else if (
+                action === "delete"
+            ) {
+                deleteIosCommand(commandId);
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#cancelIosCommandEditButton"
+            )
+        ) {
+            cancelIosCommandEdit();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testIosQuickPlayButton"
+            )
+        ) {
+            await runIosQuickPlay(
+                "",
+                getPrincipalIosCommand()?.id || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copyIosShortcutUrlButton"
+            )
+        ) {
+            await copyIosQuickPlayUrl();
+            return;
+        }
+
+        const retryIosButton =
+            event.target.closest(
+                "#retryIosQuickPlayButton"
+            );
+
+        if (retryIosButton) {
+            await runIosQuickPlay(
+                retryIosButton.dataset.playlistId || "",
+                retryIosButton.dataset.commandId || "",
+                {
+                    openDrivingMode:
+                        retryIosButton.dataset.openDriving === "1",
+                    openDynamicLyrics:
+                        retryIosButton.dataset.openLyrics === "1",
+                    dynamicLyricsShortcutName:
+                        retryIosButton.dataset.lyricsShortcut || ""
+                }
+            );
+            return;
+        }
+
+        const scheduleActionButton =
+            event.target.closest(
+                "[data-schedule-action]"
+            );
+
+        if (scheduleActionButton) {
+            const scheduleId =
+                scheduleActionButton.dataset.scheduleId || "";
+            const action =
+                scheduleActionButton.dataset.scheduleAction || "";
+
+            if (action === "run") {
+                await runMixSchedule(
+                    scheduleId
+                );
+            } else if (action === "toggle") {
+                toggleMixSchedule(
+                    scheduleId
+                );
+            } else if (action === "delete") {
+                deleteMixSchedule(
+                    scheduleId
+                );
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#createSmartSchedulePresetsButton"
+            )
+        ) {
+            createSmartSchedulePresets();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshScheduleDevicesButton"
+            )
+        ) {
+            await refreshScheduleDevices();
+            return;
+        }
+
+        const profileActionButton =
+            event.target.closest("[data-profile-action]");
+
+        if (profileActionButton) {
+            const profileId =
+                profileActionButton.dataset.profileId || "";
+            const action =
+                profileActionButton.dataset.profileAction || "";
+
+            if (action === "apply") {
+                applyMixProfile(profileId);
+            } else if (action === "duplicate") {
+                duplicateMixProfile(profileId);
+            } else if (action === "rename") {
+                renameMixProfile(profileId);
+            } else if (action === "delete") {
+                deleteMixProfile(profileId);
+            }
+
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#createProfileFromCurrentButton"
+            )
+        ) {
+            createProfileFromCurrentSettings();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#restoreDefaultProfilesButton"
+            )
+        ) {
+            restoreDefaultMixProfiles();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearActiveProfileButton"
+            )
+        ) {
+            clearActiveProfile();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#restoreLastCleanupButton"
+            )
+        ) {
+            restoreLastCleanup();
+            return;
+        }
+
+        const resetCleanupSettingsButton =
+            event.target.closest(
+                "#resetCleanupSettingsButton"
+            );
+
+        if (resetCleanupSettingsButton) {
+            resetCleanupSettings();
+            return;
+        }
+
+        const resetAdaptiveSettingsButton =
+            event.target.closest(
+                "#resetAdaptiveSettingsButton"
+            );
+
+        if (resetAdaptiveSettingsButton) {
+            resetAdaptiveSettings();
+            return;
+        }
+
+        const resetIntensitySettingsButton =
+            event.target.closest(
+                "#resetIntensitySettingsButton"
+            );
+
+        if (resetIntensitySettingsButton) {
+            resetIntensitySettings();
+            return;
+        }
+
+        const resetCoherenceSettingsButton =
+            event.target.closest(
+                "#resetCoherenceSettingsButton"
+            );
+
+        if (resetCoherenceSettingsButton) {
+            resetCoherenceSettings();
+            return;
+        }
+
+        const resetPriorityRulesButton =
+            event.target.closest("#resetPriorityRulesButton");
+
+        if (resetPriorityRulesButton) {
+            resetPriorityRules();
+            return;
+        }
+
+        const resetExclusionRulesButton =
+            event.target.closest("#resetExclusionRulesButton");
+
+        if (resetExclusionRulesButton) {
+            resetExclusionRules();
+            return;
+        }
+
+        const historyActionButton =
+            event.target.closest("[data-history-action]");
+
+        if (historyActionButton) {
+            const historyId =
+                historyActionButton.dataset.historyId || "";
+            const action =
+                historyActionButton.dataset.historyAction || "";
+
+            if (action === "relaunch") {
+                await relaunchHistoryItem(historyId);
+            } else if (action === "delete") {
+                deleteHistoryItem(historyId);
+            }
+
+            return;
+        }
+
+        const clearMixHistoryButton =
+            event.target.closest("#clearMixHistoryButton");
+
+        if (clearMixHistoryButton) {
+            clearMixHistory();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#simpleServerSyncButton"
+            )
+        ) {
+            await synchronizeServerNow();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#combineServerSyncButton"
+            )
+        ) {
+            const before = getSimpleSyncSummarySnapshot();
+            const merged = await mergePendingServerSyncAutomatically();
+            if (merged) {
+                const pushed = await pushServerSync({
+                    force: true,
+                    silent: true
+                });
+                if (!pushed && serverSyncState.lastError) {
+                    setServerSyncMessage(
+                        serverSyncState.lastError,
                         "error"
                     );
+                    refreshSyncPreparationPanel();
                     return;
                 }
-
-                selectedSourceKeys.add(sourceKey);
-                setStatus("");
-            } else {
-                selectedSourceKeys.delete(sourceKey);
+                serverSyncLastSimpleResult = buildSimpleSyncSummary({
+                    before,
+                    after: getSimpleSyncSummarySnapshot(),
+                    merged: true
+                });
+                setServerSyncMessage(
+                    serverSyncLastSimpleResult,
+                    "success"
+                );
+                refreshSyncPreparationPanel();
             }
-
-            updateMixSelectionControls();
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "input",
-        (event) => {
-            if (event.target.id === "universalSearchInput") {
-                universalSearchQuery =
-                    event.target.value.slice(0, 100);
-                universalSearchSelectedIndex = 0;
-                refreshUniversalSearchResultsDom();
-                return;
+        if (
+            event.target.closest(
+                "#serverSyncSetupBackButton"
+            )
+        ) {
+            serverSyncSetupStep = normalizeServerSetupStep(1);
+            setServerSyncMessage("");
+            refreshSyncPreparationPanel();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#testServerSyncButton"
+            )
+        ) {
+            await testServerSyncConnection();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#pushServerSyncButton"
+            )
+        ) {
+            await pushServerSync({ force: true });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#pullServerSyncButton"
+            )
+        ) {
+            await pullServerSync({ force: true });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copyServerSyncLinkButton"
+            )
+        ) {
+            await copyServerSyncLinkCode();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#refreshServerDevicesButton"
+            )
+        ) {
+            await refreshServerSyncDevices();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#disconnectServerSyncButton"
+            )
+        ) {
+            disconnectServerSync();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#deleteServerSyncSpaceButton"
+            )
+        ) {
+            await deleteServerSyncSpace();
+            return;
+        }
+
+        const revokeServerDeviceButton =
+            event.target.closest(
+                "[data-revoke-server-device]"
+            );
+        if (revokeServerDeviceButton) {
+            await revokeServerSyncDevice(
+                revokeServerDeviceButton.dataset
+                    .revokeServerDevice || ""
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#createSyncPairingInvitationButton"
+            )
+        ) {
+            createSyncPairingInvitation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copySyncPairingInvitationButton"
+            )
+        ) {
+            await copySyncPairingInvitation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportSyncPairingInvitationButton"
+            )
+        ) {
+            exportSyncPairingInvitation();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#importSyncPairingFileButton"
+            )
+        ) {
+            document.getElementById(
+                "syncPairingFileInput"
+            )?.click();
+            return;
+        }
+
+        const simulateSyncPeerButton =
+            event.target.closest(
+                "[data-simulate-sync-peer]"
+            );
+        if (simulateSyncPeerButton) {
+            simulateSyncWithPeer(
+                simulateSyncPeerButton.dataset
+                    .simulateSyncPeer || ""
+            );
+            return;
+        }
+
+        const exportSyncPeerButton =
+            event.target.closest(
+                "[data-export-sync-peer]"
+            );
+        if (exportSyncPeerButton) {
+            exportSyncPackageForPeer(
+                exportSyncPeerButton.dataset
+                    .exportSyncPeer || ""
+            );
+            return;
+        }
+
+        const removeSyncPeerButton =
+            event.target.closest(
+                "[data-remove-sync-peer]"
+            );
+        if (removeSyncPeerButton) {
+            removeSyncPairedDevice(
+                removeSyncPeerButton.dataset
+                    .removeSyncPeer || ""
+            );
+            return;
+        }
+
+        const syncMergePresetButton =
+            event.target.closest(
+                "[data-sync-merge-preset]"
+            );
+
+        if (syncMergePresetButton) {
+            setSelectiveSyncMergePreset(
+                syncMergePresetButton.dataset
+                    .syncMergePreset || "merge"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#undoLastSyncMergeButton"
+            )
+        ) {
+            await undoLastSelectiveSyncMerge();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportSyncPackageButton"
+            )
+        ) {
+            downloadSyncPackage();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportEncryptedSyncPackageButton"
+            )
+        ) {
+            await downloadEncryptedSyncPackage();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#analyzeSyncPackageButton"
+            )
+        ) {
+            document.getElementById(
+                "syncPackageFileInput"
+            )?.click();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#exportSyncDiagnosticButton"
+            )
+        ) {
+            await downloadSyncDiagnostic();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copySyncInstallationIdButton"
+            )
+        ) {
+            await copySyncInstallationId();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#resetSyncInstallationIdButton"
+            )
+        ) {
+            resetSyncInstallationId();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#keepLocalSyncButton"
+            )
+        ) {
+            await applyPendingSyncPackage("local");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applyRemoteSyncButton"
+            )
+        ) {
+            await applyPendingSyncPackage("remote");
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#applySyncPolicyButton"
+            )
+        ) {
+            await applyPendingSyncPackage("policy");
+            return;
+        }
+
+        const exportBackupButton =
+            event.target.closest("#exportBackupButton");
+
+        if (exportBackupButton) {
+            downloadBackupFile();
+            return;
+        }
+
+        const importBackupButton =
+            event.target.closest("#importBackupButton");
+
+        if (importBackupButton) {
+            document.getElementById("backupFileInput")?.click();
+            return;
+        }
+
+        const musicFeedbackButton =
+            event.target.closest(
+                "[data-music-feedback-action]"
+            );
+
+        if (musicFeedbackButton) {
+            applyMusicFeedbackAt(
+                Number(
+                    musicFeedbackButton.dataset
+                        .trackIndex
+                ),
+                musicFeedbackButton.dataset
+                    .musicFeedbackAction ||
+                    "neutral"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#clearMusicFeedbackButton"
+            )
+        ) {
+            clearMusicFeedback();
+            return;
+        }
+
+        const trackActionButton =
+            event.target.closest("[data-track-action]");
+
+        if (trackActionButton) {
+            const action =
+                trackActionButton.dataset.trackAction || "";
+            const index = Number(
+                trackActionButton.dataset.trackIndex
+            );
+
+            if (action === "up") {
+                moveTrack(index, index - 1);
+            } else if (action === "down") {
+                moveTrack(index, index + 1);
+            } else if (action === "remove") {
+                removeTrackAt(index);
+            } else if (action === "exclude") {
+                excludeTrackAt(index);
+            } else if (action === "favorite") {
+                toggleFavoredTrackAt(index);
+            } else if (action === "replace") {
+                replaceSmartQueueTrackAt(index);
+            } else if (action === "avoid-artist") {
+                avoidSmartQueueArtistAt(index);
+            } else if (action === "avoid-album") {
+                avoidSmartQueueAlbumAt(index);
             }
 
-            if (event.target.matches("[data-personalized-discovery]")) {
-                const output = document.getElementById("personalizedDiscoveryValue");
-                if (output) output.textContent = `${event.target.value} %`;
-                return;
-            }
+            return;
+        }
 
-            if (
-                event.target.matches(
-                    "[data-transition-count-input]"
-                )
-            ) {
-                const form = event.target.closest(
-                    "#adaptiveTransitionForm"
-                );
-                const output = form?.querySelector(
-                    "[data-transition-count-output]"
-                );
-                const count = Math.max(
-                    3,
-                    Math.min(12, Number(event.target.value) || 6)
-                );
+        const resetGeneratedOrderButton =
+            event.target.closest("#resetGeneratedOrderButton");
 
-                if (output) {
-                    output.textContent =
-                        `${count} titre${count > 1 ? "s" : ""}`;
-                }
-                adaptiveTransitionPreview = null;
-                return;
+        if (resetGeneratedOrderButton) {
+            resetGeneratedOrder();
+            return;
+        }
+
+        const mixStudioTemplateButton =
+            event.target.closest(
+                "[data-mix-studio-template-action]"
+            );
+
+        if (mixStudioTemplateButton) {
+            const form = mixStudioTemplateButton.closest(
+                "#mixStudioForm"
+            );
+            const action =
+                mixStudioTemplateButton.dataset
+                    .mixStudioTemplateAction;
+
+            if (action === "save") {
+                saveMixStudioTemplateFromForm(form);
+            } else if (action === "delete") {
+                deleteMixStudioTemplate(
+                    form?.elements?.templateId?.value || "",
+                    form
+                );
             }
-            if (
-                event.target.closest(
+            return;
+        }
+
+        const mixStudioCompareButton =
+            event.target.closest(
+                "#mixStudioCompareVariants"
+            );
+
+        if (mixStudioCompareButton) {
+            renderMixStudioVariantComparison(
+                mixStudioCompareButton.closest(
                     "#mixStudioForm"
                 )
+            );
+            return;
+        }
+
+        const mixStudioVariantButton =
+            event.target.closest(
+                "[data-mix-studio-variant-action]"
+            );
+
+        if (mixStudioVariantButton) {
+            const form = mixStudioVariantButton.closest(
+                "#mixStudioForm"
+            );
+            const applied =
+                applyMixStudioVariantToForm(
+                    mixStudioVariantButton.dataset
+                        .mixStudioVariantIndex,
+                    form
+                );
+
+            if (
+                applied &&
+                mixStudioVariantButton.dataset
+                    .mixStudioVariantAction === "preview"
             ) {
-                updateMixStudioFormPreview(
+                await submitMixStudioForm(
+                    form,
+                    "preview"
+                );
+            }
+            return;
+        }
+
+        const mixStudioClearButton =
+            event.target.closest(
+                "#mixStudioClearSources"
+            );
+
+        if (mixStudioClearButton) {
+            const form = mixStudioClearButton.closest(
+                "#mixStudioForm"
+            );
+            form?.querySelectorAll(
+                ".mix-studio-source-checkbox"
+            ).forEach((checkbox) => {
+                checkbox.checked = false;
+            });
+            selectedSourceKeys.clear();
+            updateMixStudioFormPreview(form);
+            return;
+        }
+
+        const favoriteButton = event.target.closest(
+            ".source-favorite-button"
+        );
+
+        if (favoriteButton) {
+            const sourceKey =
+                favoriteButton.dataset.favoriteSourceKey || "";
+            toggleFavoriteSource(sourceKey);
+            displayPlaylists(playlistsCache);
+            setStatus(
+                favoriteSourceKeys.has(sourceKey)
+                    ? "Source ajoutée aux favoris."
+                    : "Source retirée des favoris."
+            );
+            return;
+        }
+
+        const savedMixActionButton =
+            event.target.closest("[data-saved-mix-action]");
+
+        if (savedMixActionButton) {
+            const mixId =
+                savedMixActionButton.dataset.savedMixId || "";
+            const action =
+                savedMixActionButton.dataset.savedMixAction || "";
+
+            if (action === "launch") {
+                const prepared =
+                    await launchSavedMix(mixId);
+
+                if (prepared) {
+                    recordManualAdaptiveCorrection(
+                        mixId
+                    );
+                    recordAdaptiveLearningObservation({
+                        mixId,
+                        source: "manual"
+                    });
+                }
+            } else if (action === "settings") {
+                startConfiguringSavedMix(mixId);
+            } else if (action === "edit") {
+                startEditingSavedMix(mixId);
+            } else if (action === "rename") {
+                renameSavedMix(mixId);
+            } else if (action === "delete") {
+                deleteSavedMix(mixId);
+            }
+
+            return;
+        }
+
+        const savedMixSettingsAction =
+            event.target.closest(
+                "[data-saved-mix-settings-action]"
+            );
+
+        if (savedMixSettingsAction) {
+            if (
+                savedMixSettingsAction.dataset
+                    .savedMixSettingsAction === "cancel"
+            ) {
+                cancelSavedMixSettings();
+            }
+
+            return;
+        }
+
+        const saveSourceSelectionButton =
+            event.target.closest("#saveSourceSelectionButton");
+
+        if (saveSourceSelectionButton) {
+            saveCurrentSourceSelection();
+            return;
+        }
+
+        const saveEditedMixButton =
+            event.target.closest("#saveEditedMixButton");
+
+        if (saveEditedMixButton) {
+            saveEditedMix();
+            return;
+        }
+
+        const cancelEditSavedMixButton =
+            event.target.closest("#cancelEditSavedMixButton");
+
+        if (cancelEditSavedMixButton) {
+            cancelEditingSavedMix();
+            return;
+        }
+
+        const openSourceButton =
+            event.target.closest(".source-open-button");
+
+        if (openSourceButton) {
+            if (openSourceButton.dataset.librarySource === "liked") {
+                await openPlaylist({
+                    id: "liked-tracks",
+                    name: "Morceaux aimés",
+                    sourceType: "liked",
+                    owner: {
+                        display_name: "Ta bibliothèque"
+                    },
+                    images: [],
+                    external_urls: {}
+                });
+
+                return;
+            }
+
+            const playlistId =
+                openSourceButton.dataset.playlistId;
+
+            const playlist = playlistsCache.find(
+                (item) => item.id === playlistId
+            );
+
+            if (playlist) {
+                await openPlaylist(playlist);
+            }
+
+            return;
+        }
+
+        const selectAllSourcesButton =
+            event.target.closest("#selectAllSources");
+
+        if (selectAllSourcesButton) {
+            selectedSourceKeys.clear();
+
+            if (isLikedSourceVisible()) {
+                selectedSourceKeys.add("liked");
+            }
+
+            for (const playlist of getFilteredAndSortedPlaylists(playlistsCache)) {
+                if (
+                    canReadPlaylist(playlist) &&
+                    selectedSourceKeys.size < MAX_MIX_SOURCES
+                ) {
+                    selectedSourceKeys.add(
+                        getPlaylistSourceKey(playlist.id)
+                    );
+                }
+            }
+
+            setStatus(
+                `${selectedSourceKeys.size} source${selectedSourceKeys.size > 1 ? "s" : ""} visible${selectedSourceKeys.size > 1 ? "s" : ""} sélectionnée${selectedSourceKeys.size > 1 ? "s" : ""}.`
+            );
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const clearSourceSelectionButton =
+            event.target.closest("#clearSourceSelection");
+
+        if (clearSourceSelectionButton) {
+            selectedSourceKeys.clear();
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const createMixButton =
+            event.target.closest("#createMixButton");
+
+        if (createMixButton) {
+            const activeProfile = getActiveProfile();
+
+            if (activeProfile) {
+                currentShuffleSettings =
+                    normalizeShuffleSettings(
+                        activeProfile.shuffleSettings
+                    );
+                currentExclusionRules =
+                    normalizeExclusionRules(
+                        activeProfile.exclusionRules
+                    );
+                currentPriorityRules =
+                    normalizePriorityRules(
+                        activeProfile.priorityRules
+                    );
+                currentCoherenceSettings =
+                    normalizeCoherenceSettings(
+                        activeProfile.coherenceSettings
+                    );
+                currentIntensitySettings =
+                    normalizeIntensitySettings(
+                        activeProfile.intensitySettings
+                    );
+            } else {
+                currentShuffleSettings = {
+                    ...DEFAULT_SHUFFLE_SETTINGS
+                };
+            }
+
+            await createSelectedMix();
+            return;
+        }
+
+        const resetLibraryFiltersButton =
+            event.target.closest("#resetLibraryFilters");
+
+        if (resetLibraryFiltersButton) {
+            librarySearchTerm = "";
+            libraryFilter = "all";
+            librarySort = "modified-desc";
+            saveLibraryPreferences();
+            displayPlaylists(playlistsCache);
+            await ensureLibrarySortDataLoaded({
+                rerender: true
+            });
+            return;
+        }
+
+        const backButton =
+            event.target.closest("#backToPlaylists");
+
+        if (backButton) {
+            const targetMenu = normalizeActiveAppMenu(
+                backButton.dataset.backMenu || activeAppMenu
+            );
+            activeAppMenu = targetMenu;
+            saveActiveAppMenu();
+            setStatus("");
+            displayPlaylists(playlistsCache);
+
+            contentElement.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+            });
+
+            return;
+        }
+
+        const showSavePlaylistButton =
+            event.target.closest("#showSavePlaylistButton");
+
+        if (showSavePlaylistButton) {
+            const savePanel = document.getElementById(
+                "savePlaylistForm"
+            );
+            const nameInput = document.getElementById(
+                "savePlaylistName"
+            );
+
+            if (savePanel) {
+                savePanel.hidden = false;
+                savePanel.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                });
+            }
+
+            if (nameInput) {
+                window.setTimeout(() => {
+                    nameInput.focus();
+                    nameInput.select();
+                }, 250);
+            }
+
+            return;
+        }
+
+        const cancelSavePlaylistButton =
+            event.target.closest("#cancelSavePlaylistButton");
+
+        if (cancelSavePlaylistButton) {
+            const savePanel = document.getElementById(
+                "savePlaylistForm"
+            );
+
+            if (savePanel) {
+                savePanel.hidden = true;
+            }
+
+            return;
+        }
+
+        const resetPlaybackQueueButton =
+            event.target.closest("#resetPlaybackQueueButton");
+
+        if (resetPlaybackQueueButton) {
+            resetPlaybackQueueProgress();
+            setStatus("File d’attente replacée au début.");
+            return;
+        }
+
+        const refreshDevicesButton =
+            event.target.closest("#refreshDevicesButton");
+
+        if (refreshDevicesButton) {
+            await refreshPlaybackDevices();
+            return;
+        }
+
+        const playSpotifyButton =
+            event.target.closest("#playSpotifyButton");
+
+        if (playSpotifyButton) {
+            await playSelectedOrder();
+            return;
+        }
+
+        const copyShuffleSeedButton =
+            event.target.closest("#copyShuffleSeedButton");
+
+        if (copyShuffleSeedButton && lastShuffleReport?.seed) {
+            await copyTextToClipboard(lastShuffleReport.seed);
+            showToast("Graine du mélange copiée.", "success");
+            return;
+        }
+
+        const replayShuffleSeedButton =
+            event.target.closest("#replayShuffleSeedButton");
+
+        if (
+            replayShuffleSeedButton &&
+            lastShuffleReport?.seed &&
+            sourceTracks.length > 1
+        ) {
+            const seed = lastShuffleReport.seed;
+            selectedTracks = generateExplainedShuffleOrder(
+                sourceTracks,
+                {
+                    seed,
+                    recentTrackUris:
+                        lastShuffleReport.recentTrackUris
+                }
+            );
+            selectedTracks = limitTracksToAdaptiveTarget(
+                selectedTracks,
+                currentAdaptiveSettings
+            );
+            buildPrioritySummary(
+                selectedTracks,
+                currentPriorityRules
+            );
+            originalGeneratedOrder = [...selectedTracks];
+            trackSearchTerm = "";
+            markQueueChanged();
+            renderTrackList();
+            refreshShuffleExplainabilityReport();
+            renderShuffleStats(
+                lastShuffleReport?.after || null
+            );
+            showToast(
+                `Mélange ${seed} reproduit exactement.`,
+                "success"
+            );
+            return;
+        }
+
+        const shuffleButton =
+            event.target.closest("#shuffleButton");
+
+        if (
+            shuffleButton &&
+            selectedTracks.length > 1
+        ) {
+            selectedTracks = generateExplainedShuffleOrder(
+                sourceTracks
+            );
+            selectedTracks = limitTracksToAdaptiveTarget(
+                selectedTracks,
+                currentAdaptiveSettings
+            );
+            buildPrioritySummary(
+                selectedTracks,
+                currentPriorityRules
+            );
+            originalGeneratedOrder = [...selectedTracks];
+            trackSearchTerm = "";
+            markQueueChanged();
+
+            const trackSearchInput = document.getElementById(
+                "trackOrderSearchInput"
+            );
+
+            if (trackSearchInput) {
+                trackSearchInput.value = "";
+            }
+
+            renderTrackList();
+            refreshShuffleExplainabilityReport();
+            renderShuffleStats(
+                lastShuffleReport?.after || analyzeShuffleOrder(
+                    selectedTracks,
+                    getShuffleEngineOptions(
+                        currentShuffleSettings
+                    )
+                )
+            );
+
+            shuffleButton.textContent =
+                "✅ Ordre intelligent créé";
+
+            window.setTimeout(() => {
+                if (
+                    document.body.contains(shuffleButton)
+                ) {
+                    shuffleButton.textContent =
+                        "🧠 Mélanger à nouveau";
+                }
+            }, 1200);
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "input",
+    (event) => {
+        if (
+            event.target.id ===
+            "uiThemeCustomColorInput"
+        ) {
+            const customHexInput =
+                document.getElementById(
+                    "uiThemeCustomHexInput"
+                );
+
+            if (customHexInput) {
+                customHexInput.value =
+                    event.target.value.toUpperCase();
+            }
+
+            previewUiThemeCustomColor(
+                event.target.value
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "uiThemeCustomHexInput"
+        ) {
+            const normalized = normalizeHexColor(
+                event.target.value
+            );
+            const customColorInput =
+                document.getElementById(
+                    "uiThemeCustomColorInput"
+                );
+
+            if (normalized && customColorInput) {
+                customColorInput.value = normalized;
+            }
+
+            previewUiThemeCustomColor(
+                event.target.value
+            );
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "change",
+    (event) => {
+        if (event.target.name === "autoSync" &&
+            event.target.closest("#serverSyncSimpleOptionsForm")) {
+            saveSimpleServerSyncOptions(event.target.form);
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "contextualTourEnabledInput"
+        ) {
+            contextualHelpState =
+                normalizeContextualHelpState({
+                    ...contextualHelpState,
+                    tourEnabled:
+                        event.target.checked
+                });
+            if (!event.target.checked) {
+                contextualOnboardingOpen = false;
+            }
+            saveContextualHelpState();
+            showToast(
+                event.target.checked
+                    ? "Visite guidée activée."
+                    : "Visite guidée automatique désactivée.",
+                "success"
+            );
+            refreshContextualHelpDom();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "contextualHintsEnabledInput"
+        ) {
+            contextualHelpState =
+                normalizeContextualHelpState({
+                    ...contextualHelpState,
+                    hintsEnabled:
+                        event.target.checked
+                });
+            saveContextualHelpState();
+            displayPlaylists(
+                playlistsCache
+            );
+            showToast(
+                event.target.checked
+                    ? "Conseils rapides affichés."
+                    : "Conseils rapides masqués.",
+                "success"
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "voiceAssistantLanguageInput"
+        ) {
+            voiceAssistantSettings =
+                normalizeVoiceAssistantSettings({
+                    ...voiceAssistantSettings,
+                    language:
+                        event.target.value
+                });
+            saveVoiceAssistantSettings();
+            setVoiceAssistantMessage(
+                "Langue vocale mise à jour.",
+                "success"
+            );
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        const voiceSettingMap = {
+            voiceAssistantResponsesInput:
+                "voiceResponses",
+            voiceAssistantVibrationInput:
+                "vibration",
+            voiceAssistantConfirmInput:
+                "confirmBeforeAction",
+            voiceAssistantAutoStatusInput:
+                "autoExecuteStatus",
+            voiceAssistantCompactInput:
+                "compactListening"
+        };
+        const voiceSettingKey =
+            voiceSettingMap[event.target.id];
+
+        if (voiceSettingKey) {
+            voiceAssistantSettings =
+                normalizeVoiceAssistantSettings({
+                    ...voiceAssistantSettings,
+                    [voiceSettingKey]:
+                        event.target.checked
+                });
+            saveVoiceAssistantSettings();
+            setVoiceAssistantMessage(
+                "Réglages vocaux enregistrés.",
+                "success"
+            );
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "uiThemeContrastInput"
+        ) {
+            uiThemeSettings =
+                normalizeUiThemeSettings({
+                    ...uiThemeSettings,
+                    highContrast:
+                        event.target.checked
+                });
+
+            saveUiThemeSettings();
+            applyUiThemeSettings();
+
+            showToast(
+                event.target.checked
+                    ? "◐ Contraste renforcé activé."
+                    : "◑ Contraste standard restauré.",
+                "success"
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "uiThemeMotionInput"
+        ) {
+            uiThemeSettings =
+                normalizeUiThemeSettings({
+                    ...uiThemeSettings,
+                    motionEnabled:
+                        event.target.checked
+                });
+
+            saveUiThemeSettings();
+            applyUiThemeSettings();
+
+            showToast(
+                event.target.checked
+                    ? "✨ Animations fluides activées."
+                    : "🌙 Animations réduites.",
+                "success"
+            );
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#mixStudioForm"
+            )
+        ) {
+            if (
+                event.target.id ===
+                "mixStudioTemplateSelect" &&
+                event.target.value
+            ) {
+                applyMixStudioTemplateToForm(
+                    event.target.value,
                     event.target.closest(
                         "#mixStudioForm"
                     )
                 );
-            }
-
-            if (
-                event.target.id ===
-                "syncDiffSearchInput"
-            ) {
-                filterSyncDetailedDiff(
-                    event.target.value
-                );
                 return;
             }
 
             if (
                 event.target.matches(
-                    "[data-intensity-control]"
+                    ".mix-studio-source-checkbox"
                 )
             ) {
-                updateIntensityPreviewFromForm(
-                    event.target.closest(
-                        "#intensitySettingsForm"
-                    )
-                );
-                return;
-            }
+                const checked = [
+                    ...event.target
+                        .closest("#mixStudioForm")
+                        .querySelectorAll(
+                            ".mix-studio-source-checkbox:checked"
+                        )
+                ];
 
-            if (event.target.matches("[data-shuffle-setting]")) {
-                const form = event.target.closest(
-                    "[data-saved-mix-settings-id]"
-                );
-                const settingName =
-                    event.target.dataset.shuffleSetting;
-                const valueElement = form?.querySelector(
-                    `[data-setting-value="${settingName}"]`
-                );
-
-                if (valueElement) {
-                    valueElement.textContent =
-                        settingName === "recentAvoidance"
-                            ? getRecentAvoidanceLabel(
-                                event.target.value
-                            )
-                            : event.target.value;
-                }
-
-                const presetSelect =
-                    form?.querySelector("[data-shuffle-preset]");
-
-                if (
-                    presetSelect &&
-                    presetSelect.value !== "custom"
-                ) {
-                    const preset =
-                        SHUFFLE_PRESETS[presetSelect.value];
-
-                    const stillMatchesPreset =
-                        Number(form.elements.artistGap.value) ===
-                        preset.artistGap &&
-                        Number(form.elements.albumGap.value) ===
-                        preset.albumGap &&
-                        Number(form.elements.recentAvoidance.value) ===
-                        preset.recentAvoidance;
-
-                    if (!stillMatchesPreset) {
-                        presetSelect.value = "custom";
-                    }
-                }
-
-                return;
-            }
-
-            if (event.target.id === "trackOrderSearchInput") {
-                trackSearchTerm = event.target.value;
-                renderTrackList();
-
-                const searchInput = document.getElementById(
-                    "trackOrderSearchInput"
-                );
-
-                if (searchInput) {
-                    const cursorPosition =
-                        event.target.selectionStart ??
-                        trackSearchTerm.length;
-
-                    searchInput.focus();
-                    searchInput.setSelectionRange(
-                        cursorPosition,
-                        cursorPosition
+                if (checked.length > MAX_MIX_SOURCES) {
+                    event.target.checked = false;
+                    setStatus(
+                        `Mix Studio accepte jusqu’à ${MAX_MIX_SOURCES} sources.`,
+                        "error"
                     );
                 }
+            }
 
+            updateMixStudioFormPreview(
+                event.target.closest(
+                    "#mixStudioForm"
+                )
+            );
+        }
+
+        if (
+            event.target.id ===
+            "drivingWakeLockInput"
+        ) {
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    keepScreenAwake:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+
+            if (event.target.checked) {
+                requestDrivingWakeLock({
+                    notify: true,
+                    source: "checkbox"
+                });
+            } else {
+                releaseDrivingWakeLock();
+                setDrivingMessage(
+                    "Maintien de l’écran désactivé.",
+                    "warning"
+                );
+                renderDrivingModePage();
+            }
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "drivingAutoRefreshInput"
+        ) {
+            drivingModeSettings =
+                normalizeDrivingModeSettings({
+                    ...drivingModeSettings,
+                    autoRefresh:
+                        event.target.checked
+                });
+            saveDrivingModeSettings();
+            startDrivingRefreshTimer();
+            renderDrivingModePage();
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "intelligenceRangeInput"
+        ) {
+            intelligenceAnalytics =
+                normalizeIntelligenceAnalytics({
+                    ...intelligenceAnalytics,
+                    rangeDays:
+                        Number(event.target.value)
+                });
+            saveIntelligenceAnalytics();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Période du tableau Intelligence mise à jour."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "intelligenceTypeInput"
+        ) {
+            intelligenceAnalytics =
+                normalizeIntelligenceAnalytics({
+                    ...intelligenceAnalytics,
+                    eventTypeFilter:
+                        event.target.value
+                });
+            saveIntelligenceAnalytics();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Filtre d’événements mis à jour."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "intelligenceDayTypeInput"
+        ) {
+            intelligenceAnalytics =
+                normalizeIntelligenceAnalytics({
+                    ...intelligenceAnalytics,
+                    dayTypeFilter:
+                        event.target.value
+                });
+            saveIntelligenceAnalytics();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                "Filtre semaine / week-end mis à jour."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningEnabledInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    enabled:
+                        event.target.checked
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                event.target.checked
+                    ? "Adaptive Learning activé."
+                    : "Adaptive Learning désactivé."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningAutoApplyInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    autoApplyEnabled:
+                        event.target.checked
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                event.target.checked
+                    ? "Adaptation automatique autorisée."
+                    : "Adaptation automatique désactivée."
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningAutoConfidenceInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    autoApplyMinConfidence:
+                        Number(event.target.value)
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                `Seuil automatique réglé à ${adaptiveLearningState.autoApplyMinConfidence}%.`
+            );
+            return;
+        }
+
+        if (
+            event.target.id ===
+            "adaptiveLearningAutoObservationsInput"
+        ) {
+            adaptiveLearningState =
+                normalizeAdaptiveLearningState({
+                    ...adaptiveLearningState,
+                    autoApplyMinObservations:
+                        Number(event.target.value)
+                });
+            saveAdaptiveLearningState();
+            displayPlaylists(playlistsCache);
+            setStatus(
+                `Minimum automatique : ${adaptiveLearningState.autoApplyMinObservations} choix concordants.`
+            );
+            return;
+        }
+
+        if (
+            !event.target.matches(
+                "[data-ios-command-type]"
+            )
+        ) {
+            return;
+        }
+
+        const form =
+            event.target.closest(
+                "#iosCommandForm"
+            );
+        const isSmartMix =
+            event.target.value === "smartmix";
+
+        form
+            ?.querySelectorAll(
+                "[data-ios-fixed-field]"
+            )
+            .forEach((element) => {
+                element.hidden = isSmartMix;
+            });
+
+        form
+            ?.querySelectorAll(
+                "[data-ios-smartmix-field]"
+            )
+            .forEach((element) => {
+                element.hidden = !isSmartMix;
+            });
+
+        const playlistSelect =
+            form?.elements?.playlistId;
+        const mixSelect =
+            form?.elements?.mixId;
+
+        if (playlistSelect) {
+            playlistSelect.required =
+                !isSmartMix;
+        }
+
+        if (mixSelect) {
+            mixSelect.required =
+                isSmartMix;
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "submit",
+    async (event) => {
+        if (event.target.id === "primaryLaunchSettingsForm") {
+            event.preventDefault();
+            const commandId = String(
+                new FormData(event.target).get("commandId") || ""
+            );
+            const command = getIosCommandById(commandId);
+
+            if (!command) {
+                setStatus("Ce profil de lancement est introuvable.", "error");
                 return;
             }
 
-            if (event.target.id !== "librarySearchInput") {
-                return;
+            saveGuidedSetupPreferences({
+                primaryCommandId: command.id,
+                dismissedAt: 0
+            });
+            displayPlaylists(playlistsCache);
+            showToast(
+                `⭐ « ${command.name} » devient le lancement principal.`,
+                "success"
+            );
+            return;
+        }
+
+        if (event.target.id === "spotifyClientIdSettingsForm") {
+            event.preventDefault();
+            const nextClientId = String(
+                new FormData(event.target).get("clientId") || ""
+            ).trim();
+
+            try {
+                const current = getSpotifyApplicationConfiguration();
+                const updated = savePersonalSpotifyClientId(nextClientId);
+
+                if (updated.clientId !== current.clientId) {
+                    logoutSpotify();
+                    currentUserId = "";
+                    currentUserProduct = "";
+                    welcomeElement.textContent = "Bienvenue 👋";
+                    setDisconnectedInterface();
+                    updateSpotifySetupInterface();
+                    setStatus(
+                        "Nouveau Client ID enregistré. Reconnecte-toi à Spotify.",
+                        "success"
+                    );
+                } else {
+                    displayPlaylists(playlistsCache);
+                    setStatus("Client ID Spotify confirmé.", "success");
+                }
+            } catch (error) {
+                console.error(error);
+                setStatus(error.message, "error");
+            }
+            return;
+        }
+
+        if (
+            event.target.id === "offlinePerformanceSettingsForm"
+        ) {
+            event.preventDefault();
+            saveOfflinePerformanceSettingsFromForm(event.target);
+            return;
+        }
+
+        if (
+            event.target.id === "musicalAssistantForm"
+        ) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            analyzeMusicalAssistantRequest(
+                String(data.get("request") || "")
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "mixStudioForm"
+        ) {
+            event.preventDefault();
+            const action =
+                event.submitter?.value === "save"
+                    ? "save"
+                    : "preview";
+            await submitMixStudioForm(
+                event.target,
+                action
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncSetupUrlForm"
+        ) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            await testServerSyncConnection({
+                continueSetup: true,
+                serverUrl: String(data.get("serverUrl") || "")
+            });
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncSimpleOptionsForm"
+        ) {
+            event.preventDefault();
+            saveSimpleServerSyncOptions(event.target);
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncCreateForm"
+        ) {
+            event.preventDefault();
+            await createServerSyncSpace(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncJoinForm"
+        ) {
+            event.preventDefault();
+            await joinServerSyncSpace(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "serverSyncOptionsForm"
+        ) {
+            event.preventDefault();
+            saveServerSyncOptions(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "syncPairingTokenForm"
+        ) {
+            event.preventDefault();
+            const data = new FormData(event.target);
+            acceptSyncPairingToken(
+                String(data.get("pairingToken") || "")
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "selectiveSyncMergeForm"
+        ) {
+            event.preventDefault();
+            await applySelectiveSyncPackage(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "syncPreparationForm"
+        ) {
+            event.preventDefault();
+            saveSyncPreparationFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "quickContextsForm"
+        ) {
+            event.preventDefault();
+            saveQuickContextsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "adaptiveDjMenuForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveDjMenuFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "personalizedRecommendationsSettingsForm"
+        ) {
+            event.preventDefault();
+            savePersonalizedRecommendationSettings(event.target);
+            return;
+        }
+
+
+        if (
+            event.target.id ===
+            "listeningStatisticsSettingsForm"
+        ) {
+            event.preventDefault();
+            saveListeningStatisticsSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (event.target.id === "musicalDashboardSettingsForm") { event.preventDefault(); saveMusicalDashboardSettingsFromForm(event.target); return; }
+
+        if (event.target.id === "musicalGoalsSettingsForm") {
+            event.preventDefault();
+            saveMusicalGoalsSettingsFromForm(event.target);
+            return;
+        }
+
+        if (event.target.id === "usageProfileSettingsForm") {
+            event.preventDefault();
+            saveUsageProfileSettingsFromForm(event.target);
+            return;
+        }
+
+        if (
+            event.target.id === "adaptiveDjSceneStudioForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveDjScenesFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "adaptiveTransitionForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveTransitionSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "dynamicLyricsSettingsForm"
+        ) {
+            event.preventDefault();
+            saveDynamicLyricsSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "iosCommandForm"
+        ) {
+            event.preventDefault();
+            saveIosCommandFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "iosQuickPlayForm"
+        ) {
+            event.preventDefault();
+            saveIosQuickPlayFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "mixScheduleForm"
+        ) {
+            event.preventDefault();
+            createMixScheduleFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "cleanupSettingsForm"
+        ) {
+            event.preventDefault();
+            saveCleanupSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "adaptiveSettingsForm"
+        ) {
+            event.preventDefault();
+            saveAdaptiveSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "intensitySettingsForm"
+        ) {
+            event.preventDefault();
+            saveIntensitySettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (
+            event.target.id === "coherenceSettingsForm"
+        ) {
+            event.preventDefault();
+            saveCoherenceSettingsFromForm(
+                event.target
+            );
+            return;
+        }
+
+        if (event.target.id === "priorityRulesForm") {
+            event.preventDefault();
+            savePriorityRulesFromForm(event.target);
+            return;
+        }
+
+        if (event.target.id === "exclusionRulesForm") {
+            event.preventDefault();
+            saveExclusionRulesFromForm(event.target);
+            return;
+        }
+
+        if (
+            event.target.matches(
+                "[data-saved-mix-settings-id]"
+            )
+        ) {
+            event.preventDefault();
+            saveSavedMixSettings(
+                event.target.dataset.savedMixSettingsId || ""
+            );
+            return;
+        }
+
+        if (event.target.id !== "savePlaylistForm") {
+            return;
+        }
+
+        event.preventDefault();
+        await saveCurrentOrderToSpotify();
+    }
+);
+
+contentElement.addEventListener(
+    "change",
+    async (event) => {
+        if (
+            event.target.closest(
+                "#adaptiveTransitionForm"
+            ) &&
+            [
+                "targetSceneId",
+                "energyCurve",
+                "preserveSentTracks"
+            ].includes(event.target.name)
+        ) {
+            adaptiveTransitionPreview = null;
+            return;
+        }
+        if (
+            event.target.id ===
+            "quickShortcutContextSelect"
+        ) {
+            quickShortcutWizardContextId =
+                event.target.value;
+            renderQuickControlPage();
+            return;
+        }
+
+        if (
+            event.target.matches(
+                "[data-adaptive-duration-mode]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveSettingsForm"
+            );
+            const customField = form?.querySelector(
+                "[data-adaptive-custom-duration]"
+            );
+
+            if (customField) {
+                customField.hidden =
+                    event.target.value !== "custom";
             }
 
-            const cursorPosition = event.target.selectionStart;
-            librarySearchTerm = event.target.value;
+            return;
+        }
+
+        if (
+            event.target.matches(
+                "[data-schedule-target-type]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#mixScheduleForm"
+            );
+            const isScene =
+                event.target.value === "scene";
+
+            form?.querySelectorAll(
+                "[data-schedule-scene-field]"
+            ).forEach((element) => {
+                element.hidden = !isScene;
+            });
+            form?.querySelectorAll(
+                "[data-schedule-mix-field]"
+            ).forEach((element) => {
+                element.hidden = isScene;
+            });
+            return;
+        }
+
+        if (
+            event.target.matches(
+                "[data-schedule-recurrence]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#mixScheduleForm"
+            );
+            const recurrence =
+                event.target.value;
+            const once = recurrence === "once";
+            const weekly = recurrence === "weekly";
+
+            form?.querySelectorAll(
+                "[data-schedule-once-field]"
+            ).forEach((element) => {
+                element.hidden = !once;
+            });
+            form?.querySelectorAll(
+                "[data-schedule-recurring-field]"
+            ).forEach((element) => {
+                element.hidden = once;
+            });
+            form?.querySelectorAll(
+                "[data-schedule-weekly-field]"
+            ).forEach((element) => {
+                element.hidden = !weekly;
+            });
+
+            return;
+        }
+
+        if (
+            event.target.id === "syncPairingFileInput"
+        ) {
+            const [file] = event.target.files || [];
+            await analyzeSyncPairingFile(file);
+            event.target.value = "";
+            return;
+        }
+
+        if (
+            event.target.id === "syncPackageFileInput"
+        ) {
+            const [file] = event.target.files || [];
+            await analyzeSyncPackageFile(file);
+            event.target.value = "";
+            return;
+        }
+
+        if (event.target.id === "backupFileInput") {
+            const [file] = event.target.files || [];
+            await importBackupFile(file);
+            event.target.value = "";
+            return;
+        }
+
+        if (
+            event.target.name === "profileId" &&
+            event.target.closest(
+                "[data-saved-mix-settings-id]"
+            )
+        ) {
+            const form = event.target.closest(
+                "[data-saved-mix-settings-id]"
+            );
+            const profile = getProfileById(
+                event.target.value
+            );
+
+            if (form && profile) {
+                const settings =
+                    normalizeShuffleSettings(
+                        profile.shuffleSettings
+                    );
+
+                form.elements.preset.value =
+                    settings.preset;
+                form.elements.artistGap.value =
+                    settings.artistGap;
+                form.elements.albumGap.value =
+                    settings.albumGap;
+                form.elements.recentAvoidance.value =
+                    settings.recentAvoidance;
+
+                for (const input of [
+                    form.elements.artistGap,
+                    form.elements.albumGap,
+                    form.elements.recentAvoidance
+                ]) {
+                    input.dispatchEvent(
+                        new Event("input", {
+                            bubbles: true
+                        })
+                    );
+                }
+            }
+
+            return;
+        }
+
+        if (event.target.matches("[data-shuffle-preset]")) {
+            const form = event.target.closest(
+                "[data-saved-mix-settings-id]"
+            );
+            const preset =
+                SHUFFLE_PRESETS[event.target.value] ||
+                SHUFFLE_PRESETS.balanced;
+
+            if (form && event.target.value !== "custom") {
+                const artistInput = form.elements.artistGap;
+                const albumInput = form.elements.albumGap;
+                const recentInput = form.elements.recentAvoidance;
+
+                artistInput.value = preset.artistGap;
+                albumInput.value = preset.albumGap;
+                recentInput.value = preset.recentAvoidance;
+
+                artistInput.dispatchEvent(
+                    new Event("input", { bubbles: true })
+                );
+                albumInput.dispatchEvent(
+                    new Event("input", { bubbles: true })
+                );
+                recentInput.dispatchEvent(
+                    new Event("input", { bubbles: true })
+                );
+            }
+
+            return;
+        }
+
+        if (event.target.id === "libraryFilterSelect") {
+            libraryFilter = event.target.value;
+            saveLibraryPreferences();
+            displayPlaylists(playlistsCache);
+            return;
+        }
+
+        if (event.target.id === "librarySortSelect") {
+            librarySort = event.target.value;
             saveLibraryPreferences();
             displayPlaylists(playlistsCache);
 
+            if (librarySort.startsWith("modified")) {
+                await ensureModificationDatesLoaded();
+                displayPlaylists(playlistsCache);
+            }
+
+            if (librarySort.startsWith("recent")) {
+                try {
+                    await ensureRecentActivityLoaded();
+                    displayPlaylists(playlistsCache);
+                } catch (error) {
+                    console.error(error);
+                    setStatus(
+                        error.message ||
+                        "Impossible d’analyser les écoutes récentes.",
+                        "error"
+                    );
+                }
+            }
+
+            return;
+        }
+
+        const checkbox = event.target.closest(
+            ".source-checkbox"
+        );
+
+        if (!checkbox) {
+            return;
+        }
+
+        const sourceKey = checkbox.dataset.sourceKey || "";
+
+        if (!sourceKey) {
+            return;
+        }
+
+        if (checkbox.checked) {
+            if (selectedSourceKeys.size >= MAX_MIX_SOURCES) {
+                checkbox.checked = false;
+                setStatus(
+                    `Tu peux sélectionner jusqu’à ${MAX_MIX_SOURCES} sources dans cette version.`,
+                    "error"
+                );
+                return;
+            }
+
+            selectedSourceKeys.add(sourceKey);
+            setStatus("");
+        } else {
+            selectedSourceKeys.delete(sourceKey);
+        }
+
+        updateMixSelectionControls();
+    }
+);
+
+contentElement.addEventListener(
+    "input",
+    (event) => {
+        if (event.target.id === "universalSearchInput") {
+            universalSearchQuery =
+                event.target.value.slice(0, 100);
+            universalSearchSelectedIndex = 0;
+            refreshUniversalSearchResultsDom();
+            return;
+        }
+
+        if (event.target.matches("[data-personalized-discovery]")) {
+            const output = document.getElementById("personalizedDiscoveryValue");
+            if (output) output.textContent = `${event.target.value} %`;
+            return;
+        }
+
+        if (
+            event.target.matches(
+                "[data-transition-count-input]"
+            )
+        ) {
+            const form = event.target.closest(
+                "#adaptiveTransitionForm"
+            );
+            const output = form?.querySelector(
+                "[data-transition-count-output]"
+            );
+            const count = Math.max(
+                3,
+                Math.min(12, Number(event.target.value) || 6)
+            );
+
+            if (output) {
+                output.textContent =
+                    `${count} titre${count > 1 ? "s" : ""}`;
+            }
+            adaptiveTransitionPreview = null;
+            return;
+        }
+        if (
+            event.target.closest(
+                "#mixStudioForm"
+            )
+        ) {
+            updateMixStudioFormPreview(
+                event.target.closest(
+                    "#mixStudioForm"
+                )
+            );
+        }
+
+        if (
+            event.target.id ===
+                "syncDiffSearchInput"
+        ) {
+            filterSyncDetailedDiff(
+                event.target.value
+            );
+            return;
+        }
+
+        if (
+            event.target.matches(
+                "[data-intensity-control]"
+            )
+        ) {
+            updateIntensityPreviewFromForm(
+                event.target.closest(
+                    "#intensitySettingsForm"
+                )
+            );
+            return;
+        }
+
+        if (event.target.matches("[data-shuffle-setting]")) {
+            const form = event.target.closest(
+                "[data-saved-mix-settings-id]"
+            );
+            const settingName =
+                event.target.dataset.shuffleSetting;
+            const valueElement = form?.querySelector(
+                `[data-setting-value="${settingName}"]`
+            );
+
+            if (valueElement) {
+                valueElement.textContent =
+                    settingName === "recentAvoidance"
+                        ? getRecentAvoidanceLabel(
+                            event.target.value
+                        )
+                        : event.target.value;
+            }
+
+            const presetSelect =
+                form?.querySelector("[data-shuffle-preset]");
+
+            if (
+                presetSelect &&
+                presetSelect.value !== "custom"
+            ) {
+                const preset =
+                    SHUFFLE_PRESETS[presetSelect.value];
+
+                const stillMatchesPreset =
+                    Number(form.elements.artistGap.value) ===
+                        preset.artistGap &&
+                    Number(form.elements.albumGap.value) ===
+                        preset.albumGap &&
+                    Number(form.elements.recentAvoidance.value) ===
+                        preset.recentAvoidance;
+
+                if (!stillMatchesPreset) {
+                    presetSelect.value = "custom";
+                }
+            }
+
+            return;
+        }
+
+        if (event.target.id === "trackOrderSearchInput") {
+            trackSearchTerm = event.target.value;
+            renderTrackList();
+
             const searchInput = document.getElementById(
-                "librarySearchInput"
+                "trackOrderSearchInput"
             );
 
             if (searchInput) {
+                const cursorPosition =
+                    event.target.selectionStart ??
+                    trackSearchTerm.length;
+
                 searchInput.focus();
-                const nextCursor = Math.min(
-                    cursorPosition ?? librarySearchTerm.length,
-                    librarySearchTerm.length
-                );
-                searchInput.setSelectionRange(nextCursor, nextCursor);
-            }
-        }
-    );
-
-
-    contentElement.addEventListener(
-        "dragstart",
-        (event) => {
-            const row = event.target.closest(
-                ".track-row[data-track-index]"
-            );
-
-            if (
-                !row ||
-                row.dataset.queueLocked === "true"
-            ) {
-                return;
-            }
-
-            draggedTrackIndex = Number(
-                row.dataset.trackIndex
-            );
-
-            row.classList.add("is-dragging");
-
-            if (event.dataTransfer) {
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData(
-                    "text/plain",
-                    String(draggedTrackIndex)
+                searchInput.setSelectionRange(
+                    cursorPosition,
+                    cursorPosition
                 );
             }
+
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "dragover",
-        (event) => {
-            const row = event.target.closest(
-                ".track-row[data-track-index]"
+        if (event.target.id !== "librarySearchInput") {
+            return;
+        }
+
+        const cursorPosition = event.target.selectionStart;
+        librarySearchTerm = event.target.value;
+        saveLibraryPreferences();
+        displayPlaylists(playlistsCache);
+
+        const searchInput = document.getElementById(
+            "librarySearchInput"
+        );
+
+        if (searchInput) {
+            searchInput.focus();
+            const nextCursor = Math.min(
+                cursorPosition ?? librarySearchTerm.length,
+                librarySearchTerm.length
             );
+            searchInput.setSelectionRange(nextCursor, nextCursor);
+        }
+    }
+);
 
-            if (
-                !row ||
-                draggedTrackIndex < 0 ||
-                Number(row.dataset.trackIndex) <
+
+contentElement.addEventListener(
+    "dragstart",
+    (event) => {
+        const row = event.target.closest(
+            ".track-row[data-track-index]"
+        );
+
+        if (
+            !row ||
+            row.dataset.queueLocked === "true"
+        ) {
+            return;
+        }
+
+        draggedTrackIndex = Number(
+            row.dataset.trackIndex
+        );
+
+        row.classList.add("is-dragging");
+
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData(
+                "text/plain",
+                String(draggedTrackIndex)
+            );
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "dragover",
+    (event) => {
+        const row = event.target.closest(
+            ".track-row[data-track-index]"
+        );
+
+        if (
+            !row ||
+            draggedTrackIndex < 0 ||
+            Number(row.dataset.trackIndex) <
                 playbackQueueCursor
-            ) {
-                return;
-            }
-
-            event.preventDefault();
-
-            document
-                .querySelectorAll(".track-row.is-drag-target")
-                .forEach((item) =>
-                    item.classList.remove("is-drag-target")
-                );
-
-            row.classList.add("is-drag-target");
-
-            if (event.dataTransfer) {
-                event.dataTransfer.dropEffect = "move";
-            }
+        ) {
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "drop",
-        (event) => {
-            const row = event.target.closest(
-                ".track-row[data-track-index]"
+        event.preventDefault();
+
+        document
+            .querySelectorAll(".track-row.is-drag-target")
+            .forEach((item) =>
+                item.classList.remove("is-drag-target")
             );
 
-            if (
-                !row ||
-                draggedTrackIndex < 0 ||
-                Number(row.dataset.trackIndex) <
+        row.classList.add("is-drag-target");
+
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = "move";
+        }
+    }
+);
+
+contentElement.addEventListener(
+    "drop",
+    (event) => {
+        const row = event.target.closest(
+            ".track-row[data-track-index]"
+        );
+
+        if (
+            !row ||
+            draggedTrackIndex < 0 ||
+            Number(row.dataset.trackIndex) <
                 playbackQueueCursor
-            ) {
-                return;
-            }
-
-            event.preventDefault();
-
-            const targetIndex = Number(
-                row.dataset.trackIndex
-            );
-
-            moveTrack(
-                draggedTrackIndex,
-                targetIndex
-            );
-
-            draggedTrackIndex = -1;
+        ) {
+            return;
         }
-    );
 
-    contentElement.addEventListener(
-        "dragend",
-        () => {
-            draggedTrackIndex = -1;
+        event.preventDefault();
 
-            document
-                .querySelectorAll(
-                    ".track-row.is-dragging, .track-row.is-drag-target"
-                )
-                .forEach((row) => {
-                    row.classList.remove(
-                        "is-dragging",
-                        "is-drag-target"
-                    );
-                });
-        }
-    );
+        const targetIndex = Number(
+            row.dataset.trackIndex
+        );
+
+        moveTrack(
+            draggedTrackIndex,
+            targetIndex
+        );
+
+        draggedTrackIndex = -1;
+    }
+);
+
+contentElement.addEventListener(
+    "dragend",
+    () => {
+        draggedTrackIndex = -1;
+
+        document
+            .querySelectorAll(
+                ".track-row.is-dragging, .track-row.is-drag-target"
+            )
+            .forEach((row) => {
+                row.classList.remove(
+                    "is-dragging",
+                    "is-drag-target"
+                );
+            });
+    }
+);
 
 }
 
@@ -44541,7 +44683,7 @@ function prewarmUniversalSearch(event) {
         )
     ) {
         stylesheetLoader.preload("search");
-        ensureUniversalSearchFeature().catch(() => { });
+        ensureUniversalSearchFeature().catch(() => {});
     }
 }
 
@@ -44613,7 +44755,7 @@ document.addEventListener(
             if (universalSearchResults.length) {
                 universalSearchSelectedIndex =
                     (universalSearchSelectedIndex - 1 +
-                        universalSearchResults.length) %
+                    universalSearchResults.length) %
                     universalSearchResults.length;
                 updateUniversalSearchSelectionDom();
             }
@@ -44755,6 +44897,9 @@ window.addEventListener(
                 console.warn("Actualisation après reconnexion impossible :", error);
             });
         }
+        window.setTimeout(() => {
+            resumePendingAutomationLaunch("online");
+        }, 350);
     }
 );
 
@@ -44768,6 +44913,7 @@ document.addEventListener(
         }
 
         runServerAutoSync("visible");
+        resumePendingAutomationLaunch("visible");
 
         if (activeAppMenu === "driving") {
             syncDrivingViewportHeight();
