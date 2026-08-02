@@ -23,11 +23,13 @@ const v781Style = styleSource.split(
 )[1] || "";
 
 test("le sélecteur propose au moins treize palettes", () => {
-    assert.ok(Object.keys(UI_ACCENT_PRESETS).length >= 13);
+    assert.equal(Object.keys(UI_ACCENT_PRESETS).length, 14);
     assert.ok(UI_ACCENT_PRESETS.turquoise);
     assert.ok(UI_ACCENT_PRESETS.lime);
     assert.ok(UI_ACCENT_PRESETS.fuchsia);
     assert.ok(UI_ACCENT_PRESETS.gold);
+    assert.ok(UI_ACCENT_PRESETS.coral);
+    assert.equal(UI_ACCENT_PRESETS.coral.label, "Corail");
     assert.ok(UI_ACCENT_PRESETS.graphite);
 });
 

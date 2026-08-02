@@ -49,6 +49,12 @@ export const UI_ACCENT_PRESETS = Object.freeze({
         primary: "#f59e0b",
         secondary: "#f97316"
     }),
+    coral: Object.freeze({
+        id: "coral",
+        label: "Corail",
+        primary: "#fb7185",
+        secondary: "#f97316"
+    }),
     red: Object.freeze({
         id: "red",
         label: "Rouge",
