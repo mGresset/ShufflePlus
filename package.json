@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.5.0",
+  "version": "8.6.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.5.0 — architecture UI découpée, démarrage optimisé et sécurité CSP renforcée.",
+  "description": "Shuffle+ 8.6.0 — cohérence stricte des thèmes dans les réglages et surfaces PWA sans couleurs héritées.",
   "engines": {
     "node": ">=20"
   },

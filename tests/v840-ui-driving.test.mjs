@@ -17,11 +17,11 @@ const designSource = await readFile("design-system.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 
-test("la distribution active annonce Shuffle+ 8.5.0", () => {
-    assert.equal(versionSource, "8.5.0");
-    assert.match(indexSource, /shuffleplus-version" content="8\.5\.0/);
-    assert.match(appSource, /const APP_VERSION = "8\.5\.0"/);
-    assert.match(serviceWorkerSource, /shuffleplus-v8\.5\.0/);
+test("la distribution active annonce Shuffle+ 8.6.0", () => {
+    assert.equal(versionSource, "8.6.0");
+    assert.match(indexSource, /shuffleplus-version" content="8\.6\.0/);
+    assert.match(appSource, /const APP_VERSION = "8\.6\.0"/);
+    assert.match(serviceWorkerSource, /shuffleplus-v8\.6\.0/);
 });
 
 test("les actions historiques reçoivent une variante sémantique stable", () => {

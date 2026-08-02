@@ -6076,25 +6076,25 @@ y
 .pwa-update-actions button {
     min-height: 40px;
     padding: 8px 14px;
-    border: 1px solid #3d8055;
+    border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
     border-radius: 999px;
-    background: #1ed760;
-    color: #07190d;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary));
+    color: var(--accent-contrast);
     font-weight: 850;
 }
 
 .pwa-update-actions button:last-child {
     background: transparent;
-    color: #d8f7e2;
+    color: var(--text-main);
 }
 
 .pwa-settings-panel {
-    border-color: #315d40;
+    border-color: color-mix(in srgb, var(--accent) 24%, rgb(255 255 255 / 8%));
     background:
         linear-gradient(
             135deg,
-            rgb(22 62 36 / 70%),
-            rgb(18 18 18 / 96%) 65%
+            rgb(var(--accent-rgb) / 8%),
+            rgb(10 10 22 / 96%) 65%
         );
 }
 
@@ -6110,18 +6110,20 @@ y
 
 .pwa-state-installed,
 .pwa-state-available {
-    background: #1d5d36;
-    color: #9cf0b8;
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    background: rgb(var(--accent-rgb) / 15%);
+    color: color-mix(in srgb, var(--accent) 68%, white);
 }
 
 .pwa-state-ios {
-    background: #243a62;
-    color: #b7d1ff;
+    border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+    background: rgb(var(--accent-rgb) / 15%);
+    color: color-mix(in srgb, var(--accent) 68%, white);
 }
 
 .pwa-state-description,
 .pwa-offline-note {
-    color: #b8c8bd;
+    color: var(--text-muted);
     line-height: 1.55;
 }
 
@@ -6133,11 +6135,11 @@ y
     margin: 14px 0;
 }
 
-.pwa-capabilities span {
+.pwa-capabilities > .pwa-capability {
     padding: 12px;
-    border: 1px solid #2f4938;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, rgb(255 255 255 / 10%));
     border-radius: 12px;
-    background: #101913;
+    background: rgb(var(--accent-rgb) / 8%);
     font-size: 13px;
     font-weight: 700;
 }
@@ -6151,17 +6153,17 @@ y
 .pwa-settings-actions button {
     min-height: 42px;
     padding: 8px 14px;
-    border: 1px solid #3c7350;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, rgb(255 255 255 / 10%));
     border-radius: 999px;
-    background: #173923;
-    color: #d9f7e3;
+    background: rgb(var(--accent-rgb) / 7%);
+    color: var(--text-main);
     font-weight: 800;
 }
 
 .pwa-settings-actions button:first-child {
-    border-color: #1ed760;
-    background: #1ed760;
-    color: #07190d;
+    border-color: transparent;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary));
+    color: var(--accent-contrast);
 }
 
 .pwa-settings-actions button:disabled {

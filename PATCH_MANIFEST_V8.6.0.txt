@@ -1,0 +1,33 @@
+Shuffle+ v8.6.0 — patch depuis v8.5.0
+
+Fichiers ajoutés ou remplacés :
+- BUILD_REPORT_V8.6.0.json
+- DEPLOIEMENT-V8.6.0.md
+- README.md
+- ROADMAP.md
+- V8.6.0_NOTES.md
+- VERSION
+- app.js
+- config.js
+- design-system.css
+- index.html
+- manifest.webmanifest
+- package-lock.json
+- package.json
+- service-worker.js
+- startup-recovery-8.6.0.js
+- style.css
+- tests/v800-public-experience.test.mjs
+- tests/v830-launch-center.test.mjs
+- tests/v831-design-system.test.mjs
+- tests/v832-ui-fixes.test.mjs
+- tests/v840-ui-driving.test.mjs
+- tests/v841-spotify-pwa-theme.test.mjs
+- tests/v850-performance-security.test.mjs
+- tests/v860-settings-theme.test.mjs
+
+Fichiers à supprimer après extraction :
+- startup-recovery-8.5.0.js
+
+Commande recommandée :
+Remove-Item .\startup-recovery-8.5.0.js -ErrorAction SilentlyContinue

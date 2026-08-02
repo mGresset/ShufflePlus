@@ -1,0 +1,33 @@
+{
+  "version": "8.6.0",
+  "generated_at": "2026-08-02T15:55:00+02:00",
+  "base_version": "8.5.0",
+  "scope": "Theme consistency for PWA settings surfaces",
+  "validation": {
+    "javascript_files_checked": 83,
+    "module_graph_files": 43,
+    "csp_directives": 15,
+    "tests_passed": 150,
+    "tests_failed": 0,
+    "server_tests": "passed",
+    "production_build": "passed",
+    "distribution_check": "passed",
+    "local_smoke_test": "passed"
+  },
+  "fixed": {
+    "legacy_selector": ".pwa-capabilities span",
+    "replacement_selector": ".pwa-capabilities > .pwa-capability",
+    "nested_labels_reset": true,
+    "hardcoded_pwa_green_removed": true,
+    "theme_presets_preserved": 13,
+    "custom_theme_preserved": true
+  },
+  "manual_checks_remaining": [
+    "Visual verification in the deployed browser with the blue theme",
+    "PWA refresh verification on iPhone"
+  ],
+  "archive_validation": {
+    "patch_from_8.5.0": "passed (150/150 tests, build, dist, smoke)",
+    "source_complete": "passed (150/150 tests, build, dist, smoke)"
+  }
+}
