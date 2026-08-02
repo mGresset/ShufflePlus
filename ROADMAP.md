@@ -19,5 +19,5 @@
 - **v9.4.0 — File Spotify intelligente et continuité de lecture : terminée**
 - **v9.4.1 — Toasts de confirmation alignés sur le thème : terminée**
 - **v9.5.0 — Centre de fiabilité, journal et récupération guidée : terminée**
-- **v9.6.0 — Tests navigateur Safari/iPhone et scénarios Spotify réels : prévue**
+- **v9.6.1 — Tests navigateur Safari/iPhone et scénarios Spotify réels : prévue**
 - **v10.0.0 — Découpage majeur des contrôleurs métier hors de `app.js` : prévue**

@@ -1,8 +1,8 @@
-# Shuffle+ v9.6.0
+# Shuffle+ v9.6.1
 
 Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple sur iPhone.
 
-## Nouveautés v9.6.0
+## Nouveautés v9.6.1
 
 - nouvel espace **Accès immédiat** sur l’accueil ;
 - jusqu’à quatre profils de lancement épinglés ;
@@ -26,4 +26,4 @@ npm.cmd start
 
 La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V9.6.0_NOTES.md` et `DEPLOIEMENT-V9.6.0.md` pour le détail.
+Consulte `V9.6.1_NOTES.md` et `DEPLOIEMENT-V9.6.1.md` pour le détail.

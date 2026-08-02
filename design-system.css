@@ -1284,3 +1284,241 @@ img[loading="lazy"] {
         contain-intrinsic-size: auto;
     }
 }
+
+/* ---------------------------------------------------------------------
+   Shuffle+ v9.6.1 — cohérence du thème dans la rubrique Créer
+   Les anciens modules utilisaient encore leurs palettes historiques
+   (vert Spotify, rose, bleu et orange). Cette couche les relie au thème
+   actif sans modifier les couleurs sémantiques des actions destructives.
+   --------------------------------------------------------------------- */
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-commands-panel,
+    .ios-quickplay-panel,
+    .dynamic-lyrics-panel,
+    .mix-studio-panel,
+    .saved-mixes-panel,
+    .schedules-panel,
+    .mix-history-panel
+) {
+    border-color: var(--ui-card-border) !important;
+    background: var(--ui-card-bg) !important;
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 4%),
+        0 18px 42px rgb(0 0 0 / 20%) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-command-form,
+    .ios-command-check,
+    .ios-shortcut-setup,
+    .ios-shortcut-instructions,
+    .dynamic-lyrics-help,
+    .mix-studio-template-toolbar,
+    .mix-studio-range-field,
+    .mix-studio-source-row,
+    .mix-studio-summary,
+    .mix-studio-variant-card,
+    .mix-studio-variant-card dl > div,
+    .saved-mixes-empty,
+    .saved-mix-card,
+    .saved-mix-settings,
+    .schedule-form,
+    .schedule-empty,
+    .schedule-card,
+    .mix-history-empty,
+    .mix-history-card,
+    .mix-history-metrics span,
+    .history-ranking
+) {
+    border-color: var(--ui-card-border) !important;
+    background:
+        color-mix(
+            in srgb,
+            var(--accent) 5%,
+            rgb(10 10 22 / 94%)
+        ) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .dynamic-lyrics-heading > div > span,
+    .mix-studio-kicker,
+    .mix-studio-version,
+    .mix-studio-range-field output,
+    .mix-studio-source-weight output,
+    .mix-studio-variant-card dd,
+    .schedule-last-result,
+    .mix-history-metrics strong,
+    .history-ranking li b
+) {
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 72%,
+            white
+        ) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-commands-heading p,
+    .ios-quickplay-heading p,
+    .dynamic-lyrics-heading small,
+    .dynamic-lyrics-help p,
+    .mix-studio-heading p,
+    .mix-studio-sources-heading small,
+    .mix-studio-source-copy small,
+    .mix-studio-source-weight > span,
+    .mix-studio-compare-actions small,
+    .mix-studio-variant-card p,
+    .mix-studio-variant-card small,
+    .saved-mixes-heading p,
+    .saved-mix-card p,
+    .saved-mix-card small,
+    .schedules-heading p,
+    .schedule-card p,
+    .schedule-card small,
+    .mix-history-heading p,
+    .mix-history-card p,
+    .mix-history-metrics span,
+    .history-ranking li
+) {
+    color: var(--text-muted) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-command-field input,
+    .ios-command-field select,
+    .ios-quickplay-field input,
+    .ios-quickplay-field select,
+    .mix-studio-field input,
+    .mix-studio-field select,
+    .schedule-field input,
+    .schedule-field select
+) {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-command-field input,
+    .ios-command-field select,
+    .ios-quickplay-field input,
+    .ios-quickplay-field select,
+    .mix-studio-field input,
+    .mix-studio-field select,
+    .schedule-field input,
+    .schedule-field select
+):focus {
+    border-color: var(--ui-control-border-hover) !important;
+    box-shadow: var(--ui-focus-ring);
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"]
+) {
+    accent-color: var(--accent) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] .dynamic-lyrics-state.is-enabled,
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-commands-heading > span,
+    .ios-quickplay-heading > span,
+    .saved-mixes-heading > span
+) {
+    border-color: var(--border-active) !important;
+    background: rgb(var(--accent-rgb) / 14%) !important;
+    color:
+        color-mix(
+            in srgb,
+            var(--accent) 70%,
+            white
+        ) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] .mix-studio-source-row:has(input:checked) {
+    border-color: var(--border-active) !important;
+    background: rgb(var(--accent-rgb) / 13%) !important;
+    box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 8%);
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .saved-mix-icon,
+    .schedule-icon
+) {
+    background:
+        linear-gradient(
+            135deg,
+            rgb(var(--accent-rgb) / 42%),
+            rgb(var(--accent-rgb) / 16%)
+        ) !important;
+    color: #ffffff;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-command-save,
+    .ios-quickplay-save,
+    .mix-studio-save-button,
+    .saved-mix-launch,
+    .schedule-run-button,
+    .mix-history-relaunch
+) {
+    border-color: transparent !important;
+    background:
+        linear-gradient(
+            120deg,
+            var(--accent),
+            var(--accent-secondary)
+        ) !important;
+    box-shadow: 0 10px 26px rgb(var(--accent-rgb) / 20%);
+    color: var(--accent-contrast) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-command-secondary,
+    .ios-quickplay-test,
+    .ios-quickplay-copy,
+    .mix-studio-link-button,
+    .mix-studio-preview-button,
+    .mix-studio-template-actions button,
+    .mix-studio-compare-button,
+    .mix-studio-variant-actions button,
+    .saved-mix-secondary,
+    .schedule-refresh-button,
+    .schedule-secondary-button,
+    .mix-history-clear
+) {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .ios-command-secondary,
+    .ios-quickplay-test,
+    .ios-quickplay-copy,
+    .mix-studio-link-button,
+    .mix-studio-preview-button,
+    .mix-studio-template-actions button,
+    .mix-studio-compare-button,
+    .mix-studio-variant-actions button,
+    .saved-mix-secondary,
+    .schedule-refresh-button,
+    .schedule-secondary-button,
+    .mix-history-clear
+):hover:not(:disabled) {
+    border-color: var(--ui-control-border-hover) !important;
+    background: var(--ui-control-bg-hover) !important;
+    box-shadow: var(--shadow-accent);
+}
+
+/* Les boutons de suppression restent rouges : la couleur est sémantique. */
+.app-menu-page[data-app-menu-page="mixes"] :where(
+    .saved-mix-delete,
+    .mix-history-delete
+):hover:not(:disabled) {
+    border-color: #a45e5e !important;
+    background: #3a2323 !important;
+}

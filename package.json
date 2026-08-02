@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.6.0",
+  "version": "9.6.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.6.0 — recherche globale, profils épinglés, favoris et relance rapide depuis l’accueil.",
+  "description": "Shuffle+ 9.6.1 — cohérence complète du thème dans la rubrique Créer.",
   "engines": {
     "node": ">=20"
   },
