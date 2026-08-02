@@ -1,0 +1,43 @@
+{
+  "application": "Shuffle+",
+  "version": "8.3.2",
+  "date": "2026-08-02",
+  "scope": [
+    "connected header layout",
+    "hidden attribute regression",
+    "desktop sticky navigation",
+    "settings theme unification"
+  ],
+  "validation": {
+    "javascript_files_checked": 81,
+    "module_graph_files": 37,
+    "application_tests": {
+      "passed": 121,
+      "failed": 0
+    },
+    "server_tests": "passed",
+    "production_build": "passed",
+    "distribution_check": "passed",
+    "local_smoke_test": "passed"
+  },
+  "visual_checks": {
+    "desktop_viewport": "1903x900",
+    "hidden_login_computed_display": "none",
+    "header_overlap": false,
+    "sticky_navigation_top": "0px",
+    "theme_palettes_checked": [
+      "violet",
+      "blue",
+      "pink",
+      "emerald",
+      "orange"
+    ],
+    "save_buttons_follow_theme": true,
+    "checkboxes_follow_theme": true
+  },
+  "deployment": {
+    "pipeline": "Visual Studio -> GitHub main -> Railway",
+    "new_railway_variables": false,
+    "storage_migration": false
+  }
+}

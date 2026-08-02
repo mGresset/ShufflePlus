@@ -1,0 +1,29 @@
+SHUFFLE+ 8.3.2 — MANIFESTE DU PATCH DEPUIS 8.3.1
+
+Fichiers ajoutés :
+- BUILD_REPORT_V8.3.2.json
+- DEPLOIEMENT-V8.3.2.md
+- INSTALLATION-V8.3.2.txt
+- PATCH_MANIFEST_V8.3.2.txt
+- V8.3.2_NOTES.md
+- startup-recovery-8.3.2.js
+- tests/v832-ui-fixes.test.mjs
+
+Fichiers remplacés :
+- README.md
+- ROADMAP.md
+- VERSION
+- app.js
+- config.js
+- design-system.css
+- index.html
+- manifest.webmanifest
+- package.json
+- service-worker.js
+- tests/v830-launch-center.test.mjs
+- tests/v831-design-system.test.mjs
+
+Fichier ancien facultatif à supprimer après extraction :
+- startup-recovery-8.3.1.js
+
+Ce fichier n’est plus référencé et ne gêne pas le fonctionnement s’il reste dans le dépôt.

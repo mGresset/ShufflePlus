@@ -554,3 +554,341 @@ html.reduce-motion *::after {
         transition: none;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v8.3.2 — Correctifs de cohérence visuelle
+   Header robuste, attribut hidden prioritaire, navigation sans interstice
+   et réglages strictement reliés à la palette active.
+   ===================================================================== */
+
+/* Un composant masqué doit rester masqué, même lorsqu'une règle de bouton
+   lui attribue display:flex ou display:grid. */
+[hidden] {
+    display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+   Header connecté : quatre zones stables, sans texte écrasé ni boutons
+   étirés. Les actions restent lisibles sur une ligne sur grand écran.
+   --------------------------------------------------------------------- */
+@media (min-width: 761px) {
+    body.is-connected .hero {
+        grid-template-columns:
+            max-content
+            max-content
+            minmax(170px, 1fr)
+            max-content;
+        column-gap: 16px;
+        row-gap: 8px;
+        padding: 14px 18px;
+    }
+
+    body.is-connected .brand,
+    body.is-connected .version-line,
+    body.is-connected #welcome,
+    body.is-connected .actions {
+        align-self: center;
+    }
+
+    body.is-connected #welcome {
+        width: 100%;
+        padding-inline: 4px;
+        font-size: 15px;
+        line-height: 1.3;
+    }
+
+    body.is-connected .actions {
+        display: flex;
+        width: auto;
+        min-width: 0;
+        align-items: center;
+        flex-wrap: nowrap;
+        gap: 10px;
+    }
+
+    body.is-connected .actions > button {
+        width: auto !important;
+        min-width: max-content !important;
+        min-height: 46px;
+        padding: 10px 16px;
+        border-radius: var(--ui-radius-md);
+        white-space: nowrap;
+    }
+
+    body.is-connected .actions > #loginButton {
+        min-width: 230px !important;
+    }
+
+    body.is-connected .actions > #logoutButton,
+    body.is-connected .actions > #installAppButton {
+        font-size: 13px;
+    }
+}
+
+
+@media (min-width: 761px) and (max-width: 1100px) {
+    body.is-connected .hero {
+        grid-template-columns: max-content max-content minmax(0, 1fr);
+    }
+
+    body.is-connected .actions {
+        grid-column: 1 / -1;
+        display: grid;
+        width: 100%;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+
+    body.is-connected .actions > button,
+    body.is-connected .actions > #loginButton {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+}
+
+/* Le menu sticky ne laisse plus une bande de contenu visible au-dessus. */
+@media (min-width: 761px) {
+    .app-menu.app-menu--primary {
+        top: 0;
+        z-index: 100;
+        margin-top: 0;
+        background:
+            linear-gradient(
+                180deg,
+                color-mix(in srgb, var(--surface-1) 96%, transparent),
+                color-mix(in srgb, var(--surface-0) 94%, transparent)
+            );
+        box-shadow:
+            0 14px 36px rgb(0 0 0 / 34%),
+            inset 0 1px 0 rgb(255 255 255 / 4%);
+        backdrop-filter: blur(20px) saturate(135%);
+    }
+
+    .app-menu-page {
+        scroll-margin-top: 92px;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   Réglages : une seule palette et une hiérarchie sémantique commune.
+   --------------------------------------------------------------------- */
+.app-menu-page[data-app-menu-page="settings"] {
+    display: grid;
+    gap: 22px;
+}
+
+.app-menu-page[data-app-menu-page="settings"] > :where(
+    section,
+    article,
+    details
+) {
+    margin-block: 0 !important;
+    border-color: var(--ui-card-border) !important;
+    background: var(--ui-card-bg) !important;
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 4%),
+        0 18px 42px rgb(0 0 0 / 20%) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :where(
+    .priority-panel,
+    .coherence-panel,
+    .intensity-panel,
+    .exclusion-panel,
+    .cleanup-panel,
+    .mix-profiles-panel,
+    .backup-panel,
+    .pwa-settings-panel,
+    .sync-preparation-panel,
+    .spotify-connection-settings,
+    .contextual-help-settings-panel,
+    .app-health-panel,
+    .offline-performance-panel,
+    .experience-mode-panel,
+    .ui-theme-settings-panel
+) {
+    border-color: var(--ui-card-border) !important;
+    background: var(--ui-card-bg) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :where(
+    .priority-panel-heading p,
+    .coherence-panel-heading p,
+    .intensity-panel-heading p,
+    .exclusion-panel-heading p,
+    .cleanup-panel-heading p,
+    .priority-field > span,
+    .coherence-field > span,
+    .intensity-field > span,
+    .exclusion-field > span,
+    .cleanup-field > span,
+    .settings-card-heading p,
+    .settings-card p
+) {
+    color: var(--text-muted) !important;
+}
+
+/* Champs, sélecteurs et zones de texte des réglages. */
+.app-menu-page[data-app-menu-page="settings"] :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea
+) {
+    min-height: var(--ui-control-height) !important;
+    padding: var(--ui-control-padding) !important;
+    border: 1px solid var(--ui-control-border) !important;
+    border-radius: var(--ui-radius-md) !important;
+    outline: 0;
+    background: var(--ui-control-bg) !important;
+    box-shadow: var(--ui-control-shadow);
+    color: var(--text-main) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea
+):hover {
+    border-color: var(--ui-control-border-hover) !important;
+    background: var(--ui-control-bg-hover) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea
+):focus {
+    border-color: var(--accent-border) !important;
+    box-shadow: var(--ui-focus-ring) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :where(
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="range"]
+) {
+    accent-color: var(--accent) !important;
+}
+
+/* Conteneurs historiques des cases, sliders et aperçus. */
+.app-menu-page[data-app-menu-page="settings"] :where(
+    .priority-check,
+    .coherence-check,
+    .intensity-check,
+    .exclusion-check,
+    .cleanup-check,
+    .coherence-range-row,
+    .intensity-range-row,
+    .priority-result-banner,
+    .coherence-result-banner,
+    .intensity-result-banner,
+    .exclusion-result-banner,
+    .cleanup-result-banner,
+    .spotify-config-summary,
+    .spotify-redirect-box
+) {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :where(
+    .priority-result-banner strong,
+    .coherence-result-banner strong,
+    .intensity-result-banner strong,
+    .exclusion-result-banner strong,
+    .cleanup-result-banner strong,
+    .coherence-range-value,
+    .intensity-range-value
+) {
+    color: color-mix(in srgb, var(--accent) 68%, white) !important;
+}
+
+/* Tous les boutons partent d'une base neutre. */
+.app-menu-page[data-app-menu-page="settings"] button {
+    appearance: none;
+    display: inline-flex;
+    min-height: var(--ui-control-height);
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: var(--ui-control-padding);
+    border: 1px solid var(--ui-control-border) !important;
+    border-radius: var(--ui-radius-md) !important;
+    background: var(--ui-control-bg) !important;
+    box-shadow: var(--ui-control-shadow) !important;
+    color: var(--text-main) !important;
+    font-weight: 760;
+    line-height: 1.15;
+}
+
+.app-menu-page[data-app-menu-page="settings"] button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: var(--ui-control-border-hover) !important;
+    background: var(--ui-control-bg-hover) !important;
+    box-shadow:
+        var(--ui-control-shadow),
+        0 10px 26px rgb(var(--accent-rgb) / 12%) !important;
+}
+
+/* Enregistrer / appliquer = action principale du thème actif. */
+.app-menu-page[data-app-menu-page="settings"] :is(
+    button[type="submit"],
+    button.priority-save-button,
+    button.coherence-save-button,
+    button.intensity-save-button,
+    button.exclusion-save-button,
+    button.cleanup-save-button,
+    button.primary,
+    button.ui-button--primary
+) {
+    border-color: transparent !important;
+    background: linear-gradient(
+        120deg,
+        var(--accent),
+        var(--accent-secondary)
+    ) !important;
+    box-shadow:
+        inset 0 1px 0 rgb(255 255 255 / 16%),
+        0 12px 30px rgb(var(--accent-rgb) / 22%) !important;
+    color: var(--accent-contrast) !important;
+    font-weight: 850;
+}
+
+/* Réinitialiser reste neutre ; seule une vraie suppression est rouge. */
+.app-menu-page[data-app-menu-page="settings"] :is(
+    button.priority-reset-button,
+    button.coherence-reset-button,
+    button.intensity-reset-button,
+    button.exclusion-reset-button,
+    button.cleanup-reset-button,
+    button.cleanup-restore-button
+) {
+    border-color: var(--ui-control-border) !important;
+    background: transparent !important;
+    color: var(--text-main) !important;
+}
+
+.app-menu-page[data-app-menu-page="settings"] :is(
+    button.danger,
+    button.ui-button--danger
+) {
+    border-color: rgb(248 113 113 / 42%) !important;
+    background: rgb(127 29 29 / 20%) !important;
+    color: #fecaca !important;
+}
+
+@media (max-width: 760px) {
+    .app-menu-page[data-app-menu-page="settings"] {
+        gap: 16px;
+    }
+
+    .app-menu-page[data-app-menu-page="settings"] :where(
+        .priority-actions,
+        .coherence-actions,
+        .intensity-actions,
+        .exclusion-actions,
+        .cleanup-actions
+    ) button {
+        width: 100%;
+    }
+}
