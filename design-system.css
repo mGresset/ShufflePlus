@@ -1031,310 +1031,6 @@ html.reduce-motion *::after {
     border-color: color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
-/* ---------------------------------------------------------------------
-   Mode conduite v8.4 : progression et file toujours compréhensible.
-   --------------------------------------------------------------------- */
-
-body.is-driving-mode {
-    background:
-        radial-gradient(
-            circle at 50% -12%,
-            rgb(var(--accent-rgb) / 18%),
-            transparent 42%
-        ),
-        color-mix(in srgb, var(--surface-0) 94%, black);
-}
-
-.driving-playback-progress {
-    display: grid;
-    gap: 5px;
-    padding: 0 4px;
-}
-
-.driving-playback-progress-track {
-    height: 6px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 9%);
-}
-
-.driving-playback-progress-track i {
-    display: block;
-    width: var(--driving-progress, 0%);
-    height: 100%;
-    border-radius: inherit;
-    background: linear-gradient(
-        90deg,
-        var(--accent-secondary),
-        var(--accent)
-    );
-    box-shadow: 0 0 16px rgb(var(--accent-rgb) / 45%);
-    transition: width 450ms linear;
-}
-
-.driving-playback-progress > div:last-child {
-    display: flex;
-    justify-content: space-between;
-    color: var(--text-muted);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
-.driving-queue-preview {
-    border-color: color-mix(in srgb, var(--accent) 24%, rgb(255 255 255 / 8%));
-    background: linear-gradient(
-        145deg,
-        rgb(var(--accent-rgb) / 10%),
-        rgb(255 255 255 / 2.5%)
-    );
-}
-
-.driving-queue-preview > header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
-}
-
-.driving-queue-preview > header button {
-    min-height: 38px;
-    padding: 8px 12px;
-    border: 1px solid var(--ui-control-border);
-    border-radius: 12px;
-    background: var(--ui-control-bg);
-    color: var(--text-main);
-    font-weight: 760;
-}
-
-.driving-queue-freshness {
-    display: inline-flex;
-    min-height: 24px;
-    align-items: center;
-    padding: 4px 8px;
-    border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-    border-radius: 999px;
-    background: rgb(var(--accent-rgb) / 10%);
-    color: color-mix(in srgb, var(--accent) 62%, white);
-    font-size: 10px;
-    font-weight: 820;
-    white-space: nowrap;
-}
-
-.driving-queue-freshness.is-stale {
-    border-color: color-mix(in srgb, var(--ui-warning) 38%, transparent);
-    background: color-mix(in srgb, var(--ui-warning) 10%, transparent);
-    color: #fde68a;
-}
-
-.driving-queue-freshness.is-empty {
-    color: var(--text-muted);
-}
-
-.driving-queue-preview li {
-    grid-template-columns: 38px minmax(0, 1fr) auto;
-}
-
-.driving-queue-preview li img,
-.driving-queue-preview-index {
-    display: grid;
-    width: 38px;
-    height: 38px;
-    place-items: center;
-    border-radius: 10px;
-    object-fit: cover;
-    background: rgb(var(--accent-rgb) / 16%);
-    color: color-mix(in srgb, var(--accent) 66%, white);
-    font-weight: 850;
-}
-
-.driving-queue-preview li time {
-    color: var(--text-muted);
-    font-size: 11px;
-    font-variant-numeric: tabular-nums;
-}
-
-.driving-queue-preview-empty {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 12px;
-    background: rgb(0 0 0 / 14%);
-    color: var(--text-muted);
-    font-size: 12px;
-    line-height: 1.45;
-}
-
-.driving-spotify-link {
-    display: grid;
-    grid-template-columns: auto auto;
-    min-width: 0;
-    min-height: 42px;
-    place-content: center;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 9px;
-    border: 1px solid var(--ui-control-border);
-    border-radius: 12px;
-    background: var(--ui-control-bg);
-    color: var(--text-main);
-    text-decoration: none;
-}
-
-.driving-spotify-link span {
-    color: var(--accent);
-    font-size: 16px;
-}
-
-.driving-spotify-link small {
-    overflow: hidden;
-    font-size: 10px;
-    text-overflow: ellipsis;
-}
-
-@media (max-width: 600px) {
-    body.is-driving-mode .driving-mode-page {
-        grid-template-areas:
-            "header"
-            "safety"
-            "context"
-            "playing"
-            "progress"
-            "queue"
-            "main"
-            "feedback"
-            "secondary"
-            "message";
-        grid-template-rows:
-            auto auto auto
-            minmax(62px, 0.7fr)
-            auto
-            minmax(96px, 1fr)
-            minmax(132px, 1.35fr)
-            auto auto auto;
-    }
-
-    body.is-driving-mode .driving-playback-progress {
-        grid-area: progress;
-    }
-
-    body.is-driving-mode .driving-queue-preview {
-        grid-area: queue;
-        min-height: 0;
-        gap: 5px;
-        padding: 7px;
-        overflow: hidden;
-        border-radius: 13px;
-    }
-
-    body.is-driving-mode .driving-queue-preview > header {
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 6px;
-    }
-
-    body.is-driving-mode .driving-queue-preview > header > div strong,
-    body.is-driving-mode .driving-queue-preview > header > div span {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    body.is-driving-mode .driving-queue-freshness {
-        display: none;
-    }
-
-    body.is-driving-mode .driving-queue-preview > header button {
-        min-height: 32px;
-        padding: 5px 8px;
-        font-size: 10px;
-    }
-
-    body.is-driving-mode .driving-queue-preview ol {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 5px;
-        min-height: 0;
-    }
-
-    body.is-driving-mode .driving-queue-preview li {
-        grid-template-columns: 26px minmax(0, 1fr);
-        min-width: 0;
-        padding: 5px;
-    }
-
-    body.is-driving-mode .driving-queue-preview li img,
-    body.is-driving-mode .driving-queue-preview-index {
-        width: 26px;
-        height: 26px;
-        border-radius: 8px;
-        font-size: 10px;
-    }
-
-    body.is-driving-mode .driving-queue-preview li strong,
-    body.is-driving-mode .driving-queue-preview li small {
-        font-size: 9px;
-    }
-
-    body.is-driving-mode .driving-queue-preview li time {
-        display: none;
-    }
-
-    body.is-driving-mode .driving-queue-preview-empty {
-        padding: 6px 8px;
-        font-size: 10px;
-    }
-
-    body.is-driving-mode .driving-secondary-controls {
-        grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
-    }
-
-    body.is-driving-mode .driving-secondary-controls :where(
-        button,
-        label,
-        .driving-spotify-link
-    ) {
-        min-height: 36px;
-        padding: 4px 5px;
-    }
-}
-
-@media (max-width: 600px) and (max-height: 760px) {
-    body.is-driving-mode .driving-mode-page {
-        grid-template-rows:
-            auto auto auto
-            minmax(54px, 0.6fr)
-            auto
-            minmax(78px, 0.8fr)
-            minmax(118px, 1.25fr)
-            auto auto auto;
-    }
-
-    body.is-driving-mode .driving-queue-preview ol {
-        grid-template-columns: 1fr;
-    }
-
-    body.is-driving-mode .driving-queue-preview li:nth-child(n + 2) {
-        display: none;
-    }
-}
-
-@media (orientation: landscape) and (max-height: 600px) {
-    body.is-driving-mode .driving-playback-progress {
-        grid-area: progress;
-    }
-
-    body.is-driving-mode .driving-queue-preview {
-        display: none;
-    }
-
-    body.is-driving-mode .driving-mode-page {
-        grid-template-areas:
-            "header header"
-            "playing main"
-            "progress main"
-            "context main"
-            "feedback main"
-            "secondary message";
-        grid-template-rows: auto minmax(54px, 1fr) auto auto auto auto;
-    }
-}
-
 /* =====================================================================
    Shuffle+ v8.4.1 — Connexion Spotify lisible et PWA liée au thème
    ===================================================================== */
@@ -1496,104 +1192,6 @@ body.is-driving-mode {
     border-top: 1px solid color-mix(in srgb, var(--accent) 16%, rgb(255 255 255 / 8%));
 }
 
-/* ---------------------------------------------------------------------
-   Installation PWA : les anciens verts Spotify/PWA sont remplacés par
-   la palette active. Le rouge reste réservé à une capacité indisponible.
-   --------------------------------------------------------------------- */
-.pwa-install-header-button {
-    border-color: var(--ui-control-border) !important;
-    background: var(--ui-control-bg) !important;
-    color: var(--text-main) !important;
-}
-
-.pwa-install-guide,
-.pwa-update-banner,
-.pwa-settings-panel {
-    border-color: var(--ui-card-border) !important;
-    background: var(--ui-card-bg) !important;
-    color: var(--text-main) !important;
-}
-
-.pwa-install-guide strong,
-.pwa-update-banner strong {
-    color: color-mix(in srgb, var(--accent) 66%, white) !important;
-}
-
-.pwa-install-guide > button {
-    background: rgb(var(--accent-rgb) / 18%) !important;
-    color: var(--text-main) !important;
-}
-
-.pwa-update-banner span,
-.pwa-state-description,
-.pwa-offline-note {
-    color: var(--text-muted) !important;
-}
-
-.pwa-state-badge,
-.pwa-state-installed,
-.pwa-state-available,
-.pwa-state-ios,
-.pwa-state-browser {
-    border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent) !important;
-    background: rgb(var(--accent-rgb) / 15%) !important;
-    color: color-mix(in srgb, var(--accent) 66%, white) !important;
-}
-
-.pwa-capabilities {
-    gap: 10px;
-}
-
-.pwa-capabilities .pwa-capability {
-    display: grid;
-    grid-template-columns: 24px minmax(0, 1fr);
-    align-items: center;
-    gap: 9px;
-    min-width: 0;
-    padding: 11px 12px;
-    border: 1px solid var(--ui-control-border) !important;
-    border-radius: var(--ui-radius-sm);
-    background: var(--ui-control-bg) !important;
-    color: var(--text-main);
-}
-
-.pwa-capability > b {
-    display: grid;
-    width: 23px;
-    height: 23px;
-    place-items: center;
-    border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
-    border-radius: 7px;
-    background: rgb(var(--accent-rgb) / 16%);
-    color: color-mix(in srgb, var(--accent) 68%, white);
-    font-size: 0.78rem;
-    line-height: 1;
-}
-
-.pwa-capability.is-unavailable > b {
-    border-color: color-mix(in srgb, var(--ui-danger) 42%, transparent);
-    background: color-mix(in srgb, var(--ui-danger) 12%, transparent);
-    color: #fecdd3;
-}
-
-.pwa-settings-actions button,
-.pwa-update-actions button {
-    border-color: var(--ui-control-border) !important;
-    background: var(--ui-control-bg) !important;
-    color: var(--text-main) !important;
-}
-
-.pwa-settings-actions .ui-button--primary,
-.pwa-update-actions button:first-child {
-    border-color: transparent !important;
-    background: linear-gradient(
-        120deg,
-        var(--accent),
-        var(--accent-secondary)
-    ) !important;
-    color: var(--accent-contrast) !important;
-}
-
 @media (max-width: 700px) {
     .spotify-auth-config .spotify-redirect-box,
     .spotify-client-id-card {
@@ -1622,6 +1220,47 @@ body.is-driving-mode {
     }
 }
 
+/* Shuffle+ v8.8.0 — composants PWA globaux.
+   Les panneaux de Réglages restent dans styles/feature-settings.css. */
+.pwa-install-header-button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-install-guide,
+.pwa-update-banner {
+    border-color: var(--ui-card-border) !important;
+    background: var(--ui-card-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-install-guide strong,
+.pwa-update-banner strong {
+    color: color-mix(in srgb, var(--accent) 66%, white) !important;
+}
+
+.pwa-install-guide > button {
+    background: rgb(var(--accent-rgb) / 18%) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-update-banner span {
+    color: var(--text-muted) !important;
+}
+
+.pwa-update-actions button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.pwa-update-actions button:first-child {
+    border-color: transparent !important;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary)) !important;
+    color: var(--accent-contrast) !important;
+}
+
 /* =====================================================================
    Shuffle+ v8.5.0 — rendu différé et performance des longues pages
    ===================================================================== */
@@ -1644,41 +1283,4 @@ img[loading="lazy"] {
         content-visibility: visible;
         contain-intrinsic-size: auto;
     }
-}
-
-
-/* =====================================================================
-   Shuffle+ v8.6.0 — Garantie de palette dans les réglages
-   Les cartes PWA et leurs libellés utilisent exclusivement le thème actif.
-   ===================================================================== */
-
-.pwa-capabilities > .pwa-capability:is(.is-ready, .is-info) {
-    border-color: color-mix(in srgb, var(--accent) 34%, rgb(255 255 255 / 8%)) !important;
-    background: rgb(var(--accent-rgb) / 9%) !important;
-    color: var(--text-main) !important;
-}
-
-.pwa-capabilities > .pwa-capability > span {
-    min-width: 0;
-    padding: 0 !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background: transparent !important;
-    color: inherit !important;
-    font: inherit;
-}
-
-.pwa-capabilities > .pwa-capability.is-unavailable {
-    border-color: color-mix(in srgb, var(--ui-danger) 34%, rgb(255 255 255 / 8%)) !important;
-    background: color-mix(in srgb, var(--ui-danger) 8%, rgb(10 10 22 / 96%)) !important;
-}
-
-.pwa-settings-panel :is(.pwa-state-badge, .pwa-capability, .pwa-settings-actions button) {
-    box-shadow: var(--ui-control-shadow);
-}
-
-/* Empêche une ancienne règle de succès verte d’écraser la palette choisie. */
-.pwa-settings-panel .is-ready:not(.ui-status--success),
-.pwa-settings-panel .is-info:not(.ui-status--success) {
-    --pwa-state-accent: var(--accent);
 }
