@@ -161,10 +161,16 @@ export function normalizeShortcutHistorySteps(steps = []) {
         .map((step) => ({
             id: cleanText(step.id, 60),
             label: cleanText(step.label, 120) || "Étape",
-            status: ["success", "error", "pending", "skipped"].includes(step.status)
+            status: ["success", "error", "pending", "waiting", "skipped"].includes(step.status)
                 ? step.status
                 : "success",
-            message: cleanText(step.message, 240)
+            message: cleanText(step.message, 240),
+            ...(Math.max(0, Number(step.attempt) || 0) > 0
+                ? { attempt: Math.max(0, Number(step.attempt) || 0) }
+                : {}),
+            ...(Math.max(0, Number(step.updatedAt) || 0) > 0
+                ? { updatedAt: Math.max(0, Number(step.updatedAt) || 0) }
+                : {})
         }))
         .slice(0, 12);
 }

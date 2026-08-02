@@ -17906,3 +17906,111 @@ html[data-experience-mode="essential"] .app-section-more {
         animation-duration: 1.8s;
     }
 }
+
+/* Shuffle+ 8.7.0 — lancement fiable et récupération actionnable */
+.launch-progress-screen {
+    max-width: 780px;
+}
+
+.launch-progress-steps {
+    width: min(100%, 620px);
+}
+
+.launch-progress-steps li.success {
+    border-color: color-mix(in srgb, var(--accent-color) 46%, transparent);
+    background: color-mix(in srgb, var(--accent-color) 8%, rgba(255, 255, 255, 0.025));
+}
+
+.launch-progress-steps li.success > span {
+    color: var(--accent-contrast, #fff);
+    background: var(--accent-color);
+}
+
+.launch-progress-steps li.error {
+    border-color: color-mix(in srgb, #ff6b78 62%, transparent);
+    background: color-mix(in srgb, #ff6b78 8%, rgba(255, 255, 255, 0.025));
+}
+
+.launch-progress-steps li.error > span {
+    color: #fff;
+    background: #d84c59;
+}
+
+.launch-progress-steps li.waiting {
+    opacity: 0.72;
+}
+
+.launch-result-panel {
+    width: min(100%, 760px);
+    min-height: 0;
+    align-content: start;
+    justify-items: stretch;
+    text-align: left;
+    background: color-mix(in srgb, var(--surface, #10131f) 94%, transparent);
+    border-color: color-mix(in srgb, var(--accent-color) 36%, transparent);
+}
+
+.launch-result-panel > span,
+.launch-result-panel > h2,
+.launch-result-panel > p {
+    justify-self: center;
+    text-align: center;
+}
+
+.launch-result-meta {
+    padding: 8px 12px;
+    border-radius: 999px;
+    color: var(--muted-text, #aeb5c5) !important;
+    background: color-mix(in srgb, var(--accent-color) 10%, transparent);
+    font-size: 0.86rem;
+}
+
+.launch-recovery-grid,
+.launch-result-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    width: 100%;
+}
+
+.launch-recovery-grid button,
+.launch-result-actions button {
+    width: 100%;
+    min-height: 48px;
+}
+
+.launch-recovery-grid .primary-button:first-child {
+    grid-column: 1 / -1;
+}
+
+.ios-automation-error[data-launch-error-code="NO_DEVICE"] {
+    border-color: color-mix(in srgb, var(--accent-color) 46%, transparent);
+}
+
+@media (max-width: 680px) {
+    .launch-progress-screen,
+    .launch-result-panel {
+        margin: 10px auto;
+        padding: 18px;
+        border-radius: 18px;
+    }
+
+    .launch-progress-steps li {
+        grid-template-columns: 32px minmax(0, 1fr);
+        padding: 10px;
+    }
+
+    .launch-progress-steps li > span {
+        width: 32px;
+        height: 32px;
+    }
+
+    .launch-recovery-grid,
+    .launch-result-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .launch-recovery-grid .primary-button:first-child {
+        grid-column: auto;
+    }
+}

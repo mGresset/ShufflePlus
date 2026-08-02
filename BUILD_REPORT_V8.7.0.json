@@ -1,0 +1,44 @@
+{
+  "product": "Shuffle+",
+  "version": "8.7.0",
+  "generatedAt": "2026-08-02T15:50:00+02:00",
+  "validation": {
+    "npmRunValidate": "passed",
+    "tests": {
+      "passed": 159,
+      "failed": 0,
+      "testFiles": 27
+    },
+    "javascriptSyntax": {
+      "status": "passed",
+      "files": 85
+    },
+    "moduleGraph": {
+      "status": "passed",
+      "modulesLinkedToApp": 44
+    },
+    "security": {
+      "status": "passed",
+      "cspDirectives": 15
+    },
+    "syncServerTests": "passed",
+    "productionBuild": "passed",
+    "distributionCheck": "passed",
+    "localSmokeTest": "passed"
+  },
+  "features": [
+    "launch preflight for network, Spotify configuration and profile source",
+    "last successful Spotify device memory and prioritization",
+    "six-stage launch progress",
+    "automatic second Spotify Connect activation and playback verification",
+    "classified recovery actions and enriched diagnostics",
+    "recoverable Apple Shortcut command persistence"
+  ],
+  "newRuntimeModules": [
+    "core/launch-reliability.js"
+  ],
+  "limitations": [
+    "No real Spotify Premium account was available in the validation environment.",
+    "No physical iPhone, Apple Shortcuts execution, Safari PWA or Railway deployment was tested."
+  ]
+}

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "8.6.0",
+  "version": "8.7.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 8.6.0 — cohérence stricte des thèmes dans les réglages et surfaces PWA sans couleurs héritées.",
+  "description": "Shuffle+ 8.7.0 — lancement Apple et Spotify plus fiable, diagnostic actionnable et mémorisation du dernier appareil opérationnel.",
   "engines": {
     "node": ">=20"
   },

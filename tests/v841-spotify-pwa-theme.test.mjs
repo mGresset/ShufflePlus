@@ -14,13 +14,13 @@ const v841Design = designSource.split(
     "Shuffle+ v8.4.1 — Connexion Spotify lisible et PWA liée au thème"
 )[1] || "";
 
-test("la distribution active annonce Shuffle+ 8.6.0", () => {
-    assert.equal(versionSource, "8.6.0");
-    assert.match(packageSource, /"version": "8\.6\.0"/);
-    assert.match(indexSource, /shuffleplus-version" content="8\.6\.0/);
-    assert.match(indexSource, /startup-recovery-8\.6\.0\.js/);
-    assert.match(appSource, /const APP_VERSION = "8\.6\.0"/);
-    assert.match(workerSource, /shuffleplus-v8\.6\.0/);
+test("la distribution active annonce Shuffle+ 8.7.0", () => {
+    assert.equal(versionSource, "8.7.0");
+    assert.match(packageSource, /"version": "8\.7\.0"/);
+    assert.match(indexSource, /shuffleplus-version" content="8\.7\.0/);
+    assert.match(indexSource, /startup-recovery-8\.7\.0\.js/);
+    assert.match(appSource, /const APP_VERSION = "8\.7\.0"/);
+    assert.match(workerSource, /shuffleplus-v8\.7\.0/);
 });
 
 test("le Client ID Spotify possède un bloc explicatif autonome", () => {

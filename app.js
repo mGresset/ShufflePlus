@@ -257,6 +257,15 @@ import {
 } from "./core/shortcut-profiles.js";
 
 import {
+    buildLaunchPreflight,
+    buildLaunchRecoveryActions,
+    classifyLaunchError,
+    normalizeLastWorkingSpotifyDevice,
+    prioritizeLaunchDevices,
+    upsertLaunchStep
+} from "./core/launch-reliability.js";
+
+import {
     GUIDED_SETUP_KEY,
     buildGuidedSetupChecklist,
     normalizeGuidedSetupState,
@@ -306,7 +315,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "8.6.0";
+const APP_VERSION = "8.7.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -391,6 +400,8 @@ const DRIVING_QUEUE_LIMIT = 20;
 const DRIVING_QUEUE_REFRESH_MS = 30000;
 const PREFERRED_SPOTIFY_DEVICE_KEY =
     "shuffleplus_preferred_spotify_device_v1";
+const LAST_WORKING_SPOTIFY_DEVICE_KEY =
+    "shuffleplus_last_working_spotify_device_v1";
 const DEFAULT_DRIVING_MODE_SETTINGS = {
     keepScreenAwake: true,
     autoRefresh: true,
@@ -722,7 +733,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.6.0-shell";
+    "shuffleplus-v8.7.0-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -1276,6 +1287,8 @@ let lastCleanupSummary = null;
 let lastCleanupSnapshot = null;
 let preferredSpotifyDevice =
     readPreferredSpotifyDevice();
+let lastWorkingSpotifyDevice =
+    readLastWorkingSpotifyDevice();
 let iosQuickPlaySettings =
     readIosQuickPlaySettings();
 let iosCommands = readIosCommands();
@@ -3369,6 +3382,7 @@ function renderPrimaryLaunchPanel() {
     const targetLabel = getGuidedCommandTargetLabel(command);
     const deviceLabel =
         preferredSpotifyDevice?.name ||
+        lastWorkingSpotifyDevice?.name ||
         command?.deviceName ||
         (command?.deviceMode === "active"
             ? "Appareil Spotify actif"
@@ -3591,6 +3605,7 @@ async function runGuidedPrimaryLaunch({ source = "guided-setup" } = {}) {
     }
 
     const startedAt = Date.now();
+    let launchResult = null;
 
     if (command.commandType === "smartmix") {
         await executeAutomationCommand({
@@ -3606,7 +3621,7 @@ async function runGuidedPrimaryLaunch({ source = "guided-setup" } = {}) {
             autoplay: command.autoplay
         });
     } else {
-        await runIosQuickPlay(
+        launchResult = await runIosQuickPlay(
             command.playlistId || "",
             command.id,
             {
@@ -3620,6 +3635,7 @@ async function runGuidedPrimaryLaunch({ source = "guided-setup" } = {}) {
     }
 
     const succeeded =
+        launchResult?.status === "success" ||
         command.commandType !== "fixed" ||
         iosCommandHistory.some((entry) =>
             entry.commandId === command.id &&
@@ -3634,6 +3650,11 @@ async function runGuidedPrimaryLaunch({ source = "guided-setup" } = {}) {
             dismissedAt: 0
         });
     }
+
+    return launchResult || {
+        status: succeeded ? "success" : "unknown",
+        keepPending: false
+    };
 }
 
 function testGuidedInstallation() {
@@ -3833,7 +3854,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.6.0
+                        ✨ Apparence v8.7.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4859,7 +4880,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.6.0",
+                "./service-worker.js?v=8.7.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7870,6 +7891,51 @@ function clearIntelligenceAnalytics() {
     );
 }
 
+
+function readLastWorkingSpotifyDevice() {
+    try {
+        const raw = localStorage.getItem(
+            LAST_WORKING_SPOTIFY_DEVICE_KEY
+        );
+        return normalizeLastWorkingSpotifyDevice(
+            raw ? JSON.parse(raw) : {}
+        );
+    } catch (error) {
+        console.warn(
+            "Dernier appareil Spotify opérationnel illisible :",
+            error
+        );
+        return normalizeLastWorkingSpotifyDevice();
+    }
+}
+
+function rememberLastWorkingSpotifyDevice(device = {}) {
+    const normalized = normalizeLastWorkingSpotifyDevice({
+        ...device,
+        lastSeenAt: Date.now(),
+        lastSuccessfulAt: Date.now()
+    });
+
+    if (!normalized.id) {
+        return lastWorkingSpotifyDevice;
+    }
+
+    lastWorkingSpotifyDevice = normalized;
+
+    try {
+        localStorage.setItem(
+            LAST_WORKING_SPOTIFY_DEVICE_KEY,
+            JSON.stringify(lastWorkingSpotifyDevice)
+        );
+    } catch (error) {
+        console.warn(
+            "Dernier appareil Spotify opérationnel non enregistré :",
+            error
+        );
+    }
+
+    return lastWorkingSpotifyDevice;
+}
 
 function readPreferredSpotifyDevice() {
     try {
@@ -11352,7 +11418,9 @@ function getShortcutProfileSourceLabel(command = {}) {
 
 function getShortcutProfileDeviceLabel(command = {}) {
     if (command.deviceMode === "preferred") {
-        return preferredSpotifyDevice?.name || "iPhone préféré";
+        return preferredSpotifyDevice?.name ||
+            lastWorkingSpotifyDevice?.name ||
+            "iPhone préféré";
     }
     if (command.deviceMode === "iphone") {
         return "iPhone disponible";
@@ -18382,6 +18450,19 @@ function normalizeIosCommandHistory(values) {
                 0,
                 Number(item.durationMs || 0)
             ),
+            errorCode:
+                typeof item.errorCode === "string"
+                    ? item.errorCode.slice(0, 120)
+                    : "",
+            recoveryAction:
+                typeof item.recoveryAction === "string"
+                    ? item.recoveryAction.slice(0, 80)
+                    : "",
+            online: item.online !== false,
+            attempts: Math.max(
+                0,
+                Number(item.attempts || 0)
+            ),
             steps: normalizeShortcutHistorySteps(
                 item.steps
             ),
@@ -19747,48 +19828,65 @@ function findAutomationDevice(
 }
 
 async function getAutomationDeviceWithRetry(
-    settings = iosQuickPlaySettings
+    settings = iosQuickPlaySettings,
+    {
+        onAttempt = null
+    } = {}
 ) {
     let lastDevices = [];
+    const maxAttempts = Math.max(
+        1,
+        Number(settings.autoRetryCount) ||
+        DEFAULT_IOS_QUICKPLAY_SETTINGS.autoRetryCount
+    );
+    const retryDelayMs = Math.max(
+        250,
+        Number(settings.retryDelayMs) ||
+        DEFAULT_IOS_QUICKPLAY_SETTINGS.retryDelayMs
+    );
 
-    for (
-        let attempt = 1;
-        attempt <= settings.autoRetryCount;
-        attempt += 1
-    ) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
-            lastDevices =
-                await getAvailableDevices();
+            onAttempt?.({
+                attempt,
+                maxAttempts,
+                status: "searching",
+                message: `Recherche Spotify Connect ${attempt}/${maxAttempts}`
+            });
+
+            lastDevices = await getAvailableDevices();
             availableDevices = lastDevices;
 
             if (
                 lastDevices.length &&
                 lastDevices.every(
-                    (device) =>
-                        device.is_restricted === true
+                    (device) => device.is_restricted === true
                 )
             ) {
-                throw new Error(
+                const restrictedError = new Error(
                     "Spotify détecte l’appareil, mais interdit son contrôle à distance."
                 );
+                restrictedError.code = "SPOTIFY_DEVICE_RESTRICTED";
+                throw restrictedError;
             }
 
-            const device =
-                settings.fallbackDeviceMode
-                    ? resolveIosCommandDevice(
-                        lastDevices,
-                        settings
-                    )
-                    : findAutomationDevice(
-                        lastDevices,
-                        settings
-                    );
+            const candidates = prioritizeLaunchDevices(
+                lastDevices,
+                {
+                    preferredDevice: preferredSpotifyDevice,
+                    lastWorkingDevice: lastWorkingSpotifyDevice,
+                    mode: settings.deviceMode || "preferred",
+                    deviceName: settings.deviceName || ""
+                }
+            );
+            const resolved = settings.fallbackDeviceMode
+                ? resolveIosCommandDevice(lastDevices, settings)
+                : findAutomationDevice(lastDevices, settings);
+            const device = candidates[0] || resolved || null;
 
             if (device) {
                 if (
-                    ["preferred", "iphone"].includes(
-                        settings.deviceMode
-                    ) ||
+                    ["preferred", "iphone"].includes(settings.deviceMode) ||
                     findStoredPreferredDevice(
                         [device],
                         preferredSpotifyDevice
@@ -19796,39 +19894,66 @@ async function getAutomationDeviceWithRetry(
                 ) {
                     rememberPreferredSpotifyDevice(device);
                 }
+                onAttempt?.({
+                    attempt,
+                    maxAttempts,
+                    status: "found",
+                    device,
+                    message: `${device.name || "Appareil Spotify"} détecté${device.selectionReason ? ` · ${device.selectionReason}` : ""}`
+                });
                 return device;
             }
+
+            onAttempt?.({
+                attempt,
+                maxAttempts,
+                status: "empty",
+                message: "Aucun appareil contrôlable détecté"
+            });
         } catch (error) {
             console.warn(
-                `Recherche appareil ${attempt}/${settings.autoRetryCount} :`,
+                `Recherche appareil ${attempt}/${maxAttempts} :`,
                 error
             );
+            onAttempt?.({
+                attempt,
+                maxAttempts,
+                status: "error",
+                error,
+                message: error.message || "Recherche interrompue"
+            });
         }
 
-        if (
-            attempt <
-            settings.autoRetryCount
-        ) {
+        if (attempt < maxAttempts) {
             setStatus(
-                `Recherche de l’iPhone… ${attempt}/${settings.autoRetryCount}`
+                `Recherche de l’iPhone… ${attempt}/${maxAttempts}`
             );
-            await wait(
-                settings.retryDelayMs
-            );
+            await wait(retryDelayMs);
         }
     }
 
+    const storedFallback =
+        normalizeLastWorkingSpotifyDevice(lastWorkingSpotifyDevice).id
+            ? lastWorkingSpotifyDevice
+            : preferredSpotifyDevice;
+
     if (
-        ["preferred", "iphone"].includes(
-            settings.deviceMode
-        ) &&
-        preferredSpotifyDevice.id
+        ["preferred", "iphone"].includes(settings.deviceMode) &&
+        storedFallback?.id
     ) {
+        onAttempt?.({
+            attempt: maxAttempts,
+            maxAttempts,
+            status: "cached",
+            device: storedFallback,
+            message: `Tentative avec ${storedFallback.name || "le dernier appareil mémorisé"}`
+        });
         return {
-            ...preferredSpotifyDevice,
+            ...storedFallback,
             is_active: false,
             is_restricted: false,
-            is_cached: true
+            is_cached: true,
+            selectionReason: "dernier appareil mémorisé"
         };
     }
 
@@ -19901,29 +20026,60 @@ async function startPlaylistContextPlayback(
     deviceId,
     {
         shuffle = false,
-        startFromBeginning = true
+        startFromBeginning = true,
+        onProgress = null
     } = {}
 ) {
+    onProgress?.({
+        stage: "connection",
+        status: "pending",
+        message: "Vérification de la session Spotify…"
+    });
     const accessToken =
         await getValidAccessToken();
 
     if (!accessToken) {
-        throw new Error(
+        const authError = new Error(
             "La connexion Spotify doit être renouvelée."
         );
+        authError.code = "SPOTIFY_REAUTH_REQUIRED";
+        throw authError;
     }
+    onProgress?.({
+        stage: "connection",
+        status: "success",
+        message: "Session Spotify valide"
+    });
 
     // Le transfert aide Spotify Connect à activer l’iPhone.
     // Une erreur de transfert n’est pas bloquante : la lecture directe
     // peut encore fonctionner sur le même device_id.
+    onProgress?.({
+        stage: "activation",
+        status: "pending",
+        attempt: 1,
+        message: "Activation de l’appareil Spotify…"
+    });
     try {
         await transferPlayback(deviceId, false);
         await wait(350);
+        onProgress?.({
+            stage: "activation",
+            status: "success",
+            attempt: 1,
+            message: "Appareil Spotify activé"
+        });
     } catch (transferError) {
         console.warn(
             "Transfert Spotify préalable non appliqué :",
             transferError
         );
+        onProgress?.({
+            stage: "activation",
+            status: "pending",
+            attempt: 1,
+            message: "Activation directe impossible ; essai de lecture en cours"
+        });
     }
 
     if (shuffle) {
@@ -19969,6 +20125,13 @@ async function startPlaylistContextPlayback(
         }
     }
 
+    onProgress?.({
+        stage: "playback",
+        status: "pending",
+        attempt: 1,
+        message: "Envoi de la playlist à Spotify…"
+    });
+
     const response = await fetch(
         url.toString(),
         {
@@ -20010,6 +20173,12 @@ async function startPlaylistContextPlayback(
         throw new Error(message);
     }
 
+    onProgress?.({
+        stage: "playback",
+        status: "success",
+        attempt: 1,
+        message: "Commande de lecture acceptée"
+    });
     await wait(550);
 
     try {
@@ -20024,6 +20193,12 @@ async function startPlaylistContextPlayback(
         );
     }
 
+    onProgress?.({
+        stage: "verification",
+        status: "pending",
+        attempt: 1,
+        message: "Vérification de la lecture sur l’appareil…"
+    });
     let playback = await verifyPlaybackOnDevice(
         deviceId,
         {
@@ -20037,9 +20212,27 @@ async function startPlaylistContextPlayback(
         playback?.device?.id !== deviceId ||
         playback?.is_playing !== true
     ) {
+        onProgress?.({
+            stage: "verification",
+            status: "pending",
+            attempt: 2,
+            message: "Lecture non confirmée ; seconde activation automatique…"
+        });
+        onProgress?.({
+            stage: "activation",
+            status: "pending",
+            attempt: 2,
+            message: "Nouvelle activation de l’appareil…"
+        });
         try {
             await transferPlayback(deviceId, true);
             await wait(450);
+            onProgress?.({
+                stage: "activation",
+                status: "success",
+                attempt: 2,
+                message: "Appareil réactivé"
+            });
         } catch (transferError) {
             console.warn(
                 "Second transfert Spotify non appliqué :",
@@ -20047,6 +20240,12 @@ async function startPlaylistContextPlayback(
             );
         }
 
+        onProgress?.({
+            stage: "playback",
+            status: "pending",
+            attempt: 2,
+            message: "Nouvel envoi de la playlist…"
+        });
         const retryResponse = await fetch(
             url.toString(),
             {
@@ -20067,6 +20266,12 @@ async function startPlaylistContextPlayback(
             );
         }
 
+        onProgress?.({
+            stage: "playback",
+            status: "success",
+            attempt: 2,
+            message: "Seconde commande acceptée"
+        });
         await wait(600);
         await setPlaybackShuffle(
             shuffle,
@@ -20086,11 +20291,19 @@ async function startPlaylistContextPlayback(
         playback?.device?.id !== deviceId ||
         playback?.is_playing !== true
     ) {
-        throw new Error(
+        const verificationError = new Error(
             "Spotify a reçu la commande, mais l’iPhone n’a pas démarré la lecture. Ouvre Spotify sur l’iPhone puis relance le raccourci."
         );
+        verificationError.code = "PLAYBACK_NOT_CONFIRMED";
+        throw verificationError;
     }
 
+    onProgress?.({
+        stage: "verification",
+        status: "success",
+        attempt: 2,
+        message: `Lecture confirmée sur ${playback?.device?.name || "l’appareil ciblé"}`
+    });
     return playback;
 }
 
@@ -20185,6 +20398,11 @@ function buildLaunchDiagnosticText({
         deviceName ? `Appareil : ${deviceName}` : "",
         durationMs ? `Durée : ${formatShortcutRunDuration(durationMs)}` : "",
         message ? `Message : ${message}` : "",
+        `Version : ${APP_VERSION}`,
+        `Réseau : ${navigator.onLine ? "en ligne" : "hors connexion"}`,
+        lastWorkingSpotifyDevice?.name
+            ? `Dernier appareil opérationnel : ${lastWorkingSpotifyDevice.name}`
+            : "Dernier appareil opérationnel : aucun",
         "",
         "Étapes :",
         ...normalizeShortcutHistorySteps(steps).map(
@@ -20204,8 +20422,11 @@ function renderIosLaunchProgress({
 } = {}) {
     const stepDefinitions = [
         ["configuration", "Profil", "Playlist et options"],
+        ["connection", "Connexion", "Session Spotify"],
         ["device", "Appareil", "Détection Spotify Connect"],
-        ["playback", "Lecture", "Démarrage et vérification"]
+        ["activation", "Activation", "Réveil de l’appareil"],
+        ["playback", "Lecture", "Envoi de la playlist"],
+        ["verification", "Vérification", "Confirmation de la lecture"]
     ];
     const stepMap = new Map(
         normalizeShortcutHistorySteps(steps).map(
@@ -20237,7 +20458,7 @@ function renderIosLaunchProgress({
             </ol>
             <div class="launch-progress-spinner" aria-hidden="true"></div>
             <small class="launch-progress-note">
-                Garde Spotify ouvert sur l’appareil ciblé pendant quelques secondes.
+                Shuffle+ peut effectuer une seconde activation automatiquement. Garde Spotify ouvert quelques secondes.
             </small>
         </section>
     `;
@@ -20263,6 +20484,27 @@ function getLastPrimaryLaunchDiagnosticText() {
     });
 }
 
+function renderLaunchRecoveryActions(actions = [], retryContext = {}) {
+    return `
+        <div class="ios-automation-recovery-actions launch-recovery-grid">
+            ${actions.map((action) => `
+                <button
+                    type="button"
+                    class="${action.primary ? "primary-button" : "secondary-button"}"
+                    data-launch-recovery-action="${escapeHtml(action.id)}"
+                    data-playlist-id="${escapeHtml(retryContext.playlistId || "")}"
+                    data-command-id="${escapeHtml(retryContext.commandId || "")}"
+                    data-open-driving="${retryContext.openDrivingMode ? "1" : "0"}"
+                    data-open-lyrics="${retryContext.openDynamicLyrics ? "1" : "0"}"
+                    data-lyrics-shortcut="${escapeHtml(retryContext.dynamicLyricsShortcutName || "")}"
+                >
+                    ${escapeHtml(action.label)}
+                </button>
+            `).join("")}
+        </div>
+    `;
+}
+
 async function runIosQuickPlay(
     playlistId = "",
     commandId = "",
@@ -20274,25 +20516,54 @@ async function runIosQuickPlay(
     } = {}
 ) {
     if (automationRunInProgress) {
+        setStatus(
+            "Un lancement est déjà en cours.",
+            "info"
+        );
         return;
     }
 
-    const command =
-        getEffectiveIosCommand(commandId);
-    const dynamicLyricsLaunch =
-        getDynamicLyricsLaunchContext(
-            command,
+    const command = getEffectiveIosCommand(commandId);
+    const dynamicLyricsLaunch = getDynamicLyricsLaunchContext(
+        command,
+        {
+            openDynamicLyrics,
+            dynamicLyricsShortcutName
+        }
+    );
+    const resolvedPlaylistId = playlistId || command.playlistId;
+    const launchStartedAt = performance.now();
+    let launchSteps = [];
+    let activeLaunchStep = "configuration";
+    let selectedDevice = null;
+    let deviceSearchAttempts = 0;
+
+    const updateStep = ({
+        id,
+        label,
+        status = "pending",
+        message = "",
+        attempt = 0,
+        renderMessage = ""
+    }) => {
+        launchSteps = upsertLaunchStep(
+            launchSteps,
             {
-                openDynamicLyrics,
-                dynamicLyricsShortcutName
+                id,
+                label,
+                status,
+                message,
+                attempt
             }
         );
-    const resolvedPlaylistId =
-        playlistId ||
-        command.playlistId;
-    const launchStartedAt = performance.now();
-    const launchSteps = [];
-    let activeLaunchStep = "configuration";
+        activeLaunchStep = id;
+        renderIosLaunchProgress({
+            command,
+            steps: launchSteps,
+            activeStep: id,
+            message: renderMessage || message || "Lancement en cours…"
+        });
+    };
 
     if (source === "automation-url") {
         const launchClaim = claimShortcutLaunch(
@@ -20310,97 +20581,178 @@ async function runIosQuickPlay(
         }
     }
 
-    if (!resolvedPlaylistId) {
-        setStatus(
-            "Choisis d’abord la playlist fixe du raccourci iOS.",
-            "error"
-        );
-        displayPlaylists(playlistsCache);
-        return;
-    }
-
-    launchSteps.push({
-        id: "configuration",
-        label: "Configuration",
-        status: "success",
-        message: command.playlistName || resolvedPlaylistId
-    });
-    activeLaunchStep = "device";
-
-    renderIosLaunchProgress({
-        command,
-        steps: launchSteps,
-        activeStep: activeLaunchStep,
-        message: "Recherche de l’appareil Spotify…"
-    });
-
     automationRunInProgress = true;
-    setStatus(
-        "Lecture immédiate iOS : recherche de l’iPhone…"
-    );
 
     try {
+        const preflight = buildLaunchPreflight({
+            online: navigator.onLine,
+            spotifyConfigured: hasConfiguredSpotifyApplication(),
+            spotifyConnected: Boolean(currentUserId),
+            command: {
+                ...command,
+                playlistId: resolvedPlaylistId
+            },
+            playlistIds: playlistsCache
+                .map((playlist) => playlist?.id)
+                .filter(Boolean),
+            mixIds: savedMixes
+                .map((mix) => mix?.id)
+                .filter(Boolean),
+            preferredDevice: preferredSpotifyDevice,
+            lastWorkingDevice: lastWorkingSpotifyDevice
+        });
+
+        if (!preflight.ready) {
+            const firstBlocking = preflight.blocking[0];
+            const preflightError = new Error(
+                firstBlocking?.message ||
+                "La configuration du lancement est incomplète."
+            );
+            preflightError.code = firstBlocking?.id === "network"
+                ? "OFFLINE"
+                : firstBlocking?.id === "spotify-app"
+                    ? "SPOTIFY_CONFIG_REQUIRED"
+                    : "INVALID_PROFILE";
+            throw preflightError;
+        }
+
+        updateStep({
+            id: "configuration",
+            label: "Configuration",
+            status: "success",
+            message: command.playlistName || resolvedPlaylistId,
+            renderMessage: "Profil vérifié. Contrôle de la connexion Spotify…"
+        });
+
         if (isKnownNonPremiumAccount()) {
-            throw new Error(
+            const premiumError = new Error(
                 "La lecture à distance nécessite Spotify Premium."
             );
+            premiumError.status = 403;
+            throw premiumError;
         }
 
-        const device =
-            await getAutomationDeviceWithRetry(
-                command
+        updateStep({
+            id: "connection",
+            label: "Connexion Spotify",
+            status: "pending",
+            message: "Vérification de la session…"
+        });
+        const accessToken = await getValidAccessToken();
+        if (!accessToken) {
+            const authError = new Error(
+                "La connexion Spotify doit être renouvelée."
             );
+            authError.code = "SPOTIFY_REAUTH_REQUIRED";
+            throw authError;
+        }
+        updateStep({
+            id: "connection",
+            label: "Connexion Spotify",
+            status: "success",
+            message: "Session Spotify valide",
+            renderMessage: "Connexion valide. Recherche du meilleur appareil…"
+        });
 
-        if (!device) {
-            throw new Error(
+        updateStep({
+            id: "device",
+            label: "Appareil Spotify",
+            status: "pending",
+            message: "Recherche Spotify Connect…"
+        });
+        selectedDevice = await getAutomationDeviceWithRetry(
+            command,
+            {
+                onAttempt: ({
+                    attempt,
+                    maxAttempts,
+                    status,
+                    device,
+                    message
+                }) => {
+                    deviceSearchAttempts = Math.max(
+                        deviceSearchAttempts,
+                        attempt || 0
+                    );
+                    const stepStatus = status === "found" || status === "cached"
+                        ? "success"
+                        : "pending";
+                    updateStep({
+                        id: "device",
+                        label: "Appareil Spotify",
+                        status: stepStatus,
+                        attempt,
+                        message: message || `Recherche ${attempt}/${maxAttempts}`,
+                        renderMessage: device
+                            ? `${device.name || "Appareil"} sélectionné. Préparation de la lecture…`
+                            : `Recherche de l’appareil ${attempt}/${maxAttempts}…`
+                    });
+                }
+            }
+        );
+
+        if (!selectedDevice) {
+            const deviceError = new Error(
                 "Aucun iPhone ou appareil Spotify disponible. Ouvre Spotify sur l’iPhone puis relance le raccourci."
             );
+            deviceError.code = "NO_DEVICE";
+            throw deviceError;
         }
 
-        launchSteps.push({
+        updateStep({
             id: "device",
             label: "Appareil Spotify",
             status: "success",
-            message: device.name || "Appareil détecté"
+            attempt: deviceSearchAttempts,
+            message: `${selectedDevice.name || "Appareil détecté"}${selectedDevice.selectionReason ? ` · ${selectedDevice.selectionReason}` : ""}`,
+            renderMessage: `Appareil trouvé : ${selectedDevice.name}. Activation de Spotify Connect…`
         });
-        activeLaunchStep = "playback";
+        setStatus(`Lancement sur ${selectedDevice.name}…`);
 
-        renderIosLaunchProgress({
-            command,
-            steps: launchSteps,
-            activeStep: activeLaunchStep,
-            message: `Appareil trouvé : ${device.name}. Démarrage de la lecture…`
-        });
-
-        setStatus(
-            `Lancement sur ${device.name}…`
+        drivingPlaybackState = await startPlaylistContextPlayback(
+            resolvedPlaylistId,
+            selectedDevice.id,
+            {
+                shuffle: command.shuffle,
+                startFromBeginning: command.startFromBeginning,
+                onProgress: ({
+                    stage,
+                    status,
+                    message,
+                    attempt = 0
+                }) => {
+                    const labels = {
+                        connection: "Connexion Spotify",
+                        activation: "Activation de l’appareil",
+                        playback: "Lecture Spotify",
+                        verification: "Vérification"
+                    };
+                    updateStep({
+                        id: stage,
+                        label: labels[stage] || "Lancement",
+                        status,
+                        message,
+                        attempt,
+                        renderMessage: message
+                    });
+                }
+            }
         );
 
-        drivingPlaybackState =
-            await startPlaylistContextPlayback(
-                resolvedPlaylistId,
-                device.id,
-                {
-                    shuffle:
-                        command.shuffle,
-                    startFromBeginning:
-                        command
-                            .startFromBeginning
-                }
-            );
-        rememberPreferredSpotifyDevice({
-            ...device,
+        const operationalDevice = {
+            ...selectedDevice,
             ...drivingPlaybackState?.device
-        });
-        launchSteps.push({
-            id: "playback",
-            label: "Lecture Spotify",
+        };
+        rememberPreferredSpotifyDevice(operationalDevice);
+        rememberLastWorkingSpotifyDevice(operationalDevice);
+
+        launchSteps = upsertLaunchStep(launchSteps, {
+            id: "verification",
+            label: "Vérification",
             status: "success",
-            message: command.shuffle
-                ? "Lecture démarrée avec shuffle"
-                : "Lecture démarrée dans l’ordre"
+            message: `Lecture confirmée sur ${operationalDevice.name || selectedDevice.name}`
         });
-        launchSteps.push({
+        launchSteps = upsertLaunchStep(launchSteps, {
             id: "driving",
             label: "Mode conduite",
             status: command.openDrivingMode || openDrivingMode
@@ -20410,7 +20762,7 @@ async function runIosQuickPlay(
                 ? "Ouverture demandée"
                 : "Non demandé"
         });
-        launchSteps.push({
+        launchSteps = upsertLaunchStep(launchSteps, {
             id: "lyrics",
             label: "Dynamic Lyrics",
             status: dynamicLyricsLaunch.requested
@@ -20421,14 +20773,12 @@ async function runIosQuickPlay(
                 : "Non demandé"
         });
 
-        const launchDurationMs =
-            performance.now() - launchStartedAt;
-
+        const launchDurationMs = performance.now() - launchStartedAt;
         lastLaunchDiagnosticText = buildLaunchDiagnosticText({
             command,
             status: "success",
             message: "Lecture démarrée et vérifiée",
-            deviceName: device.name,
+            deviceName: operationalDevice.name || selectedDevice.name,
             durationMs: launchDurationMs,
             steps: launchSteps
         });
@@ -20437,43 +20787,48 @@ async function runIosQuickPlay(
         clearAutomationQueryString();
 
         contentElement.innerHTML = `
-            <section class="ios-automation-success">
+            <section class="ios-automation-success launch-result-panel">
                 <span>▶</span>
                 <h2>Playlist lancée</h2>
                 <p>
-                    Lecture démarrée sur
-                    <strong>
-                        ${escapeHtml(device.name)}
-                    </strong>.
+                    Lecture confirmée sur
+                    <strong>${escapeHtml(operationalDevice.name || selectedDevice.name)}</strong>.
                 </p>
-                ${renderShortcutProfileDiagnosticSteps({steps: launchSteps})}
-                ${dynamicLyricsLaunch.requested
-                    ? `
-                        <button
-                            id="openDynamicLyricsButton"
-                            class="primary-button"
-                            type="button"
-                            data-shortcut-url="${escapeHtml(dynamicLyricsLaunch.url)}"
-                        >
-                            🎤 Ouvrir Dynamic Lyrics
-                        </button>
-                    `
-                    : ""}
-                <button
-                    id="backToPlaylists"
-                    class="${dynamicLyricsLaunch.requested ? "secondary-button" : "primary-button"}"
-                    type="button"
-                    data-back-menu="quick"
-                >
-                    Revenir au centre de lancement
-                </button>
-                <button
-                    type="button"
-                    class="secondary-button"
-                    data-copy-current-launch-diagnostic
-                >
-                    Copier le diagnostic
-                </button>
+                <p class="launch-result-meta">
+                    ${escapeHtml(formatShortcutRunDuration(launchDurationMs))}
+                    · ${deviceSearchAttempts || 1} recherche${deviceSearchAttempts > 1 ? "s" : ""} d’appareil
+                    · ${command.shuffle ? "shuffle actif" : "ordre normal"}
+                </p>
+                ${renderShortcutProfileDiagnosticSteps({ steps: launchSteps })}
+                <div class="launch-result-actions">
+                    ${dynamicLyricsLaunch.requested
+                        ? `
+                            <button
+                                id="openDynamicLyricsButton"
+                                class="primary-button"
+                                type="button"
+                                data-shortcut-url="${escapeHtml(dynamicLyricsLaunch.url)}"
+                            >
+                                🎤 Ouvrir Dynamic Lyrics
+                            </button>
+                        `
+                        : ""}
+                    <button
+                        id="backToPlaylists"
+                        class="${dynamicLyricsLaunch.requested ? "secondary-button" : "primary-button"}"
+                        type="button"
+                        data-back-menu="quick"
+                    >
+                        Revenir au centre de lancement
+                    </button>
+                    <button
+                        type="button"
+                        class="secondary-button"
+                        data-copy-current-launch-diagnostic
+                    >
+                        Copier le diagnostic
+                    </button>
+                </div>
             </section>
         `;
 
@@ -20481,105 +20836,108 @@ async function runIosQuickPlay(
             commandId: command.id,
             commandName: command.name,
             playlistId: resolvedPlaylistId,
-            playlistName:
-                command.playlistName || "",
-            deviceId: device.id || "",
-            deviceName: device.name,
+            playlistName: command.playlistName || "",
+            deviceId: operationalDevice.id || selectedDevice.id || "",
+            deviceName: operationalDevice.name || selectedDevice.name,
             shuffle: command.shuffle === true,
             source,
             durationMs: launchDurationMs,
             steps: launchSteps,
             status: "success",
-            message: "Lecture démarrée et vérifiée"
+            message: "Lecture démarrée et vérifiée",
+            errorCode: "",
+            recoveryAction: "",
+            online: navigator.onLine,
+            attempts: deviceSearchAttempts
         });
 
         setStatus(
-            `Playlist lancée sur ${device.name}.`
+            `Playlist lancée sur ${operationalDevice.name || selectedDevice.name}.`
         );
 
         if (
             DRIVING_MODE_AVAILABLE &&
             (command.openDrivingMode || openDrivingMode)
         ) {
-            await enterDrivingMode({
-                refresh: false
-            });
+            await enterDrivingMode({ refresh: false });
         }
 
-        scheduleDynamicLyricsLaunch(
-            dynamicLyricsLaunch
-        );
+        scheduleDynamicLyricsLaunch(dynamicLyricsLaunch);
+        return {
+            status: "success",
+            keepPending: false,
+            device: operationalDevice,
+            durationMs: launchDurationMs
+        };
     } catch (error) {
         console.error(error);
-        launchSteps.push({
-            id: activeLaunchStep,
-            label: activeLaunchStep === "device"
-                ? "Appareil Spotify"
-                : activeLaunchStep === "playback"
-                    ? "Lecture Spotify"
-                    : "Configuration",
+        const classification = classifyLaunchError(error);
+        const errorStepId = activeLaunchStep || "configuration";
+        const labels = {
+            configuration: "Configuration",
+            connection: "Connexion Spotify",
+            device: "Appareil Spotify",
+            activation: "Activation de l’appareil",
+            playback: "Lecture Spotify",
+            verification: "Vérification"
+        };
+        launchSteps = upsertLaunchStep(launchSteps, {
+            id: errorStepId,
+            label: labels[errorStepId] || "Lancement",
             status: "error",
-            message: error.message || "Étape interrompue"
+            message: error.message || classification.message
         });
-        const launchDurationMs =
-            performance.now() - launchStartedAt;
-        lastLaunchDiagnosticText = buildLaunchDiagnosticText({
-            command,
-            status: "error",
-            message:
-                error.message ||
-                "Lecture automatique impossible.",
-            durationMs: launchDurationMs,
-            steps: launchSteps
-        });
-        savePendingAutomationCommand(null);
+        const launchDurationMs = performance.now() - launchStartedAt;
+        lastLaunchDiagnosticText = [
+            buildLaunchDiagnosticText({
+                command,
+                status: "error",
+                message: `${classification.code} · ${error.message || classification.message}`,
+                deviceName: selectedDevice?.name || "",
+                durationMs: launchDurationMs,
+                steps: launchSteps
+            }),
+            "",
+            `Action conseillée : ${classification.actionLabel}`
+        ].join("\n");
 
+        if (
+            classification.keepPending &&
+            source === "automation-url"
+        ) {
+            savePendingAutomationCommand({
+                action: "quickplay",
+                playlistId: resolvedPlaylistId,
+                commandId: command.id,
+                autoplay: true,
+                openDrivingMode: command.openDrivingMode || openDrivingMode,
+                openDynamicLyrics: dynamicLyricsLaunch.requested,
+                dynamicLyricsShortcutName: dynamicLyricsLaunch.shortcutName
+            });
+        } else {
+            savePendingAutomationCommand(null);
+        }
+
+        const recoveryActions = buildLaunchRecoveryActions(classification);
         contentElement.innerHTML = `
-            <section class="ios-automation-error">
+            <section class="ios-automation-error launch-result-panel" data-launch-error-code="${escapeHtml(classification.code)}">
                 <span>⚠️</span>
-                <h2>Lecture automatique impossible</h2>
-                <p>
-                    ${escapeHtml(
-                        error.message ||
-                        "Une erreur est survenue."
-                    )}
-                </p>
-                ${renderShortcutProfileDiagnosticSteps({steps: launchSteps})}
-                <div class="ios-automation-recovery-actions">
-                    <button
-                        type="button"
-                        class="secondary-button"
-                        data-launch-open-spotify
-                    >
-                        Ouvrir Spotify
-                    </button>
-                    <button
-                        type="button"
-                        class="secondary-button"
-                        data-guided-nav="mixes"
-                    >
-                        Changer d’appareil ou de profil
-                    </button>
-                    <button
-                        type="button"
-                        class="secondary-button"
-                        data-launch-reconnect-spotify
-                    >
-                        Reconnecter Spotify
-                    </button>
-                </div>
-                <button
-                    id="retryIosQuickPlayButton"
-                    class="primary-button"
-                    type="button"
-                    data-playlist-id="${escapeHtml(resolvedPlaylistId)}"
-                    data-command-id="${escapeHtml(command.id)}"
-                    data-open-driving="${command.openDrivingMode || openDrivingMode ? "1" : "0"}"
-                    data-open-lyrics="${dynamicLyricsLaunch.requested ? "1" : "0"}"
-                    data-lyrics-shortcut="${escapeHtml(dynamicLyricsLaunch.shortcutName)}"
-                >
-                    Réessayer
-                </button>
+                <h2>${escapeHtml(classification.title)}</h2>
+                <p>${escapeHtml(classification.message)}</p>
+                ${selectedDevice?.name
+                    ? `<p class="launch-result-meta">Appareil tenté : ${escapeHtml(selectedDevice.name)}</p>`
+                    : ""}
+                ${renderShortcutProfileDiagnosticSteps({ steps: launchSteps })}
+                ${renderLaunchRecoveryActions(
+                    recoveryActions,
+                    {
+                        playlistId: resolvedPlaylistId,
+                        commandId: command.id,
+                        openDrivingMode: command.openDrivingMode || openDrivingMode,
+                        openDynamicLyrics: dynamicLyricsLaunch.requested,
+                        dynamicLyricsShortcutName: dynamicLyricsLaunch.shortcutName
+                    }
+                )}
                 <button
                     id="backToPlaylists"
                     class="secondary-button"
@@ -20588,13 +20946,6 @@ async function runIosQuickPlay(
                 >
                     Revenir au centre de lancement
                 </button>
-                <button
-                    type="button"
-                    class="secondary-button"
-                    data-copy-current-launch-diagnostic
-                >
-                    Copier le diagnostic
-                </button>
             </section>
         `;
 
@@ -20602,24 +20953,30 @@ async function runIosQuickPlay(
             commandId: command.id,
             commandName: command.name,
             playlistId: resolvedPlaylistId,
-            playlistName:
-                command.playlistName || "",
-            deviceName: "",
+            playlistName: command.playlistName || "",
+            deviceId: selectedDevice?.id || "",
+            deviceName: selectedDevice?.name || "",
             shuffle: command.shuffle === true,
             source,
             durationMs: launchDurationMs,
             steps: launchSteps,
             status: "error",
-            message:
-                error.message ||
-                "Lecture automatique impossible."
+            message: error.message || classification.message,
+            errorCode: classification.code,
+            recoveryAction: classification.action,
+            online: navigator.onLine,
+            attempts: deviceSearchAttempts
         });
 
         setStatus(
-            error.message ||
-            "Lecture automatique impossible.",
+            `${classification.title} · ${classification.message}`,
             "error"
         );
+        return {
+            status: "error",
+            keepPending: classification.keepPending === true,
+            classification
+        };
     } finally {
         automationRunInProgress = false;
     }
@@ -20669,10 +21026,14 @@ async function executeAutomationCommand(
                 await startPlayback(playbackUris, device.id);
             }
         } else {
-            await runGuidedPrimaryLaunch({ source: "automation-url" });
+            const launchResult = await runGuidedPrimaryLaunch({
+                source: "automation-url"
+            });
+            if (!launchResult?.keepPending) {
+                savePendingAutomationCommand(null);
+            }
         }
 
-        savePendingAutomationCommand(null);
         clearAutomationQueryString();
         return;
     }
@@ -40228,6 +40589,66 @@ contentElement.addEventListener(
                 );
             }
             return;
+        }
+
+        const launchRecoveryButton = event.target.closest(
+            "[data-launch-recovery-action]"
+        );
+
+        if (launchRecoveryButton) {
+            const action = launchRecoveryButton.dataset.launchRecoveryAction || "";
+
+            if (action === "open-spotify") {
+                openTrustedExternalUrl("https://open.spotify.com/");
+                return;
+            }
+
+            if (action === "reconnect") {
+                try {
+                    await loginWithSpotify();
+                } catch (error) {
+                    console.error(error);
+                    setStatus(
+                        error.message || "Reconnexion Spotify impossible.",
+                        "error"
+                    );
+                }
+                return;
+            }
+
+            if (action === "settings") {
+                await navigateToAppMenu("mixes");
+                return;
+            }
+
+            if (action === "copy-diagnostic") {
+                const diagnostic = lastLaunchDiagnosticText ||
+                    getLastPrimaryLaunchDiagnosticText();
+                try {
+                    await copyTextToClipboard(diagnostic);
+                    showToast("✅ Diagnostic copié.", "success");
+                } catch (error) {
+                    console.error(error);
+                    window.prompt("Copie le diagnostic :", diagnostic);
+                }
+                return;
+            }
+
+            if (action === "retry") {
+                await runIosQuickPlay(
+                    launchRecoveryButton.dataset.playlistId || "",
+                    launchRecoveryButton.dataset.commandId || "",
+                    {
+                        openDrivingMode:
+                            launchRecoveryButton.dataset.openDriving === "1",
+                        openDynamicLyrics:
+                            launchRecoveryButton.dataset.openLyrics === "1",
+                        dynamicLyricsShortcutName:
+                            launchRecoveryButton.dataset.lyricsShortcut || ""
+                    }
+                );
+                return;
+            }
         }
 
         if (event.target.closest("[data-guided-test-installation]")) {
