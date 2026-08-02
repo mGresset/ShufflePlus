@@ -271,7 +271,7 @@ const copySpotifySetupRedirectButton =
 const openSpotifyDeveloperButton =
     document.getElementById("openSpotifyDeveloperButton");
 
-const APP_VERSION = "8.3.0";
+const APP_VERSION = "8.3.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -687,7 +687,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v8.3.0-shell";
+    "shuffleplus-v8.3.1-shell";
 const ADAPTIVE_DJ_MENU_KEY =
     "shuffleplus_adaptive_dj_menu_v1";
 const ADAPTIVE_DJ_HISTORY_KEY =
@@ -3358,7 +3358,7 @@ function renderPrimaryLaunchPanel() {
                 <div class="primary-launch-actions">
                     <button
                         type="button"
-                        class="primary-launch-button"
+                        class="primary-launch-button ui-button ui-button--primary"
                         data-guided-primary-launch
                         ${commandReady ? "" : "disabled"}
                     >
@@ -3366,6 +3366,7 @@ function renderPrimaryLaunchPanel() {
                     </button>
                     <button
                         type="button"
+                        class="ui-button ui-button--secondary"
                         data-copy-universal-launch
                         ${commandReady ? "" : "disabled"}
                     >
@@ -3394,19 +3395,35 @@ function renderPrimaryLaunchPanel() {
                         `).join("")
                         : `<option value="">Aucun profil enregistré</option>`}
                 </select>
-                <button type="submit" ${iosCommands.length ? "" : "disabled"}>
+                <button
+                    type="submit"
+                    class="ui-button ui-button--primary"
+                    ${iosCommands.length ? "" : "disabled"}
+                >
                     Utiliser comme principal
                 </button>
             </form>
 
             <div class="primary-launch-links">
-                <button type="button" data-guided-nav="mixes">
+                <button
+                    type="button"
+                    class="ui-button ui-button--ghost"
+                    data-guided-nav="mixes"
+                >
                     Changer de playlist
                 </button>
-                <button type="button" data-guided-nav="quick">
+                <button
+                    type="button"
+                    class="ui-button ui-button--ghost"
+                    data-guided-nav="quick"
+                >
                     Ouvrir le centre de lancement
                 </button>
-                <button type="button" data-guided-nav="music">
+                <button
+                    type="button"
+                    class="ui-button ui-button--ghost"
+                    data-guided-nav="music"
+                >
                     Créer un mélange
                 </button>
             </div>
@@ -3626,18 +3643,30 @@ function renderV8WelcomePanel() {
                 </p>
             </div>
             <div class="v8-welcome-actions">
-                <button type="button" data-app-menu="quick">
+                <button
+                    type="button"
+                    class="ui-button ui-button--primary"
+                    data-app-menu="quick"
+                >
                     ▶ Centre de lancement
                 </button>
-                <button type="button" data-app-menu="music">
+                <button
+                    type="button"
+                    class="ui-button ui-button--secondary"
+                    data-app-menu="music"
+                >
                     🎵 Ma musique
                 </button>
-                <button type="button" data-app-menu="mixes">
+                <button
+                    type="button"
+                    class="ui-button ui-button--secondary"
+                    data-app-menu="mixes"
+                >
                     ✨ Créer
                 </button>
                 <button
                     type="button"
-                    class="is-secondary"
+                    class="is-secondary ui-button ui-button--ghost"
                     data-select-experience-mode="${expert ? "essential" : "expert"}"
                 >
                     ${expert ? "Passer en mode Essentiel" : "Activer le mode Expert"}
@@ -3761,7 +3790,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v8.3.0
+                        ✨ Apparence v8.3.1
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -4934,7 +4963,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=8.3.0",
+                "./service-worker.js?v=8.3.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -11499,20 +11528,28 @@ function renderLaunchCenter() {
             <div class="launch-center-actions">
                 <button
                     type="button"
-                    class="launch-center-primary"
+                    class="launch-center-primary ui-button ui-button--primary"
                     data-guided-primary-launch
                     ${diagnostic?.readiness.ready ? "" : "disabled"}
                 >
                     ▶ Lancer ma musique
                 </button>
-                <button type="button" data-copy-universal-launch>
+                <button
+                    type="button"
+                    class="ui-button ui-button--secondary"
+                    data-copy-universal-launch
+                >
                     🔗 Copier l’URL universelle
                 </button>
-                <button type="button" data-share-universal-launch>
+                <button
+                    type="button"
+                    class="ui-button ui-button--secondary"
+                    data-share-universal-launch
+                >
                     📤 Envoyer vers l’iPhone
                 </button>
                 ${DRIVING_MODE_AVAILABLE
-                    ? `<button type="button" data-guided-nav="driving">🚗 Mode conduite</button>`
+                    ? `<button type="button" class="ui-button ui-button--secondary" data-guided-nav="driving">🚗 Mode conduite</button>`
                     : ""}
             </div>
 
@@ -11534,10 +11571,18 @@ function renderLaunchCenter() {
                         `).join("")
                         : `<option value="">Aucun profil enregistré</option>`}
                 </select>
-                <button type="submit" ${iosCommands.length ? "" : "disabled"}>
+                <button
+                    type="submit"
+                    class="ui-button ui-button--primary"
+                    ${iosCommands.length ? "" : "disabled"}
+                >
                     Définir comme principal
                 </button>
-                <button type="button" data-guided-nav="mixes">
+                <button
+                    type="button"
+                    class="ui-button ui-button--ghost"
+                    data-guided-nav="mixes"
+                >
                     Gérer les profils
                 </button>
             </form>
@@ -11571,7 +11616,7 @@ function renderLaunchCenter() {
                         : `<small>Lance le profil pour vérifier l’appareil et la lecture Spotify.</small>`}
                 </div>
                 ${lastRun
-                    ? `<button type="button" data-copy-last-launch-diagnostic>Copier le diagnostic</button>`
+                    ? `<button type="button" class="ui-button ui-button--ghost" data-copy-last-launch-diagnostic>Copier le diagnostic</button>`
                     : ""}
             </div>
             ${lastRun ? renderShortcutProfileDiagnosticSteps(lastRun) : ""}
@@ -11617,10 +11662,18 @@ function renderShortcutProfilesDashboard() {
                     </p>
                 </div>
                 <div class="shortcut-profiles-hero-actions">
-                    <button id="createShortcutProfileButton" type="button">
+                    <button
+                        id="createShortcutProfileButton"
+                        class="ui-button ui-button--primary"
+                        type="button"
+                    >
                         ＋ Nouveau profil
                     </button>
-                    <button id="openShortcutProfilesConfigButton" type="button">
+                    <button
+                        id="openShortcutProfilesConfigButton"
+                        class="ui-button ui-button--secondary"
+                        type="button"
+                    >
                         Gérer les profils
                     </button>
                 </div>

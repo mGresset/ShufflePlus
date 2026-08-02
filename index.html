@@ -10,11 +10,11 @@
 
     <meta
         name="description"
-        content="Shuffle+ 8.3 — lancez votre profil Spotify principal, créez des mix intelligents et utilisez un raccourci Apple universel."
+        content="Shuffle+ 8.3.1 — interface Spotify unifiée, thèmes personnalisables, profils de lancement et raccourci Apple universel."
     >
 
     <meta name="theme-color" content="#8b5cf6">
-    <meta name="shuffleplus-version" content="8.3.0">
+    <meta name="shuffleplus-version" content="8.3.1">
     <meta name="color-scheme" content="dark">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -42,7 +42,8 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=8.3.0">
+    <link rel="stylesheet" href="./style.css?v=8.3.1">
+    <link rel="stylesheet" href="./design-system.css?v=8.3.1">
 </head>
 
 <body>
@@ -85,7 +86,7 @@
             <div class="actions">
                 <button
                     id="loginButton"
-                    class="primary-button"
+                    class="primary-button ui-button ui-button--primary"
                     type="button"
                 >
                     Se connecter à Spotify
@@ -93,7 +94,7 @@
 
                 <button
                     id="logoutButton"
-                    class="secondary-button"
+                    class="secondary-button ui-button ui-button--secondary"
                     type="button"
                     hidden
                 >
@@ -168,7 +169,7 @@
                 <div class="spotify-redirect-box">
                     <span>Adresse de redirection</span>
                     <code id="spotifySetupRedirectUri"></code>
-                    <button id="copySpotifySetupRedirectButton" type="button">
+                    <button id="copySpotifySetupRedirectButton" class="ui-button ui-button--secondary" type="button">
                         Copier l’adresse
                     </button>
                 </div>
@@ -190,11 +191,11 @@
                         placeholder="Ex. 0123456789abcdef…"
                         required
                     >
-                    <button type="submit">Enregistrer et continuer</button>
+                    <button class="ui-button ui-button--primary" type="submit">Enregistrer et continuer</button>
                 </form>
 
                 <div class="spotify-setup-actions">
-                    <button id="openSpotifyDeveloperButton" type="button">
+                    <button id="openSpotifyDeveloperButton" class="ui-button ui-button--secondary" type="button">
                         Ouvrir Spotify for Developers
                     </button>
                 </div>
@@ -229,12 +230,12 @@
                     réglages, tes mix et ta connexion Spotify.
                 </p>
                 <div class="startup-recovery-actions">
-                    <button id="repairStartupButton" type="button">
+                    <button id="repairStartupButton" class="ui-button ui-button--primary" type="button">
                         Réparer Shuffle+
                     </button>
                     <button
                         id="resetSpotifySessionButton"
-                        class="startup-recovery-danger"
+                        class="startup-recovery-danger ui-button ui-button--danger"
                         type="button"
                     >
                         Réinitialiser la connexion Spotify
@@ -277,7 +278,7 @@
         </div>
     </aside>
 
-    <script src="./startup-recovery-8.3.0.js"></script>
-    <script type="module" src="./app.js?v=8.3.0"></script>
+    <script src="./startup-recovery-8.3.1.js"></script>
+    <script type="module" src="./app.js?v=8.3.1"></script>
 </body>
 </html>
