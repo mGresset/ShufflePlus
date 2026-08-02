@@ -1,0 +1,8 @@
+SHUFFLE+ V9.1.0
+
+1. Installer Node.js 20 ou plus récent.
+2. Ouvrir le dossier dans Visual Studio Code.
+3. Exécuter : npm run validate
+4. Exécuter : npm start
+5. Publier sur GitHub avec git add, git commit et git push.
+6. Conserver Railway configuré sur le dossier /server.

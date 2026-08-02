@@ -371,6 +371,146 @@ export function classifyLaunchError(error) {
     };
 }
 
+
+export function buildLaunchReliabilitySummary(
+    history = [],
+    {
+        commandId = "",
+        now = Date.now(),
+        sampleSize = 8
+    } = {}
+) {
+    const relevant = (Array.isArray(history) ? history : [])
+        .filter((entry) => !commandId || entry?.commandId === commandId)
+        .sort((first, second) =>
+            Number(second?.createdAt || 0) - Number(first?.createdAt || 0)
+        )
+        .slice(0, Math.max(1, Number(sampleSize) || 8));
+    const last = relevant[0] || null;
+    const successCount = relevant.filter((entry) => entry?.status === "success").length;
+    const successRate = relevant.length
+        ? Math.round((successCount / relevant.length) * 100)
+        : 0;
+    let consecutiveFailures = 0;
+
+    for (const entry of relevant) {
+        if (entry?.status === "success") break;
+        consecutiveFailures += 1;
+    }
+
+    const ageMs = last
+        ? Math.max(0, Number(now) - Number(last.createdAt || 0))
+        : 0;
+    let state = "new";
+    let label = "À tester";
+    let message = "Aucun lancement récent pour ce profil.";
+
+    if (last?.status === "success" && successRate >= 75) {
+        state = "healthy";
+        label = "Fiable";
+        message = `${successRate} % de réussite sur les ${relevant.length} derniers lancements.`;
+    } else if (last?.status === "success") {
+        state = "stable";
+        label = "Opérationnel";
+        message = `Dernier lancement réussi${last.deviceName ? ` sur ${last.deviceName}` : ""}.`;
+    } else if (consecutiveFailures >= 2) {
+        state = "warning";
+        label = "À vérifier";
+        message = `${consecutiveFailures} échecs consécutifs. Ouvre Spotify avant le prochain essai.`;
+    } else if (last) {
+        state = "attention";
+        label = "Nouvel essai conseillé";
+        message = last.message || "Le dernier lancement n’a pas été confirmé.";
+    }
+
+    return {
+        state,
+        label,
+        message,
+        total: relevant.length,
+        successCount,
+        successRate,
+        consecutiveFailures,
+        last,
+        lastDeviceName: cleanText(last?.deviceName, 120),
+        lastAttemptCount: Math.max(0, Number(last?.attempts) || 0),
+        ageMs
+    };
+}
+
+export function shouldRetrySpotifyPlayback(
+    error,
+    {
+        attempt = 1,
+        maxAttempts = 2
+    } = {}
+) {
+    if (Number(attempt) >= Number(maxAttempts)) return false;
+    const status = Number(error?.status || 0);
+    const reason = cleanText(error?.reason, 120).toUpperCase();
+
+    if ([404, 429, 502, 503, 504].includes(status)) return true;
+    if (["NO_ACTIVE_DEVICE", "PLAYER_COMMAND_FAILED"].includes(reason)) return true;
+    return hasMessage(error, /failed to fetch|network|temporarily unavailable|timeout/i);
+}
+
+export function getSpotifyPlaybackRetryDelay(
+    error,
+    {
+        attempt = 1,
+        baseDelayMs = 550,
+        maxDelayMs = 6000
+    } = {}
+) {
+    const retryAfter = Number(error?.retryAfter || 0);
+    if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        return Math.min(maxDelayMs, Math.max(250, retryAfter * 1000));
+    }
+
+    return Math.min(
+        maxDelayMs,
+        Math.max(250, Number(baseDelayMs) || 550) * Math.max(1, Number(attempt) || 1)
+    );
+}
+
+export function isLaunchDeviceFailoverEligible(error) {
+    const classification = classifyLaunchError(error);
+    const status = Number(error?.status || 0);
+
+    return [
+        "NO_DEVICE",
+        "PLAYBACK_NOT_CONFIRMED",
+        "SPOTIFY_404",
+        "SPOTIFY_502",
+        "SPOTIFY_503",
+        "SPOTIFY_504"
+    ].includes(classification.code) || [404, 502, 503, 504].includes(status);
+}
+
+export function shouldResumePendingLaunch(
+    command,
+    {
+        online = true,
+        visible = true,
+        now = Date.now(),
+        maxAgeMs = 15 * 60 * 1000
+    } = {}
+) {
+    if (!command || online !== true || visible !== true) return false;
+    const action = cleanText(command.action, 40).toLowerCase();
+    const supported = new Set([
+        "launch",
+        "quickplay",
+        "play-playlist",
+        "smartmix",
+        "adaptive",
+        "scene"
+    ]);
+    if (!supported.has(action)) return false;
+    const createdAt = Math.max(0, Number(command.createdAt) || 0);
+    return createdAt > 0 && Math.max(0, Number(now) - createdAt) <= maxAgeMs;
+}
+
 export function buildLaunchRecoveryActions(classification = {}) {
     const primary = classification.action || "retry";
     const actions = [];

@@ -97,7 +97,7 @@ test("la v7.5 expose Mes raccourcis, ses actions et son diagnostic", () => {
     assert.match(appSource, /id="createShortcutProfileButton"/);
     assert.match(appSource, /shortcut-profile-diagnostic-steps/);
     assert.match(appSource, /claimShortcutLaunch\(/);
-    assert.match(appSource, /source: "automation-url"/);
+    assert.match(appSource, /\{ source = "automation-url" \}/);
     assert.match(styleSource, /\.shortcut-profile-grid/);
     assert.match(serviceWorkerSource, /\.\/core\/shortcut-profiles\.js/);
 });
