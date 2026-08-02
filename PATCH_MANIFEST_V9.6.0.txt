@@ -1,0 +1,25 @@
+SHUFFLE+ V9.6.0 — MANIFESTE
+
+AJOUTS
+- core/home-quick-access.js
+- tests/v960-home-quick-access.test.mjs
+- V9.6.0_NOTES.md
+- INSTALLATION-V9.6.0.txt
+- DEPLOIEMENT-V9.6.0.md
+
+MODIFICATIONS PRINCIPALES
+- app.js
+- core/daily-home.js
+- styles/feature-home.css
+- service-worker.js
+- index.html
+- config.js
+- package.json
+- package-lock.json
+- VERSION
+- README.md
+
+MIGRATION
+- Cache PWA : shuffleplus-v9.6.0
+- Nouvelle préférence : shuffleplus_pinned_shortcut_profiles_v1
+- Aucune suppression de données utilisateur.

@@ -32,6 +32,7 @@ export function buildDailyHomeSnapshot({
     experienceMode = "essential",
     drivingAvailable = false,
     contextualSuggestion = null,
+    quickAccess = null,
     now = new Date()
 } = {}) {
     const track = playback?.item || null;
@@ -103,6 +104,22 @@ export function buildDailyHomeSnapshot({
             nextStep
         },
         drivingAvailable: Boolean(drivingAvailable),
+        quickAccess: {
+            pinnedProfiles: Array.isArray(quickAccess?.pinnedProfiles)
+                ? quickAccess.pinnedProfiles.slice(0, 4)
+                : [],
+            recentLaunches: Array.isArray(quickAccess?.recentLaunches)
+                ? quickAccess.recentLaunches.slice(0, 3)
+                : [],
+            favorites: Array.isArray(quickAccess?.favorites)
+                ? quickAccess.favorites.slice(0, 4)
+                : [],
+            favoriteCount: Math.max(
+                0,
+                Number(quickAccess?.favoriteCount || 0)
+            ),
+            hasContent: Boolean(quickAccess?.hasContent)
+        },
         contextualSuggestion: contextualSuggestion
             ? {
                 contextId: String(contextualSuggestion.contextId || ""),
@@ -161,6 +178,128 @@ function renderUpcoming(snapshot) {
     `;
 }
 
+function renderHomeQuickAccess(snapshot) {
+    const access = snapshot.quickAccess || {};
+    const pinned = Array.isArray(access.pinnedProfiles)
+        ? access.pinnedProfiles
+        : [];
+    const recent = Array.isArray(access.recentLaunches)
+        ? access.recentLaunches
+        : [];
+    const favorites = Array.isArray(access.favorites)
+        ? access.favorites
+        : [];
+
+    return `
+        <section class="v9-home-access" aria-label="Accès immédiat">
+            <header class="v9-home-access__header">
+                <div>
+                    <span>⚡ Accès immédiat</span>
+                    <h3>Tes raccourcis musicaux au même endroit</h3>
+                    <p>Profils épinglés, derniers lancements et favoris Spotify.</p>
+                </div>
+                <button
+                    type="button"
+                    class="ui-button ui-button--secondary"
+                    data-open-universal-search
+                >
+                    🔎 Rechercher
+                </button>
+            </header>
+
+            <div class="v9-home-access__grid">
+                <article class="v9-home-access__column">
+                    <div class="v9-home-access__title">
+                        <span>📌 Profils épinglés</span>
+                        <button type="button" data-dashboard-nav="mixes">Gérer</button>
+                    </div>
+                    ${pinned.length
+                        ? `<div class="v9-home-access__items">
+                            ${pinned.map((profile) => `
+                                <div class="v9-home-access-profile">
+                                    <button
+                                        type="button"
+                                        class="v9-home-access-profile__run"
+                                        data-home-run-profile="${escapeHtml(profile.id)}"
+                                    >
+                                        <span aria-hidden="true">${escapeHtml(profile.icon || "▶️")}</span>
+                                        <span>
+                                            <strong>${escapeHtml(profile.name || "Profil")}</strong>
+                                            <small>${escapeHtml(profile.subtitle || profile.lastRunLabel || "Prêt à lancer")}</small>
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="v9-home-access-profile__pin"
+                                        data-home-pin-profile="${escapeHtml(profile.id)}"
+                                        aria-label="Retirer ${escapeHtml(profile.name || "ce profil")} de l’accueil"
+                                        title="Retirer de l’accueil"
+                                    >📌</button>
+                                </div>
+                            `).join("")}
+                        </div>`
+                        : `<div class="v9-home-access__empty">
+                            <span>📌</span>
+                            <p>Épingle un profil depuis la rubrique Profils.</p>
+                            <button type="button" data-dashboard-nav="mixes">Choisir un profil</button>
+                        </div>`}
+                </article>
+
+                <article class="v9-home-access__column">
+                    <div class="v9-home-access__title">
+                        <span>↻ Derniers lancements</span>
+                    </div>
+                    ${recent.length
+                        ? `<div class="v9-home-access__items">
+                            ${recent.map((profile) => `
+                                <button
+                                    type="button"
+                                    class="v9-home-recent-launch"
+                                    data-home-run-profile="${escapeHtml(profile.id)}"
+                                >
+                                    <span aria-hidden="true">${escapeHtml(profile.icon || "▶️")}</span>
+                                    <span>
+                                        <strong>${escapeHtml(profile.name || "Profil")}</strong>
+                                        <small>${escapeHtml(profile.ageLabel || "Récemment")} · ${escapeHtml(profile.deviceLabel || "Spotify")}</small>
+                                    </span>
+                                    <b aria-hidden="true">▶</b>
+                                </button>
+                            `).join("")}
+                        </div>`
+                        : `<div class="v9-home-access__empty">
+                            <span>↻</span>
+                            <p>Tes lancements réussis apparaîtront ici.</p>
+                        </div>`}
+                </article>
+
+                <article class="v9-home-access__column v9-home-access__favorites">
+                    <div class="v9-home-access__title">
+                        <span>★ Favoris Spotify</span>
+                        <strong>${Number(access.favoriteCount || favorites.length)}</strong>
+                    </div>
+                    ${favorites.length
+                        ? `<div class="v9-home-favorite-list">
+                            ${favorites.map((favorite) => `
+                                <span><b aria-hidden="true">${escapeHtml(favorite.icon || "★")}</b>${escapeHtml(favorite.name || "Favori")}</span>
+                            `).join("")}
+                        </div>`
+                        : `<div class="v9-home-access__empty">
+                            <span>☆</span>
+                            <p>Ajoute des playlists en favoris dans Ma musique.</p>
+                        </div>`}
+                    <button
+                        type="button"
+                        class="ui-button ui-button--ghost v9-home-access__favorites-button"
+                        data-home-open-favorites
+                    >
+                        Ouvrir mes favoris
+                    </button>
+                </article>
+            </div>
+        </section>
+    `;
+}
+
 export function renderDailyHomeMarkup(snapshot, {
     profileOptions = []
 } = {}) {
@@ -213,6 +352,8 @@ export function renderDailyHomeMarkup(snapshot, {
                     </div>
                 </section>`
                 : ""}
+
+            ${renderHomeQuickAccess(snapshot)}
 
             <div class="v9-home-grid">
                 <article class="v9-home-launch-card">

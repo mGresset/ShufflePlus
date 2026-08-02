@@ -1,19 +1,20 @@
-# Shuffle+ v9.5.0
+# Shuffle+ v9.6.0
 
 Shuffle+ est une application web Spotify conçue pour lancer rapidement une playlist ou un mix personnel, notamment depuis un raccourci Apple sur iPhone.
 
-## Nouveautés v9.5.0
+## Nouveautés v9.6.0
 
-- **Centre de fiabilité** dans les Réglages ;
-- état synthétique de Spotify, Railway, de la PWA et de l’appareil/file d’attente ;
-- contrôle réel de l’endpoint `/health` Railway avec latence et version ;
-- journal local limité et dédupliqué des événements importants ;
-- événements génériques qui ne stockent ni titres, ni playlists, ni noms d’appareils ;
-- récupération guidée : reconnexion Spotify, détection d’appareils, actualisation de la file, réparation PWA, contrôle Railway et reprise d’un lancement interrompu ;
-- rapport JSON exportable sans jetons, secrets ou identifiants personnels ;
-- diagnostic technique détaillé conservé dans une section repliable.
+- nouvel espace **Accès immédiat** sur l’accueil ;
+- jusqu’à quatre profils de lancement épinglés ;
+- relance en un toucher depuis les profils épinglés ;
+- affichage des trois derniers lancements réussis ;
+- accès direct aux playlists et titres Spotify favoris ;
+- recherche globale accessible depuis l’accueil ;
+- gestion des épingles depuis les cartes de profils ;
+- épingles conservées dans les sauvegardes et la synchronisation ;
+- interface responsive et liée au thème actif.
 
-La file intelligente de la v9.4.0, le correctif thématique v9.4.1, les profils contextuels v9.3.0, les optimisations réseau v9.2.0 et la fiabilité Spotify v9.1.0 restent inclus.
+Le Centre de fiabilité v9.5.0, la continuité de file v9.4.0, les profils contextuels v9.3.0, les optimisations réseau v9.2.0 et la fiabilité Spotify v9.1.0 restent inclus.
 
 ## Validation
 
@@ -25,4 +26,4 @@ npm.cmd start
 
 La distribution prête à publier est générée dans `dist/`.
 
-Consulte `V9.5.0_NOTES.md` et `DEPLOIEMENT-V9.5.0.md` pour le détail.
+Consulte `V9.6.0_NOTES.md` et `DEPLOIEMENT-V9.6.0.md` pour le détail.

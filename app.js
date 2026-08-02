@@ -290,6 +290,11 @@ import {
 } from "./core/daily-home.js";
 
 import {
+    buildHomeQuickAccess,
+    normalizePinnedProfileIds
+} from "./core/home-quick-access.js";
+
+import {
     DEFAULT_CONTEXTUAL_PROFILE_STATE,
     acceptContextualProfileSuggestion,
     buildContextualProfileSuggestion,
@@ -361,7 +366,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.5.0";
+const APP_VERSION = "9.6.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -692,6 +697,8 @@ const IOS_COMMANDS_KEY =
     "shuffleplus_ios_commands_v1";
 const IOS_COMMAND_HISTORY_KEY =
     "shuffleplus_ios_command_history_v1";
+const PINNED_SHORTCUT_PROFILES_KEY =
+    "shuffleplus_pinned_shortcut_profiles_v1";
 const SHORTCUT_LAUNCH_GUARD_KEY =
     "shuffleplus_shortcut_launch_guard_v1";
 const DYNAMIC_LYRICS_SETTINGS_KEY =
@@ -816,7 +823,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.5.0-shell";
+    "shuffleplus-v9.6.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const ADAPTIVE_DJ_MENU_KEY =
@@ -1595,6 +1602,8 @@ let lastWorkingSpotifyDevice =
 let iosQuickPlaySettings =
     readIosQuickPlaySettings();
 let iosCommands = readIosCommands();
+let pinnedShortcutProfileIds =
+    readPinnedShortcutProfiles(iosCommands);
 let iosCommandHistory =
     readIosCommandHistory();
 let guidedSetupState =
@@ -4256,6 +4265,15 @@ function renderV9HomePanel() {
         command &&
         diagnostic?.readiness?.ready
     );
+    const quickAccess = buildHomeQuickAccess({
+        commands: iosCommands,
+        history: iosCommandHistory,
+        pinnedIds: pinnedShortcutProfileIds,
+        favoriteSourceKeys: [...favoriteSourceKeys],
+        playlists: playlistsCache,
+        savedMixes,
+        now: Date.now()
+    });
     const snapshot = buildDailyHomeSnapshot({
         command,
         commandReady,
@@ -4270,6 +4288,7 @@ function renderV9HomePanel() {
         contextualSuggestion: getContextualProfileSuggestion(
             new Date()
         ),
+        quickAccess,
         now: new Date()
     });
 
@@ -4395,7 +4414,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.5.0
+                        ✨ Apparence v9.6.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5429,7 +5448,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.5.0",
+                "./service-worker.js?v=9.6.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -19290,6 +19309,86 @@ function saveIosCommands() {
     }
 }
 
+function readPinnedShortcutProfiles(commands = []) {
+    const availableIds = commands
+        .map((command) => command?.id)
+        .filter(Boolean);
+    const fallbackId =
+        commands.find((command) => command?.id === "principal")?.id ||
+        availableIds[0] ||
+        "";
+
+    try {
+        const raw = localStorage.getItem(
+            PINNED_SHORTCUT_PROFILES_KEY
+        );
+        const parsed = raw ? JSON.parse(raw) : [];
+        return normalizePinnedProfileIds(
+            parsed,
+            availableIds,
+            { fallbackId: raw === null ? fallbackId : "" }
+        );
+    } catch (error) {
+        console.warn(
+            "Profils épinglés illisibles :",
+            error
+        );
+        return normalizePinnedProfileIds(
+            [],
+            availableIds,
+            { fallbackId }
+        );
+    }
+}
+
+function savePinnedShortcutProfiles() {
+    try {
+        localStorage.setItem(
+            PINNED_SHORTCUT_PROFILES_KEY,
+            JSON.stringify(pinnedShortcutProfileIds)
+        );
+    } catch (error) {
+        console.warn(
+            "Profils épinglés non enregistrés :",
+            error
+        );
+    }
+}
+
+function togglePinnedShortcutProfile(commandId = "") {
+    const command = getIosCommandById(commandId);
+    if (!command) return;
+
+    const next = pinnedShortcutProfileIds.includes(commandId)
+        ? pinnedShortcutProfileIds.filter((id) => id !== commandId)
+        : [commandId, ...pinnedShortcutProfileIds];
+
+    if (
+        !pinnedShortcutProfileIds.includes(commandId) &&
+        pinnedShortcutProfileIds.length >= 4
+    ) {
+        showToast(
+            "Tu peux épingler jusqu’à 4 profils sur l’accueil.",
+            "warning"
+        );
+        return;
+    }
+
+    pinnedShortcutProfileIds = normalizePinnedProfileIds(
+        next,
+        iosCommands.map((item) => item.id),
+        { fallbackId: "" }
+    );
+    savePinnedShortcutProfiles();
+    displayPlaylists(playlistsCache);
+    showToast(
+        pinnedShortcutProfileIds.includes(commandId)
+            ? `📌 « ${command.name} » ajouté à l’accueil.`
+            : `« ${command.name} » retiré de l’accueil.`,
+        "success"
+    );
+}
+
 function normalizeIosCommandHistory(values) {
     if (!Array.isArray(values)) {
         return [];
@@ -19436,6 +19535,33 @@ function getEffectiveIosCommand(
             name: "Lecture iOS",
             ...iosQuickPlaySettings
         })
+    );
+}
+
+async function runShortcutProfileById(commandId = "") {
+    const command = getIosCommandById(commandId);
+
+    if (!command) {
+        setStatus(
+            "Ce profil de lancement n’est plus disponible.",
+            "error"
+        );
+        return;
+    }
+
+    if (command.commandType === "smartmix") {
+        await executeAutomationCommand({
+            action: "smartmix",
+            commandId,
+            autoplay: command.autoplay,
+            openDrivingMode: command.openDrivingMode
+        });
+        return;
+    }
+
+    await runIosQuickPlay(
+        command.playlistId || "",
+        commandId
     );
 }
 
@@ -19777,7 +19903,13 @@ function deleteIosCommand(commandId) {
     iosCommands = iosCommands.filter(
         (item) => item.id !== commandId
     );
+    pinnedShortcutProfileIds = normalizePinnedProfileIds(
+        pinnedShortcutProfileIds,
+        iosCommands.map((item) => item.id),
+        { fallbackId: iosCommands[0]?.id || "" }
+    );
     saveIosCommands();
+    savePinnedShortcutProfiles();
 
     if (editingIosCommandId === commandId) {
         editingIosCommandId = "";
@@ -19994,6 +20126,15 @@ function renderIosCommandsPanel() {
                     </div>
 
                     <div class="ios-command-actions">
+                        <button
+                            type="button"
+                            data-ios-command-action="pin"
+                            data-ios-command-id="${escapeHtml(command.id)}"
+                            aria-pressed="${pinnedShortcutProfileIds.includes(command.id) ? "true" : "false"}"
+                            title="${pinnedShortcutProfileIds.includes(command.id) ? "Retirer de l’accueil" : "Épingler sur l’accueil"}"
+                        >
+                            ${pinnedShortcutProfileIds.includes(command.id) ? "📌" : "＋"}
+                        </button>
                         <button
                             type="button"
                             data-ios-command-action="run"
@@ -30450,6 +30591,7 @@ function buildBackupPayload() {
         cleanupSettings: currentCleanupSettings,
         iosQuickPlaySettings,
         iosCommands,
+        pinnedShortcutProfileIds,
         iosCommandHistory,
         guidedSetupState,
         dynamicLyricsSettings,
@@ -30618,6 +30760,10 @@ function validateBackupPayload(payload) {
                     )
                     .slice(0, MAX_IOS_COMMANDS)
                 : [],
+        pinnedShortcutProfileIds:
+            normalizePinnedProfileIds(
+                payload.data.pinnedShortcutProfileIds
+            ),
         iosCommandHistory:
             normalizeIosCommandHistory(
                 payload.data.iosCommandHistory
@@ -30816,6 +30962,12 @@ function applyValidatedBackupState(imported) {
             ? imported.iosCommands
             : migrateLegacyIosCommand();
     saveIosCommands();
+    pinnedShortcutProfileIds = normalizePinnedProfileIds(
+        imported.pinnedShortcutProfileIds,
+        iosCommands.map((command) => command.id),
+        { fallbackId: "" }
+    );
+    savePinnedShortcutProfiles();
     iosCommandHistory =
         imported.iosCommandHistory;
     saveIosCommandHistory();
@@ -32940,6 +33092,7 @@ function applySelectiveAutomationCategory(
     if (mode === "remote") {
         iosQuickPlaySettings = remoteImported.iosQuickPlaySettings;
         iosCommands = remoteImported.iosCommands;
+        pinnedShortcutProfileIds = remoteImported.pinnedShortcutProfileIds;
         dynamicLyricsSettings =
             remoteImported.dynamicLyricsSettings;
         adaptiveDjMenuSettings = remoteImported.adaptiveDjMenuSettings;
@@ -32957,6 +33110,15 @@ function applySelectiveAutomationCategory(
             (item) => item.id,
             MAX_IOS_COMMANDS
         ).map((command) => normalizeIosCommand(command));
+        pinnedShortcutProfileIds = normalizePinnedProfileIds(
+            mergeSyncUniqueStrings(
+                localImported.pinnedShortcutProfileIds,
+                remoteImported.pinnedShortcutProfileIds,
+                4
+            ),
+            iosCommands.map((command) => command.id),
+            { fallbackId: "" }
+        );
         mixSchedules = mergeSyncArrays(
             localImported.mixSchedules,
             remoteImported.mixSchedules,
@@ -33001,8 +33163,14 @@ function applySelectiveAutomationCategory(
         iosCommands = migrateLegacyIosCommand();
     }
 
+    pinnedShortcutProfileIds = normalizePinnedProfileIds(
+        pinnedShortcutProfileIds,
+        iosCommands.map((command) => command.id),
+        { fallbackId: "" }
+    );
     saveIosQuickPlaySettings();
     saveIosCommands();
+    savePinnedShortcutProfiles();
     saveDynamicLyricsSettings();
     saveAdaptiveDjMenuSettings();
     saveDrivingModeSettings();
@@ -41554,6 +41722,34 @@ contentElement.addEventListener(
             return;
         }
 
+        const homeRunProfileButton = event.target.closest(
+            "[data-home-run-profile]"
+        );
+        if (homeRunProfileButton) {
+            await runShortcutProfileById(
+                homeRunProfileButton.dataset.homeRunProfile || ""
+            );
+            return;
+        }
+
+        const homePinProfileButton = event.target.closest(
+            "[data-home-pin-profile]"
+        );
+        if (homePinProfileButton) {
+            togglePinnedShortcutProfile(
+                homePinProfileButton.dataset.homePinProfile || ""
+            );
+            return;
+        }
+
+        if (event.target.closest("[data-home-open-favorites]")) {
+            libraryFilter = "favorites";
+            librarySearchTerm = "";
+            saveLibraryPreferences();
+            await navigateToAppMenu("music");
+            return;
+        }
+
         if (event.target.closest("[data-guided-primary-launch]")) {
             await runGuidedPrimaryLaunch();
             return;
@@ -42924,22 +43120,9 @@ contentElement.addEventListener(
                     .iosCommandId || "";
 
             if (action === "run") {
-                const command =
-                    getIosCommandById(commandId);
-                if (command?.commandType === "smartmix") {
-                    await executeAutomationCommand({
-                        action: "smartmix",
-                        commandId,
-                        autoplay: command.autoplay,
-                        openDrivingMode:
-                            command.openDrivingMode
-                    });
-                } else {
-                    await runIosQuickPlay(
-                        command?.playlistId || "",
-                        commandId
-                    );
-                }
+                await runShortcutProfileById(commandId);
+            } else if (action === "pin") {
+                togglePinnedShortcutProfile(commandId);
             } else if (action === "copy") {
                 await copyIosCommandUrl(
                     commandId
