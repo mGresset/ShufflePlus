@@ -7,18 +7,18 @@ const [version, designSystem] = await Promise.all([
     readFile(new URL("../design-system.css", import.meta.url), "utf8")
 ]);
 
-test("la version corrective active est 9.9.0", () => {
-    assert.equal(version, "9.9.0");
+test("la version corrective active est 9.9.1", () => {
+    assert.equal(version, "9.9.1");
 });
 
 test("le créateur de mix multi-sources suit le thème actif", () => {
     assert.match(
         designSystem,
-        /data-app-menu-page="library"\] \.mix-builder[\s\S]*?border-color: var\(--ui-card-border\) !important;/
+        /data-app-menu-page="music"\] \.mix-builder[\s\S]*?border-color: var\(--ui-card-border\) !important;/
     );
     assert.match(
         designSystem,
-        /data-app-menu-page="library"\] \.source-card\.is-selected[\s\S]*?var\(--border-active\)/
+        /data-app-menu-page="music"\] \.source-card\.is-selected[\s\S]*?var\(--border-active\)/
     );
     assert.match(
         designSystem,

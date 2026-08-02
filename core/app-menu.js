@@ -94,11 +94,10 @@ export const APP_SECTION_GROUPS = Object.freeze({
         id: "settings",
         label: "Réglages",
         featured: Object.freeze([
-            Object.freeze(["settings", "⚙️", "Réglages"])
-        ]),
-        more: Object.freeze([
+            Object.freeze(["settings", "⚙️", "Réglages"]),
             Object.freeze(["guide", "📖", "Guide et aide"])
-        ])
+        ]),
+        more: Object.freeze([])
     })
 });
 

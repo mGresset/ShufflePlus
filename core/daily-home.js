@@ -492,7 +492,7 @@ export function renderDailyHomeMarkup(snapshot, {
 
                     <div class="v9-home-player-actions">
                         <button type="button" class="ui-button ui-button--primary" data-dashboard-playback="playpause">
-                            ${playback.isPlaying ? "⏸ Pause" : "▶ Reprendre"}
+                            ${playback.isPlaying ? "⏸ Pause" : "▶ Lecture"}
                         </button>
                         <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="next">⏭ Suivant</button>
                         <button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ Liste de lecture</button>

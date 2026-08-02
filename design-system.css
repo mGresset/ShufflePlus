@@ -1527,8 +1527,8 @@ img[loading="lazy"] {
    Shuffle+ v9.8.0 — cohérence du thème dans Musique et alignement rapide
    --------------------------------------------------------------------- */
 
-.app-menu-page[data-app-menu-page="library"] .mix-builder,
-.app-menu-page[data-app-menu-page="library"] .save-playlist-panel {
+.app-menu-page[data-app-menu-page="music"] .mix-builder,
+.app-menu-page[data-app-menu-page="music"] .save-playlist-panel {
     border-color: var(--ui-card-border) !important;
     background: var(--ui-card-bg) !important;
     box-shadow:
@@ -1536,7 +1536,7 @@ img[loading="lazy"] {
         0 18px 42px rgb(0 0 0 / 18%) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .mix-builder.is-editing {
+.app-menu-page[data-app-menu-page="music"] .mix-builder.is-editing {
     border-color: var(--border-active) !important;
     background:
         linear-gradient(
@@ -1546,7 +1546,7 @@ img[loading="lazy"] {
         ) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] :where(
+.app-menu-page[data-app-menu-page="music"] :where(
     .mix-builder-copy small,
     .mix-builder-copy span,
     .save-playlist-heading p,
@@ -1555,14 +1555,14 @@ img[loading="lazy"] {
     color: var(--text-muted) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .source-card.is-selected {
+.app-menu-page[data-app-menu-page="music"] .source-card.is-selected {
     border-color: var(--border-active) !important;
     box-shadow:
         0 0 0 2px rgb(var(--accent-rgb) / 20%),
         0 14px 34px rgb(var(--accent-rgb) / 10%) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .source-selector input:checked + span {
+.app-menu-page[data-app-menu-page="music"] .source-selector input:checked + span {
     border-color: var(--accent) !important;
     background:
         linear-gradient(
@@ -1572,15 +1572,15 @@ img[loading="lazy"] {
         ) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .source-selector input:checked + span::after {
+.app-menu-page[data-app-menu-page="music"] .source-selector input:checked + span::after {
     color: var(--accent-contrast) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .source-selector input:focus-visible + span {
+.app-menu-page[data-app-menu-page="music"] .source-selector input:focus-visible + span {
     outline-color: rgb(var(--accent-rgb) / 42%) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .mix-detail-placeholder {
+.app-menu-page[data-app-menu-page="music"] .mix-detail-placeholder {
     background:
         linear-gradient(
             135deg,
@@ -1590,7 +1590,7 @@ img[loading="lazy"] {
     color: var(--accent-contrast) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] :where(
+.app-menu-page[data-app-menu-page="music"] :where(
     .save-playlist-button,
     .save-playlist-confirm,
     .library-empty-state button
@@ -1605,7 +1605,7 @@ img[loading="lazy"] {
     color: var(--accent-contrast) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] :where(
+.app-menu-page[data-app-menu-page="music"] :where(
     .save-playlist-field input:focus,
     .library-search-field input:focus,
     .library-select-field select:focus
@@ -1614,8 +1614,8 @@ img[loading="lazy"] {
     box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 16%) !important;
 }
 
-.app-menu-page[data-app-menu-page="library"] .shuffle-stats-text strong:not(.shuffle-stats-title),
-.app-menu-page[data-app-menu-page="library"] .save-playlist-message a {
+.app-menu-page[data-app-menu-page="music"] .shuffle-stats-text strong:not(.shuffle-stats-title),
+.app-menu-page[data-app-menu-page="music"] .save-playlist-message a {
     color: var(--accent) !important;
 }
 
@@ -1630,4 +1630,125 @@ img[loading="lazy"] {
 .musical-dashboard-shortcuts button > strong {
     width: 100%;
     text-align: center !important;
+}
+
+
+/* ---------------------------------------------------------------------
+   Shuffle+ v9.9.1 — stabilisation avant v10
+   --------------------------------------------------------------------- */
+
+/* Le constructeur multi-sources appartient à la page "music".
+   Toutes ses surfaces et sélections suivent le thème actif. */
+.app-menu-page[data-app-menu-page="music"] .mix-builder {
+    border-color: var(--ui-card-border) !important;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 9%),
+            color-mix(in srgb, var(--surface-1) 96%, black) 68%
+        ) !important;
+}
+
+.app-menu-page[data-app-menu-page="music"] :where(
+    .mix-secondary-button,
+    .library-reset-button
+) {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.app-menu-page[data-app-menu-page="music"] :where(
+    .mix-secondary-button,
+    .library-reset-button
+):hover:not(:disabled) {
+    border-color: var(--ui-control-border-hover) !important;
+    background: var(--ui-control-bg-hover) !important;
+    box-shadow: var(--shadow-accent);
+}
+
+/* Le niveau occupe une ligne complète, puis les quatre options forment
+   deux rangées parfaitement alignées. */
+.cleanup-form {
+    align-items: stretch;
+}
+
+.cleanup-field {
+    grid-column: 1 / -1;
+    grid-template-columns:
+        minmax(170px, 0.42fr)
+        minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-height: 72px;
+    padding: 12px 14px;
+    border: 1px solid var(--ui-card-border) !important;
+    border-radius: 12px;
+    background:
+        color-mix(
+            in srgb,
+            var(--accent) 5%,
+            rgb(10 10 22 / 94%)
+        ) !important;
+}
+
+.cleanup-field > span {
+    color: var(--text-muted) !important;
+}
+
+.cleanup-field select {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.cleanup-check {
+    min-height: 72px;
+    border-color: var(--ui-card-border) !important;
+    background:
+        color-mix(
+            in srgb,
+            var(--accent) 5%,
+            rgb(10 10 22 / 94%)
+        ) !important;
+    color: var(--text-main) !important;
+}
+
+.cleanup-check-main {
+    border-color: var(--border-active) !important;
+    background: rgb(var(--accent-rgb) / 12%) !important;
+}
+
+.cleanup-check input {
+    accent-color: var(--accent) !important;
+}
+
+.cleanup-panel-heading p,
+.cleanup-result-banner span {
+    color: var(--text-muted) !important;
+}
+
+.cleanup-reset-button,
+.cleanup-restore-button {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    color: var(--text-main) !important;
+}
+
+.cleanup-save-button {
+    background:
+        linear-gradient(
+            120deg,
+            var(--accent),
+            var(--accent-secondary)
+        ) !important;
+    color: var(--accent-contrast) !important;
+}
+
+@media (max-width: 760px) {
+    .cleanup-field {
+        grid-column: auto;
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
 }

@@ -388,7 +388,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.0";
+const APP_VERSION = "9.9.1";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -845,7 +845,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.0-shell";
+    "shuffleplus-v9.9.1-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -2944,7 +2944,7 @@ function openDashboardSection(id){return navigateToAppMenu(id);}
 function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
 function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
 function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),rawSet=s.settings,set=isExpertExperience(experienceMode)?rawSet:{...rawSet,showScene:false,showStatistics:false},p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ 8</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
-${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Reprendre"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
+${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Lecture"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
 ${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
@@ -4526,7 +4526,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.0
+                        ✨ Apparence v9.9.1
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5560,7 +5560,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.0",
+                "./service-worker.js?v=9.9.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6233,7 +6233,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.0 ferme les risques techniques avant la version finale.
+                        La v9.9.1 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -9851,7 +9851,7 @@ function renderDrivingMainControls({
             id: "playpause",
             buttonId: "drivingPlayPauseButton",
             icon: isPlaying ? "⏸" : "▶",
-            label: isPlaying ? "Pause" : "Reprendre",
+            label: isPlaying ? "Pause" : "Lecture",
             detail: "",
             disabled: drivingActionBusy || disabledForLock || !drivingPlaybackState?.device,
             extraClass: ""
@@ -13700,6 +13700,7 @@ async function runQuickControlAction(
         ) {
             const state =
                 await getCurrentPlayback();
+            let expectedPlayingState = null;
             const deviceId = state?.device?.id || "";
             const track =
                 state?.item?.type === "track"
@@ -13719,12 +13720,14 @@ async function runQuickControlAction(
             if (normalizedAction === "playpause") {
                 if (state?.is_playing) {
                     await pausePlayback(deviceId);
+                    expectedPlayingState = false;
                     setQuickControlMessage(
                         "Lecture mise en pause.",
                         "success"
                     );
                 } else {
                     await resumePlayback(deviceId);
+                    expectedPlayingState = true;
                     setQuickControlMessage(
                         "Lecture reprise.",
                         "success"
@@ -13732,12 +13735,14 @@ async function runQuickControlAction(
                 }
             } else if (normalizedAction === "pause") {
                 await pausePlayback(deviceId);
+                expectedPlayingState = false;
                 setQuickControlMessage(
                     "Lecture mise en pause.",
                     "success"
                 );
             } else if (normalizedAction === "resume") {
                 await resumePlayback(deviceId);
+                expectedPlayingState = true;
                 setQuickControlMessage(
                     "Lecture reprise.",
                     "success"
@@ -13779,10 +13784,33 @@ async function runQuickControlAction(
             await new Promise((resolve) =>
                 window.setTimeout(resolve, 500)
             );
-            quickPlaybackState =
+            const refreshedPlayback =
                 await getCurrentPlayback().catch(
-                    () => state
+                    () => null
                 );
+            const fallbackPlayback = {
+                ...state,
+                ...(expectedPlayingState === null
+                    ? {}
+                    : {
+                        is_playing:
+                            expectedPlayingState
+                    })
+            };
+            quickPlaybackState =
+                refreshedPlayback
+                    ? {
+                        ...refreshedPlayback,
+                        ...(expectedPlayingState === null
+                            ? {}
+                            : {
+                                is_playing:
+                                    expectedPlayingState
+                            })
+                    }
+                    : fallbackPlayback;
+            drivingPlaybackState =
+                quickPlaybackState;
 
             if (
                 normalizedAction === "next" &&
@@ -35770,12 +35798,25 @@ async function serverSyncRequest(
         let data = null;
         const contentType =
             response.headers.get("content-type") || "";
+        const responseText = await response.text();
 
-        if (contentType.includes("application/json")) {
-            data = await response.json();
-        } else {
-            const text = await response.text();
-            data = text ? { message: text } : null;
+        if (responseText) {
+            if (contentType.includes("application/json")) {
+                try {
+                    data = JSON.parse(responseText);
+                } catch (parseError) {
+                    const invalidResponseError = new Error(
+                        "Réponse serveur invalide. Vérifie que l’adresse Railway pointe vers le service Shuffle+ configuré avec /server."
+                    );
+                    invalidResponseError.status = response.status;
+                    invalidResponseError.code =
+                        "SERVER_INVALID_JSON";
+                    invalidResponseError.cause = parseError;
+                    throw invalidResponseError;
+                }
+            } else {
+                data = { message: responseText };
+            }
         }
 
         if (!response.ok) {
