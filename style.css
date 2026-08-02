@@ -728,9 +728,9 @@ button:disabled {
     gap: 18px;
     margin: 0 0 22px;
     padding: 18px;
-    border: 1px solid #304438;
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--ui-card-border));
     border-radius: 16px;
-    background: #142019;
+    background: color-mix(in srgb, var(--accent) 5%, var(--ui-card-bg));
 }
 
 .mix-builder-copy {
@@ -746,7 +746,7 @@ button:disabled {
 
 .mix-builder-copy small,
 .mix-builder-copy span {
-    color: #a9b9ae;
+    color: var(--text-muted);
 }
 
 .mix-builder-copy span {
@@ -769,20 +769,25 @@ button:disabled {
 }
 
 .mix-secondary-button {
-    border: 1px solid #496052;
-    background: transparent;
-    color: #ffffff;
+    border: 1px solid var(--ui-control-border);
+    background: var(--ui-control-bg);
+    color: var(--text-main);
 }
 
 .mix-create-button {
     border: 0;
-    background: #1ed760;
-    color: #07190d;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary));
+    color: var(--accent-contrast);
 }
 
 .mix-secondary-button:hover:not(:disabled),
 .mix-create-button:hover:not(:disabled) {
     transform: translateY(-1px);
+}
+
+.mix-secondary-button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--ui-control-bg));
 }
 
 .mix-secondary-button:disabled,
@@ -801,8 +806,8 @@ button:disabled {
 }
 
 .source-card.is-selected {
-    border-color: #1ed760;
-    box-shadow: 0 0 0 2px rgb(30 215 96 / 18%);
+    border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+    box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 18%);
 }
 
 .source-card.is-disabled {
@@ -857,26 +862,26 @@ button:disabled {
     width: 20px;
     height: 20px;
     place-items: center;
-    border: 2px solid #d6d6d6;
+    border: 2px solid var(--ui-control-border);
     border-radius: 6px;
-    background: #151515;
+    background: var(--ui-control-bg);
 }
 
 .source-selector input:checked + span {
-    border-color: #1ed760;
-    background: #1ed760;
+    border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+    background: linear-gradient(135deg, var(--accent), var(--accent-secondary));
 }
 
 .source-selector input:checked + span::after {
     content: "✓";
-    color: #07190d;
+    color: var(--accent-contrast);
     font-size: 14px;
     font-weight: 900;
     line-height: 1;
 }
 
 .source-selector input:focus-visible + span {
-    outline: 3px solid rgb(30 215 96 / 35%);
+    outline: 3px solid rgb(var(--accent-rgb) / 35%);
     outline-offset: 3px;
 }
 
@@ -886,8 +891,8 @@ button:disabled {
 }
 
 .mix-detail-placeholder {
-    background: linear-gradient(135deg, #1ed760 0%, #256b42 100%);
-    color: #07190d;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
+    color: var(--accent-contrast);
     font-size: 76px;
 }
 
@@ -1089,9 +1094,9 @@ button:disabled {
     gap: 14px;
     margin: 0 0 22px;
     padding: 18px;
-    border: 1px solid #2b2b2b;
+    border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--ui-card-border));
     border-radius: 16px;
-    background: #171717;
+    background: color-mix(in srgb, var(--accent) 5%, var(--ui-card-bg));
 }
 
 .library-search-field,
@@ -1104,7 +1109,7 @@ button:disabled {
 
 .library-search-field > span,
 .library-select-field > span {
-    color: #b3b3b3;
+    color: var(--text-muted);
     font-size: 13px;
     font-weight: 700;
 }
@@ -1113,36 +1118,37 @@ button:disabled {
 .library-select-field select {
     width: 100%;
     min-height: 48px;
-    border: 1px solid #3a3a3a;
+    border: 1px solid var(--ui-control-border);
     border-radius: 12px;
     outline: none;
-    background: #101010;
-    color: #fff;
+    background: var(--ui-control-bg);
+    color: var(--text-main);
     padding: 0 14px;
 }
 
 .library-search-field input:focus,
 .library-select-field select:focus {
-    border-color: #1ed760;
-    box-shadow: 0 0 0 3px rgb(30 215 96 / 14%);
+    border-color: color-mix(in srgb, var(--accent) 58%, transparent);
+    box-shadow: 0 0 0 3px rgb(var(--accent-rgb) / 14%);
 }
 
 .library-search-field input::placeholder {
-    color: #777;
+    color: var(--text-muted);
 }
 
 .library-reset-button {
     min-height: 48px;
     padding: 0 18px;
-    border: 1px solid #454545;
+    border: 1px solid var(--ui-control-border);
     border-radius: 12px;
-    background: transparent;
-    color: #fff;
+    background: var(--ui-control-bg);
+    color: var(--text-main);
     white-space: nowrap;
 }
 
 .library-reset-button:hover:not(:disabled) {
-    background: #242424;
+    background: color-mix(in srgb, var(--accent) 8%, var(--ui-control-bg));
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
 }
 
 .library-reset-button:disabled {
@@ -1181,8 +1187,8 @@ button:disabled {
     padding: 0 18px;
     border: 0;
     border-radius: 999px;
-    background: #1ed760;
-    color: #07190d;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary));
+    color: var(--accent-contrast);
     font-weight: 750;
 }
 
@@ -3852,14 +3858,9 @@ y
     gap: 16px;
     margin: 0 0 22px;
     padding: 18px;
-    border: 1px solid #456339;
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, var(--ui-card-border));
     border-radius: 16px;
-    background:
-        linear-gradient(
-            135deg,
-            rgb(58 91 43 / 72%) 0%,
-            rgb(20 20 20 / 96%) 72%
-        );
+    background: color-mix(in srgb, var(--accent) 5%, var(--ui-card-bg));
 }
 
 .cleanup-panel-heading {
@@ -3876,7 +3877,7 @@ y
 
 .cleanup-panel-heading p {
     margin: 0;
-    color: #c5d9bb;
+    color: var(--text-muted);
     font-size: 14px;
     line-height: 1.5;
 }
@@ -3885,17 +3886,17 @@ y
 .cleanup-restore-button {
     min-height: 40px;
     padding: 8px 14px;
-    border: 1px solid #6c8c5c;
+    border: 1px solid var(--ui-control-border);
     border-radius: 999px;
-    background: transparent;
-    color: #ffffff;
+    background: var(--ui-control-bg);
+    color: var(--text-main);
     font-weight: 750;
 }
 
 .cleanup-reset-button:hover,
 .cleanup-restore-button:hover {
-    border-color: #9fe27e;
-    background: #24351c;
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--ui-control-bg));
 }
 
 .cleanup-form {
@@ -3907,11 +3908,12 @@ y
 
 .cleanup-field {
     display: grid;
+    grid-column: 1 / -1;
     gap: 7px;
 }
 
 .cleanup-field > span {
-    color: #d7e4d1;
+    color: var(--text-main);
     font-size: 13px;
     font-weight: 700;
 }
@@ -3920,37 +3922,45 @@ y
     width: 100%;
     min-height: 46px;
     padding: 0 13px;
-    border: 1px solid #58764a;
+    border: 1px solid var(--ui-control-border);
     border-radius: 11px;
     outline: none;
-    background: #121911;
-    color: #ffffff;
+    background: var(--ui-control-bg);
+    color: var(--text-main);
+}
+
+.cleanup-options-grid {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
 }
 
 .cleanup-check {
     display: flex;
     align-items: center;
     gap: 9px;
-    min-height: 46px;
-    padding: 10px 12px;
-    border: 1px solid #4c6341;
+    min-height: 68px;
+    padding: 12px 14px;
+    border: 1px solid var(--ui-control-border);
     border-radius: 11px;
-    background: #131b12;
-    color: #d4e0cf;
+    background: var(--ui-control-bg);
+    color: var(--text-main);
     font-size: 13px;
 }
 
 .cleanup-check-main {
     grid-column: 1 / -1;
-    border-color: #70935f;
-    background: #1a2816;
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--ui-control-bg));
     font-weight: 800;
+    min-height: 52px;
 }
 
 .cleanup-check input {
     width: 18px;
     height: 18px;
-    accent-color: #9fe27e;
+    accent-color: var(--accent);
 }
 
 .cleanup-actions {
@@ -3964,8 +3974,8 @@ y
     padding: 9px 16px;
     border: 0;
     border-radius: 999px;
-    background: #9fe27e;
-    color: #10200a;
+    background: linear-gradient(120deg, var(--accent), var(--accent-secondary));
+    color: var(--accent-contrast);
     font-weight: 800;
 }
 
@@ -3976,9 +3986,9 @@ y
     gap: 14px;
     margin: 0 0 18px;
     padding: 14px 16px;
-    border: 1px solid #5f7e51;
+    border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--ui-card-border));
     border-radius: 13px;
-    background: #192515;
+    background: color-mix(in srgb, var(--accent) 7%, var(--ui-card-bg));
 }
 
 .cleanup-result-banner > div {
@@ -3987,11 +3997,11 @@ y
 }
 
 .cleanup-result-banner strong {
-    color: #a9ed86;
+    color: color-mix(in srgb, var(--accent) 68%, white);
 }
 
 .cleanup-result-banner span {
-    color: #c4d5bc;
+    color: var(--text-muted);
     font-size: 13px;
 }
 
@@ -4008,12 +4018,15 @@ y
         width: 100%;
     }
 
-    .cleanup-form {
+    .cleanup-form,
+    .cleanup-options-grid {
         grid-template-columns: 1fr;
     }
 
     .cleanup-check-main,
-    .cleanup-actions {
+    .cleanup-actions,
+    .cleanup-field,
+    .cleanup-options-grid {
         grid-column: auto;
     }
 }

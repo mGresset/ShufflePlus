@@ -388,7 +388,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.1";
+const APP_VERSION = "9.9.2";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -845,7 +845,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.1-shell";
+    "shuffleplus-v9.9.2-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1970,7 +1970,27 @@ function getReliabilityContext(snapshot = appHealthSnapshot) {
     };
 }
 
+function normalizeUserFacingStatusMessage(message = "") {
+    const normalized = String(message || "").trim();
+
+    if (!normalized) {
+        return "";
+    }
+
+    if (
+        /not valid JSON/i.test(normalized) ||
+        /Unexpected token/i.test(normalized) ||
+        /JSON\.parse/i.test(normalized)
+    ) {
+        return "Réponse invalide reçue d’un service. Vérifie l’adresse Railway configurée pour Shuffle+ ou reconnecte le service concerné.";
+    }
+
+    return normalized;
+}
+
 function setStatus(message = "", type = "") {
+    const safeMessage = normalizeUserFacingStatusMessage(message);
+
     statusElement.setAttribute(
         "role",
         type === "error"
@@ -1983,14 +2003,14 @@ function setStatus(message = "", type = "") {
             ? "assertive"
             : "polite"
     );
-    statusElement.textContent = message;
+    statusElement.textContent = safeMessage;
     statusElement.className = "status";
 
     if (type) {
         statusElement.classList.add(type);
     }
 
-    captureReliabilityStatus(message, type);
+    captureReliabilityStatus(safeMessage, type);
 }
 
 
@@ -4526,7 +4546,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.1
+                        ✨ Apparence v9.9.2
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5560,7 +5580,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.1",
+                "./service-worker.js?v=9.9.2",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6233,7 +6253,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.1 ferme les risques techniques avant la version finale.
+                        La v9.9.2 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10635,6 +10655,13 @@ async function toggleDrivingPlayback() {
             );
         }
 
+        const expectedPlayingState = !Boolean(state?.is_playing);
+        drivingPlaybackState = {
+            ...state,
+            is_playing: expectedPlayingState
+        };
+        renderDrivingModePage();
+
         if (state.is_playing) {
             await pausePlayback(deviceId);
             setDrivingMessage(
@@ -10650,10 +10677,19 @@ async function toggleDrivingPlayback() {
         }
 
         await new Promise((resolve) =>
-            window.setTimeout(resolve, 550)
+            window.setTimeout(resolve, 140)
         );
+        const refreshedPlayback =
+            await getCurrentPlayback().catch(
+                () => null
+            );
         drivingPlaybackState =
-            await getCurrentPlayback();
+            refreshedPlayback
+                ? {
+                    ...refreshedPlayback,
+                    is_playing: expectedPlayingState
+                }
+                : drivingPlaybackState;
     });
 }
 
@@ -13719,30 +13755,62 @@ async function runQuickControlAction(
 
             if (normalizedAction === "playpause") {
                 if (state?.is_playing) {
-                    await pausePlayback(deviceId);
                     expectedPlayingState = false;
+                    quickPlaybackState = {
+                        ...state,
+                        is_playing: false
+                    };
+                    drivingPlaybackState = quickPlaybackState;
+                    if (activeAppMenu === "quick") {
+                        renderQuickControlPage();
+                    }
+                    await pausePlayback(deviceId);
                     setQuickControlMessage(
                         "Lecture mise en pause.",
                         "success"
                     );
                 } else {
-                    await resumePlayback(deviceId);
                     expectedPlayingState = true;
+                    quickPlaybackState = {
+                        ...state,
+                        is_playing: true
+                    };
+                    drivingPlaybackState = quickPlaybackState;
+                    if (activeAppMenu === "quick") {
+                        renderQuickControlPage();
+                    }
+                    await resumePlayback(deviceId);
                     setQuickControlMessage(
                         "Lecture reprise.",
                         "success"
                     );
                 }
             } else if (normalizedAction === "pause") {
-                await pausePlayback(deviceId);
                 expectedPlayingState = false;
+                quickPlaybackState = {
+                    ...state,
+                    is_playing: false
+                };
+                drivingPlaybackState = quickPlaybackState;
+                if (activeAppMenu === "quick") {
+                    renderQuickControlPage();
+                }
+                await pausePlayback(deviceId);
                 setQuickControlMessage(
                     "Lecture mise en pause.",
                     "success"
                 );
             } else if (normalizedAction === "resume") {
-                await resumePlayback(deviceId);
                 expectedPlayingState = true;
+                quickPlaybackState = {
+                    ...state,
+                    is_playing: true
+                };
+                drivingPlaybackState = quickPlaybackState;
+                if (activeAppMenu === "quick") {
+                    renderQuickControlPage();
+                }
+                await resumePlayback(deviceId);
                 setQuickControlMessage(
                     "Lecture reprise.",
                     "success"
@@ -13782,7 +13850,7 @@ async function runQuickControlAction(
             }
 
             await new Promise((resolve) =>
-                window.setTimeout(resolve, 500)
+                window.setTimeout(resolve, 140)
             );
             const refreshedPlayback =
                 await getCurrentPlayback().catch(
@@ -25165,41 +25233,43 @@ function renderCleanupPanel() {
                     </select>
                 </label>
 
-                <label class="cleanup-check">
-                    <input
-                        name="keepRemix"
-                        type="checkbox"
-                        ${settings.keepRemix ? "checked" : ""}
-                    >
-                    <span>Conserver les remix séparément</span>
-                </label>
+                <div class="cleanup-options-grid">
+                    <label class="cleanup-check">
+                        <input
+                            name="keepRemix"
+                            type="checkbox"
+                            ${settings.keepRemix ? "checked" : ""}
+                        >
+                        <span>Conserver les remix séparément</span>
+                    </label>
 
-                <label class="cleanup-check">
-                    <input
-                        name="keepLive"
-                        type="checkbox"
-                        ${settings.keepLive ? "checked" : ""}
-                    >
-                    <span>Conserver les versions live séparément</span>
-                </label>
+                    <label class="cleanup-check">
+                        <input
+                            name="keepLive"
+                            type="checkbox"
+                            ${settings.keepLive ? "checked" : ""}
+                        >
+                        <span>Conserver les versions live séparément</span>
+                    </label>
 
-                <label class="cleanup-check">
-                    <input
-                        name="preferOriginal"
-                        type="checkbox"
-                        ${settings.preferOriginal ? "checked" : ""}
-                    >
-                    <span>Préférer la version originale</span>
-                </label>
+                    <label class="cleanup-check">
+                        <input
+                            name="preferOriginal"
+                            type="checkbox"
+                            ${settings.preferOriginal ? "checked" : ""}
+                        >
+                        <span>Préférer la version originale</span>
+                    </label>
 
-                <label class="cleanup-check">
-                    <input
-                        name="removeUnavailable"
-                        type="checkbox"
-                        ${settings.removeUnavailable ? "checked" : ""}
-                    >
-                    <span>Retirer les morceaux indisponibles</span>
-                </label>
+                    <label class="cleanup-check">
+                        <input
+                            name="removeUnavailable"
+                            type="checkbox"
+                            ${settings.removeUnavailable ? "checked" : ""}
+                        >
+                        <span>Retirer les morceaux indisponibles</span>
+                    </label>
+                </div>
 
                 <div class="cleanup-actions">
                     <button

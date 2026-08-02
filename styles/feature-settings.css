@@ -135,11 +135,11 @@
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.1 — Pré-finalisation et validation terrain v10
+   Shuffle+ v9.9.2 — Pré-finalisation et validation terrain v10
    ===================================================================== */
 
 .release-readiness-panel {
-    gap: 18px;
+    gap: 22px;
     border-color: color-mix(in srgb, var(--accent) 28%, var(--ui-card-border)) !important;
 }
 
@@ -224,7 +224,11 @@
 .release-readiness-automatic {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 9px;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--ui-control-border));
+    border-radius: var(--ui-radius-md);
+    background: color-mix(in srgb, var(--accent) 4%, var(--ui-card-bg));
 }
 
 .release-readiness-automatic span {
@@ -256,7 +260,11 @@
 .release-readiness-field {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid color-mix(in srgb, var(--accent) 12%, var(--ui-control-border));
+    border-radius: var(--ui-radius-md);
+    background: color-mix(in srgb, var(--accent) 4%, var(--ui-card-bg));
 }
 
 .release-readiness-check {

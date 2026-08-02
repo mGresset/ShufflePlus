@@ -24,5 +24,5 @@
 - **v9.7.0 — Mode conduite avancé, verrouillage et personnalisation : terminée**
 - **v9.7.1 — Thème Musique et centrage des accès rapides : terminée**
 - **v9.7.2 — Thème Corail et grille de couleurs complète : terminée**
-- **v9.9.1 — Accueil personnalisable, ordre des blocs et mode compact : terminée**
+- **v9.9.2 — Accueil personnalisable, ordre des blocs et mode compact : terminée**
 - **v10.0.0 — Découpage majeur des contrôleurs métier hors de `app.js` : prévue**
