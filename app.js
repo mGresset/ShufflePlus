@@ -303,6 +303,12 @@ import {
 } from "./core/home-quick-access.js";
 
 import {
+    DEFAULT_HOME_LAYOUT,
+    applyHomeLayoutPreset,
+    normalizeHomeLayout
+} from "./core/home-layout.js";
+
+import {
     DEFAULT_CONTEXTUAL_PROFILE_STATE,
     acceptContextualProfileSuggestion,
     buildContextualProfileSuggestion,
@@ -374,13 +380,15 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.7.2";
+const APP_VERSION = "9.8.0";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
 
 const UI_THEME_KEY =
     "shuffleplus_ui_theme_v1";
+const HOME_LAYOUT_KEY =
+    "shuffleplus_home_layout_v1";
 const MUSICAL_ASSISTANT_HISTORY_KEY =
     "shuffleplus_musical_assistant_history_v1";
 const MAX_MUSICAL_ASSISTANT_HISTORY = 40;
@@ -829,7 +837,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.7.2-shell";
+    "shuffleplus-v9.8.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const ADAPTIVE_DJ_MENU_KEY =
@@ -1476,6 +1484,62 @@ async function getAppHealthFeature() {
     return featureLoader.load("appHealth");
 }
 
+function readHomeLayoutSettings() {
+    try {
+        const stored = JSON.parse(
+            localStorage.getItem(HOME_LAYOUT_KEY) || "null"
+        );
+        return normalizeHomeLayout(stored || DEFAULT_HOME_LAYOUT);
+    } catch (error) {
+        console.warn("Disposition de l’accueil illisible :", error);
+        return normalizeHomeLayout(DEFAULT_HOME_LAYOUT);
+    }
+}
+
+function saveHomeLayoutSettings() {
+    homeLayoutSettings = normalizeHomeLayout({
+        ...homeLayoutSettings,
+        updatedAt: Date.now()
+    });
+    localStorage.setItem(
+        HOME_LAYOUT_KEY,
+        JSON.stringify(homeLayoutSettings)
+    );
+}
+
+function saveHomeLayoutSettingsFromForm(form) {
+    const data = new FormData(form);
+    const presetId = String(data.get("preset") || "balanced");
+    const withPreset = applyHomeLayoutPreset(
+        homeLayoutSettings,
+        presetId
+    );
+
+    homeLayoutSettings = normalizeHomeLayout({
+        ...withPreset,
+        density: String(data.get("density") || "comfortable"),
+        queuePreviewCount: Number(data.get("queuePreviewCount") || 3),
+        showQuickAccess: data.get("showQuickAccess") === "on",
+        showNowPlaying: data.get("showNowPlaying") === "on",
+        showQueue: data.get("showQueue") === "on",
+        showShortcuts: data.get("showShortcuts") === "on",
+        updatedAt: Date.now()
+    });
+    saveHomeLayoutSettings();
+    displayPlaylists(playlistsCache);
+    showToast("🎛 Accueil personnalisé.", "success");
+}
+
+function resetHomeLayoutSettings() {
+    homeLayoutSettings = normalizeHomeLayout({
+        ...DEFAULT_HOME_LAYOUT,
+        updatedAt: Date.now()
+    });
+    saveHomeLayoutSettings();
+    displayPlaylists(playlistsCache);
+    showToast("↻ Disposition de l’accueil réinitialisée.", "success");
+}
+
 let currentUserId = "";
 let currentUserProduct = "";
 let playlistsCache = [];
@@ -1651,6 +1715,7 @@ let personalizedRecommendationsState =
 let listeningStatisticsSettings =
     readListeningStatisticsSettings();
 let musicalDashboardSettings = readMusicalDashboardSettings();
+let homeLayoutSettings = readHomeLayoutSettings();
 let musicalGoalsSettings = readMusicalGoalsSettings();
 let contextualHelpState = readContextualHelpState();
 let usageProfileState = readUsageProfileState();
@@ -4300,6 +4365,7 @@ function renderV9HomePanel() {
             new Date()
         ),
         quickAccess,
+        homeLayout: homeLayoutSettings,
         now: new Date()
     });
 
@@ -4425,7 +4491,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.7.2
+                        ✨ Apparence v9.8.0
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5459,7 +5525,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.7.2",
+                "./service-worker.js?v=9.8.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -30900,6 +30966,7 @@ function buildBackupPayload() {
         contextualHelpState,
         usageProfileState,
         offlinePerformanceSettings,
+        homeLayoutSettings,
         uiThemeSettings,
         mixSchedules
     };
@@ -31155,6 +31222,11 @@ function validateBackupPayload(payload) {
                 payload.data.offlinePerformanceSettings ||
                 DEFAULT_OFFLINE_PERFORMANCE_SETTINGS
             ),
+        homeLayoutSettings:
+            normalizeHomeLayout(
+                payload.data.homeLayoutSettings ||
+                DEFAULT_HOME_LAYOUT
+            ),
         uiThemeSettings:
             normalizeUiThemeSettings(
                 payload.data.uiThemeSettings ||
@@ -31321,6 +31393,9 @@ function applyValidatedBackupState(imported) {
     contextualOnboardingOpen = false;
     contextualHelpDialogOpen = false;
     saveContextualHelpState();
+    homeLayoutSettings =
+        imported.homeLayoutSettings;
+    saveHomeLayoutSettings();
     uiThemeSettings =
         imported.uiThemeSettings;
     saveUiThemeSettings();
@@ -42008,6 +42083,27 @@ contentElement.addEventListener(
             return;
         }
 
+        const homeCustomizerButton = event.target.closest(
+            "[data-toggle-home-customizer]"
+        );
+        if (homeCustomizerButton) {
+            const panel = contentElement.querySelector(
+                "[data-home-customizer]"
+            );
+            if (panel) {
+                panel.hidden = !panel.hidden;
+                if (!panel.hidden) {
+                    panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                }
+            }
+            return;
+        }
+
+        if (event.target.closest("[data-reset-home-layout]")) {
+            resetHomeLayoutSettings();
+            return;
+        }
+
         const homeRunProfileButton = event.target.closest(
             "[data-home-run-profile]"
         );
@@ -45144,6 +45240,12 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "submit",
     async (event) => {
+        if (event.target.id === "homeLayoutSettingsForm") {
+            event.preventDefault();
+            saveHomeLayoutSettingsFromForm(event.target);
+            return;
+        }
+
         if (event.target.id === "primaryLaunchSettingsForm") {
             event.preventDefault();
             const commandId = String(

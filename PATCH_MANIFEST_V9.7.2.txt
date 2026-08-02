@@ -1,11 +1,11 @@
-Shuffle+ v9.7.2
+Shuffle+ v9.8.0
 
 Modifiés :
 - core/ui-theme.js
 - VERSION et métadonnées de version
-- service-worker.js et startup-recovery-9.7.2.js
+- service-worker.js et startup-recovery-9.8.0.js
 - tests/v781-theme-driving.test.mjs
 
 Ajouté :
 - tests/v972-coral-theme.test.mjs
-- V9.7.2_NOTES.md
+- V9.8.0_NOTES.md

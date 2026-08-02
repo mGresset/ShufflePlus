@@ -1,11 +1,11 @@
-SHUFFLE+ V9.7.2 — INSTALLATION
+SHUFFLE+ V9.8.0 — INSTALLATION
 
 1. Décompresse l’archive source.
 2. Copie son contenu dans ton dépôt local en conservant le dossier .git.
 3. Lance : npm.cmd run validate
 4. Puis :
    git add -A
-   git commit -m "Release Shuffle+ v9.7.2 - thème Corail"
+   git commit -m "Release Shuffle+ v9.8.0 - thème Corail"
    git push origin main
 
 Railway : conserver Root Directory = /server.

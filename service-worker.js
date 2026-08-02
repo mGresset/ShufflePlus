@@ -1,5 +1,5 @@
-const APP_VERSION = "9.7.2";
-const CACHE_VERSION = "shuffleplus-v9.7.2";
+const APP_VERSION = "9.8.0";
+const CACHE_VERSION = "shuffleplus-v9.8.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,14 +7,14 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CRITICAL_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=9.7.2",
-    "./design-system.css?v=9.7.2",
-    "./app.js?v=9.7.2",
+    "./style.css?v=9.8.0",
+    "./design-system.css?v=9.8.0",
+    "./app.js?v=9.8.0",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-9.7.2.js",
+    "./startup-recovery-9.8.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -50,6 +50,7 @@ const CRITICAL_APP_SHELL = [
     "./core/launch-reliability.js",
     "./core/guided-setup.js",
     "./core/daily-home.js",
+    "./core/home-layout.js",
     "./core/home-quick-access.js",
     "./core/contextual-profiles.js",
     "./adaptive-dj.js",
@@ -67,11 +68,11 @@ const CRITICAL_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=9.7.2",
+    "./styles/feature-home.css?v=9.8.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=9.7.2",
-    "./styles/feature-settings.css?v=9.7.2",
-    "./styles/feature-driving.css?v=9.7.2",
+    "./styles/feature-search.css?v=9.8.0",
+    "./styles/feature-settings.css?v=9.8.0",
+    "./styles/feature-driving.css?v=9.8.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

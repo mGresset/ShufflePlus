@@ -1,5 +1,9 @@
 import { escapeHtml } from "./html-utils.js";
 import { analyzeQueueContinuity } from "./queue-continuity.js";
+import {
+    getHomeLayoutPresetId,
+    normalizeHomeLayout
+} from "./home-layout.js";
 
 function clamp(value, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, Number(value) || 0));
@@ -33,6 +37,7 @@ export function buildDailyHomeSnapshot({
     drivingAvailable = false,
     contextualSuggestion = null,
     quickAccess = null,
+    homeLayout = null,
     now = new Date()
 } = {}) {
     const track = playback?.item || null;
@@ -42,6 +47,7 @@ export function buildDailyHomeSnapshot({
         ? clamp((progressMs / durationMs) * 100, 0, 100)
         : 0;
     const greeting = getDailyHomeGreeting(now);
+    const layout = normalizeHomeLayout(homeLayout || {});
     const nextStep = guidedSetup?.steps?.find?.((step) => !step.ready) || null;
     const safeQueue = (Array.isArray(queue) ? queue : [])
         .filter(Boolean);
@@ -51,7 +57,7 @@ export function buildDailyHomeSnapshot({
         now: now?.getTime?.() || Date.now()
     });
     const upcoming = safeQueue
-        .slice(0, 3)
+        .slice(0, layout.queuePreviewCount)
         .map((item, index) => ({
             id: item.id || item.uri || `queue-${index}`,
             name: item.name || "Titre inconnu",
@@ -104,6 +110,10 @@ export function buildDailyHomeSnapshot({
             nextStep
         },
         drivingAvailable: Boolean(drivingAvailable),
+        layout: {
+            ...layout,
+            presetId: getHomeLayoutPresetId(layout)
+        },
         quickAccess: {
             pinnedProfiles: Array.isArray(quickAccess?.pinnedProfiles)
                 ? quickAccess.pinnedProfiles.slice(0, 4)
@@ -191,7 +201,12 @@ function renderHomeQuickAccess(snapshot) {
         : [];
 
     return `
-        <section class="v9-home-access" aria-label="Accès immédiat">
+        <section
+            class="v9-home-access"
+            aria-label="Accès immédiat"
+            style="order:${snapshot.layout.order.indexOf("quickAccess") + 1}"
+            ${snapshot.layout.showQuickAccess ? "" : "hidden"}
+        >
             <header class="v9-home-access__header">
                 <div>
                     <span>⚡ Accès immédiat</span>
@@ -308,17 +323,57 @@ export function renderDailyHomeMarkup(snapshot, {
     const nextStep = snapshot.setup.nextStep;
 
     return `
-        <section class="v9-home" aria-label="Accueil quotidien Shuffle+">
+        <section class="v9-home ${snapshot.layout.density === "compact" ? "is-compact" : ""}" aria-label="Accueil quotidien Shuffle+">
             <header class="v9-home-header">
                 <div>
                     <span class="v9-home-kicker">${escapeHtml(snapshot.greeting.icon)} Shuffle+ 9 · ${snapshot.experienceMode === "expert" ? "Expert" : "Essentiel"}</span>
                     <h2>${escapeHtml(snapshot.greeting.label)}, ta musique est prête.</h2>
                     <p>${escapeHtml(snapshot.dateLabel)} · lance ton profil principal sans chercher dans les menus.</p>
                 </div>
-                <button type="button" class="ui-button ui-button--ghost" data-select-experience-mode="${snapshot.experienceMode === "expert" ? "essential" : "expert"}">
-                    ${snapshot.experienceMode === "expert" ? "Mode Essentiel" : "Mode Expert"}
-                </button>
+                <div class="v98-home-header-actions">
+                    <button type="button" class="ui-button ui-button--secondary" data-toggle-home-customizer>
+                        🎛 Personnaliser
+                    </button>
+                    <button type="button" class="ui-button ui-button--ghost" data-select-experience-mode="${snapshot.experienceMode === "expert" ? "essential" : "expert"}">
+                        ${snapshot.experienceMode === "expert" ? "Mode Essentiel" : "Mode Expert"}
+                    </button>
+                </div>
             </header>
+
+            <section class="v98-home-customizer" data-home-customizer hidden aria-label="Personnalisation de l’accueil">
+                <div class="v98-home-customizer__heading">
+                    <div>
+                        <span>🎛 Accueil v9.8</span>
+                        <h3>Choisis ce que tu veux voir en premier</h3>
+                        <p>Les changements restent sur cet appareil et sont inclus dans les sauvegardes.</p>
+                    </div>
+                    <button type="button" class="ui-button ui-button--ghost" data-toggle-home-customizer>Fermer</button>
+                </div>
+                <form id="homeLayoutSettingsForm" class="v98-home-customizer__form">
+                    <fieldset>
+                        <legend>Ordre des blocs</legend>
+                        <div class="v98-home-preset-grid">
+                            <label><input type="radio" name="preset" value="balanced" ${snapshot.layout.presetId === "balanced" ? "checked" : ""}> Équilibré</label>
+                            <label><input type="radio" name="preset" value="launchFirst" ${snapshot.layout.presetId === "launchFirst" ? "checked" : ""}> Lancement d’abord</label>
+                            <label><input type="radio" name="preset" value="queueFirst" ${snapshot.layout.presetId === "queueFirst" ? "checked" : ""}> File d’abord</label>
+                        </div>
+                    </fieldset>
+                    <div class="v98-home-customizer__options">
+                        <label><span>Densité</span><select name="density"><option value="comfortable" ${snapshot.layout.density === "comfortable" ? "selected" : ""}>Confortable</option><option value="compact" ${snapshot.layout.density === "compact" ? "selected" : ""}>Compacte</option></select></label>
+                        <label><span>Titres visibles</span><select name="queuePreviewCount">${[2,3,5].map((count) => `<option value="${count}" ${snapshot.layout.queuePreviewCount === count ? "selected" : ""}>${count}</option>`).join("")}</select></label>
+                    </div>
+                    <div class="v98-home-toggle-grid">
+                        <label><input type="checkbox" name="showQuickAccess" ${snapshot.layout.showQuickAccess ? "checked" : ""}> Accès immédiat</label>
+                        <label><input type="checkbox" name="showNowPlaying" ${snapshot.layout.showNowPlaying ? "checked" : ""}> Lecture en cours</label>
+                        <label><input type="checkbox" name="showQueue" ${snapshot.layout.showQueue ? "checked" : ""}> File d’attente</label>
+                        <label><input type="checkbox" name="showShortcuts" ${snapshot.layout.showShortcuts ? "checked" : ""}> Raccourcis du bas</label>
+                    </div>
+                    <div class="v98-home-customizer__actions">
+                        <button type="submit" class="ui-button ui-button--primary">Enregistrer</button>
+                        <button type="button" class="ui-button ui-button--ghost" data-reset-home-layout>Réinitialiser</button>
+                    </div>
+                </form>
+            </section>
 
             ${snapshot.contextualSuggestion
                 ? `<section class="v9-home-contextual" aria-label="Suggestion contextuelle">
@@ -353,9 +408,10 @@ export function renderDailyHomeMarkup(snapshot, {
                 </section>`
                 : ""}
 
+            <div class="v98-home-blocks">
             ${renderHomeQuickAccess(snapshot)}
 
-            <div class="v9-home-grid">
+            <div class="v9-home-grid ${snapshot.layout.showNowPlaying ? "" : "is-launch-only"}" style="order:${snapshot.layout.order.indexOf("main") + 1}">
                 <article class="v9-home-launch-card">
                     <div class="v9-home-card-heading">
                         <div>
@@ -406,7 +462,7 @@ export function renderDailyHomeMarkup(snapshot, {
                     </form>
                 </article>
 
-                <article class="v9-home-now-playing">
+                <article class="v9-home-now-playing" ${snapshot.layout.showNowPlaying ? "" : "hidden"}>
                     <div class="v9-home-card-heading">
                         <div>
                             <span>🎧 Lecture en cours</span>
@@ -444,7 +500,12 @@ export function renderDailyHomeMarkup(snapshot, {
                 </article>
             </div>
 
-            <section class="v9-home-queue" aria-label="Titres à suivre">
+            <section
+                class="v9-home-queue"
+                aria-label="Titres à suivre"
+                style="order:${snapshot.layout.order.indexOf("queue") + 1}"
+                ${snapshot.layout.showQueue ? "" : "hidden"}
+            >
                 <header>
                     <div>
                         <span>≡ À suivre</span>
@@ -471,7 +532,7 @@ export function renderDailyHomeMarkup(snapshot, {
 
             ${snapshot.setup.complete
                 ? ""
-                : `<section class="v9-home-next-step">
+                : `<section class="v9-home-next-step" style="order:90">
                     <div class="v9-home-next-step-progress" style="--v9-setup:${snapshot.setup.progress}%"><i></i></div>
                     <div>
                         <span>Configuration · ${Math.round(snapshot.setup.progress)}%</span>
@@ -481,13 +542,19 @@ export function renderDailyHomeMarkup(snapshot, {
                     <button type="button" class="ui-button ui-button--primary" data-guided-step="${escapeHtml(nextStep?.id || "")}" data-guided-nav="${escapeHtml(nextStep?.menuId || "settings")}">Continuer</button>
                 </section>`}
 
-            <nav class="v9-home-shortcuts" aria-label="Accès rapides">
+            <nav
+                class="v9-home-shortcuts"
+                aria-label="Accès rapides"
+                style="order:${snapshot.layout.order.indexOf("shortcuts") + 1}"
+                ${snapshot.layout.showShortcuts ? "" : "hidden"}
+            >
                 <button type="button" data-dashboard-nav="music"><span>🎵</span><strong>Ma musique</strong></button>
                 <button type="button" data-dashboard-nav="mixes"><span>📱</span><strong>Profils</strong></button>
                 <button type="button" data-dashboard-nav="quick"><span>▶️</span><strong>Lancer</strong></button>
                 <button type="button" data-dashboard-nav="guide"><span>📖</span><strong>Guide</strong></button>
                 <button type="button" data-dashboard-nav="settings"><span>⚙️</span><strong>Réglages</strong></button>
             </nav>
+            </div>
         </section>
     `;
 }
