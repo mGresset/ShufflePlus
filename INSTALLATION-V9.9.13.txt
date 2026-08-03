@@ -1,0 +1,7 @@
+Shuffle+ v9.9.13
+
+1. Déployer tous les fichiers du build v9.9.13.
+2. Fermer complètement la PWA sur iPhone.
+3. Rouvrir Shuffle+ avec une connexion Internet active.
+4. Vérifier que v9.9.13 et En ligne apparaissent côte à côte.
+5. Appuyer sur le logo Shuffle+ depuis une autre section et vérifier le retour en haut de l’Accueil.

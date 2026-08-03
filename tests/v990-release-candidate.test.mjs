@@ -29,8 +29,8 @@ function healthySnapshot() {
     };
 }
 
-test("la préversion finale active annonce Shuffle+ 9.9.12", () => {
-    assert.equal(version, "9.9.12");
+test("la préversion finale active annonce Shuffle+ 9.9.13", () => {
+    assert.equal(version, "9.9.13");
     assert.match(indexSource, /release-candidate/);
 });
 

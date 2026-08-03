@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.12",
+  "version": "9.9.13",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.12 — défilement mobile stable pendant la synchronisation Spotify.",
+  "description": "Shuffle+ 9.9.13 — barre mobile compacte et logo d’accueil interactif.",
   "engines": {
     "node": ">=20"
   },

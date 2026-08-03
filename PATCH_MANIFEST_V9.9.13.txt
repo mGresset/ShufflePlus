@@ -1,0 +1,7 @@
+Shuffle+ v9.9.13
+
+- version et état réseau alignés horizontalement sur mobile ;
+- logo Shuffle+ transformé en lien accessible vers l’Accueil ;
+- retour automatique en haut de la page Accueil ;
+- cible tactile de 44 px et focus clavier conservés ;
+- version PWA, cache et ressources mises à jour.

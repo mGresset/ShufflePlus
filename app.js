@@ -360,6 +360,7 @@ import {
 } from "./core/guided-setup.js";
 
 const versionElement = document.querySelector(".version");
+const brandHomeLink = document.getElementById("brandHomeLink");
 const welcomeElement = document.getElementById("welcome");
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
@@ -399,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.12";
+const APP_VERSION = "9.9.13";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -864,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.12-shell";
+    "shuffleplus-v9.9.13-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5341,7 +5342,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.12
+                        ✨ Apparence v9.9.13
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6375,7 +6376,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.12",
+                "./service-worker.js?v=9.9.13",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7048,7 +7049,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.12 stabilise le défilement mobile pendant la synchronisation Spotify.
+                        La v9.9.13 aligne la version et l’état réseau et rend le logo Shuffle+ cliquable.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -43375,6 +43376,42 @@ loginButton.addEventListener("click", async () => {
 
         setStatus(error.message, "error");
     }
+});
+}
+
+
+if (brandHomeLink) {
+brandHomeLink.addEventListener("click", async (event) => {
+    event.preventDefault();
+
+    if (!document.body.classList.contains("is-connected")) {
+        window.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: uiThemeSettings.motionEnabled
+                ? "smooth"
+                : "auto"
+        });
+        return;
+    }
+
+    await navigateToAppMenu("dashboard");
+
+    appMenuScrollPositions = {
+        ...appMenuScrollPositions,
+        dashboard: 0
+    };
+    saveAppMenuScrollPositions();
+
+    window.requestAnimationFrame(() => {
+        window.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: uiThemeSettings.motionEnabled
+                ? "smooth"
+                : "auto"
+        });
+    });
 });
 }
 

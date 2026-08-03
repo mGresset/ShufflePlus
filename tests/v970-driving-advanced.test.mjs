@@ -21,8 +21,8 @@ const serviceWorker = await readFile(
     "utf8"
 );
 
-test("la distribution active annonce Shuffle+ 9.9.12", () => {
-    assert.equal(version, "9.9.12");
+test("la distribution active annonce Shuffle+ 9.9.13", () => {
+    assert.equal(version, "9.9.13");
 });
 
 test("les réglages de conduite avancée restent compatibles avec les anciennes sauvegardes", () => {
