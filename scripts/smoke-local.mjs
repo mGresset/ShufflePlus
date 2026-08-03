@@ -81,7 +81,8 @@ async function checkResource(pathname, expectedText = "") {
 
 try {
     await waitForServer();
-    await checkResource("/", `app.js?v=${version}`);
+    await checkResource("/", `bootstrap-${version}.js`);
+    await checkResource(`/bootstrap-${version}.js`, "await import(`./app.js?v=${APP_VERSION}&build=${BUILD_ID}`)");
     await checkResource("/app.js", "./core/app-menu.js");
     await checkResource("/core/app-menu.js", "APP_MENU_GROUPS");
     await checkResource("/core/html-utils.js", "escapeHtml");

@@ -48,12 +48,12 @@ function createAttributeElement({ tagName = "IMG", priority = false } = {}) {
     };
 }
 
-test("la distribution active annonce Shuffle+ 9.9.7", () => {
-    assert.equal(versionSource, "9.9.7");
-    assert.match(indexSource, /shuffleplus-version" content="9\.9\.7/);
-    assert.match(indexSource, /startup-recovery-9\.9\.7\.js" defer/);
-    assert.match(appSource, /const APP_VERSION = "9\.9\.7"/);
-    assert.match(workerSource, /shuffleplus-v9\.9\.7/);
+test("la distribution active annonce Shuffle+ 9.9.8", () => {
+    assert.equal(versionSource, "9.9.8");
+    assert.match(indexSource, /shuffleplus-version" content="9\.9\.8/);
+    assert.match(indexSource, /startup-recovery-9\.9\.8\.js" defer/);
+    assert.match(appSource, /const APP_VERSION = "9\.9\.8"/);
+    assert.match(workerSource, /shuffleplus-v9\.9\.8/);
 });
 
 test("la CSP bloque les scripts inline, eval, les objets et les frames", () => {

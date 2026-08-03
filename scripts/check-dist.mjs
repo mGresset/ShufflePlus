@@ -13,6 +13,7 @@ const required = [
     "styles/feature-settings.css",
     "styles/feature-driving.css",
     "app.js",
+    `bootstrap-${version}.js`,
     "service-worker.js",
     "manifest.webmanifest",
     "core/app-menu.js",
@@ -45,7 +46,7 @@ for (const file of required) {
 
 const index = await readFile(path.join(dist, "index.html"), "utf8");
 if (
-    !index.includes(`app.js?v=${version}`) ||
+    !index.includes(`bootstrap-${version}.js`) ||
     !index.includes(`style.css?v=${version}`) ||
     !index.includes(`design-system.css?v=${version}`) ||
     !index.includes(`startup-recovery-${version}.js`)

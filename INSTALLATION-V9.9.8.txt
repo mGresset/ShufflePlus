@@ -1,0 +1,9 @@
+SHUFFLE+ V9.9.8 — INSTALLATION
+
+1. Déployer tous les fichiers de la version 9.9.8.
+2. Ouvrir Shuffle+ avec une connexion Internet active.
+3. Au premier lancement, une recharge automatique peut se produire : elle supprime l'ancien runtime PWA.
+4. Vérifier que l'en-tête affiche « Shuffle+ 9.9.8 ».
+5. Lancer une musique, appuyer sur Pause et observer le bouton et la barre pendant au moins 10 secondes.
+
+La connexion Spotify, les mix et les réglages locaux sont conservés pendant la migration du cache.

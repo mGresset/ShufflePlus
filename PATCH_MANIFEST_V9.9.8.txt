@@ -1,0 +1,21 @@
+Shuffle+ v9.9.8
+
+Fichiers principaux modifiés :
+- app.js
+- index.html
+- service-worker.js
+- startup-recovery-9.9.8.js
+- bootstrap-9.9.8.js
+- package.json
+- VERSION
+- scripts/check-version.mjs
+- scripts/check-dist.mjs
+- scripts/check-release-readiness.mjs
+- scripts/smoke-local.mjs
+- tests/v998-runtime-reset-command-ack.test.mjs
+
+Corrections :
+- purge unique des caches PWA hérités ;
+- chargement de app.js avec une identité de build exacte ;
+- conservation de l'état Pause/Lecture après une réponse Spotify incertaine ;
+- même stratégie appliquée au mode conduite.

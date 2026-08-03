@@ -17,6 +17,7 @@ if (!/^\d+\.\d+\.\d+$/.test(version)) {
 const requiredFiles = [
     "index.html",
     "app.js",
+    `bootstrap-${version}.js`,
     "config.js",
     "service-worker.js",
     `startup-recovery-${version}.js`,
@@ -46,6 +47,7 @@ const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "
 const expectedTexts = [
     ["index.html", index, `shuffleplus-version\" content=\"${version}`],
     ["index.html", index, `startup-recovery-${version}.js`],
+    ["index.html", index, `bootstrap-${version}.js`],
     ["index.html", index, 'name="shuffleplus-build-validated" content="true"'],
     ["index.html", index, 'name="shuffleplus-server-tests-validated" content="true"'],
     ["service-worker.js", serviceWorker, `shuffleplus-v${version}`],

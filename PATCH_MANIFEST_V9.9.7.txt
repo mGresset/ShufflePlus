@@ -1,4 +1,4 @@
-Shuffle+ v9.9.7
+Shuffle+ v9.9.8
 
 Fichiers principaux modifiés :
 - app.js
@@ -11,7 +11,7 @@ Fichiers principaux modifiés :
 - package.json
 - package-lock.json
 - VERSION
-- startup-recovery-9.9.7.js
+- startup-recovery-9.9.8.js
 - tests/v997-visual-playback-override.test.mjs
 
 Objet : empêcher tout rendu secondaire de rétablir un ancien état Spotify pendant la stabilisation Pause/Lecture.

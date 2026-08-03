@@ -110,7 +110,7 @@ test("la page de connexion dispose d’un secours indépendant de app.js", () =>
         `src="./startup-recovery-${appVersion}.js"`
     );
     const appIndex = indexSource.indexOf(
-        `type="module" src="./app.js?v=${appVersion}"`
+        `type="module" src="./bootstrap-${appVersion}.js"`
     );
 
     assert.match(indexSource, /id="showStartupRecoveryButton"/);

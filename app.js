@@ -397,7 +397,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.7";
+const APP_VERSION = "9.9.8";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -857,7 +857,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.7-shell";
+    "shuffleplus-v9.9.8-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -4922,7 +4922,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.7
+                        ✨ Apparence v9.9.8
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5956,7 +5956,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.7",
+                "./service-worker.js?v=9.9.8",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6629,7 +6629,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.7 ferme les risques techniques avant la version finale.
+                        La v9.9.8 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -11069,14 +11069,18 @@ async function toggleDrivingPlayback() {
             drivingPlaybackState;
         renderDrivingModePage();
 
+        let playbackMutationAttempted = false;
+
         try {
             if (previousPlayingState) {
+                playbackMutationAttempted = true;
                 await pausePlayback(deviceId);
                 setDrivingMessage(
                     "Lecture mise en pause.",
                     "success"
                 );
             } else {
+                playbackMutationAttempted = true;
                 await resumePlayback(deviceId);
                 setDrivingMessage(
                     "Lecture reprise.",
@@ -11109,6 +11113,27 @@ async function toggleDrivingPlayback() {
             quickPlaybackState =
                 drivingPlaybackState;
         } catch (error) {
+            if (playbackMutationAttempted) {
+                drivingPlaybackState =
+                    setPlaybackClockPlayingState(
+                        drivingPlaybackState || state,
+                        expectedPlayingState
+                    );
+                quickPlaybackState =
+                    drivingPlaybackState;
+                updateVisiblePlaybackButtons(
+                    expectedPlayingState
+                );
+                schedulePlaybackConfirmationChecks(
+                    overrideToken
+                );
+                setDrivingMessage(
+                    "Commande envoyée à Spotify · confirmation en cours.",
+                    "warning"
+                );
+                return;
+            }
+
             clearPlaybackUiOverride();
             drivingPlaybackState =
                 setPlaybackClockPlayingState(
@@ -14121,6 +14146,7 @@ async function runQuickControlAction(
         options.rollbackPlaybackState || null;
     let playbackCommandExpectedState = null;
     let playbackOverrideToken = 0;
+    let playbackMutationAttempted = false;
 
     quickControlBusy = true;
     setQuickControlMessage(
@@ -14242,12 +14268,14 @@ async function runQuickControlAction(
                 }
 
                 if (expectedPlayingState) {
+                    playbackMutationAttempted = true;
                     await resumePlayback(deviceId);
                     setQuickControlMessage(
                         "Lecture reprise.",
                         "success"
                     );
                 } else {
+                    playbackMutationAttempted = true;
                     await pausePlayback(deviceId);
                     setQuickControlMessage(
                         "Lecture mise en pause.",
@@ -14268,6 +14296,7 @@ async function runQuickControlAction(
                 if (activeAppMenu === "quick") {
                     renderQuickControlPage();
                 }
+                playbackMutationAttempted = true;
                 await pausePlayback(deviceId);
                 setQuickControlMessage(
                     "Lecture mise en pause.",
@@ -14287,6 +14316,7 @@ async function runQuickControlAction(
                 if (activeAppMenu === "quick") {
                     renderQuickControlPage();
                 }
+                playbackMutationAttempted = true;
                 await resumePlayback(deviceId);
                 setQuickControlMessage(
                     "Lecture reprise.",
@@ -14395,6 +14425,38 @@ async function runQuickControlAction(
                 "boolean" &&
             playbackRollbackState
         ) {
+            if (playbackMutationAttempted) {
+                // Spotify peut appliquer Pause/Lecture puis couper la réponse
+                // réseau. Dans ce cas, revenir immédiatement à l'ancien état
+                // recrée exactement le faux bouton Pause observé sur iOS.
+                if (!playbackOverrideToken) {
+                    playbackOverrideToken =
+                        beginPlaybackUiOverride(
+                            playbackCommandExpectedState
+                        );
+                }
+
+                quickPlaybackState =
+                    setPlaybackClockPlayingState(
+                        quickPlaybackState ||
+                            playbackRollbackState,
+                        playbackCommandExpectedState
+                    );
+                drivingPlaybackState =
+                    quickPlaybackState;
+                updateVisiblePlaybackButtons(
+                    playbackCommandExpectedState
+                );
+                schedulePlaybackConfirmationChecks(
+                    playbackOverrideToken
+                );
+                setQuickControlMessage(
+                    "Commande envoyée à Spotify · confirmation en cours.",
+                    "warning"
+                );
+                return quickPlaybackState;
+            }
+
             clearPlaybackUiOverride();
             quickPlaybackState =
                 setPlaybackClockPlayingState(

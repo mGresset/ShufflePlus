@@ -1,10 +1,10 @@
-SHUFFLE+ V9.9.7
+SHUFFLE+ V9.9.8
 
 1. Exécuter : npm.cmd run validate
 2. Publier :
    git add -A
-   git commit -m "Release Shuffle+ v9.9.7 - verrou visuel Pause Lecture"
+   git commit -m "Release Shuffle+ v9.9.8 - verrou visuel Pause Lecture"
    git push origin main
 3. Fermer entièrement la PWA.
-4. La rouvrir et vérifier « Version 9.9.7 ».
+4. La rouvrir et vérifier « Version 9.9.8 ».
 5. Lancer un titre, appuyer sur Pause et observer au moins 8 secondes sans actualisation manuelle.

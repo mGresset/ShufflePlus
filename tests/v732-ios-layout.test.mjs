@@ -38,7 +38,8 @@ test("le bandeau de mise à jour passe au-dessus du menu mobile", () => {
 
 test("les ressources de la version active renouvellent le cache", () => {
     expectText(html, `style.css?v=${appVersion}`);
-    expectText(html, `app.js?v=${appVersion}`);
+    expectText(html, `bootstrap-${appVersion}.js`);
+    expectText(sw, `app.js?v=${appVersion}&build=${appVersion}-pwa-reset-1`);
     expectText(html, `startup-recovery-${appVersion}.js`);
     expectText(sw, `shuffleplus-v${appVersion}`);
     expectText(sw, `startup-recovery-${appVersion}.js`);
