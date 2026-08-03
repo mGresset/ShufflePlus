@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 9.9.11 corrige l’interface mobile, affiche la version et simplifie la déconnexion.",
+  "description": "Shuffle+ 9.9.12 stabilise le défilement mobile pendant l’actualisation Spotify.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

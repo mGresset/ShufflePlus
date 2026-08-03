@@ -1,0 +1,18 @@
+Shuffle+ v9.9.12
+
+Correction : stabilité du défilement mobile pendant le polling Spotify.
+
+Fichiers principaux modifiés :
+- app.js
+- config.js
+- index.html
+- service-worker.js
+- manifest.webmanifest
+- package.json
+- package-lock.json
+- README.md
+- bootstrap-9.9.12.js
+- startup-recovery-9.9.12.js
+- tests/v9912-scroll-stability.test.mjs
+
+Principe : le rafraîchissement automatique met à jour uniquement la carte de lecture au lieu de reconstruire toute la page et de restaurer une ancienne position de scroll.

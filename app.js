@@ -399,7 +399,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.11";
+const APP_VERSION = "9.9.12";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -864,7 +864,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.11-shell";
+    "shuffleplus-v9.9.12-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -3138,7 +3138,9 @@ function renderActivePlaybackSurface() {
     }
 
     if (activeAppMenu === "dashboard") {
-        displayPlaylists(playlistsCache);
+        if (!updateMusicalDashboardPlaybackDom()) {
+            displayPlaylists(playlistsCache);
+        }
         return;
     }
 
@@ -3582,6 +3584,118 @@ function updateVisiblePlaybackButtons(isPlaying) {
     });
 }
 
+function renderMusicalDashboardPlaybackBody(playback) {
+    if (!playback?.available) {
+        return `
+            <div class="musical-dashboard-empty">
+                🎧 <span>Aucune lecture Spotify détectée.</span>
+            </div>
+        `;
+    }
+
+    const cover = playback.imageUrl
+        ? `<img src="${escapeHtml(playback.imageUrl)}" alt="">`
+        : "<b>🎵</b>";
+
+    return `
+        <div class="musical-dashboard-track">
+            ${cover}
+            <div>
+                <h4>${escapeHtml(playback.title)}</h4>
+                <p>${escapeHtml(playback.artist)}</p>
+                <small>${escapeHtml(playback.album)}</small>
+            </div>
+        </div>
+        <div class="musical-dashboard-progress">
+            <i style="width:${playback.progressPercent}%"></i>
+        </div>
+        <div class="musical-dashboard-times">
+            <span>${escapeHtml(playback.currentLabel)}</span>
+            <span>${escapeHtml(playback.totalLabel)}</span>
+        </div>
+    `;
+}
+
+function updateMusicalDashboardPlaybackDom() {
+    const card = document.querySelector(
+        '[data-app-menu-page="dashboard"] .musical-dashboard-card.is-main'
+    );
+
+    if (!card) {
+        return false;
+    }
+
+    const playback = getMusicalDashboardSnapshot().playback;
+    const headerDevice = card.querySelector("header small");
+    const footer = card.querySelector("footer");
+
+    if (headerDevice) {
+        headerDevice.textContent = playback.deviceName;
+    }
+
+    const currentTrack = card.querySelector(
+        ".musical-dashboard-track"
+    );
+    const availabilityChanged =
+        Boolean(currentTrack) !== Boolean(playback.available);
+
+    if (availabilityChanged && footer) {
+        Array.from(card.children).forEach((child) => {
+            if (
+                child.tagName !== "HEADER" &&
+                child.tagName !== "FOOTER"
+            ) {
+                child.remove();
+            }
+        });
+        footer.insertAdjacentHTML(
+            "beforebegin",
+            renderMusicalDashboardPlaybackBody(playback)
+        );
+    } else if (playback.available && currentTrack) {
+        const currentCover = currentTrack.firstElementChild;
+        const expectedCoverIsImage = Boolean(playback.imageUrl);
+        const currentCoverIsImage =
+            currentCover?.tagName === "IMG";
+
+        if (
+            currentCover &&
+            expectedCoverIsImage !== currentCoverIsImage
+        ) {
+            currentCover.outerHTML = playback.imageUrl
+                ? `<img src="${escapeHtml(playback.imageUrl)}" alt="">`
+                : "<b>🎵</b>";
+        } else if (
+            expectedCoverIsImage &&
+            currentCoverIsImage &&
+            currentCover.getAttribute("src") !== playback.imageUrl
+        ) {
+            currentCover.setAttribute(
+                "src",
+                playback.imageUrl
+            );
+        }
+
+        const title = currentTrack.querySelector("h4");
+        const artist = currentTrack.querySelector("p");
+        const album = currentTrack.querySelector("small");
+        const total = card.querySelector(
+            ".musical-dashboard-times span:last-child"
+        );
+
+        if (title) title.textContent = playback.title;
+        if (artist) artist.textContent = playback.artist;
+        if (album) album.textContent = playback.album;
+        if (total) total.textContent = playback.totalLabel;
+    }
+
+    updateVisiblePlaybackButtons(
+        Boolean(playback.isPlaying)
+    );
+    updatePlaybackProgressDom();
+    return true;
+}
+
 async function refreshMusicalDashboardPlayback({
     silent = false,
     fresh = !silent
@@ -3634,7 +3748,9 @@ async function refreshMusicalDashboardPlayback({
     }
 
     if (activeAppMenu === "dashboard") {
-        displayPlaylists(playlistsCache);
+        if (!updateMusicalDashboardPlaybackDom()) {
+            displayPlaylists(playlistsCache);
+        }
     }
 
     return quickPlaybackState;
@@ -5225,7 +5341,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.11
+                        ✨ Apparence v9.9.12
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6259,7 +6375,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.11",
+                "./service-worker.js?v=9.9.12",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6932,7 +7048,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.11 stabilise la présentation mobile avant la version finale.
+                        La v9.9.12 stabilise le défilement mobile pendant la synchronisation Spotify.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>

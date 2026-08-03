@@ -1,13 +1,13 @@
-# Shuffle+ v9.9.11 — Candidate v10
+# Shuffle+ v9.9.12 — Défilement mobile stable
 
-Shuffle+ v9.9.11 corrige trois défauts visibles sur iPhone sans modifier la logique Spotify validée en v9.9.10.
+Shuffle+ v9.9.12 corrige le retour automatique de la page pendant un défilement rapide sur iPhone.
 
-## Nouveautés
+## Correction principale
 
-- **Carte Configuration isolée** : un espacement réel sépare l’accueil v9 du tableau de bord musical, et la carte garde une hauteur automatique sur petit écran.
-- **Version visible dans l’en-tête** : la barre connectée affiche désormais le badge compact `v9.9.11` au-dessus de l’état réseau.
-- **Déconnexion discrète** : le bouton rouge est remplacé par une icône seule, transparente et accessible.
-- **PWA cohérente** : cache `shuffleplus-v9.9.11` et runtime entièrement versionné.
+- Le rafraîchissement Spotify toutes les 2 secondes ne reconstruit plus l’ensemble de l’accueil.
+- Seule la carte « Maintenant » est mise à jour en place : titre, artiste, pochette, appareil, bouton et progression.
+- La position de défilement et l’inertie tactile de Safari ne sont plus interrompues par le polling.
+- Les protections Pause/Lecture et Suivant des versions précédentes sont conservées.
 
 ## Validation
 
@@ -15,6 +15,4 @@ Shuffle+ v9.9.11 corrige trois défauts visibles sur iPhone sans modifier la log
 npm.cmd run validate
 ```
 
-## Documentation
-
-Consulte `V9.9.11_NOTES.md`, `DEPLOIEMENT-V9.9.11.md` et `INSTALLATION-V9.9.11.txt`.
+Consulte `V9.9.12_NOTES.md`, `DEPLOIEMENT-V9.9.12.md` et `INSTALLATION-V9.9.12.txt`.
