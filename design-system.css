@@ -2060,7 +2060,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.16 — harmonisation desktop, Créer et assistant
+   Shuffle+ v9.9.17 — harmonisation desktop, Créer et assistant
    ===================================================================== */
 
 /* Alignement desktop plus régulier pour les pages de travail. */
@@ -2305,9 +2305,48 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.16 — sélection unique des exemples de l’assistant
+   Shuffle+ v9.9.17 — sélection unique des exemples de l’assistant
    ===================================================================== */
 
 /* Un seul bouton peut porter aria-pressed="true". Les états de survol et
    de focus des autres boutons restent volontairement sobres afin de ne
    jamais être confondus avec la sélection active. */
+
+/* =====================================================================
+   Shuffle+ v9.9.17 — sélection tactile fiable dans l’assistant
+   ===================================================================== */
+
+/* Les navigateurs tactiles et hybrides peuvent conserver :hover après un
+   appui. Un bouton non sélectionné garde donc toujours son fond neutre,
+   même s’il est survolé, focalisé ou encore considéré comme actif. */
+.app-menu-page[data-app-menu-page="assistant"]
+.musical-assistant-examples button[aria-pressed="false"],
+.app-menu-page[data-app-menu-page="assistant"]
+.musical-assistant-examples button[aria-pressed="false"]:hover,
+.app-menu-page[data-app-menu-page="assistant"]
+.musical-assistant-examples button[aria-pressed="false"]:focus,
+.app-menu-page[data-app-menu-page="assistant"]
+.musical-assistant-examples button[aria-pressed="false"]:focus-visible,
+.app-menu-page[data-app-menu-page="assistant"]
+.musical-assistant-examples button[aria-pressed="false"]:active {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    box-shadow: none !important;
+    color: var(--text-muted) !important;
+    transform: none !important;
+}
+
+.app-menu-page[data-app-menu-page="assistant"]
+.musical-assistant-examples button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .app-menu-page[data-app-menu-page="assistant"]
+    .musical-assistant-examples button[aria-pressed="false"]:hover {
+        border-color: var(--ui-control-border-hover) !important;
+        color: var(--text-main) !important;
+        transform: translateY(-1px) !important;
+    }
+}

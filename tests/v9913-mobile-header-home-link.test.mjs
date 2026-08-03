@@ -7,10 +7,10 @@ const indexSource = await readFile("index.html", "utf8");
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("la barre mobile active annonce Shuffle+ 9.9.16", () => {
-    assert.equal(version, "9.9.16");
-    assert.match(indexSource, /bootstrap-9\.9\.16\.js/);
-    assert.match(indexSource, /startup-recovery-9\.9\.16\.js/);
+test("la barre mobile active annonce Shuffle+ 9.9.17", () => {
+    assert.equal(version, "9.9.17");
+    assert.match(indexSource, /bootstrap-9\.9\.17\.js/);
+    assert.match(indexSource, /startup-recovery-9\.9\.17\.js/);
 });
 
 test("la version et l’état réseau restent côte à côte sur mobile", () => {

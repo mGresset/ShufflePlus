@@ -18,8 +18,8 @@ const appSource = await readFile("app.js", "utf8");
 const homeStyles = await readFile("styles/feature-home.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 
-test("la distribution active annonce Shuffle+ 9.9.16", () => {
-    assert.equal(version, "9.9.16");
+test("la distribution active annonce Shuffle+ 9.9.17", () => {
+    assert.equal(version, "9.9.17");
 });
 
 test("la disposition de l’accueil normalise les valeurs importées", () => {

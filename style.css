@@ -11075,10 +11075,12 @@ html.high-contrast textarea {
     font-size: 13px;
 }
 
-.musical-assistant-examples button:hover {
-    border-color: var(--border-active);
-    background: rgb(var(--accent-rgb) / 12%);
-    color: #fff;
+@media (hover: hover) and (pointer: fine) {
+    .musical-assistant-examples button[aria-pressed="false"]:hover {
+        border-color: var(--border-active);
+        background: inherit;
+        color: #fff;
+    }
 }
 
 .musical-assistant-empty,

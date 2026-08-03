@@ -1,0 +1,7 @@
+Shuffle+ v9.9.17
+
+1. Publier le contenu du build GitHub Pages.
+2. Fermer complètement Shuffle+ sur les appareils déjà connectés.
+3. Rouvrir l’application avec une connexion Internet active.
+4. Vérifier que la version affichée est v9.9.17.
+5. Dans Assistant, sélectionner plusieurs exemples successivement : un seul doit rester coloré.

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.16",
+  "version": "9.9.17",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.16 — sélection unique et fiable dans l’assistant musical.",
+  "description": "Shuffle+ 9.9.17 — sélection unique et fiable dans l’assistant musical.",
   "engines": {
     "node": ">=20"
   },
