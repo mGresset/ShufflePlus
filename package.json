@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.3",
+  "version": "9.9.4",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.3 — candidate v10, validation terrain et contrôle de préparation final.",
+  "description": "Shuffle+ 9.9.4 — candidate v10, validation terrain et contrôle de préparation final.",
   "engines": {
     "node": ">=20"
   },

@@ -388,7 +388,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.3";
+const APP_VERSION = "9.9.4";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -845,7 +845,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.3-shell";
+    "shuffleplus-v9.9.4-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1772,6 +1772,12 @@ let contextualOnboardingOpen =
     !contextualHelpState.tourCompleted;
 let musicalDashboardRefreshTimer = 0;
 let musicalDashboardRefreshing = false;
+let playbackUiOverride = {
+    expectedPlaying: null,
+    expiresAt: 0,
+    token: 0
+};
+let playbackConfirmationTimers = [];
 let voiceAssistantRecognition = null;
 let voiceAssistantListening = false;
 let voiceAssistantSource = "assistant";
@@ -2914,6 +2920,96 @@ function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.e
 function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:quickPlaybackState||drivingPlaybackState,activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
 function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
 function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
+function clearPlaybackConfirmationTimers() {
+    playbackConfirmationTimers.forEach((timerId) => {
+        window.clearTimeout(timerId);
+    });
+    playbackConfirmationTimers = [];
+}
+
+function clearPlaybackUiOverride() {
+    clearPlaybackConfirmationTimers();
+    playbackUiOverride = {
+        expectedPlaying: null,
+        expiresAt: 0,
+        token: playbackUiOverride.token + 1
+    };
+}
+
+function beginPlaybackUiOverride(expectedPlaying) {
+    clearPlaybackConfirmationTimers();
+    playbackUiOverride = {
+        expectedPlaying: Boolean(expectedPlaying),
+        expiresAt: Date.now() + 8_000,
+        token: playbackUiOverride.token + 1
+    };
+    updateVisiblePlaybackButtons(
+        playbackUiOverride.expectedPlaying
+    );
+    return playbackUiOverride.token;
+}
+
+function reconcilePlaybackWithUiOverride(remotePlayback) {
+    const expectedPlaying =
+        playbackUiOverride.expectedPlaying;
+
+    if (expectedPlaying === null) {
+        return remotePlayback;
+    }
+
+    const remoteHasState =
+        remotePlayback &&
+        typeof remotePlayback.is_playing === "boolean";
+
+    if (
+        remoteHasState &&
+        Boolean(remotePlayback.is_playing) ===
+            expectedPlaying
+    ) {
+        clearPlaybackUiOverride();
+        return remotePlayback;
+    }
+
+    if (Date.now() >= playbackUiOverride.expiresAt) {
+        clearPlaybackUiOverride();
+        return remotePlayback;
+    }
+
+    return {
+        ...(quickPlaybackState ||
+            drivingPlaybackState ||
+            {}),
+        ...(remotePlayback || {}),
+        is_playing: expectedPlaying
+    };
+}
+
+function schedulePlaybackConfirmationChecks(token) {
+    clearPlaybackConfirmationTimers();
+
+    [900, 1_800, 3_500, 6_000].forEach((delay) => {
+        const timerId = window.setTimeout(() => {
+            if (
+                token !== playbackUiOverride.token ||
+                playbackUiOverride.expectedPlaying === null
+            ) {
+                return;
+            }
+
+            refreshMusicalDashboardPlayback({
+                silent: true
+            }).catch((error) => {
+                console.warn(
+                    "Vérification Spotify différée impossible :",
+                    error
+                );
+            });
+        }, delay);
+
+        playbackConfirmationTimers.push(timerId);
+    });
+}
+
 function updateVisiblePlaybackButtons(isPlaying) {
     document.querySelectorAll(
         '[data-dashboard-playback="playpause"]'
@@ -2942,7 +3038,14 @@ async function refreshMusicalDashboardPlayback({ silent = false } = {}) {
     musicalDashboardRefreshing = true;
 
     try {
-        quickPlaybackState = await getCurrentPlayback();
+        const remotePlayback =
+            await getCurrentPlayback();
+        quickPlaybackState =
+            reconcilePlaybackWithUiOverride(
+                remotePlayback
+            );
+        drivingPlaybackState =
+            quickPlaybackState;
 
         if (
             quickPlaybackState?.item &&
@@ -4566,7 +4669,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.3
+                        ✨ Apparence v9.9.4
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5600,7 +5703,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.3",
+                "./service-worker.js?v=9.9.4",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6273,7 +6376,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.3 ferme les risques techniques avant la version finale.
+                        La v9.9.4 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -43005,27 +43108,25 @@ contentElement.addEventListener(
                 ? /Pause/i.test(dplay.textContent || "")
                 : null;
 
+            let playbackOverrideToken = 0;
+
             if (isPlayPause) {
                 const expectedPlayingState =
                     !previousPlayingState;
-                updateVisiblePlaybackButtons(
-                    expectedPlayingState
-                );
+                playbackOverrideToken =
+                    beginPlaybackUiOverride(
+                        expectedPlayingState
+                    );
 
-                if (quickPlaybackState) {
-                    quickPlaybackState = {
-                        ...quickPlaybackState,
-                        is_playing:
-                            expectedPlayingState
-                    };
-                }
-                if (drivingPlaybackState) {
-                    drivingPlaybackState = {
-                        ...drivingPlaybackState,
-                        is_playing:
-                            expectedPlayingState
-                    };
-                }
+                quickPlaybackState = {
+                    ...(quickPlaybackState ||
+                        drivingPlaybackState ||
+                        {}),
+                    is_playing:
+                        expectedPlayingState
+                };
+                drivingPlaybackState =
+                    quickPlaybackState;
             }
 
             try {
@@ -43033,24 +43134,27 @@ contentElement.addEventListener(
                     playbackAction
                 );
 
-                window.setTimeout(() => {
-                    refreshMusicalDashboardPlayback({
-                        silent: true
-                    }).catch((error) => {
-                        console.warn(
-                            "Vérification Spotify différée impossible :",
-                            error
-                        );
-                    });
-                }, 650);
+                if (isPlayPause) {
+                    schedulePlaybackConfirmationChecks(
+                        playbackOverrideToken
+                    );
+                }
             } catch (error) {
                 if (
                     isPlayPause &&
                     previousPlayingState !== null
                 ) {
+                    clearPlaybackUiOverride();
                     updateVisiblePlaybackButtons(
                         previousPlayingState
                     );
+                    quickPlaybackState = {
+                        ...(quickPlaybackState || {}),
+                        is_playing:
+                            previousPlayingState
+                    };
+                    drivingPlaybackState =
+                        quickPlaybackState;
                 }
                 setStatus(
                     error.message ||
