@@ -141,6 +141,15 @@ import {
 } from "./core/playback-queue.js";
 
 import {
+    clampPlaybackProgress,
+    formatPlaybackClockLabel,
+    getPlaybackClockSnapshot,
+    getPlaybackTrackIdentity,
+    setPlaybackClockPlayingState,
+    stampPlaybackClock
+} from "./core/playback-clock.js";
+
+import {
     analyzeQueueContinuity,
     shouldRefreshQueue
 } from "./core/queue-continuity.js";
@@ -388,7 +397,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.4";
+const APP_VERSION = "9.9.5";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -845,7 +854,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.4-shell";
+    "shuffleplus-v9.9.5-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1772,10 +1781,12 @@ let contextualOnboardingOpen =
     !contextualHelpState.tourCompleted;
 let musicalDashboardRefreshTimer = 0;
 let musicalDashboardRefreshing = false;
+let playbackClockTimer = 0;
 let playbackUiOverride = {
     expectedPlaying: null,
     expiresAt: 0,
-    token: 0
+    token: 0,
+    confirmedAt: 0
 };
 let playbackConfirmationTimers = [];
 let voiceAssistantRecognition = null;
@@ -2927,12 +2938,123 @@ function clearPlaybackConfirmationTimers() {
     playbackConfirmationTimers = [];
 }
 
+function updatePlaybackProgressDom() {
+    const source =
+        quickPlaybackState ||
+        drivingPlaybackState;
+    const snapshot = getPlaybackClockSnapshot(
+        source
+    );
+
+    if (!snapshot?.item) {
+        return;
+    }
+
+    quickPlaybackState = snapshot;
+    drivingPlaybackState = snapshot;
+
+    const durationMs = Math.max(
+        0,
+        Number(snapshot.item.duration_ms || 0)
+    );
+    const progressMs = clampPlaybackProgress(
+        snapshot.progress_ms,
+        durationMs
+    );
+    const progressPercent = durationMs > 0
+        ? Math.min(
+            100,
+            Math.max(0, progressMs / durationMs * 100)
+        )
+        : 0;
+    const elapsedLabel = formatPlaybackClockLabel(
+        progressMs
+    );
+    const remainingLabel = `-${formatPlaybackClockLabel(
+        Math.max(0, durationMs - progressMs)
+    )}`;
+
+    document.querySelectorAll(
+        ".v9-home-progress"
+    ).forEach((element) => {
+        element.style.setProperty(
+            "--v9-progress",
+            `${progressPercent.toFixed(2)}%`
+        );
+    });
+
+    document.querySelectorAll(
+        ".v9-home-progress-labels"
+    ).forEach((element) => {
+        const elapsed = element.querySelector(
+            "span:first-child"
+        );
+        if (elapsed) {
+            elapsed.textContent = elapsedLabel;
+        }
+    });
+
+    document.querySelectorAll(
+        ".musical-dashboard-progress i"
+    ).forEach((element) => {
+        element.style.width =
+            `${progressPercent.toFixed(2)}%`;
+    });
+
+    document.querySelectorAll(
+        ".musical-dashboard-times"
+    ).forEach((element) => {
+        const elapsed = element.querySelector(
+            "span:first-child"
+        );
+        if (elapsed) {
+            elapsed.textContent = elapsedLabel;
+        }
+    });
+
+    document.querySelectorAll(
+        ".driving-playback-progress"
+    ).forEach((element) => {
+        element.style.setProperty(
+            "--driving-progress",
+            `${progressPercent.toFixed(2)}%`
+        );
+        const labels = element.querySelectorAll(
+            ":scope > div:last-child span"
+        );
+        if (labels[0]) {
+            labels[0].textContent = elapsedLabel;
+        }
+        if (labels[1]) {
+            labels[1].textContent = remainingLabel;
+        }
+    });
+}
+
+function startPlaybackClockTimer() {
+    if (playbackClockTimer) {
+        return;
+    }
+
+    playbackClockTimer = window.setInterval(
+        () => {
+            if (
+                document.visibilityState === "visible"
+            ) {
+                updatePlaybackProgressDom();
+            }
+        },
+        500
+    );
+}
+
 function clearPlaybackUiOverride() {
     clearPlaybackConfirmationTimers();
     playbackUiOverride = {
         expectedPlaying: null,
         expiresAt: 0,
-        token: playbackUiOverride.token + 1
+        token: playbackUiOverride.token + 1,
+        confirmedAt: 0
     };
 }
 
@@ -2940,8 +3062,9 @@ function beginPlaybackUiOverride(expectedPlaying) {
     clearPlaybackConfirmationTimers();
     playbackUiOverride = {
         expectedPlaying: Boolean(expectedPlaying),
-        expiresAt: Date.now() + 8_000,
-        token: playbackUiOverride.token + 1
+        expiresAt: Date.now() + 12_000,
+        token: playbackUiOverride.token + 1,
+        confirmedAt: 0
     };
     updateVisiblePlaybackButtons(
         playbackUiOverride.expectedPlaying
@@ -2950,64 +3073,92 @@ function beginPlaybackUiOverride(expectedPlaying) {
 }
 
 function reconcilePlaybackWithUiOverride(remotePlayback) {
+    const now = Date.now();
+    const stampedRemote = stampPlaybackClock(
+        remotePlayback,
+        now
+    );
     const expectedPlaying =
         playbackUiOverride.expectedPlaying;
 
     if (expectedPlaying === null) {
-        return remotePlayback;
+        return stampedRemote;
+    }
+
+    if (now >= playbackUiOverride.expiresAt) {
+        clearPlaybackUiOverride();
+        return stampedRemote;
     }
 
     const remoteHasState =
-        remotePlayback &&
-        typeof remotePlayback.is_playing === "boolean";
+        stampedRemote &&
+        typeof stampedRemote.is_playing === "boolean";
 
     if (
         remoteHasState &&
-        Boolean(remotePlayback.is_playing) ===
-            expectedPlaying
+        Boolean(stampedRemote.is_playing) ===
+            expectedPlaying &&
+        !playbackUiOverride.confirmedAt
     ) {
-        clearPlaybackUiOverride();
-        return remotePlayback;
+        playbackUiOverride.confirmedAt = now;
     }
 
-    if (Date.now() >= playbackUiOverride.expiresAt) {
-        clearPlaybackUiOverride();
-        return remotePlayback;
-    }
+    const localPlayback =
+        getPlaybackClockSnapshot(
+            quickPlaybackState ||
+            drivingPlaybackState,
+            now
+        );
+    const remoteTrackId =
+        getPlaybackTrackIdentity(stampedRemote);
+    const localTrackId =
+        getPlaybackTrackIdentity(localPlayback);
+    const sameTrack = Boolean(
+        remoteTrackId &&
+        localTrackId &&
+        remoteTrackId === localTrackId
+    );
+    const basePlayback = sameTrack
+        ? {
+            ...(stampedRemote || {}),
+            ...(localPlayback || {})
+        }
+        : {
+            ...(localPlayback || {}),
+            ...(stampedRemote || {})
+        };
 
-    return {
-        ...(quickPlaybackState ||
-            drivingPlaybackState ||
-            {}),
-        ...(remotePlayback || {}),
-        is_playing: expectedPlaying
-    };
+    return setPlaybackClockPlayingState(
+        basePlayback,
+        expectedPlaying,
+        now
+    );
 }
 
 function schedulePlaybackConfirmationChecks(token) {
     clearPlaybackConfirmationTimers();
 
-    [900, 1_800, 3_500, 6_000].forEach((delay) => {
-        const timerId = window.setTimeout(() => {
-            if (
-                token !== playbackUiOverride.token ||
-                playbackUiOverride.expectedPlaying === null
-            ) {
-                return;
-            }
+    [900, 1_800, 3_500, 6_000, 9_000, 12_100]
+        .forEach((delay) => {
+            const timerId = window.setTimeout(() => {
+                if (
+                    token !== playbackUiOverride.token
+                ) {
+                    return;
+                }
 
-            refreshMusicalDashboardPlayback({
-                silent: true
-            }).catch((error) => {
-                console.warn(
-                    "Vérification Spotify différée impossible :",
-                    error
-                );
-            });
-        }, delay);
+                refreshMusicalDashboardPlayback({
+                    silent: true
+                }).catch((error) => {
+                    console.warn(
+                        "Vérification Spotify différée impossible :",
+                        error
+                    );
+                });
+            }, delay);
 
-        playbackConfirmationTimers.push(timerId);
-    });
+            playbackConfirmationTimers.push(timerId);
+        });
 }
 
 function updateVisiblePlaybackButtons(isPlaying) {
@@ -4669,7 +4820,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.4
+                        ✨ Apparence v9.9.5
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5703,7 +5854,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.4",
+                "./service-worker.js?v=9.9.5",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6376,7 +6527,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.4 ferme les risques techniques avant la version finale.
+                        La v9.9.5 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10588,7 +10739,11 @@ async function refreshDrivingPlayback({
 } = {}) {
     try {
         drivingPlaybackState =
-            await getCurrentPlayback();
+            reconcilePlaybackWithUiOverride(
+                await getCurrentPlayback()
+            );
+        quickPlaybackState =
+            drivingPlaybackState;
 
         if (!silent) {
             setDrivingMessage(
@@ -13759,7 +13914,11 @@ async function refreshQuickControlPlayback({
 } = {}) {
     try {
         quickPlaybackState =
-            await getCurrentPlayback();
+            reconcilePlaybackWithUiOverride(
+                await getCurrentPlayback()
+            );
+        drivingPlaybackState =
+            quickPlaybackState;
 
         if (!silent) {
             setQuickControlMessage(
@@ -13877,63 +14036,82 @@ async function runQuickControlAction(
             }
 
             if (normalizedAction === "playpause") {
-                if (state?.is_playing) {
-                    expectedPlayingState = false;
-                    quickPlaybackState = {
-                        ...state,
-                        is_playing: false
-                    };
-                    drivingPlaybackState = quickPlaybackState;
-                    if (activeAppMenu === "quick") {
-                        renderQuickControlPage();
-                    }
-                    await pausePlayback(deviceId);
-                    setQuickControlMessage(
-                        "Lecture mise en pause.",
-                        "success"
+                expectedPlayingState =
+                    typeof options.expectedPlayingState === "boolean"
+                        ? options.expectedPlayingState
+                        : !Boolean(state?.is_playing);
+                quickPlaybackState =
+                    setPlaybackClockPlayingState(
+                        quickPlaybackState || state,
+                        expectedPlayingState
                     );
-                } else {
-                    expectedPlayingState = true;
-                    quickPlaybackState = {
-                        ...state,
-                        is_playing: true
-                    };
-                    drivingPlaybackState = quickPlaybackState;
-                    if (activeAppMenu === "quick") {
-                        renderQuickControlPage();
-                    }
+                drivingPlaybackState =
+                    quickPlaybackState;
+
+                if (
+                    playbackUiOverride.expectedPlaying !==
+                        expectedPlayingState
+                ) {
+                    beginPlaybackUiOverride(
+                        expectedPlayingState
+                    );
+                }
+
+                if (activeAppMenu === "quick") {
+                    renderQuickControlPage();
+                }
+
+                if (expectedPlayingState) {
                     await resumePlayback(deviceId);
                     setQuickControlMessage(
                         "Lecture reprise.",
                         "success"
                     );
+                } else {
+                    await pausePlayback(deviceId);
+                    setQuickControlMessage(
+                        "Lecture mise en pause.",
+                        "success"
+                    );
                 }
             } else if (normalizedAction === "pause") {
                 expectedPlayingState = false;
-                quickPlaybackState = {
-                    ...state,
-                    is_playing: false
-                };
+                quickPlaybackState =
+                    setPlaybackClockPlayingState(
+                        quickPlaybackState || state,
+                        false
+                    );
                 drivingPlaybackState = quickPlaybackState;
+                const overrideToken =
+                    beginPlaybackUiOverride(false);
                 if (activeAppMenu === "quick") {
                     renderQuickControlPage();
                 }
                 await pausePlayback(deviceId);
+                schedulePlaybackConfirmationChecks(
+                    overrideToken
+                );
                 setQuickControlMessage(
                     "Lecture mise en pause.",
                     "success"
                 );
             } else if (normalizedAction === "resume") {
                 expectedPlayingState = true;
-                quickPlaybackState = {
-                    ...state,
-                    is_playing: true
-                };
+                quickPlaybackState =
+                    setPlaybackClockPlayingState(
+                        quickPlaybackState || state,
+                        true
+                    );
                 drivingPlaybackState = quickPlaybackState;
+                const overrideToken =
+                    beginPlaybackUiOverride(true);
                 if (activeAppMenu === "quick") {
                     renderQuickControlPage();
                 }
                 await resumePlayback(deviceId);
+                schedulePlaybackConfirmationChecks(
+                    overrideToken
+                );
                 setQuickControlMessage(
                     "Lecture reprise.",
                     "success"
@@ -13989,17 +14167,10 @@ async function runQuickControlAction(
                     })
             };
             quickPlaybackState =
-                refreshedPlayback
-                    ? {
-                        ...refreshedPlayback,
-                        ...(expectedPlayingState === null
-                            ? {}
-                            : {
-                                is_playing:
-                                    expectedPlayingState
-                            })
-                    }
-                    : fallbackPlayback;
+                reconcilePlaybackWithUiOverride(
+                    refreshedPlayback ||
+                    fallbackPlayback
+                );
             drivingPlaybackState =
                 quickPlaybackState;
 
@@ -43118,20 +43289,26 @@ contentElement.addEventListener(
                         expectedPlayingState
                     );
 
-                quickPlaybackState = {
-                    ...(quickPlaybackState ||
+                quickPlaybackState =
+                    setPlaybackClockPlayingState(
+                        quickPlaybackState ||
                         drivingPlaybackState ||
-                        {}),
-                    is_playing:
+                        {},
                         expectedPlayingState
-                };
+                    );
                 drivingPlaybackState =
                     quickPlaybackState;
             }
 
             try {
                 await runQuickControlAction(
-                    playbackAction
+                    playbackAction,
+                    isPlayPause
+                        ? {
+                            expectedPlayingState:
+                                !previousPlayingState
+                        }
+                        : {}
                 );
 
                 if (isPlayPause) {
@@ -43148,11 +43325,11 @@ contentElement.addEventListener(
                     updateVisiblePlaybackButtons(
                         previousPlayingState
                     );
-                    quickPlaybackState = {
-                        ...(quickPlaybackState || {}),
-                        is_playing:
+                    quickPlaybackState =
+                        setPlaybackClockPlayingState(
+                            quickPlaybackState || {},
                             previousPlayingState
-                    };
+                        );
                     drivingPlaybackState =
                         quickPlaybackState;
                 }
@@ -47022,4 +47199,5 @@ window.visualViewport?.addEventListener(
     }
 );
 
+startPlaybackClockTimer();
 initializeApp();
