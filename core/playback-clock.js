@@ -48,7 +48,10 @@ export function getPlaybackClockSnapshot(
             now
         )
     );
-    const elapsedMs = playback.is_playing
+    const clockFrozen = Boolean(
+        playback.__shuffleplusClockFrozen
+    );
+    const elapsedMs = playback.is_playing && !clockFrozen
         ? Math.max(0, Number(now || Date.now()) - anchorAt)
         : 0;
     const progressMs = clampPlaybackProgress(
@@ -188,6 +191,32 @@ export function createPlaybackItemFromQueueItem(item = null) {
             name: String(item?.album || ""),
             images: imageUrl ? [{ url: imageUrl }] : []
         }
+    };
+}
+
+export function createPendingNextPlayback(
+    playback = null,
+    now = Date.now()
+) {
+    const current = getPlaybackClockSnapshot(
+        playback,
+        now
+    ) || {};
+    const progressMs = clampPlaybackProgress(
+        current.progress_ms,
+        current?.item?.duration_ms
+    );
+
+    return {
+        ...stampPlaybackClock(
+            {
+                ...current,
+                progress_ms: progressMs
+            },
+            now
+        ),
+        __shuffleplusAwaitingNext: true,
+        __shuffleplusClockFrozen: true
     };
 }
 

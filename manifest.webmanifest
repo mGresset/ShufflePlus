@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 9.9.9 affiche immédiatement le titre suivant et synchronise la lecture Spotify toutes les 5 secondes.",
+  "description": "Shuffle+ 9.9.10 confirme le titre suivant après 700 ms et synchronise la lecture Spotify toutes les 2 secondes.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

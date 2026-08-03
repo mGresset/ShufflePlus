@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 import {
-    createOptimisticNextPlayback,
+    createPendingNextPlayback,
     getPlaybackClockSnapshot,
     hasPlaybackTrackChanged
 } from "../core/playback-clock.js";
@@ -52,29 +52,28 @@ const nextQueueItem = {
     durationMs: 210_000
 };
 
-test("la synchronisation rapide annonce Shuffle+ 9.9.9", () => {
-    assert.equal(version, "9.9.9");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.9"/);
+test("la synchronisation rapide annonce Shuffle+ 9.9.10", () => {
+    assert.equal(version, "9.9.10");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.10"/);
 });
 
-test("Suivant peut afficher immédiatement le morceau prédit et remettre la barre à zéro", () => {
-    const optimistic = createOptimisticNextPlayback(
+test("Suivant conserve le titre courant et fige la barre avant confirmation", () => {
+    const pending = createPendingNextPlayback(
         currentPlayback(),
-        nextQueueItem,
         10_000
     );
 
-    assert.equal(optimistic.item.id, "track-next");
-    assert.equal(optimistic.item.name, "Titre suivant");
-    assert.equal(optimistic.item.artists[0].name, "Nouvel artiste");
-    assert.equal(optimistic.progress_ms, 0);
-    assert.equal(optimistic.__shuffleplusPredictedNext, true);
+    assert.equal(pending.item.id, "track-current");
+    assert.equal(pending.item.name, "Titre actuel");
+    assert.equal(pending.progress_ms, 52_000);
+    assert.equal(pending.is_playing, true);
+    assert.equal(pending.__shuffleplusAwaitingNext, true);
 
     const afterOneSecond = getPlaybackClockSnapshot(
-        optimistic,
+        pending,
         11_000
     );
-    assert.equal(afterOneSecond.progress_ms, 1_000);
+    assert.equal(afterOneSecond.progress_ms, 52_000);
 });
 
 test("la transition se confirme seulement quand Spotify change réellement de titre", () => {
@@ -102,10 +101,14 @@ test("la transition se confirme seulement quand Spotify change réellement de ti
     );
 });
 
-test("Suivant lance une confirmation fraîche en rafale sur les interfaces rapides", () => {
+test("Suivant attend 700 ms puis vérifie Spotify toutes les 700 ms", () => {
     assert.match(
         appSource,
-        /NEXT_TRACK_CONFIRMATION_DELAYS_MS = Object\.freeze\(\[[\s\S]*180[\s\S]*5_000[\s\S]*7_500/
+        /const NEXT_TRACK_FIRST_REFRESH_DELAY_MS = 700/
+    );
+    assert.match(
+        appSource,
+        /const NEXT_TRACK_RETRY_INTERVAL_MS = 700/
     );
     assert.match(
         appSource,
@@ -119,12 +122,20 @@ test("Suivant lance une confirmation fraîche en rafale sur les interfaces rapid
         appSource,
         /refreshNextTrackTransition\(token\)[\s\S]*getCurrentPlayback\(\{ fresh: true \}\)/
     );
-});
-
-test("la synchronisation automatique visible est ramenée à cinq secondes", () => {
     assert.match(
         appSource,
-        /const PLAYBACK_AUTO_REFRESH_MS = 5_000/
+        /normalizedAction !== "next"[\s\S]*window\.setTimeout\(resolve, 140\)/
+    );
+    assert.doesNotMatch(
+        appSource,
+        /scheduleNextTrackConfirmationChecks\([\s\S]{0,120}await refreshNextTrackTransition/
+    );
+});
+
+test("la synchronisation automatique visible est ramenée à deux secondes", () => {
+    assert.match(
+        appSource,
+        /const PLAYBACK_AUTO_REFRESH_MS = 2_000/
     );
     assert.match(
         appSource,
@@ -134,7 +145,7 @@ test("la synchronisation automatique visible est ramenée à cinq secondes", () 
         normalizeMusicalDashboardSettings({
             autoRefreshSeconds: 20
         }).autoRefreshSeconds,
-        5
+        2
     );
     assert.equal(
         normalizeMusicalDashboardSettings({

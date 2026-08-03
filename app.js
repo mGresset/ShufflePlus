@@ -144,11 +144,10 @@ import {
     clampPlaybackProgress,
     formatPlaybackClockLabel,
     getPlaybackClockSnapshot,
-    getPlaybackTrackIdentity,
     setPlaybackClockPlayingState,
     stampPlaybackClock,
     applyPlaybackIntentOverride,
-    createOptimisticNextPlayback,
+    createPendingNextPlayback,
     hasPlaybackTrackChanged
 } from "./core/playback-clock.js";
 
@@ -400,23 +399,15 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.9";
+const APP_VERSION = "9.9.10";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
-const PLAYBACK_AUTO_REFRESH_MS = 5_000;
-const NEXT_TRACK_TRANSITION_TIMEOUT_MS = 8_000;
-const NEXT_TRACK_CONFIRMATION_DELAYS_MS = Object.freeze([
-    180,
-    420,
-    750,
-    1_150,
-    1_700,
-    2_500,
-    3_600,
-    5_000,
-    7_500
-]);
+const PLAYBACK_AUTO_REFRESH_MS = 2_000;
+const NEXT_TRACK_FIRST_REFRESH_DELAY_MS = 700;
+const NEXT_TRACK_RETRY_INTERVAL_MS = 700;
+const NEXT_TRACK_TRANSITION_TIMEOUT_MS = 5_600;
+const NEXT_TRACK_POST_CONFIRMATION_GUARD_MS = 2_100;
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -873,7 +864,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.9-shell";
+    "shuffleplus-v9.9.10-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1821,6 +1812,9 @@ let nextTrackUiTransition = {
     expiresAt: 0,
     previousPlayback: null,
     optimisticPlayback: null,
+    confirmedPlayback: null,
+    confirmationGuardUntil: 0,
+    queueRefreshStarted: false,
     queueSnapshot: null
 };
 let voiceAssistantRecognition = null;
@@ -2992,18 +2986,11 @@ function clearNextTrackUiTransition({
         expiresAt: 0,
         previousPlayback: null,
         optimisticPlayback: null,
+        confirmedPlayback: null,
+        confirmationGuardUntil: 0,
+        queueRefreshStarted: false,
         queueSnapshot: null
     };
-}
-
-function getOptimisticNextQueueItem(playback = null) {
-    const currentIdentity =
-        getPlaybackTrackIdentity(playback);
-
-    return (drivingQueueState.queue || []).find((item) => {
-        const identity = String(item?.id || item?.uri || "");
-        return identity && identity !== currentIdentity;
-    }) || null;
 }
 
 function beginNextTrackUiTransition(playback = null) {
@@ -3016,12 +3003,9 @@ function beginNextTrackUiTransition(playback = null) {
         ...drivingQueueState,
         queue: [...(drivingQueueState.queue || [])]
     };
-    const queueItem =
-        getOptimisticNextQueueItem(previousPlayback);
     const optimisticPlayback =
-        createOptimisticNextPlayback(
+        createPendingNextPlayback(
             previousPlayback,
-            queueItem,
             now
         );
 
@@ -3033,26 +3017,42 @@ function beginNextTrackUiTransition(playback = null) {
             now + NEXT_TRACK_TRANSITION_TIMEOUT_MS,
         previousPlayback,
         optimisticPlayback,
+        confirmedPlayback: null,
+        confirmationGuardUntil: 0,
+        queueRefreshStarted: false,
         queueSnapshot
     };
 
-    if (queueItem) {
-        const queueIndex =
-            drivingQueueState.queue.indexOf(queueItem);
-        drivingQueueState = {
-            ...drivingQueueState,
-            current: queueItem,
-            queue: drivingQueueState.queue.slice(
-                Math.max(0, queueIndex + 1)
-            ),
-            updatedAt: now
-        };
-    }
-
+    // Ne prédit plus le prochain titre depuis la file : l'interface conserve
+    // le titre courant et fige sa progression jusqu'à confirmation Spotify.
     quickPlaybackState = optimisticPlayback;
     drivingPlaybackState = optimisticPlayback;
 
     return nextTrackUiTransition.token;
+}
+
+function scheduleNextTrackPostConfirmationRelease(token) {
+    const delay = Math.max(
+        0,
+        nextTrackUiTransition.confirmationGuardUntil -
+            Date.now()
+    );
+    const timerId = window.setTimeout(() => {
+        nextTrackConfirmationTimers =
+            nextTrackConfirmationTimers.filter(
+                (currentId) => currentId !== timerId
+            );
+
+        if (
+            nextTrackUiTransition.active &&
+            token === nextTrackUiTransition.token &&
+            nextTrackUiTransition.confirmedPlayback
+        ) {
+            clearNextTrackUiTransition();
+        }
+    }, delay);
+
+    nextTrackConfirmationTimers.push(timerId);
 }
 
 function reconcilePlaybackWithNextTrackTransition(
@@ -3068,13 +3068,50 @@ function reconcilePlaybackWithNextTrackTransition(
         return stampedRemote;
     }
 
+    if (nextTrackUiTransition.confirmedPlayback) {
+        const confirmedChanged = hasPlaybackTrackChanged(
+            nextTrackUiTransition.previousPlayback,
+            stampedRemote
+        );
+
+        if (confirmedChanged) {
+            nextTrackUiTransition.confirmedPlayback =
+                stampedRemote;
+        }
+
+        if (
+            now >=
+            nextTrackUiTransition.confirmationGuardUntil
+        ) {
+            const result = confirmedChanged
+                ? stampedRemote
+                : nextTrackUiTransition.confirmedPlayback;
+            clearNextTrackUiTransition();
+            return result;
+        }
+
+        // Une réponse partie avant la confirmation ne peut pas réafficher
+        // l'ancien titre pendant la courte garde post-transition.
+        return getPlaybackClockSnapshot(
+            nextTrackUiTransition.confirmedPlayback,
+            now
+        );
+    }
+
     if (
         hasPlaybackTrackChanged(
             nextTrackUiTransition.previousPlayback,
             stampedRemote
         )
     ) {
-        clearNextTrackUiTransition();
+        clearNextTrackConfirmationTimers();
+        nextTrackUiTransition.confirmedPlayback =
+            stampedRemote;
+        nextTrackUiTransition.confirmationGuardUntil =
+            now + NEXT_TRACK_POST_CONFIRMATION_GUARD_MS;
+        scheduleNextTrackPostConfirmationRelease(
+            nextTrackUiTransition.token
+        );
         return stampedRemote;
     }
 
@@ -3112,7 +3149,8 @@ async function refreshNextTrackTransition(token) {
     if (
         nextTrackRefreshInFlight ||
         !nextTrackUiTransition.active ||
-        token !== nextTrackUiTransition.token
+        token !== nextTrackUiTransition.token ||
+        nextTrackUiTransition.confirmedPlayback
     ) {
         return quickPlaybackState;
     }
@@ -3130,7 +3168,11 @@ async function refreshNextTrackTransition(token) {
         drivingPlaybackState = quickPlaybackState;
         renderActivePlaybackSurface();
 
-        if (!nextTrackUiTransition.active) {
+        if (
+            nextTrackUiTransition.confirmedPlayback &&
+            !nextTrackUiTransition.queueRefreshStarted
+        ) {
+            nextTrackUiTransition.queueRefreshStarted = true;
             refreshDrivingQueue({
                 silent: true,
                 render: false,
@@ -3154,16 +3196,48 @@ async function refreshNextTrackTransition(token) {
     return quickPlaybackState;
 }
 
+function scheduleNextTrackConfirmationCheck(
+    token,
+    delay = NEXT_TRACK_RETRY_INTERVAL_MS
+) {
+    if (
+        !nextTrackUiTransition.active ||
+        token !== nextTrackUiTransition.token ||
+        nextTrackUiTransition.confirmedPlayback
+    ) {
+        return;
+    }
+
+    const timerId = window.setTimeout(async () => {
+        nextTrackConfirmationTimers =
+            nextTrackConfirmationTimers.filter(
+                (currentId) => currentId !== timerId
+            );
+
+        await refreshNextTrackTransition(token);
+
+        if (
+            nextTrackUiTransition.active &&
+            token === nextTrackUiTransition.token &&
+            !nextTrackUiTransition.confirmedPlayback &&
+            Date.now() < nextTrackUiTransition.expiresAt
+        ) {
+            scheduleNextTrackConfirmationCheck(
+                token,
+                NEXT_TRACK_RETRY_INTERVAL_MS
+            );
+        }
+    }, delay);
+
+    nextTrackConfirmationTimers.push(timerId);
+}
+
 function scheduleNextTrackConfirmationChecks(token) {
     clearNextTrackConfirmationTimers();
-
-    NEXT_TRACK_CONFIRMATION_DELAYS_MS.forEach((delay) => {
-        const timerId = window.setTimeout(() => {
-            refreshNextTrackTransition(token);
-        }, delay);
-
-        nextTrackConfirmationTimers.push(timerId);
-    });
+    scheduleNextTrackConfirmationCheck(
+        token,
+        NEXT_TRACK_FIRST_REFRESH_DELAY_MS
+    );
 }
 
 function clearPlaybackConfirmationTimers() {
@@ -3573,7 +3647,7 @@ ${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><head
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
 ${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
-</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[5,"Toutes les 5 secondes"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
+</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[2,"Toutes les 2 secondes"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
 
 function readPersonalizedRecommendationsState() {
     try {
@@ -5151,7 +5225,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.9
+                        ✨ Apparence v9.9.10
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6185,7 +6259,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.9",
+                "./service-worker.js?v=9.9.10",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6858,7 +6932,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.9 ferme les risques techniques avant la version finale.
+                        La v9.9.10 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -11408,9 +11482,6 @@ async function skipDrivingTrack() {
             scheduleNextTrackConfirmationChecks(
                 transitionToken
             );
-            await refreshNextTrackTransition(
-                transitionToken
-            );
         } catch (error) {
             clearNextTrackUiTransition({
                 restoreQueue: true
@@ -14619,39 +14690,33 @@ async function runQuickControlAction(
                 );
             }
 
-            await new Promise((resolve) =>
-                window.setTimeout(resolve, 140)
-            );
-            const refreshedPlayback =
-                await getCurrentPlayback({
-                    fresh: true
-                }).catch(
-                    () => null
+            if (normalizedAction !== "next") {
+                await new Promise((resolve) =>
+                    window.setTimeout(resolve, 140)
                 );
-            const fallbackPlayback = {
-                ...state,
-                ...(expectedPlayingState === null
-                    ? {}
-                    : {
-                        is_playing:
-                            expectedPlayingState
-                    })
-            };
-            quickPlaybackState =
-                reconcilePlaybackWithUiOverride(
-                    refreshedPlayback ||
-                    fallbackPlayback,
-                    { fresh: Boolean(refreshedPlayback) }
-                );
-            drivingPlaybackState =
-                quickPlaybackState;
-
-            if (normalizedAction === "next") {
-                await refreshDrivingQueue({
-                    silent: true,
-                    render: false,
-                    fresh: true
-                });
+                const refreshedPlayback =
+                    await getCurrentPlayback({
+                        fresh: true
+                    }).catch(
+                        () => null
+                    );
+                const fallbackPlayback = {
+                    ...state,
+                    ...(expectedPlayingState === null
+                        ? {}
+                        : {
+                            is_playing:
+                                expectedPlayingState
+                        })
+                };
+                quickPlaybackState =
+                    reconcilePlaybackWithUiOverride(
+                        refreshedPlayback ||
+                        fallbackPlayback,
+                        { fresh: Boolean(refreshedPlayback) }
+                    );
+                drivingPlaybackState =
+                    quickPlaybackState;
             }
         } else if (normalizedAction === "driving") {
             await enterDrivingMode();
