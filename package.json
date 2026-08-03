@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.13",
+  "version": "9.9.14",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.13 — barre mobile compacte et logo d’accueil interactif.",
+  "description": "Shuffle+ 9.9.14 — barre supérieure recentrée et planificateur harmonisé.",
   "engines": {
     "node": ">=20"
   },
