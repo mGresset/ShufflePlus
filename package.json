@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.14",
+  "version": "9.9.15",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.14 — barre supérieure recentrée et planificateur harmonisé.",
+  "description": "Shuffle+ 9.9.15 — harmonisation desktop, thèmes Créer et assistant sélectionnable.",
   "engines": {
     "node": ">=20"
   },

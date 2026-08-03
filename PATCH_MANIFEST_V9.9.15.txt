@@ -1,0 +1,25 @@
+Shuffle+ v9.9.15 — manifeste du correctif
+
+Interface desktop
+- Alignement des barres d’outils, en-têtes et groupes d’actions affiné.
+- Espacement uniforme entre les panneaux de travail.
+
+Rubrique Créer
+- Géométrie commune pour les grands cadres : rayon, padding, bordure, fond et ombre.
+- Harmonisation des cartes et formulaires internes.
+
+Thème
+- Bandeau Analyse des playlists relié à la couleur d’accent active.
+- Bordures et badges positifs reliés au thème actif.
+- Erreurs et avertissements conservent leurs couleurs sémantiques.
+
+Assistant
+- Espacement de 12 px entre Parler à Shuffle+ et Analyser la demande.
+- Boutons responsives : deux colonnes desktop, une colonne mobile.
+- Sélection réelle des exemples via musicalAssistantDraft et aria-pressed.
+
+Validation
+- 301 tests applicatifs réussis sur 301.
+- Tests serveur réussis.
+- Build GitHub Pages vérifié.
+- Test serveur local réussi.
