@@ -43,6 +43,7 @@ export function createSpotifyRequestManager({
 } = {}) {
     const cache = new Map();
     const pending = new Map();
+    let cacheGeneration = 0;
     const counters = {
         logicalRequests: 0,
         networkRequests: 0,
@@ -101,12 +102,15 @@ export function createSpotifyRequestManager({
     }
 
     function clearCache() {
+        cacheGeneration += 1;
         cache.clear();
     }
 
     function invalidateMatching(predicate) {
+        cacheGeneration += 1;
+
         if (typeof predicate !== "function") {
-            clearCache();
+            cache.clear();
             return;
         }
 
@@ -177,9 +181,13 @@ export function createSpotifyRequestManager({
             const cachedValue = readCache(requestKey);
             if (cachedValue !== undefined) return cachedValue;
 
-            if (pending.has(requestKey)) {
+            const pendingEntry = pending.get(requestKey);
+            if (
+                pendingEntry &&
+                pendingEntry.generation === cacheGeneration
+            ) {
                 counters.deduplicatedRequests += 1;
-                return pending.get(requestKey);
+                return pendingEntry.promise;
             }
         }
 
@@ -188,7 +196,17 @@ export function createSpotifyRequestManager({
             throw createCooldownError();
         }
 
-        const operation = (async () => {
+        if (normalizedMethod !== "GET") {
+            // Une mutation Spotify invalide immédiatement les réponses GET
+            // déjà en vol. Elles peuvent se terminer, mais ne doivent plus
+            // alimenter le cache ni être réutilisées après la commande.
+            clearCache();
+        }
+
+        const requestGeneration = cacheGeneration;
+        let operation;
+
+        operation = (async () => {
             counters.networkRequests += 1;
             lastRequestAt = now();
 
@@ -196,9 +214,14 @@ export function createSpotifyRequestManager({
                 const value = await request();
                 lastSuccessAt = now();
 
-                if (cacheable) {
+                if (
+                    cacheable &&
+                    requestGeneration === cacheGeneration
+                ) {
                     writeCache(requestKey, value, cacheTtlMs);
                 } else if (normalizedMethod !== "GET") {
+                    // Une seconde invalidation ferme aussi la fenêtre où un
+                    // GET aurait pu démarrer pendant la mutation.
                     clearCache();
                 }
 
@@ -210,11 +233,20 @@ export function createSpotifyRequestManager({
                 }
                 throw error;
             } finally {
-                pending.delete(requestKey);
+                const pendingEntry = pending.get(requestKey);
+                if (pendingEntry?.promise === operation) {
+                    pending.delete(requestKey);
+                }
             }
         })();
 
-        if (cacheable) pending.set(requestKey, operation);
+        if (cacheable) {
+            pending.set(requestKey, {
+                promise: operation,
+                generation: requestGeneration
+            });
+        }
+
         return operation;
     }
 
@@ -225,6 +257,7 @@ export function createSpotifyRequestManager({
         return {
             ...counters,
             cacheEntries: cache.size,
+            cacheGeneration,
             pendingRequests: pending.size,
             cooldownActive: remainingMs > 0,
             cooldownReason: remainingMs > 0 ? cooldownReason : "",

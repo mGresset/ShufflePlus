@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 9.5.0 améliore la continuité de lecture et analyse la file d’attente Spotify.",
+  "description": "Shuffle+ 9.9.6 stabilise Pause/Lecture et empêche les anciens états Spotify de réactiver la progression.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

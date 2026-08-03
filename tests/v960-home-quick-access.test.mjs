@@ -34,8 +34,8 @@ const commands = [
     }
 ];
 
-test("la distribution active annonce Shuffle+ 9.9.5", () => {
-    assert.equal(version, "9.9.5");
+test("la distribution active annonce Shuffle+ 9.9.6", () => {
+    assert.equal(version, "9.9.6");
 });
 
 test("les profils épinglés sont dédupliqués, filtrés et limités", () => {

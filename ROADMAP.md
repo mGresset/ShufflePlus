@@ -24,5 +24,6 @@
 - **v9.7.0 — Mode conduite avancé, verrouillage et personnalisation : terminée**
 - **v9.7.1 — Thème Musique et centrage des accès rapides : terminée**
 - **v9.7.2 — Thème Corail et grille de couleurs complète : terminée**
-- **v9.9.5 — Accueil personnalisable, ordre des blocs et mode compact : terminée**
+- **v9.9.5 — Horloge locale et verrou Pause/Lecture : terminée**
+- **v9.9.6 — Convergence Spotify, cache anti-course et confirmation stable : terminée**
 - **v10.0.0 — Découpage majeur des contrôleurs métier hors de `app.js` : prévue**

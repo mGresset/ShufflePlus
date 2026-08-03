@@ -397,7 +397,9 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.5";
+const APP_VERSION = "9.9.6";
+const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
+const PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS = 2_400;
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -854,7 +856,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.5-shell";
+    "shuffleplus-v9.9.6-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -3062,7 +3064,9 @@ function beginPlaybackUiOverride(expectedPlaying) {
     clearPlaybackConfirmationTimers();
     playbackUiOverride = {
         expectedPlaying: Boolean(expectedPlaying),
-        expiresAt: Date.now() + 12_000,
+        expiresAt:
+            Date.now() +
+            PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS,
         token: playbackUiOverride.token + 1,
         confirmedAt: 0
     };
@@ -3072,7 +3076,10 @@ function beginPlaybackUiOverride(expectedPlaying) {
     return playbackUiOverride.token;
 }
 
-function reconcilePlaybackWithUiOverride(remotePlayback) {
+function reconcilePlaybackWithUiOverride(
+    remotePlayback,
+    { fresh = false } = {}
+) {
     const now = Date.now();
     const stampedRemote = stampPlaybackClock(
         remotePlayback,
@@ -3085,22 +3092,39 @@ function reconcilePlaybackWithUiOverride(remotePlayback) {
         return stampedRemote;
     }
 
-    if (now >= playbackUiOverride.expiresAt) {
-        clearPlaybackUiOverride();
-        return stampedRemote;
-    }
-
     const remoteHasState =
         stampedRemote &&
         typeof stampedRemote.is_playing === "boolean";
-
-    if (
+    const remoteMatchesExpected = Boolean(
         remoteHasState &&
         Boolean(stampedRemote.is_playing) ===
-            expectedPlaying &&
-        !playbackUiOverride.confirmedAt
+            expectedPlaying
+    );
+
+    if (fresh && remoteHasState) {
+        if (remoteMatchesExpected) {
+            if (!playbackUiOverride.confirmedAt) {
+                playbackUiOverride.confirmedAt = now;
+            } else if (
+                now - playbackUiOverride.confirmedAt >=
+                    PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS
+            ) {
+                clearPlaybackUiOverride();
+                return stampedRemote;
+            }
+        } else {
+            // Toute réponse fraîche contradictoire remet la période de
+            // confirmation à zéro. L'ancien état Spotify reste masqué.
+            playbackUiOverride.confirmedAt = 0;
+        }
+    }
+
+    if (
+        fresh &&
+        now >= playbackUiOverride.expiresAt
     ) {
-        playbackUiOverride.confirmedAt = now;
+        clearPlaybackUiOverride();
+        return stampedRemote;
     }
 
     const localPlayback =
@@ -3138,8 +3162,18 @@ function reconcilePlaybackWithUiOverride(remotePlayback) {
 function schedulePlaybackConfirmationChecks(token) {
     clearPlaybackConfirmationTimers();
 
-    [900, 1_800, 3_500, 6_000, 9_000, 12_100]
-        .forEach((delay) => {
+    [
+        700,
+        1_500,
+        2_600,
+        4_200,
+        6_500,
+        9_500,
+        13_500,
+        19_000,
+        26_000,
+        30_100
+    ].forEach((delay) => {
             const timerId = window.setTimeout(() => {
                 if (
                     token !== playbackUiOverride.token
@@ -3148,7 +3182,8 @@ function schedulePlaybackConfirmationChecks(token) {
                 }
 
                 refreshMusicalDashboardPlayback({
-                    silent: true
+                    silent: true,
+                    fresh: true
                 }).catch((error) => {
                     console.warn(
                         "Vérification Spotify différée impossible :",
@@ -3181,7 +3216,10 @@ function updateVisiblePlaybackButtons(isPlaying) {
     });
 }
 
-async function refreshMusicalDashboardPlayback({ silent = false } = {}) {
+async function refreshMusicalDashboardPlayback({
+    silent = false,
+    fresh = !silent
+} = {}) {
     if (musicalDashboardRefreshing) {
         return quickPlaybackState;
     }
@@ -3190,10 +3228,11 @@ async function refreshMusicalDashboardPlayback({ silent = false } = {}) {
 
     try {
         const remotePlayback =
-            await getCurrentPlayback();
+            await getCurrentPlayback({ fresh });
         quickPlaybackState =
             reconcilePlaybackWithUiOverride(
-                remotePlayback
+                remotePlayback,
+                { fresh }
             );
         drivingPlaybackState =
             quickPlaybackState;
@@ -4820,7 +4859,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.5
+                        ✨ Apparence v9.9.6
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5854,7 +5893,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.5",
+                "./service-worker.js?v=9.9.6",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6527,7 +6566,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.5 ferme les risques techniques avant la version finale.
+                        La v9.9.6 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10735,12 +10774,14 @@ async function releaseDrivingWakeLock({
 
 async function refreshDrivingPlayback({
     silent = false,
-    render = true
+    render = true,
+    fresh = !silent
 } = {}) {
     try {
         drivingPlaybackState =
             reconcilePlaybackWithUiOverride(
-                await getCurrentPlayback()
+                await getCurrentPlayback({ fresh }),
+                { fresh }
             );
         quickPlaybackState =
             drivingPlaybackState;
@@ -10933,41 +10974,75 @@ async function toggleDrivingPlayback() {
             );
         }
 
-        const expectedPlayingState = !Boolean(state?.is_playing);
-        drivingPlaybackState = {
-            ...state,
-            is_playing: expectedPlayingState
-        };
+        const previousPlayingState = Boolean(
+            state?.is_playing
+        );
+        const expectedPlayingState =
+            !previousPlayingState;
+        const overrideToken =
+            beginPlaybackUiOverride(
+                expectedPlayingState
+            );
+
+        drivingPlaybackState =
+            setPlaybackClockPlayingState(
+                drivingPlaybackState || state,
+                expectedPlayingState
+            );
+        quickPlaybackState =
+            drivingPlaybackState;
         renderDrivingModePage();
 
-        if (state.is_playing) {
-            await pausePlayback(deviceId);
-            setDrivingMessage(
-                "Lecture mise en pause.",
-                "success"
-            );
-        } else {
-            await resumePlayback(deviceId);
-            setDrivingMessage(
-                "Lecture reprise.",
-                "success"
-            );
-        }
+        try {
+            if (previousPlayingState) {
+                await pausePlayback(deviceId);
+                setDrivingMessage(
+                    "Lecture mise en pause.",
+                    "success"
+                );
+            } else {
+                await resumePlayback(deviceId);
+                setDrivingMessage(
+                    "Lecture reprise.",
+                    "success"
+                );
+            }
 
-        await new Promise((resolve) =>
-            window.setTimeout(resolve, 140)
-        );
-        const refreshedPlayback =
-            await getCurrentPlayback().catch(
-                () => null
+            schedulePlaybackConfirmationChecks(
+                overrideToken
             );
-        drivingPlaybackState =
-            refreshedPlayback
-                ? {
-                    ...refreshedPlayback,
-                    is_playing: expectedPlayingState
-                }
-                : drivingPlaybackState;
+
+            await new Promise((resolve) =>
+                window.setTimeout(resolve, 140)
+            );
+            const refreshedPlayback =
+                await getCurrentPlayback({
+                    fresh: true
+                }).catch(
+                    () => null
+                );
+            drivingPlaybackState =
+                reconcilePlaybackWithUiOverride(
+                    refreshedPlayback || state,
+                    {
+                        fresh: Boolean(
+                            refreshedPlayback
+                        )
+                    }
+                );
+            quickPlaybackState =
+                drivingPlaybackState;
+        } catch (error) {
+            clearPlaybackUiOverride();
+            drivingPlaybackState =
+                setPlaybackClockPlayingState(
+                    drivingPlaybackState || state,
+                    previousPlayingState
+                );
+            quickPlaybackState =
+                drivingPlaybackState;
+            throw error;
+        }
     });
 }
 
@@ -13910,12 +13985,14 @@ function renderQuickControlPage() {
 }
 
 async function refreshQuickControlPlayback({
-    silent = false
+    silent = false,
+    fresh = !silent
 } = {}) {
     try {
         quickPlaybackState =
             reconcilePlaybackWithUiOverride(
-                await getCurrentPlayback()
+                await getCurrentPlayback({ fresh }),
+                { fresh }
             );
         drivingPlaybackState =
             quickPlaybackState;
@@ -14154,7 +14231,9 @@ async function runQuickControlAction(
                 window.setTimeout(resolve, 140)
             );
             const refreshedPlayback =
-                await getCurrentPlayback().catch(
+                await getCurrentPlayback({
+                    fresh: true
+                }).catch(
                     () => null
                 );
             const fallbackPlayback = {
@@ -14169,7 +14248,8 @@ async function runQuickControlAction(
             quickPlaybackState =
                 reconcilePlaybackWithUiOverride(
                     refreshedPlayback ||
-                    fallbackPlayback
+                    fallbackPlayback,
+                    { fresh: Boolean(refreshedPlayback) }
                 );
             drivingPlaybackState =
                 quickPlaybackState;

@@ -1,0 +1,32 @@
+SHUFFLE+ V9.9.6 — MANIFESTE DU CORRECTIF
+
+FICHIERS TECHNIQUES PRINCIPAUX
+- app.js
+- spotify-api.js
+- core/spotify-request-manager.js
+- tests/v994-playback-state-lock.test.mjs
+- tests/v995-playback-clock.test.mjs
+- tests/v996-playback-convergence.test.mjs
+
+VERSION ET PWA
+- VERSION
+- package.json
+- package-lock.json
+- config.js
+- index.html
+- service-worker.js
+- startup-recovery-9.9.6.js
+- styles/feature-settings.css
+
+DOCUMENTATION
+- README.md
+- ROADMAP.md
+- V9.9.6_NOTES.md
+- INSTALLATION-V9.9.6.txt
+- DEPLOIEMENT-V9.9.6.md
+
+VALIDATION
+- npm.cmd run validate
+- 269 tests applicatifs réussis
+- tests serveur réussis
+- build GitHub Pages et smoke test réussis

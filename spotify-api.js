@@ -33,11 +33,26 @@ function buildSpotifyRequestKey(endpoint, options = {}) {
 }
 
 async function spotifyFetch(endpoint, options = {}) {
-    const method = String(options.method || "GET").toUpperCase();
-    const cacheTtlMs = getSpotifyCacheTtl(endpoint, method);
+    const {
+        skipCache = false,
+        cacheTtlMs: cacheTtlOverride,
+        ...requestOptions
+    } = options;
+    const method = String(
+        requestOptions.method || "GET"
+    ).toUpperCase();
+    const defaultCacheTtlMs = getSpotifyCacheTtl(
+        endpoint,
+        method
+    );
+    const cacheTtlMs = skipCache
+        ? 0
+        : Number.isFinite(Number(cacheTtlOverride))
+            ? Math.max(0, Number(cacheTtlOverride))
+            : defaultCacheTtlMs;
 
     return spotifyRequestManager.execute({
-        key: buildSpotifyRequestKey(endpoint, options),
+        key: buildSpotifyRequestKey(endpoint, requestOptions),
         method,
         cacheTtlMs,
         request: async () => {
@@ -48,11 +63,11 @@ async function spotifyFetch(endpoint, options = {}) {
             }
 
             const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                ...options,
+                ...requestOptions,
                 headers: {
                     Authorization: `Bearer ${token}`,
                     "Content-Type": "application/json",
-                    ...options.headers
+                    ...requestOptions.headers
                 }
             });
 
@@ -385,8 +400,12 @@ export async function startPlayback(trackUris, deviceId = "") {
 }
 
 
-export async function getCurrentPlayback() {
-    return spotifyFetch("/me/player");
+export async function getCurrentPlayback({
+    fresh = false
+} = {}) {
+    return spotifyFetch("/me/player", {
+        skipCache: Boolean(fresh)
+    });
 }
 
 export async function getPlaybackQueue() {

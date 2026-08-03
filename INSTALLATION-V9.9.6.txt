@@ -1,0 +1,10 @@
+SHUFFLE+ V9.9.6 — INSTALLATION
+
+1. Conserver le dossier caché .git de votre dépôt local.
+2. Remplacer les autres fichiers par ceux de cette archive.
+3. Exécuter : npm.cmd run validate
+4. Exécuter : git add -A
+5. Exécuter : git commit -m "Release Shuffle+ v9.9.6 - convergence Pause Lecture"
+6. Exécuter : git push origin main
+7. Fermer entièrement la PWA, puis la rouvrir après le déploiement.
+8. Vérifier que l’en-tête affiche Version 9.9.6 avant le test Pause/Lecture.
