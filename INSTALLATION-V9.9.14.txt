@@ -1,0 +1,7 @@
+Shuffle+ v9.9.14
+
+1. Décompresser l’archive source dans le dépôt Git.
+2. Exécuter : npm.cmd run validate
+3. Vérifier que les 297 tests applicatifs réussissent.
+4. Publier sur la branche main.
+5. Fermer puis rouvrir complètement la PWA.

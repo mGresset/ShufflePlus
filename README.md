@@ -1,6 +1,8 @@
-# Shuffle+ v9.9.13 — Barre mobile et logo Accueil
+# Shuffle+ v9.9.14 — Header centré et planificateur harmonisé
 
-Shuffle+ v9.9.13 place la version et l’état réseau sur une même ligne dans la barre supérieure mobile. Le logo Shuffle+ devient cliquable et ramène directement en haut de la page Accueil.
+Shuffle+ v9.9.14 recentre verticalement le contenu de la barre supérieure et stabilise la mise en page du planificateur intelligent de routines.
+
+Cette archive corrigée synchronise également toute la suite de tests avec la version 9.9.14.
 
 ## Validation
 
@@ -10,4 +12,4 @@ npm.cmd run validate
 
 ## Déploiement
 
-Consulter `DEPLOIEMENT-V9.9.13.md`.
+Consulter `DEPLOIEMENT-V9.9.14.md`.
