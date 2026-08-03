@@ -388,7 +388,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.2";
+const APP_VERSION = "9.9.3";
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -845,7 +845,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.2-shell";
+    "shuffleplus-v9.9.3-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -2914,6 +2914,26 @@ function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.e
 function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:quickPlaybackState||drivingPlaybackState,activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
 function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
 function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
+function updateVisiblePlaybackButtons(isPlaying) {
+    document.querySelectorAll(
+        '[data-dashboard-playback="playpause"]'
+    ).forEach((button) => {
+        button.textContent = isPlaying
+            ? "⏸ Pause"
+            : "▶ Lecture";
+        button.setAttribute(
+            "aria-label",
+            isPlaying
+                ? "Mettre la lecture en pause"
+                : "Reprendre la lecture"
+        );
+        button.setAttribute(
+            "aria-pressed",
+            String(Boolean(isPlaying))
+        );
+    });
+}
+
 async function refreshMusicalDashboardPlayback({ silent = false } = {}) {
     if (musicalDashboardRefreshing) {
         return quickPlaybackState;
@@ -4546,7 +4566,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.2
+                        ✨ Apparence v9.9.3
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5580,7 +5600,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.2",
+                "./service-worker.js?v=9.9.3",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6253,7 +6273,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.2 ferme les risques techniques avant la version finale.
+                        La v9.9.3 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -42975,7 +42995,71 @@ contentElement.addEventListener(
             return;
         }
         const dnav=event.target.closest("[data-dashboard-nav]"); if(dnav){await openDashboardSection(dnav.dataset.dashboardNav||"");return;}
-        const dplay=event.target.closest("[data-dashboard-playback]"); if(dplay){try{await runQuickControlAction(dplay.dataset.dashboardPlayback||"");await refreshMusicalDashboardPlayback({silent:true});}catch(error){setStatus(error.message||"Commande Spotify impossible.","error");}return;}
+        const dplay=event.target.closest("[data-dashboard-playback]");
+        if (dplay) {
+            const playbackAction =
+                dplay.dataset.dashboardPlayback || "";
+            const isPlayPause =
+                playbackAction === "playpause";
+            const previousPlayingState = isPlayPause
+                ? /Pause/i.test(dplay.textContent || "")
+                : null;
+
+            if (isPlayPause) {
+                const expectedPlayingState =
+                    !previousPlayingState;
+                updateVisiblePlaybackButtons(
+                    expectedPlayingState
+                );
+
+                if (quickPlaybackState) {
+                    quickPlaybackState = {
+                        ...quickPlaybackState,
+                        is_playing:
+                            expectedPlayingState
+                    };
+                }
+                if (drivingPlaybackState) {
+                    drivingPlaybackState = {
+                        ...drivingPlaybackState,
+                        is_playing:
+                            expectedPlayingState
+                    };
+                }
+            }
+
+            try {
+                await runQuickControlAction(
+                    playbackAction
+                );
+
+                window.setTimeout(() => {
+                    refreshMusicalDashboardPlayback({
+                        silent: true
+                    }).catch((error) => {
+                        console.warn(
+                            "Vérification Spotify différée impossible :",
+                            error
+                        );
+                    });
+                }, 650);
+            } catch (error) {
+                if (
+                    isPlayPause &&
+                    previousPlayingState !== null
+                ) {
+                    updateVisiblePlaybackButtons(
+                        previousPlayingState
+                    );
+                }
+                setStatus(
+                    error.message ||
+                    "Commande Spotify impossible.",
+                    "error"
+                );
+            }
+            return;
+        }
         const drec=event.target.closest("[data-dashboard-recommendation]"); if(drec){try{await runPersonalizedRecommendation(drec.dataset.dashboardRecommendation||"");}catch(error){setStatus(error.message||"Recommandation impossible.","error");}return;}
         const dscene=event.target.closest("[data-dashboard-scene]"); if(dscene){try{await runAdaptiveDjScene(dscene.dataset.dashboardScene||"");}catch(error){setStatus(error.message||"Scène impossible.","error");}return;}
 
