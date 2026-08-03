@@ -1,0 +1,6 @@
+Shuffle+ v9.9.18
+
+1. Déployer le contenu du dossier dist/ sur GitHub Pages.
+2. Fermer complètement la PWA.
+3. Rouvrir Shuffle+ avec Internet actif.
+4. Vérifier que l’en-tête affiche v9.9.18.

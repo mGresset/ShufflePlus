@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.17";
+const APP_VERSION = "9.9.18";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -865,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.17-shell";
+    "shuffleplus-v9.9.18-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1739,6 +1739,7 @@ let musicalAssistantHistory =
 let musicalAssistantPlan = null;
 let musicalAssistantDraft = "";
 let musicalAssistantSelectedExample = "";
+let musicalAssistantExamplesScrollLeft = 0;
 let voiceAssistantSettings =
     readVoiceAssistantSettings();
 let personalizedRecommendationsState =
@@ -5343,7 +5344,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.17
+                        ✨ Apparence v9.9.18
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6377,7 +6378,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.17",
+                "./service-worker.js?v=9.9.18",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7050,7 +7051,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.17 garantit une sélection unique et fiable dans les exemples de l’assistant.
+                        La v9.9.18 garantit une sélection unique et fiable dans les exemples de l’assistant.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -19062,6 +19063,70 @@ function getMusicalAssistantContext() {
         })),
         activeSceneId: sceneState.activeSceneId
     };
+}
+
+function rememberMusicalAssistantExamplesScrollPosition() {
+    const examples = document.querySelector(
+        '.app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples'
+    );
+
+    if (!examples) {
+        return;
+    }
+
+    const currentScrollLeft = Number(examples.scrollLeft);
+    if (Number.isFinite(currentScrollLeft)) {
+        musicalAssistantExamplesScrollLeft = Math.max(
+            0,
+            currentScrollLeft
+        );
+    }
+}
+
+function restoreMusicalAssistantExamplesScrollPosition() {
+    window.requestAnimationFrame(() => {
+        const examples = document.querySelector(
+            '.app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples'
+        );
+
+        if (!examples) {
+            return;
+        }
+
+        const maximumScrollLeft = Math.max(
+            0,
+            examples.scrollWidth - examples.clientWidth
+        );
+        examples.scrollLeft = Math.min(
+            maximumScrollLeft,
+            musicalAssistantExamplesScrollLeft
+        );
+
+        const selectedButton = examples.querySelector(
+            '[data-musical-assistant-example][aria-pressed="true"]'
+        );
+        if (!selectedButton) {
+            musicalAssistantExamplesScrollLeft = examples.scrollLeft;
+            return;
+        }
+
+        const examplesRect = examples.getBoundingClientRect();
+        const selectedRect = selectedButton.getBoundingClientRect();
+        const edgePadding = 8;
+
+        if (selectedRect.left < examplesRect.left + edgePadding) {
+            examples.scrollLeft -=
+                examplesRect.left + edgePadding - selectedRect.left;
+        } else if (selectedRect.right > examplesRect.right - edgePadding) {
+            examples.scrollLeft +=
+                selectedRect.right - examplesRect.right + edgePadding;
+        }
+
+        musicalAssistantExamplesScrollLeft = Math.max(
+            0,
+            examples.scrollLeft
+        );
+    });
 }
 
 function setMusicalAssistantExampleSelection(
@@ -39345,6 +39410,10 @@ function updateMixSelectionControls() {
 }
 
 function displayPlaylists(playlists) {
+    if (activeAppMenu === "assistant") {
+        rememberMusicalAssistantExamplesScrollPosition();
+    }
+
     appRuntimeState.merge("navigation", {
         activeMenu: activeAppMenu,
         group: getAppSectionGroup(
@@ -39934,6 +40003,7 @@ function displayPlaylists(playlists) {
         setMusicalAssistantExampleSelection(
             musicalAssistantSelectedExample
         );
+        restoreMusicalAssistantExamplesScrollPosition();
     }
 
     updateMixSelectionControls();

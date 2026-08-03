@@ -2060,7 +2060,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.17 — harmonisation desktop, Créer et assistant
+   Shuffle+ v9.9.18 — harmonisation desktop, Créer et assistant
    ===================================================================== */
 
 /* Alignement desktop plus régulier pour les pages de travail. */
@@ -2305,7 +2305,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.17 — sélection unique des exemples de l’assistant
+   Shuffle+ v9.9.18 — sélection unique des exemples de l’assistant
    ===================================================================== */
 
 /* Un seul bouton peut porter aria-pressed="true". Les états de survol et
@@ -2313,7 +2313,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
    jamais être confondus avec la sélection active. */
 
 /* =====================================================================
-   Shuffle+ v9.9.17 — sélection tactile fiable dans l’assistant
+   Shuffle+ v9.9.18 — sélection tactile fiable dans l’assistant
    ===================================================================== */
 
 /* Les navigateurs tactiles et hybrides peuvent conserver :hover après un
