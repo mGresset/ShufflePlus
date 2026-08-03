@@ -27,9 +27,9 @@ function playback({
     };
 }
 
-test("la correction active annonce Shuffle+ 9.9.6", () => {
-    assert.equal(version, "9.9.6");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.6"/);
+test("la correction active annonce Shuffle+ 9.9.7", () => {
+    assert.equal(version, "9.9.7");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.7"/);
 });
 
 test("l'horloge locale avance sans nouvel appel Spotify", () => {
@@ -91,11 +91,15 @@ test("l'interface maintient l'état demandé jusqu'à confirmation stable", () =
     );
     assert.match(
         appSource,
-        /confirmedAt = now[\s\S]*PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS[\s\S]*return setPlaybackClockPlayingState/
+        /PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500/
     );
-    assert.doesNotMatch(
+    assert.match(
         appSource,
-        /Boolean\(stampedRemote\.is_playing\)[\s\S]{0,180}clearPlaybackUiOverride\(\)/
+        /PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2/
+    );
+    assert.match(
+        appSource,
+        /return applyPlaybackIntentOverride\([\s\S]*expectedPlaying/
     );
 });
 

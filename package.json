@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.6",
+  "version": "9.9.7",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.6 — convergence Pause/Lecture, cache Spotify anti-course et horloge locale stable.",
+  "description": "Shuffle+ 9.9.7 — convergence Pause/Lecture, cache Spotify anti-course et horloge locale stable.",
   "engines": {
     "node": ">=20"
   },

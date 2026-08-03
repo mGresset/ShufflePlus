@@ -5,9 +5,9 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile("app.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la correction de confirmation active annonce Shuffle+ 9.9.6", () => {
-    assert.equal(version, "9.9.6");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.6"/);
+test("la correction de confirmation active annonce Shuffle+ 9.9.7", () => {
+    assert.equal(version, "9.9.7");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.7"/);
 });
 
 test("un retour Spotify en retard ne rétablit pas Pause", () => {
@@ -16,11 +16,11 @@ test("un retour Spotify en retard ne rétablit pas Pause", () => {
     assert.match(appSource, /function reconcilePlaybackWithUiOverride/);
     assert.match(
         appSource,
-        /Boolean\(stampedRemote\.is_playing\)[\s\S]*expectedPlaying[\s\S]*confirmedAt = now/
+        /remoteMatchesExpected[\s\S]*matchingFreshCount \+= 1/
     );
     assert.match(
         appSource,
-        /return setPlaybackClockPlayingState\([\s\S]*expectedPlaying/
+        /return applyPlaybackIntentOverride\([\s\S]*expectedPlaying/
     );
 });
 

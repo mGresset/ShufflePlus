@@ -13,9 +13,9 @@ const spotifyApiSource = await readFile(
 );
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la convergence Pause/Lecture active annonce Shuffle+ 9.9.6", () => {
-    assert.equal(version, "9.9.6");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.6"/);
+test("la convergence Pause/Lecture active annonce Shuffle+ 9.9.7", () => {
+    assert.equal(version, "9.9.7");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.7"/);
 });
 
 test("une ancienne lecture GET ne peut plus repeupler le cache après Pause", async () => {
@@ -78,19 +78,19 @@ test("le verrou attend un état frais et stable avant de se libérer", () => {
     );
     assert.match(
         appSource,
-        /PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS = 2_400/
+        /PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500/
     );
     assert.match(
         appSource,
-        /if \(fresh && remoteHasState\)[\s\S]*remoteMatchesExpected[\s\S]*confirmedAt = now/
+        /PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2/
     );
     assert.match(
         appSource,
-        /else \{[\s\S]*playbackUiOverride\.confirmedAt = 0;/
+        /if \(fresh && remoteHasState\)[\s\S]*matchingFreshCount \+= 1/
     );
     assert.match(
         appSource,
-        /now - playbackUiOverride\.confirmedAt[\s\S]*PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS[\s\S]*clearPlaybackUiOverride\(\)/
+        /now >= playbackUiOverride\.minimumReleaseAt[\s\S]*matchingFreshCount >=[\s\S]*PLAYBACK_OVERRIDE_REQUIRED_MATCHES[\s\S]*clearPlaybackUiOverride\(\)/
     );
 });
 

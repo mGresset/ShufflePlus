@@ -144,9 +144,9 @@ import {
     clampPlaybackProgress,
     formatPlaybackClockLabel,
     getPlaybackClockSnapshot,
-    getPlaybackTrackIdentity,
     setPlaybackClockPlayingState,
-    stampPlaybackClock
+    stampPlaybackClock,
+    applyPlaybackIntentOverride
 } from "./core/playback-clock.js";
 
 import {
@@ -397,9 +397,10 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.6";
+const APP_VERSION = "9.9.7";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
-const PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS = 2_400;
+const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
+const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -856,7 +857,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.6-shell";
+    "shuffleplus-v9.9.7-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1786,9 +1787,13 @@ let musicalDashboardRefreshing = false;
 let playbackClockTimer = 0;
 let playbackUiOverride = {
     expectedPlaying: null,
+    startedAt: 0,
+    minimumReleaseAt: 0,
     expiresAt: 0,
     token: 0,
-    confirmedAt: 0
+    matchingFreshCount: 0,
+    lastMatchingAt: 0,
+    anchorPlayback: null
 };
 let playbackConfirmationTimers = [];
 let voiceAssistantRecognition = null;
@@ -2930,7 +2935,7 @@ function renderMusicalGoalsPage() {
 function readMusicalDashboardSettings(){try{const raw=localStorage.getItem(MUSICAL_DASHBOARD_SETTINGS_KEY);return normalizeMusicalDashboardSettings(raw?JSON.parse(raw):DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}catch(error){console.warn("Dashboard illisible",error);return normalizeMusicalDashboardSettings(DEFAULT_MUSICAL_DASHBOARD_SETTINGS);}}
 function saveMusicalDashboardSettings(){musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,updatedAt:Date.now()});localStorage.setItem(MUSICAL_DASHBOARD_SETTINGS_KEY,JSON.stringify(musicalDashboardSettings));}
 function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.enabled).map(schedule=>({schedule,date:getNextScheduleDate(schedule)})).filter(x=>x.date).sort((a,b)=>a.date-b.date)[0];if(!item)return null;const t=getScheduleTarget(item.schedule);return{date:item.date,name:item.schedule.name||"Routine musicale",targetLabel:t.label,targetIcon:t.icon,autoPlay:item.schedule.autoPlay!==false};}
-function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:quickPlaybackState||drivingPlaybackState,activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
+function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:getEffectivePlaybackState(quickPlaybackState||drivingPlaybackState),activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
 function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
 function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
 function clearPlaybackConfirmationTimers() {
@@ -2944,7 +2949,7 @@ function updatePlaybackProgressDom() {
     const source =
         quickPlaybackState ||
         drivingPlaybackState;
-    const snapshot = getPlaybackClockSnapshot(
+    const snapshot = getEffectivePlaybackState(
         source
     );
 
@@ -2954,6 +2959,9 @@ function updatePlaybackProgressDom() {
 
     quickPlaybackState = snapshot;
     drivingPlaybackState = snapshot;
+    updateVisiblePlaybackButtons(
+        Boolean(snapshot.is_playing)
+    );
 
     const durationMs = Math.max(
         0,
@@ -3054,25 +3062,98 @@ function clearPlaybackUiOverride() {
     clearPlaybackConfirmationTimers();
     playbackUiOverride = {
         expectedPlaying: null,
+        startedAt: 0,
+        minimumReleaseAt: 0,
         expiresAt: 0,
         token: playbackUiOverride.token + 1,
-        confirmedAt: 0
+        matchingFreshCount: 0,
+        lastMatchingAt: 0,
+        anchorPlayback: null
     };
+}
+
+function getEffectivePlaybackState(
+    playback = quickPlaybackState || drivingPlaybackState,
+    now = Date.now()
+) {
+    const expectedPlaying =
+        playbackUiOverride.expectedPlaying;
+
+    if (expectedPlaying === null) {
+        return getPlaybackClockSnapshot(playback, now);
+    }
+
+    if (now >= playbackUiOverride.expiresAt) {
+        clearPlaybackUiOverride();
+        return getPlaybackClockSnapshot(playback, now);
+    }
+
+    return applyPlaybackIntentOverride(
+        playback,
+        {
+            anchorPlayback:
+                playbackUiOverride.anchorPlayback,
+            expectedPlaying,
+            now
+        }
+    );
+}
+
+function commitEffectivePlaybackState(
+    playback = quickPlaybackState || drivingPlaybackState,
+    now = Date.now()
+) {
+    const effectivePlayback =
+        getEffectivePlaybackState(playback, now);
+
+    if (effectivePlayback) {
+        quickPlaybackState = effectivePlayback;
+        drivingPlaybackState = effectivePlayback;
+    }
+
+    return effectivePlayback;
 }
 
 function beginPlaybackUiOverride(expectedPlaying) {
     clearPlaybackConfirmationTimers();
+
+    const now = Date.now();
+    const anchorPlayback =
+        getPlaybackClockSnapshot(
+            quickPlaybackState || drivingPlaybackState,
+            now
+        );
+
     playbackUiOverride = {
         expectedPlaying: Boolean(expectedPlaying),
+        startedAt: now,
+        minimumReleaseAt:
+            now + PLAYBACK_OVERRIDE_MIN_HOLD_MS,
         expiresAt:
-            Date.now() +
-            PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS,
+            now + PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS,
         token: playbackUiOverride.token + 1,
-        confirmedAt: 0
+        matchingFreshCount: 0,
+        lastMatchingAt: 0,
+        anchorPlayback:
+            applyPlaybackIntentOverride(
+                anchorPlayback,
+                {
+                    anchorPlayback,
+                    expectedPlaying:
+                        Boolean(expectedPlaying),
+                    now
+                }
+            )
     };
+
+    commitEffectivePlaybackState(
+        playbackUiOverride.anchorPlayback,
+        now
+    );
     updateVisiblePlaybackButtons(
         playbackUiOverride.expectedPlaying
     );
+
     return playbackUiOverride.token;
 }
 
@@ -3103,59 +3184,40 @@ function reconcilePlaybackWithUiOverride(
 
     if (fresh && remoteHasState) {
         if (remoteMatchesExpected) {
-            if (!playbackUiOverride.confirmedAt) {
-                playbackUiOverride.confirmedAt = now;
-            } else if (
-                now - playbackUiOverride.confirmedAt >=
-                    PLAYBACK_OVERRIDE_STABLE_CONFIRMATION_MS
-            ) {
-                clearPlaybackUiOverride();
-                return stampedRemote;
-            }
+            playbackUiOverride.matchingFreshCount += 1;
+            playbackUiOverride.lastMatchingAt = now;
         } else {
-            // Toute réponse fraîche contradictoire remet la période de
-            // confirmation à zéro. L'ancien état Spotify reste masqué.
-            playbackUiOverride.confirmedAt = 0;
+            // Une réponse Spotify contradictoire ne modifie jamais l'interface
+            // pendant la fenêtre locale et remet les confirmations à zéro.
+            playbackUiOverride.matchingFreshCount = 0;
+            playbackUiOverride.lastMatchingAt = 0;
         }
     }
 
     if (
         fresh &&
-        now >= playbackUiOverride.expiresAt
+        remoteMatchesExpected &&
+        now >= playbackUiOverride.minimumReleaseAt &&
+        playbackUiOverride.matchingFreshCount >=
+            PLAYBACK_OVERRIDE_REQUIRED_MATCHES
     ) {
         clearPlaybackUiOverride();
         return stampedRemote;
     }
 
-    const localPlayback =
-        getPlaybackClockSnapshot(
-            quickPlaybackState ||
-            drivingPlaybackState,
-            now
-        );
-    const remoteTrackId =
-        getPlaybackTrackIdentity(stampedRemote);
-    const localTrackId =
-        getPlaybackTrackIdentity(localPlayback);
-    const sameTrack = Boolean(
-        remoteTrackId &&
-        localTrackId &&
-        remoteTrackId === localTrackId
-    );
-    const basePlayback = sameTrack
-        ? {
-            ...(stampedRemote || {}),
-            ...(localPlayback || {})
-        }
-        : {
-            ...(localPlayback || {}),
-            ...(stampedRemote || {})
-        };
+    if (now >= playbackUiOverride.expiresAt) {
+        clearPlaybackUiOverride();
+        return stampedRemote;
+    }
 
-    return setPlaybackClockPlayingState(
-        basePlayback,
-        expectedPlaying,
-        now
+    return applyPlaybackIntentOverride(
+        stampedRemote,
+        {
+            anchorPlayback:
+                playbackUiOverride.anchorPlayback,
+            expectedPlaying,
+            now
+        }
     );
 }
 
@@ -3167,7 +3229,8 @@ function schedulePlaybackConfirmationChecks(token) {
         1_500,
         2_600,
         4_200,
-        6_500,
+        6_000,
+        7_500,
         9_500,
         13_500,
         19_000,
@@ -4722,7 +4785,7 @@ function renderV9HomePanel() {
         command,
         commandReady,
         diagnostic,
-        playback: quickPlaybackState || drivingPlaybackState,
+        playback: getEffectivePlaybackState(quickPlaybackState || drivingPlaybackState),
         deviceLabel,
         guidedSetup: guidedSnapshot,
         queue: drivingQueueState.queue,
@@ -4859,7 +4922,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.6
+                        ✨ Apparence v9.9.7
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5893,7 +5956,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.6",
+                "./service-worker.js?v=9.9.7",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6566,7 +6629,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.6 ferme les risques techniques avant la version finale.
+                        La v9.9.7 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -9530,7 +9593,9 @@ function setDrivingMessage(text = "", type = "") {
 }
 
 function getDrivingCurrentTrack() {
-    const item = drivingPlaybackState?.item;
+    const item = getEffectivePlaybackState(
+        drivingPlaybackState || quickPlaybackState
+    )?.item;
 
     return item?.type === "track" && item?.uri
         ? item
@@ -9538,7 +9603,9 @@ function getDrivingCurrentTrack() {
 }
 
 function getDrivingDeviceId() {
-    return drivingPlaybackState?.device?.id || "";
+    return getEffectivePlaybackState(
+        drivingPlaybackState || quickPlaybackState
+    )?.device?.id || "";
 }
 
 function getDrivingTrackArtists(track) {
@@ -10328,13 +10395,20 @@ function renderDrivingPreferencesPanel() {
 function renderDrivingModePage() {
     syncDrivingViewportHeight();
 
+    const effectivePlayback =
+        commitEffectivePlaybackState(
+            drivingPlaybackState || quickPlaybackState
+        );
     const adaptive = getAdaptiveDjMix();
-    const track = getDrivingCurrentTrack();
+    const track =
+        effectivePlayback?.item?.type === "track"
+            ? effectivePlayback.item
+            : null;
     const isPlaying = Boolean(
-        drivingPlaybackState?.is_playing
+        effectivePlayback?.is_playing
     );
     const deviceName =
-        drivingPlaybackState?.device?.name ||
+        effectivePlayback?.device?.name ||
         "Aucun appareil actif";
     const feedbackAction =
         getDrivingCurrentFeedbackAction(track);
@@ -10413,7 +10487,7 @@ function renderDrivingModePage() {
                 </div>
             </section>
 
-            ${renderDrivingPlaybackProgress(drivingPlaybackState)}
+            ${renderDrivingPlaybackProgress(effectivePlayback)}
             ${renderDrivingQueuePreview()}
 
             <div class="driving-main-controls ${drivingControlsLocked ? "is-locked" : ""}">
@@ -10964,8 +11038,10 @@ async function launchDrivingAdaptiveDj() {
 async function toggleDrivingPlayback() {
     await runDrivingAction(async () => {
         const state =
-            drivingPlaybackState ||
-            await getCurrentPlayback();
+            getEffectivePlaybackState(
+                drivingPlaybackState || quickPlaybackState
+            ) ||
+            await getCurrentPlayback({ fresh: true });
         const deviceId = state?.device?.id || "";
 
         if (!deviceId) {
@@ -13128,7 +13204,9 @@ function setQuickControlMessage(
 }
 
 function getQuickCurrentTrack() {
-    const item = quickPlaybackState?.item;
+    const item = getEffectivePlaybackState(
+        quickPlaybackState || drivingPlaybackState
+    )?.item;
 
     return item?.type === "track"
         ? item
@@ -13588,12 +13666,19 @@ function renderShortcutProfilesDashboard() {
 }
 
 function renderQuickControlPage() {
-    const track = getQuickCurrentTrack();
+    const effectivePlayback =
+        commitEffectivePlaybackState(
+            quickPlaybackState || drivingPlaybackState
+        );
+    const track =
+        effectivePlayback?.item?.type === "track"
+            ? effectivePlayback.item
+            : null;
     const isPlaying = Boolean(
-        quickPlaybackState?.is_playing
+        effectivePlayback?.is_playing
     );
     const deviceName =
-        quickPlaybackState?.device?.name ||
+        effectivePlayback?.device?.name ||
         "Aucun appareil actif";
     const voiceSupported = Boolean(
         window.SpeechRecognition ||
@@ -14032,6 +14117,11 @@ async function runQuickControlAction(
         return;
     }
 
+    let playbackRollbackState =
+        options.rollbackPlaybackState || null;
+    let playbackCommandExpectedState = null;
+    let playbackOverrideToken = 0;
+
     quickControlBusy = true;
     setQuickControlMessage(
         "Commande en cours…",
@@ -14094,8 +14184,14 @@ async function runQuickControlAction(
             ].includes(normalizedAction)
         ) {
             const state =
-                await getCurrentPlayback();
+                getEffectivePlaybackState(
+                    quickPlaybackState || drivingPlaybackState
+                ) ||
+                await getCurrentPlayback({ fresh: true });
             let expectedPlayingState = null;
+            playbackRollbackState =
+                playbackRollbackState ||
+                getPlaybackClockSnapshot(state);
             const deviceId = state?.device?.id || "";
             const track =
                 state?.item?.type === "track"
@@ -14125,13 +14221,20 @@ async function runQuickControlAction(
                 drivingPlaybackState =
                     quickPlaybackState;
 
+                playbackCommandExpectedState =
+                    expectedPlayingState;
+
                 if (
                     playbackUiOverride.expectedPlaying !==
                         expectedPlayingState
                 ) {
-                    beginPlaybackUiOverride(
-                        expectedPlayingState
-                    );
+                    playbackOverrideToken =
+                        beginPlaybackUiOverride(
+                            expectedPlayingState
+                        );
+                } else {
+                    playbackOverrideToken =
+                        playbackUiOverride.token;
                 }
 
                 if (activeAppMenu === "quick") {
@@ -14159,15 +14262,13 @@ async function runQuickControlAction(
                         false
                     );
                 drivingPlaybackState = quickPlaybackState;
-                const overrideToken =
+                playbackCommandExpectedState = false;
+                playbackOverrideToken =
                     beginPlaybackUiOverride(false);
                 if (activeAppMenu === "quick") {
                     renderQuickControlPage();
                 }
                 await pausePlayback(deviceId);
-                schedulePlaybackConfirmationChecks(
-                    overrideToken
-                );
                 setQuickControlMessage(
                     "Lecture mise en pause.",
                     "success"
@@ -14180,15 +14281,13 @@ async function runQuickControlAction(
                         true
                     );
                 drivingPlaybackState = quickPlaybackState;
-                const overrideToken =
+                playbackCommandExpectedState = true;
+                playbackOverrideToken =
                     beginPlaybackUiOverride(true);
                 if (activeAppMenu === "quick") {
                     renderQuickControlPage();
                 }
                 await resumePlayback(deviceId);
-                schedulePlaybackConfirmationChecks(
-                    overrideToken
-                );
                 setQuickControlMessage(
                     "Lecture reprise.",
                     "success"
@@ -14225,6 +14324,16 @@ async function runQuickControlAction(
                         "success"
                     );
                 }
+            }
+
+            if (
+                typeof playbackCommandExpectedState ===
+                    "boolean" &&
+                playbackOverrideToken
+            ) {
+                schedulePlaybackConfirmationChecks(
+                    playbackOverrideToken
+                );
             }
 
             await new Promise((resolve) =>
@@ -14280,6 +14389,29 @@ async function runQuickControlAction(
         }
     } catch (error) {
         console.error(error);
+
+        if (
+            typeof playbackCommandExpectedState ===
+                "boolean" &&
+            playbackRollbackState
+        ) {
+            clearPlaybackUiOverride();
+            quickPlaybackState =
+                setPlaybackClockPlayingState(
+                    playbackRollbackState,
+                    Boolean(
+                        playbackRollbackState.is_playing
+                    )
+                );
+            drivingPlaybackState =
+                quickPlaybackState;
+            updateVisiblePlaybackButtons(
+                Boolean(
+                    playbackRollbackState.is_playing
+                )
+            );
+        }
+
         setQuickControlMessage(
             getPlaybackErrorMessage(error),
             "error"
@@ -43359,15 +43491,20 @@ contentElement.addEventListener(
                 ? /Pause/i.test(dplay.textContent || "")
                 : null;
 
-            let playbackOverrideToken = 0;
+            const playbackRollbackState =
+                isPlayPause
+                    ? getPlaybackClockSnapshot(
+                        quickPlaybackState ||
+                        drivingPlaybackState
+                    )
+                    : null;
 
             if (isPlayPause) {
                 const expectedPlayingState =
                     !previousPlayingState;
-                playbackOverrideToken =
-                    beginPlaybackUiOverride(
-                        expectedPlayingState
-                    );
+                beginPlaybackUiOverride(
+                    expectedPlayingState
+                );
 
                 quickPlaybackState =
                     setPlaybackClockPlayingState(
@@ -43386,16 +43523,12 @@ contentElement.addEventListener(
                     isPlayPause
                         ? {
                             expectedPlayingState:
-                                !previousPlayingState
+                                !previousPlayingState,
+                            rollbackPlaybackState:
+                                playbackRollbackState
                         }
                         : {}
                 );
-
-                if (isPlayPause) {
-                    schedulePlaybackConfirmationChecks(
-                        playbackOverrideToken
-                    );
-                }
             } catch (error) {
                 if (
                     isPlayPause &&

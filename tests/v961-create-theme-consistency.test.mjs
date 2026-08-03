@@ -9,8 +9,8 @@ const createThemeBlock = designSystem.split(
     "Shuffle+ v9.6.1 — cohérence du thème dans la rubrique Créer"
 )[1] || "";
 
-test("la version corrective est 9.9.6", () => {
-    assert.equal(version, "9.9.6");
+test("la version corrective est 9.9.7", () => {
+    assert.equal(version, "9.9.7");
 });
 
 test("les principaux panneaux de Créer utilisent les variables du thème", () => {

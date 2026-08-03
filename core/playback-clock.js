@@ -117,6 +117,38 @@ export function setPlaybackClockPlayingState(
     };
 }
 
+
+export function applyPlaybackIntentOverride(
+    playback = null,
+    {
+        anchorPlayback = null,
+        expectedPlaying = null,
+        now = Date.now()
+    } = {}
+) {
+    if (typeof expectedPlaying !== "boolean") {
+        return getPlaybackClockSnapshot(playback, now);
+    }
+
+    const remoteSnapshot =
+        getPlaybackClockSnapshot(playback, now) || {};
+    const anchorSnapshot =
+        getPlaybackClockSnapshot(
+            anchorPlayback,
+            now
+        ) || {};
+    const mergedPlayback = {
+        ...remoteSnapshot,
+        ...anchorSnapshot
+    };
+
+    return setPlaybackClockPlayingState(
+        mergedPlayback,
+        expectedPlaying,
+        now
+    );
+}
+
 export function formatPlaybackClockLabel(
     milliseconds = 0
 ) {
