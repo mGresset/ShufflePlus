@@ -16,11 +16,11 @@
 
     <meta
         name="description"
-        content="Shuffle+ 9.9.10 — titre suivant confirmé après 700 ms et synchronisation Spotify toutes les 2 secondes."
+        content="Shuffle+ 9.9.11 — interface mobile corrigée, version visible et déconnexion simplifiée."
     >
 
     <meta name="theme-color" content="#8b5cf6">
-    <meta name="shuffleplus-version" content="9.9.10">
+    <meta name="shuffleplus-version" content="9.9.11">
     <meta name="shuffleplus-release-channel" content="release-candidate">
     <meta name="shuffleplus-build-validated" content="true">
     <meta name="shuffleplus-server-tests-validated" content="true">
@@ -55,8 +55,8 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=9.9.10">
-    <link rel="stylesheet" href="./design-system.css?v=9.9.10">
+    <link rel="stylesheet" href="./style.css?v=9.9.11">
+    <link rel="stylesheet" href="./design-system.css?v=9.9.11">
 </head>
 
 <body>
@@ -107,11 +107,13 @@
 
                 <button
                     id="logoutButton"
-                    class="secondary-button ui-button ui-button--secondary"
+                    class="header-logout-button"
                     type="button"
+                    aria-label="Se déconnecter de Spotify"
+                    title="Se déconnecter"
                     hidden
                 >
-                    Se déconnecter
+                    <span class="header-logout-button__icon" aria-hidden="true">↪</span>
                 </button>
 
                 <button
@@ -145,7 +147,7 @@
                 </div>
 
                 <div class="spotify-setup-public-intro">
-                    <span>Shuffle+ 9.9.10 · Candidate v10</span>
+                    <span>Shuffle+ 9.9.11 · Candidate v10</span>
                     <h4>Votre playlist Spotify en une seule action</h4>
                     <p>
                         Lancez une playlist en mode aléatoire depuis un raccourci
@@ -322,7 +324,7 @@
         </div>
     </aside>
 
-    <script src="./startup-recovery-9.9.10.js" defer></script>
-    <script type="module" src="./bootstrap-9.9.10.js"></script>
+    <script src="./startup-recovery-9.9.11.js" defer></script>
+    <script type="module" src="./bootstrap-9.9.11.js"></script>
 </body>
 </html>

@@ -954,3 +954,45 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.11 — carte Configuration mobile sans chevauchement
+   ===================================================================== */
+.v9-home-next-step {
+    min-width: 0;
+    height: auto;
+    margin: 0;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.v9-home-next-step > div:not(.v9-home-next-step-progress) {
+    min-width: 0;
+}
+
+.v9-home-next-step button {
+    position: static;
+    max-width: 100%;
+}
+
+@media (max-width: 520px) {
+    .v9-home-next-step {
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 0.85rem;
+        padding: 1rem;
+        border-radius: 20px;
+    }
+
+    .v9-home-next-step-progress {
+        width: 100%;
+        height: 7px;
+    }
+
+    .v9-home-next-step button {
+        width: 100%;
+        min-width: 0;
+        min-height: 48px;
+        margin: 0;
+    }
+}

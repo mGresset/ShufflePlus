@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.10",
+  "version": "9.9.11",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.10 — titre suivant confirmé après 700 ms et synchronisation Spotify toutes les 2 secondes.",
+  "description": "Shuffle+ 9.9.11 — correctifs mobiles de la carte Configuration et de la barre supérieure.",
   "engines": {
     "node": ">=20"
   },

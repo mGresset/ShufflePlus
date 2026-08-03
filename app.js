@@ -399,7 +399,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.10";
+const APP_VERSION = "9.9.11";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -864,7 +864,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.10-shell";
+    "shuffleplus-v9.9.11-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1860,7 +1860,7 @@ let pwaUpdateReloadFallbackTimer = 0;
 const watchedPwaWorkers = new WeakSet();
 
 applyUiThemeSettings();
-versionElement.textContent = `Version ${APP_VERSION}`;
+versionElement.textContent = `v${APP_VERSION}`;
 
 function formatDuration(durationMs = 0) {
     const totalSeconds = Math.floor(durationMs / 1000);
@@ -5225,7 +5225,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.10
+                        ✨ Apparence v9.9.11
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6259,7 +6259,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.10",
+                "./service-worker.js?v=9.9.11",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6932,7 +6932,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.10 ferme les risques techniques avant la version finale.
+                        La v9.9.11 stabilise la présentation mobile avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
