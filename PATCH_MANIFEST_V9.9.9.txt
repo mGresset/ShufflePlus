@@ -1,0 +1,24 @@
+Shuffle+ v9.9.9
+
+Fichiers principaux modifiés :
+- app.js
+- spotify-api.js
+- core/playback-clock.js
+- musical-dashboard.js
+- index.html
+- service-worker.js
+- bootstrap-9.9.9.js
+- startup-recovery-9.9.9.js
+- manifest.webmanifest
+- package.json
+- package-lock.json
+- VERSION
+- tests/v999-next-track-refresh.test.mjs
+
+Corrections :
+- affichage optimiste du prochain titre depuis la file Spotify ;
+- remise à zéro immédiate de la progression après Suivant ;
+- rafale de confirmations Spotify fraîches limitée à la transition ;
+- restauration propre en cas d'échec réel de la commande ;
+- rafraîchissement automatique du tableau de bord et du mode conduite toutes les 5 secondes ;
+- actualisation de la file Spotify sans cache après Suivant.

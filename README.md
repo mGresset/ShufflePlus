@@ -1,28 +1,21 @@
-# Shuffle+ v9.9.8 — Candidate v10
+# Shuffle+ v9.9.9 — Candidate v10
 
-Shuffle+ v9.9.8 corrige la régression Pause/Lecture observée après la v9.9.5. L’intention locale devient prioritaire sur tous les rendus : une ancienne réponse Spotify ne peut plus réactiver visuellement la lecture ni faire repartir la barre avant la convergence réseau.
+Shuffle+ v9.9.9 accélère la synchronisation de l'interface avec Spotify sans transformer l'horloge locale en polling réseau permanent.
 
-## Nouveautés
+## Principales améliorations
 
-- panneau **Pré-finalisation v10** dans Réglages > mode Expert ;
-- score de préparation séparant contrôles automatiques et essais réels ;
-- cinq validations terrain : Spotify, PWA iPhone, Railway, sauvegarde/restauration et mode conduite ;
-- export privé d’un rapport de préparation v10 ;
-- sauvegarde et synchronisation de l’état de validation ;
-- contrôle CI `check-release-readiness.mjs` ;
-- vérification des ressources PWA, du serveur `/health`, des fichiers de version et des secrets potentiels ;
-- cache PWA `shuffleplus-v9.9.8` ;
-- horloge locale de lecture mise à jour toutes les 500 ms ;
-- verrou de cohérence Pause/Lecture face aux réponses Spotify retardées ;
-- invalidation anti-course du cache `/me/player` avant et après les commandes ;
-- vérifications fraîches sans cache jusqu’à confirmation stable de Spotify.
+- **Suivant instantané** : le prochain morceau connu dans la file Spotify est affiché immédiatement et la progression repart de zéro.
+- **Confirmation ciblée** : après une commande Suivant, Shuffle+ effectue plusieurs vérifications fraîches rapprochées jusqu'à ce que Spotify confirme le nouveau titre.
+- **Actualisation toutes les 5 secondes** : tableau de bord et mode conduite se recalent plus rapidement lorsque l'application est visible.
+- **Pause/Lecture conservée** : les protections des versions 9.9.7 et 9.9.8 restent actives.
+- **PWA cohérente** : cache `shuffleplus-v9.9.9` et chargement versionné du runtime.
 
-## Validation locale
+## Validation
 
 ```powershell
 npm.cmd run validate
 ```
 
-La v10.0.0 ne devra être créée qu’après confirmation des cinq essais terrain dans l’application et correction des éventuels problèmes découverts.
+La validation couvre les tests applicatifs, le serveur Railway, le build GitHub Pages et le test local.
 
-Consulte `FINALISATION-V10.md`, `V9.9.8_NOTES.md` et `DEPLOIEMENT-V9.9.8.md`.
+Consulte `V9.9.9_NOTES.md`, `DEPLOIEMENT-V9.9.9.md` et `INSTALLATION-V9.9.9.txt`.

@@ -1,0 +1,13 @@
+SHUFFLE+ V9.9.9 — INSTALLATION
+
+1. Déployer l'intégralité des fichiers de la version 9.9.9.
+2. Fermer complètement l'ancienne PWA.
+3. Rouvrir Shuffle+ avec une connexion Internet active.
+4. Vérifier que l'en-tête affiche « Version 9.9.9 ».
+5. Tester Pause, Lecture et Suivant sur le tableau de bord et en mode conduite.
+
+Comportement attendu après Suivant :
+- le titre attendu est affiché immédiatement depuis la file Spotify lorsqu'elle est disponible ;
+- la barre repart de zéro ;
+- l'état officiel Spotify remplace automatiquement la prédiction dès sa confirmation ;
+- l'actualisation automatique est effectuée toutes les 5 secondes lorsque l'écran concerné est visible.

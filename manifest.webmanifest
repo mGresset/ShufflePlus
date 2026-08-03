@@ -1,7 +1,7 @@
 {
   "name": "Shuffle+ — Mix intelligent Spotify",
   "short_name": "Shuffle+",
-  "description": "Shuffle+ 9.9.8 stabilise Pause/Lecture et empêche les anciens états Spotify de réactiver la progression.",
+  "description": "Shuffle+ 9.9.9 affiche immédiatement le titre suivant et synchronise la lecture Spotify toutes les 5 secondes.",
   "lang": "fr-FR",
   "dir": "ltr",
   "id": "./",

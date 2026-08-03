@@ -408,8 +408,12 @@ export async function getCurrentPlayback({
     });
 }
 
-export async function getPlaybackQueue() {
-    return spotifyFetch("/me/player/queue");
+export async function getPlaybackQueue({
+    fresh = false
+} = {}) {
+    return spotifyFetch("/me/player/queue", {
+        skipCache: Boolean(fresh)
+    });
 }
 
 function buildPlaybackDeviceQuery(deviceId = "") {

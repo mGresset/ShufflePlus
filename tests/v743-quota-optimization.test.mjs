@@ -180,7 +180,8 @@ test("le diagnostic signale une pause du quota Spotify", () => {
 });
 
 test("Shuffle+ 7.4.3 espace les actualisations et précharge le gestionnaire", () => {
-    assert.match(appSource, /const DRIVING_MODE_REFRESH_MS = 12000;/);
+    assert.match(appSource, /const PLAYBACK_AUTO_REFRESH_MS = 5_000;/);
+    assert.match(appSource, /const DRIVING_MODE_REFRESH_MS = PLAYBACK_AUTO_REFRESH_MS;/);
     assert.match(appSource, /const DRIVING_QUEUE_REFRESH_MS = 30000;/);
     assert.match(appSource, /const MODIFICATION_REQUEST_CONCURRENCY = 1;/);
     assert.match(appSource, /MODIFICATION_REQUEST_DELAY_MS = 900/);

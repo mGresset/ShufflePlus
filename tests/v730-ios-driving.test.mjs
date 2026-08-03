@@ -118,10 +118,10 @@ test("la file Spotify est normalisée et limitée", () => {
 });
 
 test("la v7.3 branche la file Spotify et le bouton conduite", () => {
-    assert.match(spotifyApiSource, /spotifyFetch\("\/me\/player\/queue"\)/);
+    assert.match(spotifyApiSource, /spotifyFetch\("\/me\/player\/queue", \{/);
     assert.match(appSource, /id="drivingQueueButton"/);
     assert.match(appSource, /function renderDrivingQueuePanel\(/);
-    assert.match(appSource, /await getPlaybackQueue\(\)/);
+    assert.match(appSource, /await getPlaybackQueue\(\{ fresh \}\)/);
 });
 
 test("le lancement iOS vérifie réellement l’appareil cible", () => {

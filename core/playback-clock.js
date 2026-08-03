@@ -149,6 +149,94 @@ export function applyPlaybackIntentOverride(
     );
 }
 
+export function createPlaybackItemFromQueueItem(item = null) {
+    if (!item) {
+        return null;
+    }
+
+    const type = item?.type === "episode"
+        ? "episode"
+        : "track";
+    const artistNames = String(item?.artist || "")
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean);
+    const imageUrl = String(item?.imageUrl || "");
+
+    if (type === "episode") {
+        return {
+            id: String(item?.id || item?.uri || ""),
+            uri: String(item?.uri || ""),
+            type,
+            name: String(item?.name || "Titre suivant"),
+            duration_ms: Math.max(0, Number(item?.durationMs || 0)),
+            images: imageUrl ? [{ url: imageUrl }] : [],
+            show: {
+                name: String(item?.album || item?.artist || "")
+            }
+        };
+    }
+
+    return {
+        id: String(item?.id || item?.uri || ""),
+        uri: String(item?.uri || ""),
+        type,
+        name: String(item?.name || "Titre suivant"),
+        duration_ms: Math.max(0, Number(item?.durationMs || 0)),
+        artists: artistNames.map((name) => ({ name })),
+        album: {
+            name: String(item?.album || ""),
+            images: imageUrl ? [{ url: imageUrl }] : []
+        }
+    };
+}
+
+export function createOptimisticNextPlayback(
+    playback = null,
+    queueItem = null,
+    now = Date.now()
+) {
+    const current = getPlaybackClockSnapshot(playback, now) || {};
+    const predictedItem = createPlaybackItemFromQueueItem(queueItem);
+    const currentIdentity = getPlaybackTrackIdentity(current);
+    const predictedIdentity = String(
+        predictedItem?.id || predictedItem?.uri || ""
+    );
+    const canUsePrediction = Boolean(
+        predictedItem &&
+        predictedIdentity &&
+        predictedIdentity !== currentIdentity
+    );
+
+    return stampPlaybackClock(
+        {
+            ...current,
+            item: canUsePrediction
+                ? predictedItem
+                : current?.item || null,
+            progress_ms: 0,
+            __shuffleplusPredictedNext: canUsePrediction
+        },
+        now
+    );
+}
+
+export function hasPlaybackTrackChanged(
+    previousPlayback = null,
+    candidatePlayback = null
+) {
+    const previousIdentity =
+        getPlaybackTrackIdentity(previousPlayback);
+    const candidateIdentity =
+        getPlaybackTrackIdentity(candidatePlayback);
+
+    return Boolean(
+        previousIdentity &&
+        candidateIdentity &&
+        previousIdentity !== candidateIdentity
+    );
+}
+
 export function formatPlaybackClockLabel(
     milliseconds = 0
 ) {

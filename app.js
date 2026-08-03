@@ -144,9 +144,12 @@ import {
     clampPlaybackProgress,
     formatPlaybackClockLabel,
     getPlaybackClockSnapshot,
+    getPlaybackTrackIdentity,
     setPlaybackClockPlayingState,
     stampPlaybackClock,
-    applyPlaybackIntentOverride
+    applyPlaybackIntentOverride,
+    createOptimisticNextPlayback,
+    hasPlaybackTrackChanged
 } from "./core/playback-clock.js";
 
 import {
@@ -397,10 +400,23 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.8";
+const APP_VERSION = "9.9.9";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
+const PLAYBACK_AUTO_REFRESH_MS = 5_000;
+const NEXT_TRACK_TRANSITION_TIMEOUT_MS = 8_000;
+const NEXT_TRACK_CONFIRMATION_DELAYS_MS = Object.freeze([
+    180,
+    420,
+    750,
+    1_150,
+    1_700,
+    2_500,
+    3_600,
+    5_000,
+    7_500
+]);
 const DRIVING_MODE_AVAILABLE = canUseDrivingMode();
 const SPOTIFY_DEVELOPER_DASHBOARD_URL =
     "https://developer.spotify.com/dashboard";
@@ -481,7 +497,7 @@ const DEFAULT_MUSIC_FEEDBACK_STATE = {
 };
 const DRIVING_MODE_SETTINGS_KEY =
     "shuffleplus_driving_mode_settings_v1";
-const DRIVING_MODE_REFRESH_MS = 12000;
+const DRIVING_MODE_REFRESH_MS = PLAYBACK_AUTO_REFRESH_MS;
 const DRIVING_MODE_ACTION_COOLDOWN_MS = 900;
 const DRIVING_QUEUE_LIMIT = 20;
 const DRIVING_QUEUE_REFRESH_MS = 30000;
@@ -857,7 +873,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.8-shell";
+    "shuffleplus-v9.9.9-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1796,6 +1812,17 @@ let playbackUiOverride = {
     anchorPlayback: null
 };
 let playbackConfirmationTimers = [];
+let nextTrackConfirmationTimers = [];
+let nextTrackRefreshInFlight = false;
+let nextTrackUiTransition = {
+    active: false,
+    token: 0,
+    startedAt: 0,
+    expiresAt: 0,
+    previousPlayback: null,
+    optimisticPlayback: null,
+    queueSnapshot: null
+};
 let voiceAssistantRecognition = null;
 let voiceAssistantListening = false;
 let voiceAssistantSource = "assistant";
@@ -2937,7 +2964,208 @@ function saveMusicalDashboardSettings(){musicalDashboardSettings=normalizeMusica
 function getMusicalDashboardNextSchedule(){const item=mixSchedules.filter(x=>x.enabled).map(schedule=>({schedule,date:getNextScheduleDate(schedule)})).filter(x=>x.date).sort((a,b)=>a.date-b.date)[0];if(!item)return null;const t=getScheduleTarget(item.schedule);return{date:item.date,name:item.schedule.name||"Routine musicale",targetLabel:t.label,targetIcon:t.icon,autoPlay:item.schedule.autoPlay!==false};}
 function getMusicalDashboardSnapshot(){const f=getMusicFeedbackSummary(),scene=getAdaptiveDjSceneById(),sceneState=normalizeAdaptiveDjScenesState(adaptiveDjScenesState),rec=getPersonalizedRecommendations().items.find(x=>x.ready!==false)||null;return buildMusicalDashboardSnapshot({settings:musicalDashboardSettings,playback:getEffectivePlaybackState(quickPlaybackState||drivingPlaybackState),activeScene:scene?{...scene,mixName:scene.mixId?getSavedMixName(scene.mixId):""}:null,nextSchedule:getMusicalDashboardNextSchedule(),recommendation:rec,statistics:getAdvancedListeningStatistics(),feedback:{liked:f.liked.length,notNow:f.notNow.length,repetitive:f.repetitive.length,total:f.liked.length+f.notNow.length+f.repetitive.length},library:{playlistCount:playlistsCache.length+1,mixCount:savedMixes.length,sceneCount:sceneState.scenes.filter(x=>x.mixId).length,scheduleCount:mixSchedules.filter(x=>x.enabled).length},now:Date.now()});}
 function stopMusicalDashboardRefreshTimer(){if(musicalDashboardRefreshTimer){clearInterval(musicalDashboardRefreshTimer);musicalDashboardRefreshTimer=0;}}
-function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true});},musicalDashboardSettings.autoRefreshSeconds*1000);}
+function startMusicalDashboardRefreshTimer(){stopMusicalDashboardRefreshTimer();if(activeAppMenu!=="dashboard"||!musicalDashboardSettings.autoRefreshSeconds)return;const intervalMs=PLAYBACK_AUTO_REFRESH_MS;musicalDashboardRefreshTimer=setInterval(()=>{if(document.visibilityState==="visible")refreshMusicalDashboardPlayback({silent:true,fresh:true});},intervalMs);}
+function clearNextTrackConfirmationTimers() {
+    nextTrackConfirmationTimers.forEach((timerId) => {
+        window.clearTimeout(timerId);
+    });
+    nextTrackConfirmationTimers = [];
+}
+
+function clearNextTrackUiTransition({
+    restoreQueue = false
+} = {}) {
+    clearNextTrackConfirmationTimers();
+
+    if (
+        restoreQueue &&
+        nextTrackUiTransition.queueSnapshot
+    ) {
+        drivingQueueState =
+            nextTrackUiTransition.queueSnapshot;
+    }
+
+    nextTrackUiTransition = {
+        active: false,
+        token: nextTrackUiTransition.token + 1,
+        startedAt: 0,
+        expiresAt: 0,
+        previousPlayback: null,
+        optimisticPlayback: null,
+        queueSnapshot: null
+    };
+}
+
+function getOptimisticNextQueueItem(playback = null) {
+    const currentIdentity =
+        getPlaybackTrackIdentity(playback);
+
+    return (drivingQueueState.queue || []).find((item) => {
+        const identity = String(item?.id || item?.uri || "");
+        return identity && identity !== currentIdentity;
+    }) || null;
+}
+
+function beginNextTrackUiTransition(playback = null) {
+    clearNextTrackConfirmationTimers();
+
+    const now = Date.now();
+    const previousPlayback =
+        getPlaybackClockSnapshot(playback, now);
+    const queueSnapshot = {
+        ...drivingQueueState,
+        queue: [...(drivingQueueState.queue || [])]
+    };
+    const queueItem =
+        getOptimisticNextQueueItem(previousPlayback);
+    const optimisticPlayback =
+        createOptimisticNextPlayback(
+            previousPlayback,
+            queueItem,
+            now
+        );
+
+    nextTrackUiTransition = {
+        active: true,
+        token: nextTrackUiTransition.token + 1,
+        startedAt: now,
+        expiresAt:
+            now + NEXT_TRACK_TRANSITION_TIMEOUT_MS,
+        previousPlayback,
+        optimisticPlayback,
+        queueSnapshot
+    };
+
+    if (queueItem) {
+        const queueIndex =
+            drivingQueueState.queue.indexOf(queueItem);
+        drivingQueueState = {
+            ...drivingQueueState,
+            current: queueItem,
+            queue: drivingQueueState.queue.slice(
+                Math.max(0, queueIndex + 1)
+            ),
+            updatedAt: now
+        };
+    }
+
+    quickPlaybackState = optimisticPlayback;
+    drivingPlaybackState = optimisticPlayback;
+
+    return nextTrackUiTransition.token;
+}
+
+function reconcilePlaybackWithNextTrackTransition(
+    remotePlayback,
+    now = Date.now()
+) {
+    const stampedRemote = stampPlaybackClock(
+        remotePlayback,
+        now
+    );
+
+    if (!nextTrackUiTransition.active) {
+        return stampedRemote;
+    }
+
+    if (
+        hasPlaybackTrackChanged(
+            nextTrackUiTransition.previousPlayback,
+            stampedRemote
+        )
+    ) {
+        clearNextTrackUiTransition();
+        return stampedRemote;
+    }
+
+    if (now >= nextTrackUiTransition.expiresAt) {
+        clearNextTrackUiTransition();
+        return stampedRemote;
+    }
+
+    return getPlaybackClockSnapshot(
+        nextTrackUiTransition.optimisticPlayback,
+        now
+    );
+}
+
+function renderActivePlaybackSurface() {
+    if (activeAppMenu === "driving") {
+        renderDrivingModePage();
+        return;
+    }
+
+    if (activeAppMenu === "quick") {
+        renderQuickControlPage();
+        return;
+    }
+
+    if (activeAppMenu === "dashboard") {
+        displayPlaylists(playlistsCache);
+        return;
+    }
+
+    updatePlaybackProgressDom();
+}
+
+async function refreshNextTrackTransition(token) {
+    if (
+        nextTrackRefreshInFlight ||
+        !nextTrackUiTransition.active ||
+        token !== nextTrackUiTransition.token
+    ) {
+        return quickPlaybackState;
+    }
+
+    nextTrackRefreshInFlight = true;
+
+    try {
+        const remotePlayback =
+            await getCurrentPlayback({ fresh: true });
+        quickPlaybackState =
+            reconcilePlaybackWithUiOverride(
+                remotePlayback,
+                { fresh: true }
+            );
+        drivingPlaybackState = quickPlaybackState;
+        renderActivePlaybackSurface();
+
+        if (!nextTrackUiTransition.active) {
+            refreshDrivingQueue({
+                silent: true,
+                render: false,
+                fresh: true
+            }).catch((error) => {
+                console.warn(
+                    "Actualisation de la file après Suivant impossible :",
+                    error
+                );
+            });
+        }
+    } catch (error) {
+        console.warn(
+            "Confirmation du titre suivant impossible :",
+            error
+        );
+    } finally {
+        nextTrackRefreshInFlight = false;
+    }
+
+    return quickPlaybackState;
+}
+
+function scheduleNextTrackConfirmationChecks(token) {
+    clearNextTrackConfirmationTimers();
+
+    NEXT_TRACK_CONFIRMATION_DELAYS_MS.forEach((delay) => {
+        const timerId = window.setTimeout(() => {
+            refreshNextTrackTransition(token);
+        }, delay);
+
+        nextTrackConfirmationTimers.push(timerId);
+    });
+}
+
 function clearPlaybackConfirmationTimers() {
     playbackConfirmationTimers.forEach((timerId) => {
         window.clearTimeout(timerId);
@@ -3162,10 +3390,11 @@ function reconcilePlaybackWithUiOverride(
     { fresh = false } = {}
 ) {
     const now = Date.now();
-    const stampedRemote = stampPlaybackClock(
-        remotePlayback,
-        now
-    );
+    const stampedRemote =
+        reconcilePlaybackWithNextTrackTransition(
+            remotePlayback,
+            now
+        );
     const expectedPlaying =
         playbackUiOverride.expectedPlaying;
 
@@ -3344,7 +3573,7 @@ ${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><head
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
 ${card(set.showSchedule,`<article class="musical-dashboard-card"><header><span>⏰ Prochaine routine</span></header><h4>${escapeHtml(sch.name||"Aucune routine")}</h4>${sch.available?`<div class="musical-dashboard-schedule"><b>${escapeHtml(sch.targetIcon||"🎵")}</b><div><strong>${escapeHtml(sch.targetLabel||"")}</strong><small>${escapeHtml(sch.dateLabel||"")}</small></div></div><p>${sch.autoPlay?"Lecture automatique prévue.":"Préparation sans lecture automatique."}</p>`:`<div class="musical-dashboard-empty">📅 <span>Aucune routine active.</span></div>`}<footer><button data-dashboard-nav="mixes">Gérer les routines</button></footer></article>`)}
-</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[10,"10 secondes"],[20,"20 secondes"],[30,"30 secondes"],[60,"1 minute"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
+</div>${card(set.showStatistics,`<section class="musical-dashboard-panel"><header><div><span>📊 Activité</span><h4>Ton résumé</h4></div><button data-dashboard-nav="statistics">Voir le détail</button></header><div class="musical-dashboard-stats"><span><b>${st.sessionCount}</b>Sessions</span><span><b>${st.totalTracks}</b>Titres</span><span><b>${escapeHtml(st.durationLabel)}</b>Durée</span><span><b>${st.activeDayCount}</b>Jours actifs</span><span><b>${st.currentStreak}</b>Série</span><span><b>${st.confirmationRate}%</b>Confirmé</span></div>${st.insights.length?`<ul>${st.insights.map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul>`:""}</section>`)}${card(set.showQuickAccess,`<section class="musical-dashboard-panel"><header><div><span>⚡ Accès rapides</span><h4>Tout Shuffle+</h4></div></header><div class="musical-dashboard-shortcuts">${getDashboardQuickAccessItems().map(([id,icon,label])=>`<button data-dashboard-nav="${id}"><span>${icon}</span><strong>${label}</strong></button>`).join("")}</div></section>`)}<section class="musical-dashboard-panel"><header><div><span>✅ Configuration</span><h4>${s.readiness.ready}/${s.readiness.total} éléments prêts</h4></div></header><div class="musical-dashboard-checks">${s.readiness.checks.map(x=>`<span class="${x.ready?"ready":""}"><b>${x.ready?"✓":"○"}</b>${escapeHtml(x.label)}<small>${x.value}</small></span>`).join("")}</div></section><details class="musical-dashboard-settings"><summary>Personnaliser le tableau de bord</summary><form id="musicalDashboardSettingsForm"><label>Actualisation<select name="autoRefreshSeconds">${[[0,"Manuelle"],[5,"Toutes les 5 secondes"]].map(([v,l])=>`<option value="${v}" ${set.autoRefreshSeconds===v?"selected":""}>${l}</option>`).join("")}</select></label><div>${[["showNowPlaying","Lecture",set.showNowPlaying],["showRecommendation","Recommandation",set.showRecommendation],["showScene","Scène",set.showScene],["showSchedule","Routine",set.showSchedule],["showStatistics","Statistiques",set.showStatistics],["showQuickAccess","Accès rapides",set.showQuickAccess]].map(([n,l,c])=>`<label><input type="checkbox" name="${n}" ${c?"checked":""}> ${l}</label>`).join("")}</div><button type="submit">Enregistrer</button></form></details></section>`;}
 
 function readPersonalizedRecommendationsState() {
     try {
@@ -4922,7 +5151,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.8
+                        ✨ Apparence v9.9.9
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -5956,7 +6185,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.8",
+                "./service-worker.js?v=9.9.9",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6629,7 +6858,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.8 ferme les risques techniques avant la version finale.
+                        La v9.9.9 ferme les risques techniques avant la version finale.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -9872,7 +10101,8 @@ function renderDrivingQueuePanel() {
 
 async function refreshDrivingQueue({
     silent = false,
-    render = true
+    render = true,
+    fresh = false
 } = {}) {
     drivingQueueBusy = true;
     drivingQueueError = "";
@@ -9882,7 +10112,7 @@ async function refreshDrivingQueue({
     }
 
     try {
-        const payload = await getPlaybackQueue();
+        const payload = await getPlaybackQueue({ fresh });
         drivingQueueState = normalizePlaybackQueue(
             payload,
             DRIVING_QUEUE_LIMIT
@@ -10636,7 +10866,8 @@ function startDrivingRefreshTimer() {
                 !drivingActionBusy
             ) {
                 refreshDrivingPlayback({
-                    silent: true
+                    silent: true,
+                    fresh: true
                 });
                 if (
                     drivingQueueOpen &&
@@ -11150,8 +11381,10 @@ async function toggleDrivingPlayback() {
 async function skipDrivingTrack() {
     await runDrivingAction(async () => {
         const state =
-            drivingPlaybackState ||
-            await getCurrentPlayback();
+            getEffectivePlaybackState(
+                drivingPlaybackState || quickPlaybackState
+            ) ||
+            await getCurrentPlayback({ fresh: true });
         const deviceId = state?.device?.id || "";
 
         if (!deviceId) {
@@ -11160,21 +11393,31 @@ async function skipDrivingTrack() {
             );
         }
 
-        await skipToNext(deviceId);
-        setDrivingMessage(
-            "Passage au titre suivant.",
-            "success"
-        );
-        await new Promise((resolve) =>
-            window.setTimeout(resolve, 700)
-        );
-        drivingPlaybackState =
-            await getCurrentPlayback();
-        if (drivingQueueOpen || drivingQueueState.queue?.length) {
-            await refreshDrivingQueue({
-                silent: true,
-                render: false
+        const rollbackPlayback =
+            getPlaybackClockSnapshot(state);
+        const transitionToken =
+            beginNextTrackUiTransition(state);
+        renderDrivingModePage();
+
+        try {
+            await skipToNext(deviceId);
+            setDrivingMessage(
+                "Titre suivant demandé · synchronisation rapide…",
+                "success"
+            );
+            scheduleNextTrackConfirmationChecks(
+                transitionToken
+            );
+            await refreshNextTrackTransition(
+                transitionToken
+            );
+        } catch (error) {
+            clearNextTrackUiTransition({
+                restoreQueue: true
             });
+            drivingPlaybackState = rollbackPlayback;
+            quickPlaybackState = rollbackPlayback;
+            throw error;
         }
     });
 }
@@ -14147,6 +14390,8 @@ async function runQuickControlAction(
     let playbackCommandExpectedState = null;
     let playbackOverrideToken = 0;
     let playbackMutationAttempted = false;
+    let nextTrackRollbackState = null;
+    let nextTrackTransitionToken = 0;
 
     quickControlBusy = true;
     setQuickControlMessage(
@@ -14323,9 +14568,17 @@ async function runQuickControlAction(
                     "success"
                 );
             } else if (normalizedAction === "next") {
+                nextTrackRollbackState =
+                    getPlaybackClockSnapshot(state);
+                nextTrackTransitionToken =
+                    beginNextTrackUiTransition(state);
+                renderActivePlaybackSurface();
                 await skipToNext(deviceId);
+                scheduleNextTrackConfirmationChecks(
+                    nextTrackTransitionToken
+                );
                 setQuickControlMessage(
-                    "Passage au titre suivant.",
+                    "Titre suivant demandé · synchronisation rapide…",
                     "success"
                 );
             } else {
@@ -14393,13 +14646,11 @@ async function runQuickControlAction(
             drivingPlaybackState =
                 quickPlaybackState;
 
-            if (
-                normalizedAction === "next" &&
-                drivingQueueState.queue?.length
-            ) {
+            if (normalizedAction === "next") {
                 await refreshDrivingQueue({
                     silent: true,
-                    render: false
+                    render: false,
+                    fresh: true
                 });
             }
         } else if (normalizedAction === "driving") {
@@ -14419,6 +14670,20 @@ async function runQuickControlAction(
         }
     } catch (error) {
         console.error(error);
+
+        if (
+            normalizedAction === "next" &&
+            nextTrackRollbackState
+        ) {
+            clearNextTrackUiTransition({
+                restoreQueue: true
+            });
+            quickPlaybackState =
+                nextTrackRollbackState;
+            drivingPlaybackState =
+                nextTrackRollbackState;
+            renderActivePlaybackSurface();
+        }
 
         if (
             typeof playbackCommandExpectedState ===
