@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.15",
+  "version": "9.9.16",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.15 — harmonisation desktop, thèmes Créer et assistant sélectionnable.",
+  "description": "Shuffle+ 9.9.16 — sélection unique et fiable dans l’assistant musical.",
   "engines": {
     "node": ">=20"
   },

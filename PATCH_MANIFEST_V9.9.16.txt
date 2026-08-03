@@ -1,0 +1,15 @@
+Shuffle+ v9.9.16
+
+Fichiers principaux modifiés :
+- app.js
+- design-system.css
+- index.html
+- config.js
+- service-worker.js
+- bootstrap-9.9.16.js
+- startup-recovery-9.9.16.js
+- package.json
+- package-lock.json
+- VERSION
+- tests/v9915-desktop-theme-assistant.test.mjs
+- tests/v9916-assistant-single-selection.test.mjs

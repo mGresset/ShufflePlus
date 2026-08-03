@@ -2060,7 +2060,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.15 — harmonisation desktop, Créer et assistant
+   Shuffle+ v9.9.16 — harmonisation desktop, Créer et assistant
    ===================================================================== */
 
 /* Alignement desktop plus régulier pour les pages de travail. */
@@ -2234,10 +2234,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
         box-shadow 150ms ease;
 }
 
-.app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples button:is(
-    .is-selected,
-    [aria-pressed="true"]
-) {
+.app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples button[aria-pressed="true"] {
     border-color: transparent !important;
     background:
         linear-gradient(
@@ -2250,10 +2247,20 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
     font-weight: 850;
 }
 
-.app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples button:not(.is-selected):hover {
-    border-color: var(--ui-control-border-hover);
-    background: var(--ui-control-bg-hover);
-    color: var(--text-main);
+@media (hover: hover) and (pointer: fine) {
+    .app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples button[aria-pressed="false"]:hover {
+        border-color: var(--ui-control-border-hover);
+        background: var(--ui-control-bg-hover) !important;
+        box-shadow: none !important;
+        color: var(--text-main);
+    }
+}
+
+.app-menu-page[data-app-menu-page="assistant"] .musical-assistant-examples button[aria-pressed="false"]:focus:not(:focus-visible) {
+    border-color: var(--ui-control-border);
+    background: var(--ui-control-bg) !important;
+    box-shadow: none !important;
+    color: var(--text-muted);
 }
 
 @media (max-width: 760px) {
@@ -2296,3 +2303,11 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
     background: rgb(var(--accent-rgb) / 14%) !important;
     color: color-mix(in srgb, var(--accent) 58%, white) !important;
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.16 — sélection unique des exemples de l’assistant
+   ===================================================================== */
+
+/* Un seul bouton peut porter aria-pressed="true". Les états de survol et
+   de focus des autres boutons restent volontairement sobres afin de ne
+   jamais être confondus avec la sélection active. */

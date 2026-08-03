@@ -7,10 +7,10 @@ const indexSource = await readFile("index.html", "utf8");
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("l’harmonisation desktop active annonce Shuffle+ 9.9.15", () => {
-    assert.equal(version, "9.9.15");
-    assert.match(indexSource, /design-system\.css\?v=9\.9\.15/);
-    assert.match(indexSource, /bootstrap-9\.9\.15\.js/);
+test("l’harmonisation desktop active annonce Shuffle+ 9.9.16", () => {
+    assert.equal(version, "9.9.16");
+    assert.match(indexSource, /design-system\.css\?v=9\.9\.16/);
+    assert.match(indexSource, /bootstrap-9\.9\.16\.js/);
 });
 
 test("le bandeau d’analyse des playlists suit le thème actif", () => {
@@ -32,10 +32,10 @@ test("les boutons de l’assistant sont espacés et l’exemple actif suit la de
         designSource,
         /\.musical-assistant-form__actions\s*\{[\s\S]*grid-template-columns:[\s\S]*gap:\s*12px/
     );
-    assert.match(appSource, /const selected = musicalAssistantDraft === example/);
+    assert.match(appSource, /musicalAssistantSelectedExample === example/);
     assert.match(appSource, /aria-pressed="\$\{String\(selected\)\}"/);
     assert.match(
         designSource,
-        /\.musical-assistant-examples button:is\([\s\S]*\[aria-pressed="true"\][\s\S]*var\(--accent-secondary\)/
+        /\.musical-assistant-examples button\[aria-pressed="true"\][\s\S]*var\(--accent-secondary\)/
     );
 });
