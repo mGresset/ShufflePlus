@@ -2392,3 +2392,32 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
         transform: none !important;
     }
 }
+
+/* Shuffle+ v9.9.28 — canal de résultat Apple Raccourcis */
+.ios-result-channel-panel {
+    display: grid;
+    gap: 6px;
+    padding: 14px 16px;
+    border: 1px solid var(--ui-card-border);
+    border-radius: var(--ui-radius-md);
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface-1));
+}
+
+.ios-result-channel-panel > div {
+    display: grid;
+    gap: 4px;
+}
+
+.ios-result-channel-panel span {
+    color: color-mix(in srgb, var(--accent) 72%, white);
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.ios-result-channel-panel small {
+    color: var(--text-muted);
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}

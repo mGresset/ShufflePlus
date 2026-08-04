@@ -319,6 +319,13 @@ import {
 } from "./core/shortcut-callback.js";
 
 import {
+    SHORTCUT_RESULT_QUERY_KEYS,
+    normalizeShortcutResultChannelConfig,
+    publishShortcutResult,
+    readShortcutResultChannelConfig
+} from "./core/shortcut-result-channel.js";
+
+import {
     buildDailyHomeSnapshot,
     renderDailyHomeMarkup
 } from "./core/daily-home.js";
@@ -407,7 +414,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.27";
+const APP_VERSION = "9.9.28";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -878,7 +885,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.27-shell";
+    "shuffleplus-v9.9.28-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5390,7 +5397,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.27
+                        ✨ Apparence v9.9.28
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6424,7 +6431,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.27",
+                "./service-worker.js?v=9.9.28",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7097,7 +7104,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.27 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        La v9.9.28 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -21779,6 +21786,15 @@ function buildIosCommandUrl(command) {
         "1"
     );
 
+    const resultServerUrl = normalizeShortcutResultChannelConfig({
+        serverUrl: serverSyncState?.serverUrl || "",
+        requestId: "request-placeholder"
+    }).serverUrl;
+
+    if (resultServerUrl) {
+        url.searchParams.set("resultServer", resultServerUrl);
+    }
+
     if (normalized.openDrivingMode && DRIVING_MODE_AVAILABLE) {
         url.searchParams.set(
             "driving",
@@ -21817,6 +21833,15 @@ function buildUniversalLaunchUrl() {
 
     url.searchParams.set("action", "launch");
     url.searchParams.set("autoplay", "1");
+
+    const resultServerUrl = normalizeShortcutResultChannelConfig({
+        serverUrl: serverSyncState?.serverUrl || "",
+        requestId: "request-placeholder"
+    }).serverUrl;
+
+    if (resultServerUrl) {
+        url.searchParams.set("resultServer", resultServerUrl);
+    }
 
     return url.toString();
 }
@@ -22381,6 +22406,22 @@ function renderIosCommandsPanel() {
             </div>
 
 
+            <section class="ios-result-channel-panel">
+                <div>
+                    <span>🔄 Résultat asynchrone Railway</span>
+                    <strong>
+                        ${serverSyncState?.serverUrl
+                            ? "Serveur prêt pour Apple Raccourcis"
+                            : "Serveur Railway à configurer"}
+                    </strong>
+                    <small>
+                        ${serverSyncState?.serverUrl
+                            ? `Les URL copiées incluent ${escapeHtml(serverSyncState.serverUrl)}. Le raccourci doit ajouter un requestId UUID unique.`
+                            : "Enregistre l’URL Railway dans Réglages > Synchronisation serveur pour recevoir le résultat du lancement."}
+                    </small>
+                </div>
+            </section>
+
             <section class="ios-preferred-device-panel">
                 <div class="ios-preferred-device-heading">
                     <div>
@@ -22891,6 +22932,10 @@ function normalizeAutomationCommand(command = {}) {
             normalizeShortcutCallbackConfig(command).errorUrl,
         callbackCancelUrl:
             normalizeShortcutCallbackConfig(command).cancelUrl,
+        resultRequestId:
+            normalizeShortcutResultChannelConfig(command).requestId,
+        resultServerUrl:
+            normalizeShortcutResultChannelConfig(command).serverUrl,
         createdAt: Number(
             command.createdAt || Date.now()
         )
@@ -22954,6 +22999,8 @@ function parseAutomationCommandFromUrl() {
 
     const shortcutCallbacks =
         readShortcutCallbackConfig(params);
+    const shortcutResultChannel =
+        readShortcutResultChannelConfig(params);
 
     return normalizeAutomationCommand({
         action,
@@ -22991,6 +23038,10 @@ function parseAutomationCommandFromUrl() {
             shortcutCallbacks.errorUrl,
         callbackCancelUrl:
             shortcutCallbacks.cancelUrl,
+        resultRequestId:
+            shortcutResultChannel.requestId,
+        resultServerUrl:
+            shortcutResultChannel.serverUrl,
         createdAt: Date.now()
     });
 }
@@ -23016,7 +23067,8 @@ function clearAutomationQueryString() {
         "driving",
         "lyrics",
         "lyricsShortcut",
-        ...SHORTCUT_CALLBACK_QUERY_KEYS
+        ...SHORTCUT_CALLBACK_QUERY_KEYS,
+        ...SHORTCUT_RESULT_QUERY_KEYS
     ]) {
         url.searchParams.delete(key);
     }
@@ -24842,6 +24894,44 @@ async function executeAutomationCommandCore(
     );
 }
 
+function getAutomationResultChannelConfig(command = {}) {
+    return normalizeShortcutResultChannelConfig({
+        requestId: command.resultRequestId,
+        serverUrl:
+            command.resultServerUrl ||
+            serverSyncState?.serverUrl ||
+            ""
+    });
+}
+
+async function publishAutomationResult(command, outcome = {}) {
+    const channel = getAutomationResultChannelConfig(command);
+
+    if (!channel.enabled) {
+        return false;
+    }
+
+    try {
+        await publishShortcutResult(
+            channel,
+            {
+                version: APP_VERSION,
+                action: command.action,
+                commandId: command.commandId,
+                playlistId: command.playlistId,
+                ...outcome
+            }
+        );
+        return true;
+    } catch (error) {
+        console.warn(
+            "Publication du résultat du raccourci impossible :",
+            error
+        );
+        return false;
+    }
+}
+
 function getAutomationCallbackConfig(command = {}) {
     return normalizeShortcutCallbackConfig({
         successUrl: command.callbackSuccessUrl,
@@ -24905,6 +24995,19 @@ async function executeAutomationCommand(
         normalizeAutomationCommand(command);
     const callbacks =
         getAutomationCallbackConfig(normalized);
+    const resultChannel =
+        getAutomationResultChannelConfig(normalized);
+
+    if (resultChannel.enabled) {
+        await publishAutomationResult(
+            normalized,
+            {
+                status: "running",
+                success: false,
+                message: "Lancement Shuffle+ en cours."
+            }
+        );
+    }
 
     try {
         const result = await executeAutomationCommandCore(
@@ -24930,6 +25033,13 @@ async function executeAutomationCommand(
                         : "Le lancement Shuffle+ a échoué.")
         };
 
+        if (resultChannel.enabled) {
+            await publishAutomationResult(
+                normalized,
+                outcome
+            );
+        }
+
         if (callbacks.enabled) {
             scheduleShortcutCallbackReturn(
                 normalized,
@@ -24939,17 +25049,26 @@ async function executeAutomationCommand(
 
         return result || outcome;
     } catch (error) {
+        const errorOutcome = {
+            status: "error",
+            success: false,
+            code: error?.code || "LAUNCH_FAILED",
+            message:
+                error?.message ||
+                "Le lancement Shuffle+ a échoué."
+        };
+
+        if (resultChannel.enabled) {
+            await publishAutomationResult(
+                normalized,
+                errorOutcome
+            );
+        }
+
         if (callbacks.enabled) {
             scheduleShortcutCallbackReturn(
                 normalized,
-                {
-                    status: "error",
-                    success: false,
-                    code: error?.code || "LAUNCH_FAILED",
-                    message:
-                        error?.message ||
-                        "Le lancement Shuffle+ a échoué."
-                }
+                errorOutcome
             );
             return {
                 status: "error",

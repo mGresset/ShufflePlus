@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "5.0.0";
+const VERSION = "5.1.0";
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
 const MAX_BODY_BYTES = Number(
@@ -19,6 +19,11 @@ const DATA_DIR = path.resolve(
     path.join(__dirname, "data")
 );
 const SPACES_DIR = path.join(DATA_DIR, "spaces");
+const LAUNCH_RESULTS_DIR = path.join(DATA_DIR, "launch-results");
+const LAUNCH_RESULT_TTL_MS = Math.max(
+    60_000,
+    Number(process.env.SHUFFLEPLUS_LAUNCH_RESULT_TTL_MS || 15 * 60 * 1000)
+);
 const ALLOWED_ORIGINS = new Set(
     String(
         process.env.SHUFFLEPLUS_ALLOWED_ORIGINS ||
@@ -34,7 +39,10 @@ const RATE_MAX = Number(
 );
 const rateBuckets = new Map();
 
-await fs.mkdir(SPACES_DIR, { recursive: true });
+await Promise.all([
+    fs.mkdir(SPACES_DIR, { recursive: true }),
+    fs.mkdir(LAUNCH_RESULTS_DIR, { recursive: true })
+]);
 
 function nowIso() {
     return new Date().toISOString();
@@ -68,6 +76,89 @@ function validId(value, max = 160) {
 function validHash(value) {
     return typeof value === "string" &&
         /^[a-f0-9]{64}$/.test(value);
+}
+
+function launchResultFile(requestId) {
+    if (!validId(requestId, 160)) {
+        throw Object.assign(
+            new Error("Identifiant de lancement invalide."),
+            { status: 400 }
+        );
+    }
+    return path.join(LAUNCH_RESULTS_DIR, `${requestId}.json`);
+}
+
+function normalizeLaunchResult(value = {}) {
+    const status = ["running", "success", "error", "cancel"].includes(
+        value.status
+    )
+        ? value.status
+        : value.success === true
+            ? "success"
+            : "error";
+
+    return {
+        version: String(value.version || "").slice(0, 40),
+        status,
+        success: status === "success",
+        action: String(value.action || "").slice(0, 80),
+        commandId: String(value.commandId || "").slice(0, 120),
+        playlistId: String(value.playlistId || "").slice(0, 120),
+        device: String(value.device || "").slice(0, 160),
+        durationMs: Math.max(0, Math.round(Number(value.durationMs) || 0)),
+        code: String(value.code || "").slice(0, 100),
+        message: String(value.message || "").slice(0, 500),
+        publishedAt: String(value.publishedAt || nowIso()).slice(0, 80)
+    };
+}
+
+async function writeLaunchResult(requestId, value = {}) {
+    const filename = launchResultFile(requestId);
+    const now = Date.now();
+    const record = {
+        schemaVersion: 1,
+        requestId,
+        createdAt: now,
+        expiresAt: now + LAUNCH_RESULT_TTL_MS,
+        result: normalizeLaunchResult(value)
+    };
+    const temp = `${filename}.${process.pid}.${now}.tmp`;
+    await fs.writeFile(temp, JSON.stringify(record, null, 2), { mode: 0o600 });
+    await fs.rename(temp, filename);
+    return record;
+}
+
+async function readLaunchResult(requestId) {
+    const filename = launchResultFile(requestId);
+    try {
+        const record = JSON.parse(await fs.readFile(filename, "utf8"));
+        if (!record.expiresAt || Number(record.expiresAt) <= Date.now()) {
+            await fs.unlink(filename).catch(() => {});
+            return null;
+        }
+        return record;
+    } catch (error) {
+        if (error.code === "ENOENT") {
+            return null;
+        }
+        throw error;
+    }
+}
+
+async function cleanupExpiredLaunchResults() {
+    const entries = await fs.readdir(LAUNCH_RESULTS_DIR).catch(() => []);
+    await Promise.all(entries.slice(0, 200).map(async (name) => {
+        if (!name.endsWith(".json")) return;
+        const filename = path.join(LAUNCH_RESULTS_DIR, name);
+        try {
+            const record = JSON.parse(await fs.readFile(filename, "utf8"));
+            if (!record.expiresAt || Number(record.expiresAt) <= Date.now()) {
+                await fs.unlink(filename).catch(() => {});
+            }
+        } catch {
+            await fs.unlink(filename).catch(() => {});
+        }
+    }));
 }
 
 function spaceFile(spaceId) {
@@ -344,6 +435,55 @@ const server = http.createServer(
                     version: VERSION,
                     time: nowIso()
                 });
+            }
+
+            if (
+                parts.length === 3 &&
+                parts[0] === "v1" &&
+                parts[1] === "launch-results"
+            ) {
+                const requestId = parts[2];
+
+                if (req.method === "GET") {
+                    const record = await readLaunchResult(requestId);
+                    if (!record) {
+                        return json(res, 202, {
+                            requestId,
+                            status: "pending",
+                            success: false,
+                            message: "Résultat Shuffle+ en attente.",
+                            retryAfterMs: 1000
+                        });
+                    }
+
+                    const status = record.result?.status || "pending";
+                    return json(
+                        res,
+                        status === "running" ? 202 : 200,
+                        {
+                            requestId,
+                            ...record.result,
+                            expiresAt: new Date(record.expiresAt).toISOString(),
+                            retryAfterMs: status === "running" ? 1000 : 0
+                        }
+                    );
+                }
+
+                if (req.method === "POST") {
+                    const body = await readJson(req);
+                    const record = await writeLaunchResult(requestId, body);
+                    cleanupExpiredLaunchResults().catch(() => {});
+                    return json(
+                        res,
+                        record.result.status === "running" ? 202 : 201,
+                        {
+                            accepted: true,
+                            requestId,
+                            status: record.result.status,
+                            expiresAt: new Date(record.expiresAt).toISOString()
+                        }
+                    );
+                }
             }
 
             if (

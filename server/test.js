@@ -56,6 +56,63 @@ try {
     }
     if (!ready) throw new Error("Serveur de test non démarré");
 
+    const launchRequestId = crypto.randomUUID();
+    const pendingLaunch = await request(
+        `/v1/launch-results/${launchRequestId}`
+    );
+    if (
+        pendingLaunch.response.status !== 202 ||
+        pendingLaunch.data.status !== "pending"
+    ) {
+        throw new Error("Résultat de lancement en attente incorrect");
+    }
+
+    const runningLaunch = await request(
+        `/v1/launch-results/${launchRequestId}`,
+        {
+            method: "POST",
+            body: JSON.stringify({
+                version: "9.9.28",
+                status: "running",
+                message: "Lancement en cours"
+            })
+        }
+    );
+    if (
+        runningLaunch.response.status !== 202 ||
+        runningLaunch.data.status !== "running"
+    ) {
+        throw new Error("Publication running échouée");
+    }
+
+    const completedLaunch = await request(
+        `/v1/launch-results/${launchRequestId}`,
+        {
+            method: "POST",
+            body: JSON.stringify({
+                version: "9.9.28",
+                status: "success",
+                success: true,
+                device: "iPhone de test",
+                message: "Lecture confirmée"
+            })
+        }
+    );
+    if (completedLaunch.response.status !== 201) {
+        throw new Error("Publication du résultat final échouée");
+    }
+
+    const launchResult = await request(
+        `/v1/launch-results/${launchRequestId}`
+    );
+    if (
+        launchResult.response.status !== 200 ||
+        launchResult.data.status !== "success" ||
+        launchResult.data.device !== "iPhone de test"
+    ) {
+        throw new Error("Lecture du résultat final échouée");
+    }
+
     const secret = crypto.randomBytes(32).toString("base64url");
     const rootAuthHash = crypto
         .createHash("sha256")
@@ -193,7 +250,7 @@ try {
         throw new Error("Suppression espace échouée");
     }
 
-    console.log("Tests serveur Shuffle+ v5.0 : OK");
+    console.log("Tests serveur Shuffle+ v5.1 : OK");
 } finally {
     child.kill("SIGTERM");
     await fs.rm(dataDir, {

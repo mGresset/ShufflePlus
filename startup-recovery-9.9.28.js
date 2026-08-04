@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const APP_VERSION = "9.9.27";
+    const APP_VERSION = "9.9.28";
     const CACHE_PREFIX = "shuffleplus-";
     const AUTO_REPAIR_KEY = `shuffleplus_auto_repair_${APP_VERSION}`;
     const AUTH_LOCAL_KEYS = [

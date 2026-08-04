@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.27",
+  "version": "9.9.28",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.27 — retour automatique vers Apple Raccourcis après lancement.",
+  "description": "Shuffle+ 9.9.28 — résultats asynchrones Railway pour Apple Raccourcis.",
   "engines": {
     "node": ">=20"
   },

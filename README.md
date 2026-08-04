@@ -1,4 +1,4 @@
-# Shuffle+ v9.9.27
+# Shuffle+ v9.9.28
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.27**.
+> **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.28**.
 
 ---
 
@@ -339,22 +339,32 @@ Le centre iOS permet de préparer des URLs et des commandes de raccourci avec :
 - délai entre les tentatives ;
 - historique d’exécution.
 
-#### Retour automatique vers Raccourcis
+#### Résultat asynchrone pour Apple Raccourcis
 
-Depuis la v9.9.27, les URL de lancement acceptent les paramètres x-callback ajoutés automatiquement par l’action Apple **Ouvrir les URL X-Callback**. Après confirmation de la lecture, Shuffle+ revient dans Raccourcis et transmet un texte JSON dans le champ `result`.
+Depuis la v9.9.28, le flux recommandé n’utilise plus **Ouvrir les URL X-Callback**. Le raccourci génère un UUID, ouvre Shuffle+ avec `requestId` et interroge ensuite le serveur Railway avec **Obtenir le contenu de l’URL**.
+
+Le déroulement est le suivant :
+
+1. Raccourcis génère un identifiant UUID unique ;
+2. Raccourcis ouvre Spotify, puis l’URL Shuffle+ du profil en ajoutant `requestId=<UUID>` ;
+3. Shuffle+ publie d’abord `running`, puis le résultat final sur `/v1/launch-results/<UUID>` ;
+4. Raccourcis interroge cette route toutes les secondes ;
+5. dès que `status` vaut `success`, `error` ou `cancel`, le raccourci poursuit son workflow.
 
 Le résultat contient notamment :
 
-- `success` et `status` ;
+- `requestId`, `success` et `status` ;
 - la version de Shuffle+ ;
 - l’action et le profil concernés ;
 - le nom de l’appareil Spotify ;
 - la durée du lancement ;
-- un message lisible.
+- un code d’erreur et un message lisible.
 
-En cas d’erreur, Shuffle+ utilise `x-error` avec `errorMessage` et `errorCode`. Si le raccourci ne fournit pas de callback d’erreur, le résultat revient par `x-success` avec `success: false`. Seules les URL de rappel utilisant le schéma sécurisé `shortcuts:` sont acceptées.
+Les résultats sont temporaires. Le serveur les supprime après le délai configuré par `SHUFFLEPLUS_LAUNCH_RESULT_TTL_MS`, fixé par défaut à quinze minutes. L’UUID agit comme une capacité secrète : il doit être imprévisible et ne doit pas être réutilisé.
 
-Safari ne permet pas à une page web de fermer de manière fiable un onglet qu’elle n’a pas créé. Le callback replace toutefois Raccourcis au premier plan et permet d’exécuter immédiatement les actions suivantes ; l’onglet Shuffle+ peut rester en arrière-plan.
+Le serveur Railway configuré dans **Réglages > Synchronisation serveur** est automatiquement ajouté aux URL copiées par le Centre de commandes iOS sous le paramètre `resultServer`. Si aucun serveur n’est configuré, le lancement Spotify reste possible, mais aucun résultat ne peut être publié au raccourci.
+
+L’ancien mécanisme x-callback reste accepté pour compatibilité, mais il n’est plus recommandé dans Safari iOS.
 
 #### Planificateur intelligent
 
@@ -634,7 +644,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v9.9.27"
+git commit -m "Release Shuffle+ v9.9.28"
 git push origin main
 ```
 
@@ -644,7 +654,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v9.9.27** ;
+3. vérifier que l’en-tête affiche **v9.9.28** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -661,8 +671,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-9.9.27.js        Chargement versionné et migration du runtime
-startup-recovery-9.9.27.js Réparation avant le chargement principal
+bootstrap-9.9.28.js        Chargement versionné et migration du runtime
+startup-recovery-9.9.28.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -710,7 +720,7 @@ server/README.md
 
 ## Validation et tests
 
-La v9.9.27 est validée avec :
+La v9.9.28 est validée avec :
 
 - **310 tests applicatifs réussis** ;
 - tests du serveur réussis ;
@@ -794,9 +804,9 @@ Spotify limite temporairement les appels. Shuffle+ applique automatiquement une 
 
 ## Documentation complémentaire
 
-- `V9.9.27_NOTES.md` : changements propres à la version actuelle ;
-- `DEPLOIEMENT-V9.9.27.md` : procédure courte de publication ;
-- `INSTALLATION-V9.9.27.txt` : rappel d’installation ;
+- `V9.9.28_NOTES.md` : changements propres à la version actuelle ;
+- `DEPLOIEMENT-V9.9.28.md` : procédure courte de publication ;
+- `INSTALLATION-V9.9.28.txt` : rappel d’installation ;
 - `FINALISATION-V10.md` : conditions avant la v10 stable ;
 - `ROADMAP.md` : trajectoire du projet ;
 - `SYNC_API_CONTRACT.md` : protocole de synchronisation ;
