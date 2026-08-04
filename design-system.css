@@ -2350,3 +2350,45 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
         transform: translateY(-1px) !important;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.26 — commandes rapides neutres et grille complète
+   ===================================================================== */
+
+/* Les commandes rapides sont des actions momentanées, jamais des onglets.
+   Leur état tactile/hover ne doit donc pas ressembler à une sélection. */
+.quick-action-grid .quick-action-button,
+.quick-action-grid .quick-action-button[aria-pressed="false"] {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    box-shadow: var(--ui-control-shadow) !important;
+    color: var(--text-main) !important;
+    transform: none !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .quick-action-grid .quick-action-button:hover:not(:disabled) {
+        border-color: var(--ui-control-border-hover) !important;
+        background: var(--ui-control-bg-hover) !important;
+        box-shadow: var(--shadow-accent) !important;
+        transform: translateY(-1px) !important;
+    }
+}
+
+.quick-action-grid .quick-action-button:active:not(:disabled),
+.quick-action-grid .quick-action-button:focus:not(:focus-visible) {
+    border-color: var(--ui-control-border) !important;
+    background: var(--ui-control-bg) !important;
+    box-shadow: var(--ui-control-shadow) !important;
+    transform: none !important;
+}
+
+@media (hover: none), (pointer: coarse) {
+    .quick-action-grid .quick-action-button:hover:not(:disabled),
+    .quick-action-grid .quick-action-button:active:not(:disabled) {
+        border-color: var(--ui-control-border) !important;
+        background: var(--ui-control-bg) !important;
+        box-shadow: var(--ui-control-shadow) !important;
+        transform: none !important;
+    }
+}

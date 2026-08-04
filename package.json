@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.25",
+  "version": "9.9.26",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.25 — assistant neutre à l’ouverture et commande supplémentaire.",
+  "description": "Shuffle+ 9.9.26 — commandes rapides neutres et grille complète.",
   "engines": {
     "node": ">=20"
   },

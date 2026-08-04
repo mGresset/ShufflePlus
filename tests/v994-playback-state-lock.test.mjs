@@ -5,9 +5,9 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile("app.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la correction de confirmation active annonce Shuffle+ 9.9.25", () => {
-    assert.equal(version, "9.9.25");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.25"/);
+test("la correction de confirmation active annonce Shuffle+ 9.9.26", () => {
+    assert.equal(version, "9.9.26");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.26"/);
 });
 
 test("un retour Spotify en retard ne rétablit pas Pause", () => {

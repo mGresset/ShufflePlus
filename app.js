@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.25";
+const APP_VERSION = "9.9.26";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -531,6 +531,12 @@ const QUICK_CONTROL_ACTIONS = [
         icon: "⏳",
         label: "Pas maintenant",
         description: "Écarte temporairement le morceau actif."
+    },
+    {
+        id: "refresh",
+        icon: "🔄",
+        label: "Actualiser Spotify",
+        description: "Recharge le titre, l’état et l’appareil actif."
     },
     {
         id: "driving",
@@ -865,7 +871,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.25-shell";
+    "shuffleplus-v9.9.26-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5376,7 +5382,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.25
+                        ✨ Apparence v9.9.26
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6410,7 +6416,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.25",
+                "./service-worker.js?v=9.9.26",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7083,7 +7089,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.25 bloque tout basculement vers un autre appareil lorsque l’iPhone enregistré est ciblé.
+                        La v9.9.26 neutralise les faux états sélectionnés et complète la grille des commandes rapides.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -14569,9 +14575,15 @@ function renderQuickControlPage() {
 
             <div class="quick-action-grid">
                 ${QUICK_CONTROL_ACTIONS
-                    .filter((action) =>
-                        DRIVING_MODE_AVAILABLE || action.id !== "driving"
-                    )
+                    .filter((action) => {
+                        if (action.id === "driving") {
+                            return DRIVING_MODE_AVAILABLE;
+                        }
+                        if (action.id === "refresh") {
+                            return !DRIVING_MODE_AVAILABLE;
+                        }
+                        return true;
+                    })
                     .map(
                     (action) => `
                         <button
@@ -14887,6 +14899,19 @@ async function runQuickControlAction(
                     ? `« ${result.mix.name} » lancé.`
                     : "Profil rapide lancé.",
                 "success"
+            );
+        } else if (normalizedAction === "refresh") {
+            quickPlaybackState =
+                reconcilePlaybackWithUiOverride(
+                    await getCurrentPlayback({ fresh: true }),
+                    { fresh: true }
+                );
+            drivingPlaybackState = quickPlaybackState;
+            setQuickControlMessage(
+                quickPlaybackState?.item
+                    ? "Lecture Spotify actualisée."
+                    : "Aucune lecture Spotify active.",
+                "info"
             );
         } else if (normalizedAction === "adaptive") {
             const result = await runAdaptiveDj({
