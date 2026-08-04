@@ -10,8 +10,8 @@ const homeStyles = await readFile("styles/feature-home.css", "utf8");
 
 test("la correction mobile active annonce Shuffle+ 9.9.24", () => {
     assert.equal(version, "9.9.24");
-    assert.match(indexSource, /bootstrap-9\.9\.23\.js/);
-    assert.match(indexSource, /startup-recovery-9\.9\.23\.js/);
+    assert.match(indexSource, /bootstrap-9\.9\.24\.js/);
+    assert.match(indexSource, /startup-recovery-9\.9\.24\.js/);
 });
 
 test("la version compacte reste visible dans la barre connectée", () => {

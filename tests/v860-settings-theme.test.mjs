@@ -28,11 +28,11 @@ const LEGACY_GREEN_PATTERN = /#1ed760|#1d5d36|#9cf0b8|#315d40|#101913|#2f4938|#3
 
 test("la distribution active annonce Shuffle+ 9.9.24", () => {
     assert.equal(versionSource, "9.9.24");
-    assert.match(packageSource, /"version": "9\.9\.23"/);
-    assert.match(indexSource, /shuffleplus-version" content="9\.9\.23/);
-    assert.match(indexSource, /startup-recovery-9\.9\.23\.js/);
-    assert.match(appSource, /const APP_VERSION = "9\.9\.23"/);
-    assert.match(workerSource, /shuffleplus-v9\.9\.23/);
+    assert.match(packageSource, /"version": "9\.9\.24"/);
+    assert.match(indexSource, /shuffleplus-version" content="9\.9\.24/);
+    assert.match(indexSource, /startup-recovery-9\.9\.24\.js/);
+    assert.match(appSource, /const APP_VERSION = "9\.9\.24"/);
+    assert.match(workerSource, /shuffleplus-v9\.9\.24/);
 });
 
 test("la règle historique PWA ne cible plus tous les span imbriqués", () => {

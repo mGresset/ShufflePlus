@@ -46,5 +46,5 @@ test("la navigation sticky desktop ne laisse plus d’interstice", () => {
         designSource,
         /\.app-menu\.app-menu--primary[\s\S]*top:\s*0/
     );
-    assert.match(indexSource, /design-system\.css\?v=9\.9\.23/);
+    assert.match(indexSource, /design-system\.css\?v=9\.9\.24/);
 });

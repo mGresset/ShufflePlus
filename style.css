@@ -17641,9 +17641,17 @@ html[data-experience-mode="essential"] .app-section-more {
     justify-content: space-between;
     align-items: center;
     padding: 14px 16px;
-    border: 1px solid color-mix(in srgb, var(--accent-color) 17%, rgba(255, 255, 255, 0.08));
+    border: 1px solid color-mix(
+        in srgb,
+        var(--accent-color) 17%,
+        rgba(255, 255, 255, 0.08)
+    );
     border-radius: 15px;
-    background: color-mix(in srgb, var(--accent-color) 4%, rgba(255, 255, 255, 0.024));
+    background: color-mix(
+        in srgb,
+        var(--accent-color) 4%,
+        rgba(255, 255, 255, 0.024)
+    );
 }
 
 .launch-center-diagnostic > div {
@@ -17904,6 +17912,10 @@ html[data-experience-mode="essential"] .app-section-more {
     .launch-center-diagnostic {
         align-items: stretch;
         flex-direction: column;
+    }
+
+    .launch-center-diagnostic {
+        padding: 14px;
     }
 
     .launch-center-status {

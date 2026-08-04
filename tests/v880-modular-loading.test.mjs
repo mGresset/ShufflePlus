@@ -71,7 +71,7 @@ test("le chargeur ajoute une feuille versionnée une seule fois", async () => {
     await loader.load("search");
     await loader.load("search");
     assert.equal(documentObject.links.length, 1);
-    assert.match(documentObject.links[0].href, /feature-search\.css\?v=9\.9\.23$/);
+    assert.match(documentObject.links[0].href, /feature-search\.css\?v=9\.9\.24$/);
     assert.equal(loader.isLoaded("search"), true);
 });
 
@@ -82,7 +82,7 @@ test("la recherche universelle est chargée dynamiquement", () => {
 });
 
 test("les styles spécialisés ne gonflent plus la feuille initiale", () => {
-    assert.doesNotMatch(styleSource, /Shuffle\+ v9\.9\.23 — Recherche compacte/);
+    assert.doesNotMatch(styleSource, /Shuffle\+ v9\.9\.24 — Recherche compacte/);
     assert.doesNotMatch(designSource, /Mode conduite v8\.4 : progression/);
     assert.doesNotMatch(indexSource, /feature-home\.css|feature-search\.css|feature-settings\.css|feature-driving\.css/);
 });

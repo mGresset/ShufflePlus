@@ -17,7 +17,7 @@ test("la v9.9.24 charge le design system après les styles historiques", () => {
 
     assert.ok(legacyStyle > 0);
     assert.ok(designStyle > legacyStyle);
-    assert.match(workerSource, /design-system\.css\?v=9\.9\.23/);
+    assert.match(workerSource, /design-system\.css\?v=9\.9\.24/);
     assert.match(buildSource, /"design-system\.css"/);
 });
 

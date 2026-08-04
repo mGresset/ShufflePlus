@@ -9,8 +9,8 @@ const designSource = await readFile("design-system.css", "utf8");
 
 test("l’harmonisation desktop active annonce Shuffle+ 9.9.24", () => {
     assert.equal(version, "9.9.24");
-    assert.match(indexSource, /design-system\.css\?v=9\.9\.23/);
-    assert.match(indexSource, /bootstrap-9\.9\.23\.js/);
+    assert.match(indexSource, /design-system\.css\?v=9\.9\.24/);
+    assert.match(indexSource, /bootstrap-9\.9\.24\.js/);
 });
 
 test("le bandeau d’analyse des playlists suit le thème actif", () => {

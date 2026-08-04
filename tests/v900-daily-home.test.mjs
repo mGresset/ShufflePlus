@@ -76,5 +76,5 @@ test("l’accueil possède un style différé et reste réservé au tableau de b
     assert.match(homeStyleSource, /\.v9-home-launch-button/);
     assert.match(appSource, /function renderV9HomePanel\(/);
     assert.match(appSource, /renderDailyHomeMarkup/);
-    assert.match(serviceWorkerSource, /feature-home\.css\?v=9\.9\.23/);
+    assert.match(serviceWorkerSource, /feature-home\.css\?v=9\.9\.24/);
 });

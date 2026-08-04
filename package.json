@@ -3,7 +3,7 @@
   "version": "9.9.24",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.24 — personnalisation du mode conduite entièrement défilable.",
+  "description": "Shuffle+ 9.9.24 — cadre du diagnostic de lancement harmonisé.",
   "engines": {
     "node": ">=20"
   },
