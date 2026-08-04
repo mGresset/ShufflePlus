@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.23",
+  "version": "9.9.24",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.23 — personnalisation du mode conduite entièrement défilable.",
+  "description": "Shuffle+ 9.9.24 — personnalisation du mode conduite entièrement défilable.",
   "engines": {
     "node": ">=20"
   },

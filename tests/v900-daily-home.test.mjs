@@ -17,8 +17,8 @@ const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 const homeStyleSource = await readFile("styles/feature-home.css", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la distribution active annonce Shuffle+ 9.9.23", () => {
-    assert.equal(version, "9.9.23");
+test("la distribution active annonce Shuffle+ 9.9.24", () => {
+    assert.equal(version, "9.9.24");
 });
 
 test("l’accueil adapte son message au moment de la journée", () => {

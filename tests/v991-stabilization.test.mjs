@@ -12,8 +12,8 @@ const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la stabilisation active annonce Shuffle+ 9.9.23", () => {
-    assert.equal(version, "9.9.23");
+test("la stabilisation active annonce Shuffle+ 9.9.24", () => {
+    assert.equal(version, "9.9.24");
     assert.match(appSource, /const APP_VERSION = "9\.9\.23"/);
 });
 

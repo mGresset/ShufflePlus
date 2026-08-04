@@ -6,8 +6,8 @@ const designSource = await readFile("design-system.css", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("la v9.9.23 garantit que les éléments hidden restent invisibles", () => {
-    assert.equal(versionSource, "9.9.23");
+test("la v9.9.24 garantit que les éléments hidden restent invisibles", () => {
+    assert.equal(versionSource, "9.9.24");
     assert.match(designSource, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
 });
 

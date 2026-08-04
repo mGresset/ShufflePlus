@@ -50,8 +50,8 @@ function createFakeDocument() {
     };
 }
 
-test("la distribution active annonce Shuffle+ 9.9.23", () => {
-    assert.equal(version, "9.9.23");
+test("la distribution active annonce Shuffle+ 9.9.24", () => {
+    assert.equal(version, "9.9.24");
 });
 
 test("les feuilles de fonctionnalités sont déclarées centralement", () => {
@@ -66,7 +66,7 @@ test("le chargeur ajoute une feuille versionnée une seule fois", async () => {
     const documentObject = createFakeDocument();
     const loader = createStylesheetLoader(
         { search: "./styles/feature-search.css" },
-        { documentObject, version: "9.9.23" }
+        { documentObject, version: "9.9.24" }
     );
     await loader.load("search");
     await loader.load("search");

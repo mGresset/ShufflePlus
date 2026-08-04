@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.23";
+const APP_VERSION = "9.9.24";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -865,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.23-shell";
+    "shuffleplus-v9.9.24-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5376,7 +5376,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.23
+                        ✨ Apparence v9.9.24
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6410,7 +6410,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.23",
+                "./service-worker.js?v=9.9.24",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7083,7 +7083,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.23 bloque tout basculement vers un autre appareil lorsque l’iPhone enregistré est ciblé.
+                        La v9.9.24 bloque tout basculement vers un autre appareil lorsque l’iPhone enregistré est ciblé.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>

@@ -7,8 +7,8 @@ const indexSource = await readFile("index.html", "utf8");
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("l’harmonisation desktop active annonce Shuffle+ 9.9.23", () => {
-    assert.equal(version, "9.9.23");
+test("l’harmonisation desktop active annonce Shuffle+ 9.9.24", () => {
+    assert.equal(version, "9.9.24");
     assert.match(indexSource, /design-system\.css\?v=9\.9\.23/);
     assert.match(indexSource, /bootstrap-9\.9\.23\.js/);
 });

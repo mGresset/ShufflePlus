@@ -14,8 +14,8 @@ const serviceWorkerSource = await readFile(
 );
 const appSource = await readFile("app.js", "utf8");
 
-test("la v9.9.23 charge l'application par un bootstrap propre à la release", () => {
-    assert.equal(version, "9.9.23");
+test("la v9.9.24 charge l'application par un bootstrap propre à la release", () => {
+    assert.equal(version, "9.9.24");
     assert.match(
         indexSource,
         /type="module" src="\.\/bootstrap-9\.9\.23\.js"/

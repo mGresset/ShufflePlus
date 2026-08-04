@@ -17639,7 +17639,11 @@ html[data-experience-mode="essential"] .app-section-more {
 
 .launch-center-diagnostic {
     justify-content: space-between;
-    padding-top: 4px;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px solid color-mix(in srgb, var(--accent-color) 17%, rgba(255, 255, 255, 0.08));
+    border-radius: 15px;
+    background: color-mix(in srgb, var(--accent-color) 4%, rgba(255, 255, 255, 0.024));
 }
 
 .launch-center-diagnostic > div {

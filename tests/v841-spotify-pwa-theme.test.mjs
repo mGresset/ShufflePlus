@@ -16,8 +16,8 @@ const v841Design = designSource.split(
 )[1] || "";
 const pwaThemeSource = settingsStyleSource;
 
-test("la distribution active annonce Shuffle+ 9.9.23", () => {
-    assert.equal(versionSource, "9.9.23");
+test("la distribution active annonce Shuffle+ 9.9.24", () => {
+    assert.equal(versionSource, "9.9.24");
     assert.match(packageSource, /"version": "9\.9\.23"/);
     assert.match(indexSource, /shuffleplus-version" content="9\.9\.23/);
     assert.match(indexSource, /startup-recovery-9\.9\.23\.js/);

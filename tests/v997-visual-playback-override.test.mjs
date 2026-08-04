@@ -31,8 +31,8 @@ function playback({
     };
 }
 
-test("la protection visuelle active annonce Shuffle+ 9.9.23", () => {
-    assert.equal(version, "9.9.23");
+test("la protection visuelle active annonce Shuffle+ 9.9.24", () => {
+    assert.equal(version, "9.9.24");
     assert.match(appSource, /const APP_VERSION = "9\.9\.23"/);
 });
 
