@@ -1,0 +1,7 @@
+Shuffle+ v9.9.21
+
+1. Publier le build GitHub Pages.
+2. Fermer complètement la PWA.
+3. Rouvrir avec Internet actif.
+4. Vérifier que v9.9.21 est affichée.
+5. Tester un raccourci ciblant « iPhone préféré enregistré » avec l’iPhone indisponible : aucune lecture ne doit démarrer sur un autre appareil.

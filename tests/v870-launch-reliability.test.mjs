@@ -17,7 +17,7 @@ const styleSource = await readFile("style.css", "utf8");
 const packageSource = await readFile("package.json", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("le dernier appareil réellement opérationnel passe avant l’appareil seulement préféré", () => {
+test("le mode préféré cible uniquement l’iPhone enregistré", () => {
     const devices = [
         { id: "active", name: "Chrome", type: "Computer", is_active: true },
         { id: "preferred", name: "iPhone ancien", type: "Smartphone" },
@@ -25,31 +25,32 @@ test("le dernier appareil réellement opérationnel passe avant l’appareil seu
     ];
 
     const result = prioritizeLaunchDevices(devices, {
-        preferredDevice: { id: "preferred", name: "iPhone ancien" },
+        preferredDevice: { id: "preferred", name: "iPhone ancien", type: "Smartphone" },
         lastWorkingDevice: { id: "working", name: "iPhone de Matthieu" },
         mode: "preferred"
     });
 
-    assert.equal(result[0].id, "working");
-    assert.equal(result[0].selectionReason, "dernier appareil opérationnel");
-    assert.equal(result[1].id, "preferred");
+    assert.deepEqual(result.map((device) => device.id), ["preferred"]);
+    assert.equal(result[0].selectionReason, "iPhone enregistré uniquement");
 });
 
-test("un device_id renouvelé est retrouvé par son nom et son type", () => {
+test("un device_id renouvelé du même iPhone est retrouvé par son nom et son type", () => {
     const result = prioritizeLaunchDevices(
         [{ id: "new-id", name: "iPhone de Matthieu", type: "Smartphone" }],
         {
-            lastWorkingDevice: {
+            preferredDevice: {
                 id: "old-id",
                 name: "iPhone de Matthieu",
                 type: "Smartphone"
             },
+            lastWorkingDevice: { id: "computer", name: "Chrome", type: "Computer" },
             mode: "preferred"
         }
     );
 
+    assert.equal(result.length, 1);
     assert.equal(result[0].id, "new-id");
-    assert.equal(result[0].selectionReason, "dernier appareil opérationnel");
+    assert.equal(result[0].selectionReason, "iPhone enregistré uniquement");
 });
 
 test("le précontrôle bloque le hors connexion et une playlist supprimée", () => {
@@ -170,8 +171,8 @@ test("la mémoire du dernier appareil ignore les objets sans device_id", () => {
 });
 
 test("Shuffle+ 8.7 branche le précontrôle, les six étapes et la récupération", () => {
-    assert.equal(versionSource, "9.9.20");
-    assert.match(packageSource, /"version": "9\.9\.20"/);
+    assert.equal(versionSource, "9.9.21");
+    assert.match(packageSource, /"version": "9\.9\.21"/);
     assert.match(appSource, /buildLaunchPreflight\(/);
     assert.match(appSource, /prioritizeLaunchDevices\(/);
     assert.match(appSource, /rememberLastWorkingSpotifyDevice\(/);

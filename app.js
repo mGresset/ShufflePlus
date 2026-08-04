@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.20";
+const APP_VERSION = "9.9.21";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -865,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.20-shell";
+    "shuffleplus-v9.9.21-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5348,7 +5348,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.20
+                        ✨ Apparence v9.9.21
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6382,7 +6382,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.20",
+                "./service-worker.js?v=9.9.21",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7055,7 +7055,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.20 maintient la navigation mobile au bas du viewport Safari.
+                        La v9.9.21 bloque tout basculement vers un autre appareil lorsque l’iPhone enregistré est ciblé.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -22048,6 +22048,12 @@ function resolveIosCommandDevice(
         return preferred;
     }
 
+    // « iPhone préféré enregistré » est un ciblage strict : si cet
+    // appareil n’est pas visible, aucun mode de secours ne doit être utilisé.
+    if ((command.deviceMode || "preferred") === "preferred") {
+        return null;
+    }
+
     const fallback = {
         ...command,
         deviceMode:
@@ -22589,7 +22595,7 @@ function renderIosCommandsPanel() {
                 </label>
 
                 <label class="ios-command-field">
-                    <span>Appareil de secours</span>
+                    <span>Appareil de secours · hors mode enregistré</span>
                     <select name="fallbackDeviceMode">
                         <option value="active" ${formCommand.fallbackDeviceMode === "active" ? "selected" : ""}>
                             Appareil actif
@@ -22911,19 +22917,19 @@ function findAutomationDevice(
     devices,
     settings = iosQuickPlaySettings
 ) {
+    if ((settings.deviceMode || "preferred") === "preferred") {
+        return findStoredPreferredDevice(
+            devices,
+            preferredSpotifyDevice
+        );
+    }
+
     return selectSpotifyDevice(
         devices,
         {
-            mode:
-                settings.deviceMode === "iphone" &&
-                preferredSpotifyDevice.id
-                    ? "preferred"
-                    : settings.deviceMode ||
-                        "preferred",
-            preferredDevice:
-                preferredSpotifyDevice,
-            deviceName:
-                settings.deviceName || ""
+            mode: settings.deviceMode || "iphone",
+            preferredDevice: preferredSpotifyDevice,
+            deviceName: settings.deviceName || ""
         }
     );
 }
@@ -22935,6 +22941,8 @@ async function getAutomationDeviceWithRetry(
     } = {}
 ) {
     let lastDevices = [];
+    const strictPreferredDevice =
+        (settings.deviceMode || "preferred") === "preferred";
     const maxAttempts = Math.max(
         1,
         Number(settings.autoRetryCount) ||
@@ -23004,9 +23012,11 @@ async function getAutomationDeviceWithRetry(
                 });
                 return {
                     ...device,
-                    fallbackCandidates: candidates
-                        .slice(1, 4)
-                        .map((candidate) => ({ ...candidate }))
+                    fallbackCandidates: strictPreferredDevice
+                        ? []
+                        : candidates
+                            .slice(1, 4)
+                            .map((candidate) => ({ ...candidate }))
                 };
             }
 
@@ -23043,10 +23053,25 @@ async function getAutomationDeviceWithRetry(
             ? lastWorkingSpotifyDevice
             : preferredSpotifyDevice;
 
-    if (
-        ["preferred", "iphone"].includes(settings.deviceMode) &&
-        storedFallback?.id
-    ) {
+    if (strictPreferredDevice && preferredSpotifyDevice?.id) {
+        onAttempt?.({
+            attempt: maxAttempts,
+            maxAttempts,
+            status: "cached",
+            device: preferredSpotifyDevice,
+            message: `Dernière tentative uniquement avec ${preferredSpotifyDevice.name || "l’iPhone enregistré"}`
+        });
+        return {
+            ...preferredSpotifyDevice,
+            is_active: false,
+            is_restricted: false,
+            is_cached: true,
+            selectionReason: "iPhone enregistré uniquement",
+            fallbackCandidates: []
+        };
+    }
+
+    if (settings.deviceMode === "iphone" && storedFallback?.id) {
         onAttempt?.({
             attempt: maxAttempts,
             maxAttempts,
@@ -23837,10 +23862,16 @@ async function runIosQuickPlay(
         );
 
         if (!selectedDevice) {
+            const strictPreferredDevice =
+                (command.deviceMode || "preferred") === "preferred";
             const deviceError = new Error(
-                "Aucun iPhone ou appareil Spotify disponible. Ouvre Spotify sur l’iPhone puis relance le raccourci."
+                strictPreferredDevice
+                    ? "L’iPhone enregistré est indisponible. Aucun autre appareil ne sera utilisé."
+                    : "Aucun iPhone ou appareil Spotify disponible. Ouvre Spotify sur l’iPhone puis relance le raccourci."
             );
-            deviceError.code = "NO_DEVICE";
+            deviceError.code = strictPreferredDevice
+                ? "PREFERRED_DEVICE_UNAVAILABLE"
+                : "NO_DEVICE";
             throw deviceError;
         }
 
@@ -23854,14 +23885,16 @@ async function runIosQuickPlay(
         });
         setStatus(`Lancement sur ${selectedDevice.name}…`);
 
+        const strictPreferredDevice =
+            (command.deviceMode || "preferred") === "preferred";
         const launchCandidates = [
             selectedDevice,
-            ...(Array.isArray(selectedDevice.fallbackCandidates)
+            ...(!strictPreferredDevice && Array.isArray(selectedDevice.fallbackCandidates)
                 ? selectedDevice.fallbackCandidates
                 : [])
         ].filter((device, index, items) =>
             device?.id && items.findIndex((item) => item?.id === device.id) === index
-        ).slice(0, 4);
+        ).slice(0, strictPreferredDevice ? 1 : 4);
         let playbackError = null;
 
         for (let index = 0; index < launchCandidates.length; index += 1) {

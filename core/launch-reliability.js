@@ -142,13 +142,10 @@ export function prioritizeLaunchDevices(
         return result;
     }
 
-    // Mode préféré : priorité au dernier appareil ayant réellement réussi,
-    // puis à la préférence manuelle, avant les secours Spotify Connect.
-    pushMatching(lastWorkingDevice, "dernier appareil opérationnel");
-    pushMatching(preferredDevice, "appareil préféré");
-    pushPhones();
-    pushActive();
-    usable.forEach((device) => push(device, "premier appareil disponible"));
+    // Mode « iPhone préféré enregistré » : ciblage strict. Le device_id peut
+    // être renouvelé par Spotify, donc le nom et le type enregistrés restent
+    // acceptés, mais aucun autre appareil ne doit être ajouté comme secours.
+    pushMatching(preferredDevice, "iPhone enregistré uniquement");
     return result;
 }
 
@@ -177,7 +174,7 @@ export function buildLaunchPreflight({
     const preferredRequired = command?.deviceMode === "preferred";
     const storedDeviceReady = Boolean(
         preferredDevice?.id ||
-        lastWorkingDevice?.id ||
+        preferredDevice?.name ||
         !preferredRequired
     );
 
@@ -222,10 +219,12 @@ export function buildLaunchPreflight({
             id: "device-memory",
             label: "Appareil mémorisé",
             ready: storedDeviceReady,
-            blocking: false,
+            blocking: preferredRequired,
             message: storedDeviceReady
-                ? (lastWorkingDevice?.name || preferredDevice?.name || "Détection automatique")
-                : "Aucun iPhone mémorisé ; détection automatique prévue"
+                ? (preferredRequired
+                    ? preferredDevice?.name || "iPhone enregistré"
+                    : lastWorkingDevice?.name || preferredDevice?.name || "Détection automatique")
+                : "Aucun iPhone préféré enregistré"
         }
     ];
     const blocking = checks.filter((check) => check.blocking && !check.ready);
@@ -324,6 +323,20 @@ export function classifyLaunchError(error) {
             actionLabel: "Reconnecter Spotify",
             recoverable: true,
             keepPending: false
+        };
+    }
+    if (
+        code === "PREFERRED_DEVICE_UNAVAILABLE" ||
+        hasMessage(error, /iphone enregistré.*indisponible|appareil enregistré.*introuvable/i)
+    ) {
+        return {
+            code: "PREFERRED_DEVICE_UNAVAILABLE",
+            title: "iPhone enregistré indisponible",
+            message: "Shuffle+ n’a lancé la musique sur aucun autre appareil. Ouvre Spotify sur l’iPhone enregistré, puis relance le raccourci.",
+            action: "open-spotify",
+            actionLabel: "Ouvrir Spotify sur l’iPhone",
+            recoverable: true,
+            keepPending: true
         };
     }
     if (hasMessage(error, /aucun .*appareil|aucun iphone|appareil spotify disponible|ouvre spotify/i)) {
