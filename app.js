@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.22";
+const APP_VERSION = "9.9.23";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -865,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.22-shell";
+    "shuffleplus-v9.9.23-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1645,6 +1645,7 @@ let drivingUnlockTimer = 0;
 let drivingUnlockStartedAt = 0;
 let drivingUnlockCompletedAt = 0;
 let drivingPreferencesOpen = false;
+let drivingPreferencesScrollTop = 0;
 let drivingMessage = {
     text: "",
     type: ""
@@ -5375,7 +5376,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.22
+                        ✨ Apparence v9.9.23
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6409,7 +6410,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.22",
+                "./service-worker.js?v=9.9.23",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7082,7 +7083,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.22 bloque tout basculement vers un autre appareil lorsque l’iPhone enregistré est ciblé.
+                        La v9.9.23 bloque tout basculement vers un autre appareil lorsque l’iPhone enregistré est ciblé.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -11046,6 +11047,16 @@ function updateDrivingPlaybackDom() {
 function renderDrivingModePage() {
     syncDrivingViewportHeight();
 
+    const previousPreferencesGrid = contentElement.querySelector(
+        ".driving-preferences-grid"
+    );
+    if (previousPreferencesGrid) {
+        drivingPreferencesScrollTop = Math.max(
+            0,
+            Number(previousPreferencesGrid.scrollTop || 0)
+        );
+    }
+
     const effectivePlayback =
         commitEffectivePlaybackState(
             drivingPlaybackState || quickPlaybackState
@@ -11272,6 +11283,27 @@ function renderDrivingModePage() {
     `;
 
     document.body.classList.add("is-driving-mode");
+
+    if (drivingPreferencesOpen) {
+        window.requestAnimationFrame(() => {
+            const preferencesGrid = contentElement.querySelector(
+                ".driving-preferences-grid"
+            );
+            if (!preferencesGrid) {
+                return;
+            }
+
+            const maxScrollTop = Math.max(
+                0,
+                preferencesGrid.scrollHeight -
+                    preferencesGrid.clientHeight
+            );
+            preferencesGrid.scrollTop = Math.min(
+                drivingPreferencesScrollTop,
+                maxScrollTop
+            );
+        });
+    }
 }
 
 function stopDrivingRefreshTimer() {
@@ -48287,6 +48319,23 @@ document.addEventListener(
 );
 
 document.addEventListener(
+    "scroll",
+    (event) => {
+        if (
+            event.target?.classList?.contains(
+                "driving-preferences-grid"
+            )
+        ) {
+            drivingPreferencesScrollTop = Math.max(
+                0,
+                Number(event.target.scrollTop || 0)
+            );
+        }
+    },
+    true
+);
+
+document.addEventListener(
     "toggle",
     (event) => {
         if (
@@ -48295,6 +48344,9 @@ document.addEventListener(
         ) {
             drivingPreferencesOpen =
                 Boolean(event.target.open);
+            if (!drivingPreferencesOpen) {
+                drivingPreferencesScrollTop = 0;
+            }
         }
     },
     true

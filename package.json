@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.22",
+  "version": "9.9.23",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.22 — défilement mobile stable sans rerendu du tableau de bord.",
+  "description": "Shuffle+ 9.9.23 — personnalisation du mode conduite entièrement défilable.",
   "engines": {
     "node": ">=20"
   },

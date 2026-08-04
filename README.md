@@ -1,4 +1,4 @@
-# Shuffle+ v9.9.22
+# Shuffle+ v9.9.23
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.22**.
+> **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.23**.
 
 ---
 
@@ -617,7 +617,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v9.9.22"
+git commit -m "Release Shuffle+ v9.9.23"
 git push origin main
 ```
 
@@ -627,7 +627,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v9.9.22** ;
+3. vérifier que l’en-tête affiche **v9.9.23** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -644,8 +644,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-9.9.22.js        Chargement versionné et migration du runtime
-startup-recovery-9.9.22.js Réparation avant le chargement principal
+bootstrap-9.9.23.js        Chargement versionné et migration du runtime
+startup-recovery-9.9.23.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -693,7 +693,7 @@ server/README.md
 
 ## Validation et tests
 
-La v9.9.22 est validée avec :
+La v9.9.23 est validée avec :
 
 - **310 tests applicatifs réussis** ;
 - tests du serveur réussis ;
@@ -777,9 +777,9 @@ Spotify limite temporairement les appels. Shuffle+ applique automatiquement une 
 
 ## Documentation complémentaire
 
-- `V9.9.22_NOTES.md` : changements propres à la version actuelle ;
-- `DEPLOIEMENT-V9.9.22.md` : procédure courte de publication ;
-- `INSTALLATION-V9.9.22.txt` : rappel d’installation ;
+- `V9.9.23_NOTES.md` : changements propres à la version actuelle ;
+- `DEPLOIEMENT-V9.9.23.md` : procédure courte de publication ;
+- `INSTALLATION-V9.9.23.txt` : rappel d’installation ;
 - `FINALISATION-V10.md` : conditions avant la v10 stable ;
 - `ROADMAP.md` : trajectoire du projet ;
 - `SYNC_API_CONTRACT.md` : protocole de synchronisation ;

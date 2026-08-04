@@ -760,3 +760,76 @@ body.is-driving-mode .driving-mode-page {
         align-self: stretch;
     }
 }
+
+
+/* =====================================================================
+   Shuffle+ v9.9.23 — personnalisation conduite entièrement défilable
+   ===================================================================== */
+
+@media (max-width: 600px) {
+    /* Fermé, le panneau reste intégré à la grille du mode conduite. Ouvert,
+       il devient un volet autonome : le body peut rester verrouillé sans
+       empêcher l’accès aux derniers réglages. */
+    body.is-driving-mode .driving-preferences-panel[open] {
+        position: fixed;
+        z-index: 180;
+        inset:
+            max(6px, env(safe-area-inset-top))
+            max(6px, env(safe-area-inset-right))
+            max(6px, env(safe-area-inset-bottom))
+            max(6px, env(safe-area-inset-left));
+        display: flex;
+        width: auto;
+        max-width: none;
+        min-height: 0;
+        max-height: none;
+        flex-direction: column;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 16px;
+        box-shadow: 0 24px 70px rgb(0 0 0 / 62%);
+        background: color-mix(in srgb, var(--surface-0) 96%, black);
+    }
+
+    body.is-driving-mode .driving-preferences-panel[open] > summary {
+        position: relative;
+        z-index: 1;
+        min-height: 48px;
+        flex: 0 0 auto;
+        justify-content: flex-start;
+        padding:
+            10px
+            max(14px, env(safe-area-inset-right))
+            10px
+            max(14px, env(safe-area-inset-left));
+        border-bottom: 1px solid rgb(var(--accent-rgb) / 22%);
+        background: color-mix(in srgb, var(--surface-1) 96%, black);
+        font-size: 14px;
+    }
+
+    body.is-driving-mode .driving-preferences-panel[open]
+    .driving-preferences-grid {
+        display: grid;
+        min-height: 0;
+        max-height: none;
+        flex: 1 1 auto;
+        align-content: start;
+        padding:
+            12px
+            max(12px, env(safe-area-inset-right))
+            calc(24px + env(safe-area-inset-bottom))
+            max(12px, env(safe-area-inset-left));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        scroll-padding-bottom: calc(24px + env(safe-area-inset-bottom));
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    body.is-driving-mode .driving-preferences-panel[open]
+    .driving-preferences-grid > label:last-child {
+        margin-bottom: 8px;
+    }
+}
