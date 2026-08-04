@@ -149,6 +149,33 @@ export function prioritizeLaunchDevices(
     return result;
 }
 
+
+export function buildPreferredDeviceDiscoveryPolicy({
+    strict = false,
+    attempts = 6,
+    delayMs = 1100
+} = {}) {
+    const normalizedAttempts = Math.min(14, Math.max(1, Number(attempts) || 6));
+    const normalizedDelay = Math.min(5000, Math.max(500, Number(delayMs) || 1100));
+
+    if (!strict) {
+        return {
+            maxAttempts: normalizedAttempts,
+            retryDelayMs: normalizedDelay,
+            initialDelayMs: 0
+        };
+    }
+
+    // Spotify Connect peut mettre plusieurs secondes à annoncer l’iPhone
+    // juste après l’ouverture de l’application Spotify. On allonge la
+    // détection sans jamais élargir la recherche à un autre appareil.
+    return {
+        maxAttempts: Math.max(10, normalizedAttempts),
+        retryDelayMs: Math.min(1000, Math.max(700, normalizedDelay)),
+        initialDelayMs: 700
+    };
+}
+
 export function buildLaunchPreflight({
     online = true,
     spotifyConfigured = false,

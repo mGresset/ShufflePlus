@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.28",
+  "version": "9.9.29",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.28 — résultats asynchrones Railway pour Apple Raccourcis.",
+  "description": "Shuffle+ 9.9.29 — détection prolongée de l’iPhone enregistré.",
   "engines": {
     "node": ">=20"
   },

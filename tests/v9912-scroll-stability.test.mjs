@@ -12,8 +12,8 @@ function extractFunction(name) {
     return appSource.slice(start, next === -1 ? undefined : next);
 }
 
-test("la correction de défilement annonce Shuffle+ 9.9.28", () => {
-    assert.equal(version, "9.9.28");
+test("la correction de défilement annonce Shuffle+ 9.9.29", () => {
+    assert.equal(version, "9.9.29");
 });
 
 test("le rafraîchissement du dashboard met à jour la carte en place", () => {

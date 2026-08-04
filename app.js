@@ -351,6 +351,7 @@ import {
 
 import {
     buildLaunchPreflight,
+    buildPreferredDeviceDiscoveryPolicy,
     buildLaunchRecoveryActions,
     buildLaunchReliabilitySummary,
     classifyLaunchError,
@@ -414,7 +415,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.28";
+const APP_VERSION = "9.9.29";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -885,7 +886,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.28-shell";
+    "shuffleplus-v9.9.29-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5397,7 +5398,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.28
+                        ✨ Apparence v9.9.29
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6431,7 +6432,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.28",
+                "./service-worker.js?v=9.9.29",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7104,7 +7105,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.28 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        La v9.9.29 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -23129,16 +23130,31 @@ async function getAutomationDeviceWithRetry(
     let lastDevices = [];
     const strictPreferredDevice =
         (settings.deviceMode || "preferred") === "preferred";
-    const maxAttempts = Math.max(
-        1,
-        Number(settings.autoRetryCount) ||
-        DEFAULT_IOS_QUICKPLAY_SETTINGS.autoRetryCount
-    );
-    const retryDelayMs = Math.max(
-        250,
-        Number(settings.retryDelayMs) ||
-        DEFAULT_IOS_QUICKPLAY_SETTINGS.retryDelayMs
-    );
+    const discoveryPolicy = buildPreferredDeviceDiscoveryPolicy({
+        strict: strictPreferredDevice,
+        attempts:
+            Number(settings.autoRetryCount) ||
+            DEFAULT_IOS_QUICKPLAY_SETTINGS.autoRetryCount,
+        delayMs:
+            Number(settings.retryDelayMs) ||
+            DEFAULT_IOS_QUICKPLAY_SETTINGS.retryDelayMs
+    });
+    const {
+        maxAttempts,
+        retryDelayMs,
+        initialDelayMs
+    } = discoveryPolicy;
+
+    if (initialDelayMs > 0) {
+        onAttempt?.({
+            attempt: 0,
+            maxAttempts,
+            status: "warming",
+            message: "Réveil de Spotify Connect sur l’iPhone…"
+        });
+        setStatus("Réveil de Spotify sur l’iPhone…");
+        await wait(initialDelayMs);
+    }
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
