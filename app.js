@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.18";
+const APP_VERSION = "9.9.19";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -865,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.18-shell";
+    "shuffleplus-v9.9.19-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1628,6 +1628,7 @@ let drivingQueueOpen = false;
 let drivingQueueBusy = false;
 let drivingQueueError = "";
 let drivingRefreshTimer = 0;
+let drivingCoverUpdateToken = 0;
 let drivingWakeLock = null;
 let drivingWakeLockRetryTimer = 0;
 let drivingWakeLockRequestSequence = 0;
@@ -3131,7 +3132,9 @@ function reconcilePlaybackWithNextTrackTransition(
 
 function renderActivePlaybackSurface() {
     if (activeAppMenu === "driving") {
-        renderDrivingModePage();
+        if (!updateDrivingPlaybackDom()) {
+            renderDrivingModePage();
+        }
         return;
     }
 
@@ -5344,7 +5347,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.18
+                        ✨ Apparence v9.9.19
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6378,7 +6381,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.18",
+                "./service-worker.js?v=9.9.19",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7051,7 +7054,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.18 garantit une sélection unique et fiable dans les exemples de l’assistant.
+                        La v9.9.19 adapte le mode conduite au viewport et stabilise la pochette Spotify.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10358,18 +10361,30 @@ function closeDrivingQueue() {
 }
 
 function syncDrivingViewportHeight() {
-    const visualHeight =
-        window.visualViewport?.height ||
-        window.innerHeight ||
-        document.documentElement.clientHeight;
+    // 100dvh suit directement la zone visible de Safari, y compris lorsque
+    // ses barres se replient. Contrairement à visualViewport.height, cette
+    // valeur ne rétrécit pas deux fois la page en cas de zoom d’affichage.
+    if (globalThis.CSS?.supports?.("height", "100dvh")) {
+        document.documentElement.style.setProperty(
+            "--driving-viewport-height",
+            "100dvh"
+        );
+        return;
+    }
 
-    if (!Number.isFinite(visualHeight)) {
+    const fallbackHeight = Math.max(
+        Number(window.innerHeight || 0),
+        Number(document.documentElement.clientHeight || 0),
+        Number(window.visualViewport?.height || 0)
+    );
+
+    if (!Number.isFinite(fallbackHeight) || fallbackHeight <= 0) {
         return;
     }
 
     document.documentElement.style.setProperty(
         "--driving-viewport-height",
-        `${Math.max(320, Math.round(visualHeight))}px`
+        `${Math.max(320, Math.round(fallbackHeight))}px`
     );
 }
 
@@ -10815,6 +10830,191 @@ function renderDrivingPreferencesPanel() {
     `;
 }
 
+function getDrivingTrackKey(track = null) {
+    return String(
+        track?.id ||
+        track?.uri ||
+        track?.external_urls?.spotify ||
+        ""
+    );
+}
+
+function createDrivingCoverPlaceholder() {
+    const placeholder = document.createElement("div");
+    placeholder.className = "driving-cover-placeholder";
+    placeholder.setAttribute("aria-hidden", "true");
+    placeholder.textContent = "🎵";
+    return placeholder;
+}
+
+function updateDrivingCoverDom(frame, imageUrl = "") {
+    if (!frame) {
+        return;
+    }
+
+    const normalizedUrl = String(imageUrl || "");
+    if (frame.dataset.imageUrl === normalizedUrl) {
+        return;
+    }
+
+    frame.dataset.imageUrl = normalizedUrl;
+    const updateToken = ++drivingCoverUpdateToken;
+
+    if (!normalizedUrl) {
+        frame.replaceChildren(createDrivingCoverPlaceholder());
+        return;
+    }
+
+    const nextImage = new Image();
+    nextImage.alt = "";
+    nextImage.loading = "eager";
+    nextImage.decoding = "async";
+    nextImage.className = "driving-now-playing-cover";
+    nextImage.src = normalizedUrl;
+
+    const commitImage = () => {
+        if (
+            updateToken !== drivingCoverUpdateToken ||
+            !frame.isConnected ||
+            frame.dataset.imageUrl !== normalizedUrl
+        ) {
+            return;
+        }
+
+        frame.replaceChildren(nextImage);
+    };
+
+    if (nextImage.complete && nextImage.naturalWidth > 0) {
+        commitImage();
+        return;
+    }
+
+    nextImage.addEventListener("load", commitImage, { once: true });
+    nextImage.addEventListener(
+        "error",
+        () => {
+            if (
+                updateToken === drivingCoverUpdateToken &&
+                frame.isConnected &&
+                !frame.firstElementChild
+            ) {
+                frame.replaceChildren(createDrivingCoverPlaceholder());
+            }
+        },
+        { once: true }
+    );
+}
+
+function updateDrivingPlaybackDom() {
+    const page = contentElement.querySelector(".driving-mode-page");
+    const nowPlaying = page?.querySelector(".driving-now-playing");
+
+    if (!page || !nowPlaying) {
+        return false;
+    }
+
+    const effectivePlayback = commitEffectivePlaybackState(
+        drivingPlaybackState || quickPlaybackState
+    );
+    const track =
+        effectivePlayback?.item?.type === "track"
+            ? effectivePlayback.item
+            : null;
+    const previousHadTrack =
+        page.dataset.hasTrack === "true";
+    const nextHasTrack = Boolean(track);
+
+    // Le passage entre « aucun titre » et « titre actif » modifie plusieurs
+    // contrôles structuraux : un rendu complet reste plus sûr dans ce cas rare.
+    if (previousHadTrack !== nextHasTrack) {
+        return false;
+    }
+
+    const isPlaying = Boolean(effectivePlayback?.is_playing);
+    const deviceName =
+        effectivePlayback?.device?.name ||
+        "Aucun appareil actif";
+    const imageUrl = track?.album?.images?.[0]?.url || "";
+    const trackKey = getDrivingTrackKey(track);
+
+    page.dataset.trackKey = trackKey;
+    page.dataset.hasTrack = String(nextHasTrack);
+    nowPlaying.classList.toggle("has-track", nextHasTrack);
+    nowPlaying.classList.toggle("is-empty", !nextHasTrack);
+
+    updateDrivingCoverDom(
+        nowPlaying.querySelector("[data-driving-cover]"),
+        imageUrl
+    );
+
+    const status = nowPlaying.querySelector(
+        "[data-driving-playback-status]"
+    );
+    const title = nowPlaying.querySelector(
+        "[data-driving-track-title]"
+    );
+    const artist = nowPlaying.querySelector(
+        "[data-driving-track-artist]"
+    );
+    const device = nowPlaying.querySelector(
+        "[data-driving-device-name]"
+    );
+
+    if (status) {
+        status.textContent = isPlaying
+            ? "Lecture en cours"
+            : "Lecture en pause";
+    }
+    if (title) {
+        title.textContent = track?.name || "Aucun titre actif";
+    }
+    if (artist) {
+        artist.textContent =
+            getDrivingTrackArtists(track) || deviceName;
+    }
+    if (device) {
+        device.textContent = deviceName;
+    }
+
+    const playPauseButton = page.querySelector(
+        '[data-driving-control="playpause"]'
+    );
+    if (playPauseButton) {
+        const icon = playPauseButton.querySelector("span");
+        const label = playPauseButton.querySelector("strong");
+        if (icon) icon.textContent = isPlaying ? "⏸" : "▶";
+        if (label) label.textContent = isPlaying ? "Pause" : "Lecture";
+        playPauseButton.disabled = Boolean(
+            drivingActionBusy ||
+            drivingControlsLocked ||
+            !effectivePlayback?.device
+        );
+    }
+
+    const spotifyLink = page.querySelector(".driving-spotify-link");
+    const spotifyUrl = getDrivingSpotifyUrl(track);
+    if (spotifyLink && spotifyUrl) {
+        spotifyLink.setAttribute("href", spotifyUrl);
+    }
+
+    const feedbackAction = getDrivingCurrentFeedbackAction(track);
+    page.querySelectorAll("[data-driving-feedback]").forEach((button) => {
+        button.classList.toggle(
+            "is-active",
+            button.dataset.drivingFeedback === feedbackAction
+        );
+        button.disabled = Boolean(
+            drivingActionBusy ||
+            drivingControlsLocked ||
+            !track
+        );
+    });
+
+    updateVisiblePlaybackButtons(isPlaying);
+    updatePlaybackProgressDom();
+    return true;
+}
+
 function renderDrivingModePage() {
     syncDrivingViewportHeight();
 
@@ -10850,7 +11050,7 @@ function renderDrivingModePage() {
     const spotifyUrl = getDrivingSpotifyUrl(track);
 
     contentElement.innerHTML = `
-        <section class="driving-mode-page" aria-label="Mode conduite">
+        <section class="driving-mode-page" aria-label="Mode conduite" data-has-track="${String(Boolean(track))}" data-track-key="${escapeHtml(getDrivingTrackKey(track))}">
             <header class="driving-mode-header">
                 <div class="driving-mode-header-copy">
                     <span>🚗 Mode voiture</span>
@@ -10897,16 +11097,25 @@ function renderDrivingModePage() {
                 </small>
             </section>
 
-            <section class="driving-now-playing ${track ? "has-track" : "is-empty"}">
-                ${imageUrl
-                    ? `<img src="${escapeHtml(imageUrl)}" alt="" loading="eager">`
-                    : `<div class="driving-cover-placeholder" aria-hidden="true">🎵</div>`}
+            <section
+                class="driving-now-playing ${track ? "has-track" : "is-empty"}"
+                data-driving-track-key="${escapeHtml(getDrivingTrackKey(track))}"
+            >
+                <div
+                    class="driving-cover-frame"
+                    data-driving-cover
+                    data-image-url="${escapeHtml(imageUrl)}"
+                >
+                    ${imageUrl
+                        ? `<img class="driving-now-playing-cover" src="${escapeHtml(imageUrl)}" alt="" loading="eager" decoding="async">`
+                        : `<div class="driving-cover-placeholder" aria-hidden="true">🎵</div>`}
+                </div>
 
                 <div>
-                    <span>${isPlaying ? "Lecture en cours" : "Lecture en pause"}</span>
-                    <h3>${escapeHtml(track?.name || "Aucun titre actif")}</h3>
-                    <p>${escapeHtml(getDrivingTrackArtists(track) || deviceName)}</p>
-                    <small>${escapeHtml(deviceName)}</small>
+                    <span data-driving-playback-status>${isPlaying ? "Lecture en cours" : "Lecture en pause"}</span>
+                    <h3 data-driving-track-title>${escapeHtml(track?.name || "Aucun titre actif")}</h3>
+                    <p data-driving-track-artist>${escapeHtml(getDrivingTrackArtists(track) || deviceName)}</p>
+                    <small data-driving-device-name>${escapeHtml(deviceName)}</small>
                 </div>
             </section>
 
@@ -11308,7 +11517,9 @@ async function refreshDrivingPlayback({
         render &&
         activeAppMenu === "driving"
     ) {
-        renderDrivingModePage();
+        if (!updateDrivingPlaybackDom()) {
+            renderDrivingModePage();
+        }
     }
 
     return drivingPlaybackState;

@@ -595,3 +595,168 @@ body.is-driving-queue-fullscreen .driving-preferences-panel {
         max-width: 6.8rem;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.19 — viewport conduite adaptatif et pochette stable
+   ===================================================================== */
+
+/* Le viewport dynamique CSS est la source de vérité sur Safari moderne.
+   Il ne subit pas le double rétrécissement observé avec visualViewport
+   lorsque l’utilisateur emploie un zoom d’affichage. */
+body.is-driving-mode,
+body.is-driving-mode .app {
+    width: 100%;
+    height: var(--driving-viewport-height, 100dvh);
+    min-height: var(--driving-viewport-height, 100dvh);
+}
+
+body.is-driving-mode #content {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+
+body.is-driving-mode .driving-mode-page {
+    width: 100%;
+    min-height: 100%;
+    flex: 1 1 auto;
+}
+
+/* Une enveloppe persistante permet de conserver l’ancienne pochette tant
+   que la suivante n’est pas décodée. Les synchronisations du même morceau
+   ne recréent donc plus l’image. */
+.driving-cover-frame {
+    width: 118px;
+    height: 118px;
+    overflow: hidden;
+    border-radius: 16px;
+    background: rgb(var(--accent-rgb) / 16%);
+}
+
+.driving-cover-frame > :where(img, .driving-cover-placeholder) {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+}
+
+.driving-cover-frame > .driving-cover-placeholder {
+    display: grid;
+    place-items: center;
+}
+
+@media (max-width: 700px) {
+    body.is-driving-mode .app {
+        padding:
+            max(4px, env(safe-area-inset-top))
+            max(4px, env(safe-area-inset-right))
+            max(4px, env(safe-area-inset-bottom))
+            max(4px, env(safe-area-inset-left));
+    }
+
+    body.is-driving-mode #content {
+        max-width: none;
+        margin: 0;
+    }
+
+    body.is-driving-mode .driving-mode-page {
+        max-width: none;
+        border-radius: clamp(12px, 3.5vw, 18px);
+    }
+
+    body.is-driving-mode .driving-cover-frame {
+        width: clamp(58px, 15vw, 82px);
+        height: clamp(58px, 15vw, 82px);
+        border-radius: 12px;
+    }
+
+}
+
+@media (max-width: 600px) {
+    /* Sur téléphone, les préférences participent au flux du tableau plutôt
+       que de flotter en bas du navigateur en laissant une grande zone vide. */
+    body.is-driving-mode .driving-preferences-panel {
+        position: static;
+        grid-area: preferences;
+        width: 100%;
+        max-width: none;
+        margin: 0;
+        border-radius: 12px;
+        box-shadow: none;
+    }
+
+    body.is-driving-mode .driving-preferences-panel > summary {
+        min-height: 38px;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    body.is-driving-mode .driving-preferences-panel[open] {
+        width: 100%;
+        max-width: none;
+        padding-bottom: 6px;
+    }
+
+    body.is-driving-mode .driving-preferences-grid {
+        max-height: min(44dvh, 360px);
+    }
+
+    body.is-driving-mode .driving-mode-page {
+        grid-template-areas:
+            "header"
+            "safety"
+            "context"
+            "playing"
+            "progress"
+            "queue"
+            "main"
+            "feedback"
+            "secondary"
+            "preferences"
+            "message";
+        grid-template-rows:
+            auto auto auto
+            minmax(62px, 0.7fr)
+            auto
+            minmax(82px, 0.9fr)
+            minmax(128px, 1.3fr)
+            auto auto auto auto;
+    }
+}
+
+@media (max-width: 600px) and (max-height: 760px) {
+    body.is-driving-mode .driving-mode-page {
+        grid-template-rows:
+            auto auto auto
+            minmax(52px, 0.55fr)
+            auto
+            minmax(68px, 0.72fr)
+            minmax(108px, 1.1fr)
+            auto auto auto auto;
+    }
+
+    body.is-driving-mode .driving-preferences-panel > summary {
+        min-height: 34px;
+        padding-block: 4px;
+    }
+}
+
+@media (orientation: landscape) and (max-height: 600px) {
+    body.is-driving-mode .driving-mode-page {
+        grid-template-areas:
+            "header header"
+            "playing main"
+            "progress main"
+            "context main"
+            "feedback main"
+            "secondary preferences"
+            "message message";
+        grid-template-rows: auto minmax(54px, 1fr) auto auto auto auto auto;
+    }
+
+    body.is-driving-mode .driving-preferences-panel {
+        align-self: stretch;
+    }
+}

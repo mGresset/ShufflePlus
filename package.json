@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.18",
+  "version": "9.9.19",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.18 — défilement horizontal stable dans l’assistant musical.",
+  "description": "Shuffle+ 9.9.19 — viewport conduite adaptatif et pochette stable.",
   "engines": {
     "node": ">=20"
   },
