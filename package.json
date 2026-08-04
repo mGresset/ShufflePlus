@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.19",
+  "version": "9.9.20",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.19 — viewport conduite adaptatif et pochette stable.",
+  "description": "Shuffle+ 9.9.20 — navigation mobile ancrée au viewport Safari.",
   "engines": {
     "node": ">=20"
   },

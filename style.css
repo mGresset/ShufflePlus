@@ -18451,3 +18451,33 @@ html[data-experience-mode="essential"] .app-section-more {
         width: 100%;
     }
 }
+
+/* ================================================================
+   Shuffle+ v9.9.20 — navigation mobile ancrée au viewport Safari
+   ================================================================ */
+
+@media (max-width: 760px) {
+    /* Safari peut conserver bottom:0 sur un ancien layout viewport lorsque
+       ses barres se replient. La position top est donc synchronisée avec le
+       Visual Viewport par app.js. bottom:0 reste le secours sans JavaScript. */
+    .app-menu.app-menu--primary.is-mobile-viewport-anchored {
+        position: fixed !important;
+        top: var(--mobile-primary-menu-top) !important;
+        right: 0 !important;
+        bottom: auto !important;
+        left: 0 !important;
+        margin: 0 !important;
+        transform: translateZ(0) !important;
+        will-change: top;
+        contain: layout style paint;
+    }
+
+    body.is-connected .app {
+        padding-bottom:
+            calc(
+                var(--mobile-primary-menu-height, 82px) +
+                24px +
+                env(safe-area-inset-bottom)
+            );
+    }
+}

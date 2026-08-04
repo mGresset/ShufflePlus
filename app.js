@@ -400,7 +400,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.19";
+const APP_VERSION = "9.9.20";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -865,7 +865,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.19-shell";
+    "shuffleplus-v9.9.20-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1754,6 +1754,7 @@ let contextualHelpState = readContextualHelpState();
 let usageProfileState = readUsageProfileState();
 let appMenuScrollPositions = readAppMenuScrollPositions();
 let appMenuScrollSaveTimer = 0;
+let mobilePrimaryNavigationFrame = 0;
 let appHealthSnapshot = null;
 let appHealthRunning = false;
 let appHealthLoadScheduled = false;
@@ -5347,7 +5348,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.19
+                        ✨ Apparence v9.9.20
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6381,7 +6382,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.19",
+                "./service-worker.js?v=9.9.20",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7054,7 +7055,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.19 adapte le mode conduite au viewport et stabilise la pochette Spotify.
+                        La v9.9.20 maintient la navigation mobile au bas du viewport Safari.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -15408,6 +15409,82 @@ function scheduleAppMenuScrollSave() {
             saveAppMenuScrollPositions();
             appMenuScrollSaveTimer = 0;
         }, 180);
+}
+
+function syncMobilePrimaryNavigationViewport() {
+    const menu = document.querySelector(
+        ".app-menu.app-menu--primary"
+    );
+
+    if (!menu) {
+        return;
+    }
+
+    const isMobile = window.matchMedia(
+        "(max-width: 760px)"
+    ).matches;
+
+    if (!isMobile) {
+        menu.classList.remove(
+            "is-mobile-viewport-anchored"
+        );
+        menu.style.removeProperty(
+            "--mobile-primary-menu-top"
+        );
+        document.documentElement.style.removeProperty(
+            "--mobile-primary-menu-height"
+        );
+        return;
+    }
+
+    const visualViewport = window.visualViewport;
+    const viewportTop = Math.max(
+        0,
+        Number(visualViewport?.offsetTop || 0)
+    );
+    const viewportHeight = Math.max(
+        320,
+        Number(
+            visualViewport?.height ||
+            window.innerHeight ||
+            document.documentElement.clientHeight ||
+            0
+        )
+    );
+    const menuHeight = Math.max(
+        56,
+        Number(menu.getBoundingClientRect().height || 0)
+    );
+    const menuTop = Math.max(
+        viewportTop,
+        viewportTop + viewportHeight - menuHeight
+    );
+
+    menu.classList.add(
+        "is-mobile-viewport-anchored"
+    );
+    menu.style.setProperty(
+        "--mobile-primary-menu-top",
+        `${Math.round(menuTop)}px`
+    );
+    document.documentElement.style.setProperty(
+        "--mobile-primary-menu-height",
+        `${Math.ceil(menuHeight)}px`
+    );
+}
+
+function scheduleMobilePrimaryNavigationViewportSync() {
+    if (mobilePrimaryNavigationFrame) {
+        window.cancelAnimationFrame(
+            mobilePrimaryNavigationFrame
+        );
+    }
+
+    mobilePrimaryNavigationFrame =
+        window.requestAnimationFrame(() => {
+            mobilePrimaryNavigationFrame = 0;
+            syncMobilePrimaryNavigationViewport();
+        });
 }
 
 function restoreAppMenuScrollPosition(
@@ -40229,6 +40306,7 @@ function displayPlaylists(playlists) {
     restoreAppMenuScrollPosition(
         activeAppMenu
     );
+    scheduleMobilePrimaryNavigationViewportSync();
 }
 
 
@@ -48273,10 +48351,35 @@ document.addEventListener(
 );
 
 window.addEventListener(
+    "resize",
+    scheduleMobilePrimaryNavigationViewportSync,
+    { passive: true }
+);
+
+window.addEventListener(
+    "scroll",
+    scheduleMobilePrimaryNavigationViewportSync,
+    { passive: true }
+);
+
+window.visualViewport?.addEventListener(
+    "resize",
+    scheduleMobilePrimaryNavigationViewportSync,
+    { passive: true }
+);
+
+window.visualViewport?.addEventListener(
+    "scroll",
+    scheduleMobilePrimaryNavigationViewportSync,
+    { passive: true }
+);
+
+window.addEventListener(
     "orientationchange",
     () => {
         window.setTimeout(() => {
             syncDrivingViewportHeight();
+            scheduleMobilePrimaryNavigationViewportSync();
 
             if (activeAppMenu === "driving") {
                 renderDrivingModePage();
