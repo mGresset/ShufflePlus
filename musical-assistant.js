@@ -37,6 +37,7 @@ export const MUSICAL_ASSISTANT_EXAMPLES = [
     "Programme Sport du lundi au vendredi à 18h30",
     "Mets l’énergie de Conduite à 78 et la découverte à 20",
     "Recommande-moi quelque chose maintenant",
+    "Montre mes recommandations musicales",
     "Montre mes statistiques d’écoute",
     "Ouvre mon tableau de bord musical",
     "Ouvre les réglages hors connexion",

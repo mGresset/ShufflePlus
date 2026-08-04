@@ -13,9 +13,9 @@ const spotifyApiSource = await readFile(
 );
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la convergence Pause/Lecture active annonce Shuffle+ 9.9.24", () => {
-    assert.equal(version, "9.9.24");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.24"/);
+test("la convergence Pause/Lecture active annonce Shuffle+ 9.9.25", () => {
+    assert.equal(version, "9.9.25");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.25"/);
 });
 
 test("une ancienne lecture GET ne peut plus repeupler le cache après Pause", async () => {

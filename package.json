@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.24",
+  "version": "9.9.25",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.24 — cadre du diagnostic de lancement harmonisé.",
+  "description": "Shuffle+ 9.9.25 — assistant neutre à l’ouverture et commande supplémentaire.",
   "engines": {
     "node": ">=20"
   },
