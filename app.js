@@ -312,6 +312,13 @@ import {
 } from "./core/shortcut-profiles.js";
 
 import {
+    SHORTCUT_CALLBACK_QUERY_KEYS,
+    buildShortcutCallbackUrl,
+    normalizeShortcutCallbackConfig,
+    readShortcutCallbackConfig
+} from "./core/shortcut-callback.js";
+
+import {
     buildDailyHomeSnapshot,
     renderDailyHomeMarkup
 } from "./core/daily-home.js";
@@ -400,7 +407,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.26";
+const APP_VERSION = "9.9.27";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -871,7 +878,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.26-shell";
+    "shuffleplus-v9.9.27-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1857,6 +1864,7 @@ let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
 let automationRunInProgress = false;
+let shortcutCallbackDispatching = false;
 let lastLaunchDiagnosticText = "";
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
@@ -5382,7 +5390,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.26
+                        ✨ Apparence v9.9.27
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6416,7 +6424,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.26",
+                "./service-worker.js?v=9.9.27",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7089,7 +7097,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.26 neutralise les faux états sélectionnés et complète la grille des commandes rapides.
+                        La v9.9.27 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -14194,7 +14202,7 @@ function renderLaunchCenter() {
                     <ol>
                         <li>Dans Raccourcis, ajoute « Ouvrir l’app » et choisis Spotify.</li>
                         <li>Ajoute « Attendre » pendant 1 seconde.</li>
-                        <li>Ajoute « Ouvrir les URL » et colle l’adresse universelle ci-dessous.</li>
+                        <li>Ajoute « Ouvrir les URL X-Callback » et colle l’adresse universelle ci-dessous.</li>
                     </ol>
                     <code>${escapeHtml(universalUrl)}</code>
                     <p>
@@ -14757,7 +14765,7 @@ function renderQuickControlPage() {
                         <ol>
                             <li>Ajoute « Ouvrir l’app » et choisis Spotify.</li>
                             <li>Ajoute « Attendre » pendant 1 seconde.</li>
-                            <li>Ajoute « Ouvrir les URL », puis colle l’URL Shuffle+.</li>
+                            <li>Ajoute « Ouvrir les URL X-Callback », puis colle l’URL Shuffle+.</li>
                         </ol>
                     </div>
                 </div>
@@ -22554,7 +22562,7 @@ function renderIosCommandsPanel() {
                 <ol>
                     <li>Action « Ouvrir l’app » : Spotify.</li>
                     <li>Action « Attendre » : 1 seconde.</li>
-                    <li>Action « Ouvrir les URL » : colle le lien de la commande Shuffle+.</li>
+                    <li>Action « Ouvrir les URL X-Callback » : colle le lien de la commande Shuffle+.</li>
                 </ol>
                 <p>
                     Cette première ouverture réveille Spotify Connect et augmente fortement les chances que l’iPhone apparaisse dans la liste des appareils.
@@ -22877,6 +22885,12 @@ function normalizeAutomationCommand(command = {}) {
                     .trim()
                     .slice(0, 120)
                 : "",
+        callbackSuccessUrl:
+            normalizeShortcutCallbackConfig(command).successUrl,
+        callbackErrorUrl:
+            normalizeShortcutCallbackConfig(command).errorUrl,
+        callbackCancelUrl:
+            normalizeShortcutCallbackConfig(command).cancelUrl,
         createdAt: Number(
             command.createdAt || Date.now()
         )
@@ -22938,6 +22952,9 @@ function parseAutomationCommandFromUrl() {
         return null;
     }
 
+    const shortcutCallbacks =
+        readShortcutCallbackConfig(params);
+
     return normalizeAutomationCommand({
         action,
         playlistId:
@@ -22968,6 +22985,12 @@ function parseAutomationCommandFromUrl() {
             params.get("lyrics") === "1",
         dynamicLyricsShortcutName:
             params.get("lyricsShortcut") || "",
+        callbackSuccessUrl:
+            shortcutCallbacks.successUrl,
+        callbackErrorUrl:
+            shortcutCallbacks.errorUrl,
+        callbackCancelUrl:
+            shortcutCallbacks.cancelUrl,
         createdAt: Date.now()
     });
 }
@@ -22992,7 +23015,8 @@ function clearAutomationQueryString() {
         "autoplay",
         "driving",
         "lyrics",
-        "lyricsShortcut"
+        "lyricsShortcut",
+        ...SHORTCUT_CALLBACK_QUERY_KEYS
     ]) {
         url.searchParams.delete(key);
     }
@@ -23739,6 +23763,17 @@ function renderIosLaunchProgress({
             <small class="launch-progress-note">
                 Shuffle+ peut effectuer une seconde activation automatiquement. Garde Spotify ouvert quelques secondes.
             </small>
+            ${pendingAutomationCommand?.callbackCancelUrl
+                ? `
+                    <button
+                        type="button"
+                        class="secondary-button launch-progress-cancel"
+                        data-cancel-shortcut-launch
+                    >
+                        Annuler et revenir dans Raccourcis
+                    </button>
+                `
+                : ""}
         </section>
     `;
 }
@@ -23795,11 +23830,13 @@ async function runIosQuickPlay(
     } = {}
 ) {
     if (automationRunInProgress) {
-        setStatus(
-            "Un lancement est déjà en cours.",
-            "info"
-        );
-        return;
+        const message = "Un lancement est déjà en cours.";
+        setStatus(message, "info");
+        return {
+            status: "cancel",
+            keepPending: false,
+            message
+        };
     }
 
     const command = getEffectiveIosCommand(commandId);
@@ -23853,11 +23890,14 @@ async function runIosQuickPlay(
         );
 
         if (!launchClaim.accepted) {
-            setStatus(
-                "Ce raccourci vient déjà d’être lancé. La seconde ouverture a été ignorée.",
-                "info"
-            );
-            return;
+            const message =
+                "Ce raccourci vient déjà d’être lancé. La seconde ouverture a été ignorée.";
+            setStatus(message, "info");
+            return {
+                status: "cancel",
+                keepPending: false,
+                message
+            };
         }
     }
 
@@ -24360,21 +24400,30 @@ async function resumePendingAutomationLaunch(trigger = "recovery") {
     }
 }
 
-async function executeAutomationCommand(
+async function executeAutomationCommandCore(
     command,
     { source = "automation-url" } = {}
 ) {
-    if (
-        !command ||
-        automationRunInProgress
-    ) {
-        return;
+    if (!command) {
+        return {
+            status: "cancel",
+            message: "Aucune commande Shuffle+ à exécuter."
+        };
+    }
+
+    if (automationRunInProgress) {
+        return {
+            status: "cancel",
+            message: "Un autre lancement Shuffle+ est déjà en cours."
+        };
     }
 
     const normalized =
         normalizeAutomationCommand(command);
 
     if (normalized.action === "launch") {
+        let launchResult = null;
+
         if (normalized.mixId) {
             const prepared = await launchSavedMix(
                 normalized.mixId
@@ -24386,9 +24435,10 @@ async function executeAutomationCommand(
                 );
             }
 
+            let device = null;
             if (normalized.autoplay && selectedTracks.length) {
                 const launchCommand = getEffectiveIosCommand("");
-                const device = await getAutomationDeviceWithRetry(
+                device = await getAutomationDeviceWithRetry(
                     launchCommand
                 );
                 const playbackUris = selectedTracks
@@ -24404,8 +24454,17 @@ async function executeAutomationCommand(
 
                 await startPlayback(playbackUris, device.id);
             }
+
+            launchResult = {
+                status: "success",
+                keepPending: false,
+                device,
+                message: normalized.autoplay
+                    ? "Mix préparé et lecture envoyée à Spotify."
+                    : "Mix préparé dans Shuffle+."
+            };
         } else {
-            const launchResult = await runGuidedPrimaryLaunch({
+            launchResult = await runGuidedPrimaryLaunch({
                 source
             });
             if (!launchResult?.keepPending) {
@@ -24414,7 +24473,10 @@ async function executeAutomationCommand(
         }
 
         clearAutomationQueryString();
-        return;
+        return launchResult || {
+            status: "success",
+            keepPending: false
+        };
     }
 
     if (
@@ -24422,7 +24484,7 @@ async function executeAutomationCommand(
         normalized.action ===
             "play-playlist"
     ) {
-        await runIosQuickPlay(
+        return await runIosQuickPlay(
             normalized.playlistId,
             normalized.commandId,
             {
@@ -24435,7 +24497,6 @@ async function executeAutomationCommand(
                 source
             }
         );
-        return;
     }
 
     if (
@@ -24452,7 +24513,10 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
-        return;
+        return {
+            status: "success",
+            message: "Contexte rapide exécuté."
+        };
     }
 
     if (
@@ -24467,7 +24531,10 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
-        return;
+        return {
+            status: "success",
+            message: "Adaptive DJ exécuté."
+        };
     }
 
 
@@ -24483,7 +24550,10 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
-        return;
+        return {
+            status: "success",
+            message: "Scène Adaptive DJ exécutée."
+        };
     }
 
     if (
@@ -24516,7 +24586,10 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
-        return;
+        return {
+            status: "success",
+            message: "Transition musicale exécutée."
+        };
     }
 
     if (
@@ -24543,7 +24616,10 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
-        return;
+        return {
+            status: "success",
+            message: "Commande rapide exécutée."
+        };
     }
 
     if (
@@ -24700,7 +24776,12 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
-        return;
+        return {
+            status: "success",
+            message: command.autoplay
+                ? `Mix « ${command.name} » lancé.`
+                : `Mix « ${command.name} » généré.`
+        };
     }
 
     if (
@@ -24750,6 +24831,134 @@ async function executeAutomationCommand(
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();
+        return {
+            status: "success",
+            message: "Mix préparé."
+        };
+    }
+
+    throw new Error(
+        `Commande Shuffle+ inconnue : ${normalized.action || "vide"}.`
+    );
+}
+
+function getAutomationCallbackConfig(command = {}) {
+    return normalizeShortcutCallbackConfig({
+        successUrl: command.callbackSuccessUrl,
+        errorUrl: command.callbackErrorUrl,
+        cancelUrl: command.callbackCancelUrl
+    });
+}
+
+function scheduleShortcutCallbackReturn(command, outcome = {}) {
+    const callbacks = getAutomationCallbackConfig(command);
+    const target = buildShortcutCallbackUrl(
+        callbacks,
+        {
+            version: APP_VERSION,
+            action: command.action,
+            commandId: command.commandId,
+            playlistId: command.playlistId,
+            ...outcome
+        }
+    );
+
+    if (!target || shortcutCallbackDispatching) {
+        return false;
+    }
+
+    shortcutCallbackDispatching = true;
+    savePendingAutomationCommand(null);
+    clearAutomationQueryString();
+
+    const message = outcome.status === "error"
+        ? "Retour vers Raccourcis avec le détail de l’erreur…"
+        : outcome.status === "cancel"
+            ? "Retour vers Raccourcis…"
+            : "Lecture confirmée · retour vers Raccourcis…";
+
+    setStatus(
+        message,
+        outcome.status === "error" ? "error" : "success"
+    );
+
+    window.setTimeout(() => {
+        try {
+            window.location.replace(target);
+        } catch (error) {
+            console.warn(
+                "Retour x-callback impossible :",
+                error
+            );
+            window.location.href = target;
+        }
+    }, 650);
+
+    return true;
+}
+
+async function executeAutomationCommand(
+    command,
+    options = {}
+) {
+    const normalized =
+        normalizeAutomationCommand(command);
+    const callbacks =
+        getAutomationCallbackConfig(normalized);
+
+    try {
+        const result = await executeAutomationCommandCore(
+            normalized,
+            options
+        );
+        const status = ["success", "error", "cancel"].includes(
+            result?.status
+        )
+            ? result.status
+            : "success";
+        const outcome = {
+            status,
+            success: status === "success",
+            device: result?.device?.name || result?.deviceName || "",
+            durationMs: result?.durationMs || 0,
+            code: result?.classification?.code || result?.code || "",
+            message: result?.message ||
+                (status === "success"
+                    ? "Lancement Shuffle+ terminé."
+                    : status === "cancel"
+                        ? "Lancement Shuffle+ annulé."
+                        : "Le lancement Shuffle+ a échoué.")
+        };
+
+        if (callbacks.enabled) {
+            scheduleShortcutCallbackReturn(
+                normalized,
+                outcome
+            );
+        }
+
+        return result || outcome;
+    } catch (error) {
+        if (callbacks.enabled) {
+            scheduleShortcutCallbackReturn(
+                normalized,
+                {
+                    status: "error",
+                    success: false,
+                    code: error?.code || "LAUNCH_FAILED",
+                    message:
+                        error?.message ||
+                        "Le lancement Shuffle+ a échoué."
+                }
+            );
+            return {
+                status: "error",
+                keepPending: false,
+                error
+            };
+        }
+
+        throw error;
     }
 }
 
@@ -24887,7 +25096,7 @@ function renderIosQuickPlayPanel() {
                 <span>
                     1. Ouvrir l’app Spotify ·
                     2. Attendre 1 seconde ·
-                    3. Ouvrir l’URL copiée
+                    3. Ouvrir l’URL copiée avec « Ouvrir les URL X-Callback »
                 </span>
                 <code>
                     ${escapeHtml(
@@ -48584,6 +48793,36 @@ window.visualViewport?.addEventListener(
             syncDrivingViewportHeight();
         }
     }
+);
+
+document.addEventListener(
+    "click",
+    (event) => {
+        const cancelButton = event.target.closest(
+            "[data-cancel-shortcut-launch]"
+        );
+
+        if (!cancelButton) {
+            return;
+        }
+
+        const command = pendingAutomationCommand;
+        if (!command) {
+            return;
+        }
+
+        event.preventDefault();
+        scheduleShortcutCallbackReturn(
+            command,
+            {
+                status: "cancel",
+                success: false,
+                code: "USER_CANCELLED",
+                message: "Lancement annulé par l’utilisateur."
+            }
+        );
+    },
+    { capture: true }
 );
 
 startPlaybackClockTimer();

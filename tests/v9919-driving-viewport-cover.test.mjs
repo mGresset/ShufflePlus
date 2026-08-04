@@ -9,8 +9,8 @@ const drivingCss = await readFile(
     "utf8"
 );
 
-test("Shuffle+ 9.9.26 utilise le viewport dynamique du navigateur", () => {
-    assert.equal(version, "9.9.26");
+test("Shuffle+ 9.9.27 utilise le viewport dynamique du navigateur", () => {
+    assert.equal(version, "9.9.27");
     assert.match(
         appSource,
         /CSS\?\.supports\?\.\("height", "100dvh"\)/

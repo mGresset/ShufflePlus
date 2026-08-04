@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.26",
+  "version": "9.9.27",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.26 — commandes rapides neutres et grille complète.",
+  "description": "Shuffle+ 9.9.27 — retour automatique vers Apple Raccourcis après lancement.",
   "engines": {
     "node": ">=20"
   },
