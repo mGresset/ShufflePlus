@@ -6,8 +6,8 @@ const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const styleSource = await readFile("style.css", "utf8");
 
-test("Shuffle+ 9.9.21 ancre le menu mobile au Visual Viewport", () => {
-    assert.equal(version, "9.9.21");
+test("Shuffle+ 9.9.22 ancre le menu mobile au Visual Viewport", () => {
+    assert.equal(version, "9.9.22");
     assert.match(
         appSource,
         /function syncMobilePrimaryNavigationViewport\(\)/
@@ -55,6 +55,6 @@ test("la position est recalculée pendant le scroll, le resize et l’orientatio
 test("chaque rendu réancre la navigation nouvellement créée", () => {
     assert.match(
         appSource,
-        /restoreAppMenuScrollPosition\(\s*activeAppMenu\s*\);\s*scheduleMobilePrimaryNavigationViewportSync\(\);/
+        /if \(preserveLiveScroll\)[\s\S]*restoreExactWindowScrollPosition\([\s\S]*else \{[\s\S]*restoreAppMenuScrollPosition\([\s\S]*scheduleMobilePrimaryNavigationViewportSync\(\);/
     );
 });

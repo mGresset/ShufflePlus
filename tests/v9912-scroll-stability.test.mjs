@@ -12,8 +12,8 @@ function extractFunction(name) {
     return appSource.slice(start, next === -1 ? undefined : next);
 }
 
-test("la correction de défilement annonce Shuffle+ 9.9.21", () => {
-    assert.equal(version, "9.9.21");
+test("la correction de défilement annonce Shuffle+ 9.9.22", () => {
+    assert.equal(version, "9.9.22");
 });
 
 test("le rafraîchissement du dashboard met à jour la carte en place", () => {
@@ -26,14 +26,15 @@ test("le rafraîchissement du dashboard met à jour la carte en place", () => {
 
 test("le rendu actif ne reconstruit plus l’accueil à chaque état Spotify", () => {
     const source = extractFunction("renderActivePlaybackSurface");
+    assert.match(source, /shouldRenderMusicalDashboardPlaybackSurface\(\)/);
     assert.match(source, /updateMusicalDashboardPlaybackDom\(\)/);
-    assert.match(source, /if \(!updateMusicalDashboardPlaybackDom\(\)\)/);
+    assert.doesNotMatch(source, /displayPlaylists\(playlistsCache\)/);
 });
 
-test("le polling normal n'appelle le rendu global qu'en secours", () => {
+test("le polling automatique ne reconstruit jamais l’accueil", () => {
     const start = appSource.indexOf("async function refreshMusicalDashboardPlayback");
     const end = appSource.indexOf("function openDashboardSection", start);
     const source = appSource.slice(start, end);
-    assert.match(source, /if \(!updateMusicalDashboardPlaybackDom\(\)\)/);
-    assert.match(source, /displayPlaylists\(playlistsCache\)/);
+    assert.match(source, /if \(!updatedInPlace && !silent\)/);
+    assert.doesNotMatch(source, /displayPlaylists\(playlistsCache\)/);
 });

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.21",
+  "version": "9.9.22",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.21 — ciblage strict de l’iPhone enregistré pour les raccourcis.",
+  "description": "Shuffle+ 9.9.22 — défilement mobile stable sans rerendu du tableau de bord.",
   "engines": {
     "node": ">=20"
   },
