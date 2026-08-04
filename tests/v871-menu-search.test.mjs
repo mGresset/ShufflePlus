@@ -11,8 +11,8 @@ const styleSource = await readFile("style.css", "utf8");
 const searchStyleSource = await readFile("styles/feature-search.css", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("la distribution active annonce Shuffle+ 9.9.29", () => {
-    assert.equal(versionSource, "9.9.29");
+test("la distribution active annonce Shuffle+ 9.9.30", () => {
+    assert.equal(versionSource, "9.9.30");
 });
 
 test("la recherche globale est intégrée au menu principal", () => {

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.29",
+  "version": "9.9.30",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.29 — détection prolongée de l’iPhone enregistré.",
+  "description": "Shuffle+ 9.9.30 — mode conduite adaptatif avec défilement interne.",
   "engines": {
     "node": ">=20"
   },
