@@ -1034,3 +1034,85 @@ body.is-driving-mode .driving-mode-page {
         flex-shrink: 0;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.39 — viewport Safari ancré et bas de conduite durable
+   ===================================================================== */
+
+@media (max-width: 700px) and (orientation: portrait) {
+    /* Safari déplace son visual viewport lorsque ses barres apparaissent.
+       Le panneau est donc fixé sur cette zone réelle, et non sur l'ancien
+       layout viewport qui pouvait laisser les derniers contrôles sous la
+       barre du navigateur. */
+    body.is-driving-mode .app {
+        position: fixed;
+        z-index: 0;
+        top: var(--driving-viewport-offset-top, 0px);
+        right: 0;
+        bottom: auto;
+        left: 0;
+        width: 100%;
+        height: var(--driving-viewport-height, 100dvh);
+        min-height: 0;
+        max-height: var(--driving-viewport-height, 100dvh);
+        margin: 0;
+        overflow: hidden;
+    }
+
+    body.is-driving-mode #content {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        overflow: hidden;
+    }
+
+    body.is-driving-mode .driving-mode-page {
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        padding-bottom: max(
+            96px,
+            calc(
+                52px +
+                env(safe-area-inset-bottom) +
+                var(--driving-browser-bottom-clearance, 0px)
+            )
+        );
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        scroll-padding-bottom: max(
+            144px,
+            calc(
+                88px +
+                env(safe-area-inset-bottom) +
+                var(--driving-browser-bottom-clearance, 0px)
+            )
+        );
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Une réserve indépendante du contenu garantit que les commandes
+       secondaires, les préférences et le message peuvent toujours être
+       remontés entièrement au-dessus de la barre Safari. */
+    body.is-driving-mode .driving-mode-page::after {
+        min-height: max(
+            144px,
+            calc(
+                88px +
+                env(safe-area-inset-bottom) +
+                var(--driving-browser-bottom-clearance, 0px)
+            )
+        );
+        flex-basis: max(
+            144px,
+            calc(
+                88px +
+                env(safe-area-inset-bottom) +
+                var(--driving-browser-bottom-clearance, 0px)
+            )
+        );
+    }
+}

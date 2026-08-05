@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.38",
+  "version": "9.9.39",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.38 — sélection unique entre navigation et recherche.",
+  "description": "Shuffle+ 9.9.39 — mode conduite entièrement accessible sur Safari iPhone.",
   "engines": {
     "node": ">=20"
   },
