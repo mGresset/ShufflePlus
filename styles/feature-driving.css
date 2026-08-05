@@ -969,3 +969,68 @@ body.is-driving-mode .driving-mode-page {
         min-height: 0;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.34 — bas du mode conduite accessible sur Safari iPhone
+   ===================================================================== */
+
+@media (max-width: 700px) and (orientation: portrait) {
+    body.is-driving-mode,
+    body.is-driving-mode .app {
+        height: var(--driving-viewport-height, 100dvh);
+        max-height: var(--driving-viewport-height, 100dvh);
+    }
+
+    body.is-driving-mode .app {
+        padding-bottom: max(4px, env(safe-area-inset-bottom));
+    }
+
+    body.is-driving-mode #content {
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+    }
+
+    body.is-driving-mode .driving-mode-page {
+        height: 100%;
+        min-height: 0;
+        max-height: 100%;
+        padding-bottom: calc(
+            36px +
+            env(safe-area-inset-bottom) +
+            var(--driving-browser-bottom-clearance, 0px)
+        );
+        scroll-padding-bottom: calc(
+            64px +
+            env(safe-area-inset-bottom) +
+            var(--driving-browser-bottom-clearance, 0px)
+        );
+    }
+
+    /* Le spacer fait partie du flux flex et garantit que la dernière rangée
+       peut remonter entièrement au-dessus de la barre Safari. */
+    body.is-driving-mode .driving-mode-page::after {
+        content: "";
+        display: block;
+        width: 100%;
+        min-height: calc(
+            72px +
+            env(safe-area-inset-bottom) +
+            var(--driving-browser-bottom-clearance, 0px)
+        );
+        flex: 0 0 calc(
+            72px +
+            env(safe-area-inset-bottom) +
+            var(--driving-browser-bottom-clearance, 0px)
+        );
+        pointer-events: none;
+    }
+
+    body.is-driving-mode .driving-secondary-controls,
+    body.is-driving-mode .driving-preferences-panel,
+    body.is-driving-mode .driving-message {
+        position: relative;
+        z-index: 1;
+        flex-shrink: 0;
+    }
+}

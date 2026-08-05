@@ -415,7 +415,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.33";
+const APP_VERSION = "9.9.34";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -889,7 +889,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.33-shell";
+    "shuffleplus-v9.9.34-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5401,7 +5401,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.33
+                        ✨ Apparence v9.9.34
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6435,7 +6435,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.33",
+                "./service-worker.js?v=9.9.34",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7108,7 +7108,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.33 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        La v9.9.34 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10415,30 +10415,42 @@ function closeDrivingQueue() {
 }
 
 function syncDrivingViewportHeight() {
-    // 100dvh suit directement la zone visible de Safari, y compris lorsque
-    // ses barres se replient. Contrairement à visualViewport.height, cette
-    // valeur ne rétrécit pas deux fois la page en cas de zoom d’affichage.
-    if (globalThis.CSS?.supports?.("height", "100dvh")) {
+    const visualViewport = window.visualViewport;
+    const visualHeight = Number(visualViewport?.height || 0);
+    const layoutHeight = Math.max(
+        Number(window.innerHeight || 0),
+        Number(document.documentElement.clientHeight || 0)
+    );
+
+    // Sur Safari iPhone, visualViewport.height représente la zone réellement
+    // visible au-dessus de la barre d’adresse. Une valeur en pixels évite que
+    // le bas du mode conduite soit placé derrière l’interface du navigateur.
+    const resolvedHeight = Number.isFinite(visualHeight) && visualHeight > 0
+        ? visualHeight
+        : layoutHeight;
+
+    if (Number.isFinite(resolvedHeight) && resolvedHeight > 0) {
+        document.documentElement.style.setProperty(
+            "--driving-viewport-height",
+            `${Math.max(320, Math.floor(resolvedHeight))}px`
+        );
+    } else if (globalThis.CSS?.supports?.("height", "100dvh")) {
         document.documentElement.style.setProperty(
             "--driving-viewport-height",
             "100dvh"
         );
-        return;
     }
 
-    const fallbackHeight = Math.max(
-        Number(window.innerHeight || 0),
-        Number(document.documentElement.clientHeight || 0),
-        Number(window.visualViewport?.height || 0)
+    const bottomOcclusion = Math.max(
+        0,
+        layoutHeight - (
+            Number(visualViewport?.offsetTop || 0) +
+            Math.max(0, visualHeight)
+        )
     );
-
-    if (!Number.isFinite(fallbackHeight) || fallbackHeight <= 0) {
-        return;
-    }
-
     document.documentElement.style.setProperty(
-        "--driving-viewport-height",
-        `${Math.max(320, Math.round(fallbackHeight))}px`
+        "--driving-browser-bottom-clearance",
+        `${Math.min(140, Math.round(bottomOcclusion))}px`
     );
 }
 
@@ -49000,6 +49012,16 @@ window.visualViewport?.addEventListener(
             syncDrivingViewportHeight();
         }
     }
+);
+
+window.visualViewport?.addEventListener(
+    "scroll",
+    () => {
+        if (activeAppMenu === "driving") {
+            syncDrivingViewportHeight();
+        }
+    },
+    { passive: true }
 );
 
 document.addEventListener(

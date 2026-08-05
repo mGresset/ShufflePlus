@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.33",
+  "version": "9.9.34",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.33 — mode conduite mobile sans chevauchement.",
+  "description": "Shuffle+ 9.9.34 — mode conduite entièrement accessible sur Safari iPhone.",
   "engines": {
     "node": ">=20"
   },
