@@ -7,8 +7,8 @@ const styleSource = await readFile(new URL("../style.css", import.meta.url), "ut
 const searchStyleSource = await readFile(new URL("../styles/feature-search.css", import.meta.url), "utf8");
 
 
-test("Shuffle+ 9.9.39 masque le raccourci de recherche dès le premier rendu mobile", () => {
-    assert.equal(version, "9.9.39");
+test("Shuffle+ 9.9.40 masque le raccourci de recherche dès le premier rendu mobile", () => {
+    assert.equal(version, "9.9.40");
     assert.match(
         styleSource,
         /@media \(max-width: 760px\)[\s\S]*?\.app-menu-search-button kbd\s*\{\s*display:\s*none !important;/
