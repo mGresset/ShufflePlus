@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.41",
+  "version": "9.9.42",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.41 — conduite compacte sans défilement.",
+  "description": "Shuffle+ 9.9.42 — cadre conduite ajusté au contenu.",
   "engines": {
     "node": ">=20"
   },

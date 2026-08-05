@@ -1486,3 +1486,26 @@ body.is-driving-mode .driving-mode-page {
         min-height: 56px;
     }
 }
+
+/* =====================================================================
+   Shuffle+ v9.9.42 — cadre conduite ajusté à son contenu
+   ===================================================================== */
+
+@media (max-width: 700px) and (orientation: portrait) {
+    /* La v9.9.41 gardait le panneau à 100 % de la hauteur disponible.
+       Une fois les commandes compactées, cette contrainte créait une grande
+       zone vide sous le message final. Le viewport reste fixe pour Safari,
+       mais le cadre lui-même épouse désormais son contenu. */
+    body.is-driving-mode #content {
+        align-items: flex-start;
+    }
+
+    body.is-driving-mode .driving-mode-page {
+        height: auto;
+        min-height: 0;
+        max-height: 100%;
+        flex: 0 1 auto;
+        align-self: flex-start;
+        overflow: hidden;
+    }
+}
