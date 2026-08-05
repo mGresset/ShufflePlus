@@ -1,7 +1,36 @@
-const APP_VERSION = "9.9.30";
-const BUILD_ID = "9.9.30-pwa-reset-1";
+const APP_VERSION = "9.9.31";
+const BUILD_ID = "9.9.31-pwa-reset-1";
 const BUILD_STORAGE_KEY = "shuffleplus_runtime_build_id";
 const BUILD_QUERY_KEY = "shuffleplus_build";
+const AUTOMATION_HANDOFF_KEY =
+    "shuffleplus_automation_handoff_v1";
+const AUTOMATION_HANDOFF_TTL_MS = 2 * 60 * 1000;
+
+function captureAutomationHandoff() {
+    const url = new URL(window.location.href);
+    const action = String(
+        url.searchParams.get("action") || ""
+    ).trim();
+
+    if (!action) {
+        return false;
+    }
+
+    try {
+        sessionStorage.setItem(
+            AUTOMATION_HANDOFF_KEY,
+            JSON.stringify({
+                search: url.search,
+                capturedAt: Date.now(),
+                expiresAt:
+                    Date.now() + AUTOMATION_HANDOFF_TTL_MS
+            })
+        );
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 function readStoredBuild() {
     try {
@@ -68,6 +97,8 @@ async function migrateRuntimeIfNeeded() {
 }
 
 async function startShufflePlus() {
+    captureAutomationHandoff();
+
     const reloading = await migrateRuntimeIfNeeded();
     if (reloading) {
         return;

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.30",
+  "version": "9.9.31",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.30 — mode conduite adaptatif avec défilement interne.",
+  "description": "Shuffle+ 9.9.31 — mode conduite adaptatif avec défilement interne.",
   "engines": {
     "node": ">=20"
   },

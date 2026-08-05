@@ -415,7 +415,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.30";
+const APP_VERSION = "9.9.31";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -745,6 +745,9 @@ const IOS_QUICKPLAY_KEY =
     "shuffleplus_ios_quickplay_v1";
 const PENDING_AUTOMATION_KEY =
     "shuffleplus_pending_automation_v1";
+const AUTOMATION_HANDOFF_KEY =
+    "shuffleplus_automation_handoff_v1";
+const AUTOMATION_HANDOFF_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_IOS_QUICKPLAY_SETTINGS = {
     playlistId: "",
     playlistName: "",
@@ -886,7 +889,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.30-shell";
+    "shuffleplus-v9.9.31-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5398,7 +5401,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.30
+                        ✨ Apparence v9.9.31
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6432,7 +6435,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.30",
+                "./service-worker.js?v=9.9.31",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7105,7 +7108,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.30 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        La v9.9.31 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -22986,13 +22989,75 @@ function savePendingAutomationCommand(command) {
     }
 }
 
+function readAutomationHandoffSearchParams() {
+    try {
+        const raw = sessionStorage.getItem(
+            AUTOMATION_HANDOFF_KEY
+        );
+
+        if (!raw) {
+            return null;
+        }
+
+        const record = JSON.parse(raw);
+        const capturedAt = Number(record?.capturedAt || 0);
+        const expiresAt = Number(
+            record?.expiresAt ||
+            (capturedAt + AUTOMATION_HANDOFF_TTL_MS)
+        );
+
+        if (
+            !record?.search ||
+            !capturedAt ||
+            Date.now() > expiresAt
+        ) {
+            sessionStorage.removeItem(
+                AUTOMATION_HANDOFF_KEY
+            );
+            return null;
+        }
+
+        const params = new URLSearchParams(
+            record.search
+        );
+
+        return params.get("action")
+            ? params
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function clearAutomationHandoff() {
+    try {
+        sessionStorage.removeItem(
+            AUTOMATION_HANDOFF_KEY
+        );
+    } catch {
+        // Le pending command reste la source de vérité après la reprise.
+    }
+}
+
 function parseAutomationCommandFromUrl() {
-    const params = new URLSearchParams(
+    let params = new URLSearchParams(
         window.location.search
     );
-    const action =
+    let action =
         String(params.get("action") || "")
             .toLowerCase();
+
+    if (!action) {
+        const handoffParams =
+            readAutomationHandoffSearchParams();
+
+        if (handoffParams) {
+            params = handoffParams;
+            action = String(
+                params.get("action") || ""
+            ).toLowerCase();
+        }
+    }
 
     if (!action) {
         return null;
@@ -43914,6 +43979,7 @@ async function initializeApp() {
         savePendingAutomationCommand(
             urlAutomationCommand
         );
+        clearAutomationHandoff();
     }
 
     if (loginButton) {
