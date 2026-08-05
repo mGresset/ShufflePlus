@@ -18,11 +18,11 @@ const drivingStyleSource = await readFile("styles/feature-driving.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 
-test("la distribution active annonce Shuffle+ 9.9.32", () => {
-    assert.equal(versionSource, "9.9.32");
-    assert.match(indexSource, /shuffleplus-version" content="9\.9\.32/);
-    assert.match(appSource, /const APP_VERSION = "9\.9\.32"/);
-    assert.match(serviceWorkerSource, /shuffleplus-v9\.9\.32/);
+test("la distribution active annonce Shuffle+ 9.9.33", () => {
+    assert.equal(versionSource, "9.9.33");
+    assert.match(indexSource, /shuffleplus-version" content="9\.9\.33/);
+    assert.match(appSource, /const APP_VERSION = "9\.9\.33"/);
+    assert.match(serviceWorkerSource, /shuffleplus-v9\.9\.33/);
 });
 
 test("les actions historiques reçoivent une variante sémantique stable", () => {
