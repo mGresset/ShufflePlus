@@ -16076,6 +16076,12 @@ body.is-connected .startup-recovery-panel {
         white-space: nowrap !important;
     }
 
+    /* v9.9.36 — masque le raccourci clavier dès le premier rendu mobile,
+       avant même le chargement différé de feature-search.css. */
+    .app-menu-search-button kbd {
+        display: none !important;
+    }
+
     .app-section-menu {
         align-items: stretch;
         margin-top: 8px;

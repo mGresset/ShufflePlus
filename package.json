@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.35",
+  "version": "9.9.36",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.35 — libellé Rechercher stable dans la navigation mobile.",
+  "description": "Shuffle+ 9.9.36 — raccourci clavier Rechercher stable dès le premier rendu mobile.",
   "engines": {
     "node": ">=20"
   },
