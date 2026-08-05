@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.40",
+  "version": "9.9.41",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.40 — viewport conduite stable après chaque commande.",
+  "description": "Shuffle+ 9.9.41 — conduite compacte sans défilement.",
   "engines": {
     "node": ">=20"
   },

@@ -7,8 +7,8 @@ const [version, drivingCss] = await Promise.all([
     readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 9.9.40 place le mode conduite mobile dans un flux vertical", () => {
-    assert.equal(version, "9.9.40");
+test("Shuffle+ 9.9.41 place le mode conduite mobile dans un flux vertical", () => {
+    assert.equal(version, "9.9.41");
     assert.match(
         drivingCss,
         /Shuffle\+ v9\.9\.33 — flux mobile conduite sans chevauchement/

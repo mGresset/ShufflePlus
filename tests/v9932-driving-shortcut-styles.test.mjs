@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 
-test("Shuffle+ 9.9.40 charge le style conduite avant toute entrée directe", () => {
-    assert.equal(version, "9.9.40");
+test("Shuffle+ 9.9.41 charge le style conduite avant toute entrée directe", () => {
+    assert.equal(version, "9.9.41");
     assert.match(
         appSource,
         /async function enterDrivingMode[\s\S]*?await ensureMenuFeatureStyles\("driving"\);[\s\S]*?activeAppMenu = "driving";/
