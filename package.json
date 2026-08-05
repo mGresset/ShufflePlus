@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.36",
+  "version": "9.9.37",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.36 — raccourci clavier Rechercher stable dès le premier rendu mobile.",
+  "description": "Shuffle+ 9.9.37 — état visuel Rechercher remis à zéro après fermeture.",
   "engines": {
     "node": ">=20"
   },

@@ -8,8 +8,8 @@ const [version, appSource, drivingCss] = await Promise.all([
     readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 9.9.36 utilise la hauteur réellement visible de Safari", () => {
-    assert.equal(version, "9.9.36");
+test("Shuffle+ 9.9.37 utilise la hauteur réellement visible de Safari", () => {
+    assert.equal(version, "9.9.37");
     assert.match(appSource, /const visualViewport = window\.visualViewport;/);
     assert.match(appSource, /--driving-viewport-height/);
     assert.match(appSource, /--driving-browser-bottom-clearance/);
@@ -19,7 +19,7 @@ test("Shuffle+ 9.9.36 utilise la hauteur réellement visible de Safari", () => {
 test("le bas du mode conduite dispose d'un espace de scroll sécurisé", () => {
     assert.match(
         drivingCss,
-        /Shuffle\+ v9\.9\.36 — bas du mode conduite accessible sur Safari iPhone/
+        /Shuffle\+ v9\.9\.34 — bas du mode conduite accessible sur Safari iPhone/
     );
     assert.match(
         drivingCss,

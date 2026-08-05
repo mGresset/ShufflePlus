@@ -11,15 +11,41 @@
 
 .app-menu-search-button {
     position: relative;
-    border-color: color-mix(in srgb, var(--accent) 24%, transparent) !important;
-    background: rgb(var(--accent-rgb) / 5%) !important;
+    border-color: transparent !important;
+    background: transparent !important;
 }
 
-.app-menu-search-button:hover,
+body.is-universal-search-open .app-menu-search-button,
+.app-menu-search-button.is-search-open,
+.app-menu-search-button[aria-expanded="true"] {
+    border-color: var(--border-active) !important;
+    background: rgb(var(--accent-rgb) / 14%) !important;
+    color: #fff !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .app-menu-search-button:hover {
+        border-color: var(--border-active) !important;
+        background: rgb(var(--accent-rgb) / 14%) !important;
+        color: #fff !important;
+    }
+}
+
 .app-menu-search-button:focus-visible {
     border-color: var(--border-active) !important;
     background: rgb(var(--accent-rgb) / 14%) !important;
     color: #fff !important;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    .app-menu-search-button:not(.is-search-open):not([aria-expanded="true"]):hover,
+    .app-menu-search-button:not(.is-search-open):not([aria-expanded="true"]):active,
+    .app-menu-search-button:not(.is-search-open):not([aria-expanded="true"]):focus:not(:focus-visible) {
+        border-color: transparent !important;
+        background: transparent !important;
+        color: inherit !important;
+        box-shadow: none !important;
+    }
 }
 
 .app-menu-search-button kbd {
