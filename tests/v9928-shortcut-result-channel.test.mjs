@@ -14,8 +14,8 @@ const appSource = await readFile("app.js", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("Shuffle+ 9.9.34 publie un résultat de raccourci sur Railway", () => {
-    assert.equal(version, "9.9.34");
+test("Shuffle+ 9.9.35 publie un résultat de raccourci sur Railway", () => {
+    assert.equal(version, "9.9.35");
     assert.match(appSource, /publishAutomationResult/);
     assert.match(appSource, /status: "running"/);
     assert.match(workerSource, /core\/shortcut-result-channel\.js/);
@@ -74,7 +74,7 @@ test("la publication envoie un JSON minimal et retente en cas d’échec", async
             serverUrl: "https://shuffleplus.up.railway.app"
         },
         {
-            version: "9.9.34",
+            version: "9.9.35",
             status: "success",
             device: "iPhone",
             message: "Lecture confirmée"

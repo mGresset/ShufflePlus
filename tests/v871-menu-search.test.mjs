@@ -11,8 +11,8 @@ const styleSource = await readFile("style.css", "utf8");
 const searchStyleSource = await readFile("styles/feature-search.css", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("la distribution active annonce Shuffle+ 9.9.34", () => {
-    assert.equal(versionSource, "9.9.34");
+test("la distribution active annonce Shuffle+ 9.9.35", () => {
+    assert.equal(versionSource, "9.9.35");
 });
 
 test("la recherche globale est intégrée au menu principal", () => {
@@ -27,10 +27,18 @@ test("la grande barre de recherche supérieure a disparu", () => {
     assert.doesNotMatch(appSource, /\$\{renderUniversalSearchLauncher\(\)\}/);
 });
 
-test("le menu mobile n’affiche que l’icône de recherche", () => {
+test("le menu mobile conserve le libellé Rechercher après le chargement différé", () => {
     assert.match(
         searchStyleSource,
-        /@media \(max-width: 760px\)[\s\S]*?\.app-menu-search-button__label,[\s\S]*?display: none;/
+        /@media \(max-width: 760px\)[\s\S]*?\.app-menu-search-button kbd\s*\{\s*display: none;/
+    );
+    assert.match(
+        searchStyleSource,
+        /\.app-menu-search-button__label\s*\{[\s\S]*?display: inline;/
+    );
+    assert.doesNotMatch(
+        searchStyleSource,
+        /\.app-menu-search-button__label\s*,\s*\.app-menu-search-button kbd\s*\{\s*display: none;/
     );
 });
 
