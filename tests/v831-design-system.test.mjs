@@ -9,15 +9,15 @@ const workerSource = await readFile("service-worker.js", "utf8");
 const buildSource = await readFile("scripts/build.mjs", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("la v9.9.37 charge le design system après les styles historiques", () => {
-    assert.equal(versionSource, "9.9.37");
+test("la v9.9.38 charge le design system après les styles historiques", () => {
+    assert.equal(versionSource, "9.9.38");
 
-    const legacyStyle = indexSource.indexOf("style.css?v=9.9.37");
-    const designStyle = indexSource.indexOf("design-system.css?v=9.9.37");
+    const legacyStyle = indexSource.indexOf("style.css?v=9.9.38");
+    const designStyle = indexSource.indexOf("design-system.css?v=9.9.38");
 
     assert.ok(legacyStyle > 0);
     assert.ok(designStyle > legacyStyle);
-    assert.match(workerSource, /design-system\.css\?v=9\.9\.37/);
+    assert.match(workerSource, /design-system\.css\?v=9\.9\.38/);
     assert.match(buildSource, /"design-system\.css"/);
 });
 

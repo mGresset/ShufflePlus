@@ -27,9 +27,9 @@ function playback({
     };
 }
 
-test("la correction active annonce Shuffle+ 9.9.37", () => {
-    assert.equal(version, "9.9.37");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.37"/);
+test("la correction active annonce Shuffle+ 9.9.38", () => {
+    assert.equal(version, "9.9.38");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.38"/);
 });
 
 test("l'horloge locale avance sans nouvel appel Spotify", () => {

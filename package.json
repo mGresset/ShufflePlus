@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.37",
+  "version": "9.9.38",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.37 — état visuel Rechercher remis à zéro après fermeture.",
+  "description": "Shuffle+ 9.9.38 — sélection unique entre navigation et recherche.",
   "engines": {
     "node": ">=20"
   },
