@@ -7,10 +7,10 @@ const indexSource = await readFile("index.html", "utf8");
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("l’harmonisation desktop active annonce Shuffle+ 9.9.31", () => {
-    assert.equal(version, "9.9.31");
-    assert.match(indexSource, /design-system\.css\?v=9\.9\.31/);
-    assert.match(indexSource, /bootstrap-9\.9\.31\.js/);
+test("l’harmonisation desktop active annonce Shuffle+ 9.9.32", () => {
+    assert.equal(version, "9.9.32");
+    assert.match(indexSource, /design-system\.css\?v=9\.9\.32/);
+    assert.match(indexSource, /bootstrap-9\.9\.32\.js/);
 });
 
 test("le bandeau d’analyse des playlists suit le thème actif", () => {

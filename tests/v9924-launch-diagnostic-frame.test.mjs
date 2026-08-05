@@ -12,8 +12,8 @@ function cssBlock(selector) {
     return match?.[1] || "";
 }
 
-test("Shuffle+ 9.9.31 harmonise le cadre du diagnostic de lancement", () => {
-    assert.equal(version, "9.9.31");
+test("Shuffle+ 9.9.32 harmonise le cadre du diagnostic de lancement", () => {
+    assert.equal(version, "9.9.32");
     assert.match(appSource, /class="launch-center-diagnostic"/);
 
     const block = cssBlock(".launch-center-diagnostic");
