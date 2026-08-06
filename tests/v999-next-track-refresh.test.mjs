@@ -52,9 +52,9 @@ const nextQueueItem = {
     durationMs: 210_000
 };
 
-test("la synchronisation rapide annonce Shuffle+ 9.9.43", () => {
-    assert.equal(version, "9.9.43");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.43"/);
+test("la synchronisation rapide annonce Shuffle+ 9.9.44", () => {
+    assert.equal(version, "9.9.44");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.44"/);
 });
 
 test("Suivant conserve le titre courant et fige la barre avant confirmation", () => {

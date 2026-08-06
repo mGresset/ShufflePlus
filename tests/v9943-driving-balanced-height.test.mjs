@@ -8,9 +8,9 @@ const css = await readFile(
     "utf8"
 );
 
-test("Shuffle+ 9.9.43 équilibre le mode conduite sur toute la hauteur", () => {
-    assert.equal(version, "9.9.43");
-    assert.match(css, /v9\.9\.43 — conduite équilibrée sur toute la hauteur/);
+test("Shuffle+ 9.9.44 équilibre le mode conduite sur toute la hauteur", () => {
+    assert.equal(version, "9.9.44");
+    assert.match(css, /v9\.9\.44 — conduite équilibrée sur toute la hauteur/);
     assert.match(css, /body\.is-driving-mode #content\s*\{[\s\S]*?align-items:\s*stretch;/);
     assert.match(css, /body\.is-driving-mode \.driving-mode-page\s*\{[\s\S]*?height:\s*100%;/);
     assert.match(css, /flex:\s*1 1 auto;/);

@@ -31,9 +31,9 @@ function playback({
     };
 }
 
-test("la protection visuelle active annonce Shuffle+ 9.9.43", () => {
-    assert.equal(version, "9.9.43");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.43"/);
+test("la protection visuelle active annonce Shuffle+ 9.9.44", () => {
+    assert.equal(version, "9.9.44");
+    assert.match(appSource, /const APP_VERSION = "9\.9\.44"/);
 });
 
 test("cinq secondes d'ancien état Lecture ne déplacent plus une Pause locale", () => {

@@ -8,8 +8,8 @@ const css = await readFile(
     "utf8"
 );
 
-test("Shuffle+ 9.9.43 ajuste le cadre conduite à son contenu", () => {
-    assert.equal(version, "9.9.43");
+test("Shuffle+ 9.9.44 ajuste le cadre conduite à son contenu", () => {
+    assert.equal(version, "9.9.44");
     assert.match(css, /v9\.9\.42 — cadre conduite ajusté à son contenu/);
     assert.match(css, /body\.is-driving-mode #content\s*\{[\s\S]*?align-items:\s*flex-start;/);
     assert.match(css, /body\.is-driving-mode \.driving-mode-page\s*\{[\s\S]*?height:\s*auto;/);
