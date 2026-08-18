@@ -1481,7 +1481,7 @@ body.is-driving-mode .driving-mode-page {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.45 — conduite équilibrée sur toute la hauteur
+   Shuffle+ v9.9.46 — conduite équilibrée sur toute la hauteur
    ===================================================================== */
 
 @media (max-width: 700px) and (orientation: portrait) {
@@ -1554,5 +1554,30 @@ body.is-driving-mode .driving-mode-page {
         overflow: visible;
         text-overflow: clip;
         text-align: center;
+    }
+}
+
+
+/* =====================================================================
+   Shuffle+ v9.9.46 — bouton Aléatoire explicite en conduite
+   ===================================================================== */
+
+body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle-on {
+    border-color: color-mix(in srgb, var(--accent) 76%, white 8%);
+    background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--accent) 34%, #11111a),
+        color-mix(in srgb, var(--accent-secondary) 18%, #101018)
+    );
+}
+
+body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle-off:not(.driving-control-primary) {
+    border-color: rgb(var(--accent-rgb) / 27%);
+}
+
+@media (max-width: 700px) and (orientation: portrait) {
+    body.is-driving-mode .driving-control[data-driving-control="shuffle"] strong {
+        white-space: nowrap;
+        font-size: clamp(11px, 3vw, 13px);
     }
 }

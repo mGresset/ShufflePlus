@@ -21,8 +21,8 @@ const serviceWorker = await readFile(
     "utf8"
 );
 
-test("la distribution active annonce Shuffle+ 9.9.45", () => {
-    assert.equal(version, "9.9.45");
+test("la distribution active annonce Shuffle+ 9.9.46", () => {
+    assert.equal(version, "9.9.46");
 });
 
 test("les réglages de conduite avancée restent compatibles avec les anciennes sauvegardes", () => {
@@ -40,17 +40,25 @@ test("les réglages de conduite avancée restent compatibles avec les anciennes 
     );
 });
 
-test("une action principale invalide revient vers Adaptive DJ", () => {
+test("une action principale invalide revient vers Aléatoire", () => {
     const settings = normalizeDrivingAdvancedSettings({
         primaryAction: "inconnue"
     });
 
-    assert.equal(settings.primaryAction, "adaptive");
+    assert.equal(settings.primaryAction, "shuffle");
+});
+
+test("une ancienne préférence Adaptive DJ migre vers Aléatoire", () => {
+    const settings = normalizeDrivingAdvancedSettings({
+        primaryAction: "adaptive"
+    });
+
+    assert.equal(settings.primaryAction, "shuffle");
 });
 
 test("l’action principale choisie passe en tête sans supprimer les autres commandes", () => {
     const controls = [
-        { id: "adaptive" },
+        { id: "shuffle" },
         { id: "playpause" },
         { id: "next" },
         { id: "voice" }

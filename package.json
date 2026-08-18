@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.45",
+  "version": "9.9.46",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.45 — commandes secondaires conduite simplifiées et explicites.",
+  "description": "Shuffle+ 9.9.46 — bouton Aléatoire Spotify dans le mode conduite.",
   "engines": {
     "node": ">=20"
   },
