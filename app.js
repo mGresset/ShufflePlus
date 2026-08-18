@@ -415,7 +415,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.44";
+const APP_VERSION = "9.9.45";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -889,7 +889,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.44-shell";
+    "shuffleplus-v9.9.45-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5405,7 +5405,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.44
+                        ✨ Apparence v9.9.45
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6439,7 +6439,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.44",
+                "./service-worker.js?v=9.9.45",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7112,7 +7112,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.44 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        La v9.9.45 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10149,23 +10149,6 @@ function renderDrivingQueueItem(item, index, flag = {}) {
     `;
 }
 
-function getDrivingSpotifyUrl(track = {}) {
-    const externalUrl = String(
-        track?.external_urls?.spotify || ""
-    ).trim();
-
-    if (externalUrl.startsWith("https://open.spotify.com/")) {
-        return externalUrl;
-    }
-
-    const uri = String(track?.uri || "");
-    const match = uri.match(/^spotify:track:([a-zA-Z0-9]+)$/);
-
-    return match
-        ? `https://open.spotify.com/track/${match[1]}`
-        : "";
-}
-
 function renderDrivingPlaybackProgress(playback = {}) {
     const progress = getDrivingPlaybackProgress(playback);
 
@@ -11140,12 +11123,6 @@ function updateDrivingPlaybackDom() {
         );
     }
 
-    const spotifyLink = page.querySelector(".driving-spotify-link");
-    const spotifyUrl = getDrivingSpotifyUrl(track);
-    if (spotifyLink && spotifyUrl) {
-        spotifyLink.setAttribute("href", spotifyUrl);
-    }
-
     const feedbackAction = getDrivingCurrentFeedbackAction(track);
     page.querySelectorAll("[data-driving-feedback]").forEach((button) => {
         button.classList.toggle(
@@ -11219,10 +11196,6 @@ function renderDrivingModePage() {
         wakeLockState.supported;
     const voiceSupported =
         isVoiceAssistantSupported();
-    const queueCount =
-        drivingQueueState.queue?.length || 0;
-    const spotifyUrl = getDrivingSpotifyUrl(track);
-
     contentElement.innerHTML = `
         <section class="driving-mode-page" aria-label="Mode conduite" data-has-track="${String(Boolean(track))}" data-track-key="${escapeHtml(getDrivingTrackKey(track))}">
             <header class="driving-mode-header">
@@ -11329,31 +11302,6 @@ function renderDrivingModePage() {
             ` : ""}
 
             <div class="driving-secondary-controls">
-                ${spotifyUrl ? `
-                    <a
-                        class="driving-spotify-link"
-                        href="${escapeHtml(spotifyUrl)}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Ouvrir le titre actuel dans Spotify"
-                    >
-                        <span aria-hidden="true">◉</span>
-                        <small>Spotify</small>
-                    </a>
-                ` : ""}
-
-                <button
-                    id="drivingQueueButton"
-                    class="driving-queue-control ${drivingQueueOpen ? "is-active" : ""}"
-                    type="button"
-                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
-                    aria-label="Afficher la liste de lecture"
-                    title="Afficher la liste de lecture"
-                >
-                    <span aria-hidden="true">📋</span>
-                    <small>${queueCount ? `${queueCount} à venir` : "Liste"}</small>
-                </button>
-
                 <button
                     id="drivingRefreshButton"
                     type="button"
@@ -11382,8 +11330,8 @@ function renderDrivingModePage() {
                 </label>
 
                 <label
-                    aria-label="Actualisation automatique"
-                    title="Actualisation automatique"
+                    aria-label="Actualisation automatique Spotify"
+                    title="Actualisation automatique de la lecture Spotify"
                 >
                     <input
                         id="drivingAutoRefreshInput"
@@ -11391,7 +11339,7 @@ function renderDrivingModePage() {
                         ${drivingModeSettings.autoRefresh ? "checked" : ""}
                     >
                     <span aria-hidden="true">🔄</span>
-                    <small>Auto</small>
+                    <small>Actualisation auto</small>
                 </label>
             </div>
 
@@ -45730,7 +45678,7 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
-                "#drivingQueueButton, [data-open-driving-queue]"
+                "[data-open-driving-queue]"
             )
         ) {
             if (activeAppMenu !== "driving") {

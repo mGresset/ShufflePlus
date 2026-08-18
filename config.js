@@ -2,7 +2,7 @@ import {
     getConfiguredSpotifyClientId
 } from "./core/spotify-app-config.js";
 
-const APP_VERSION = "9.9.44";
+const APP_VERSION = "9.9.45";
 const PRODUCTION_REDIRECT_URI =
     "https://mgresset.github.io/ShufflePlus/";
 const LOCAL_REDIRECT_URI =

@@ -382,7 +382,7 @@
         align-items: stretch;
     }
 
-    /* Shuffle+ v9.9.44 — le badge reste une pastille centrée même si
+    /* Shuffle+ v9.9.45 — le badge reste une pastille centrée même si
        l’en-tête mobile étire ses autres éléments. */
     .v9-home-card-heading .v9-home-readiness {
         align-self: center;

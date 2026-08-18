@@ -18,11 +18,11 @@ const drivingStyleSource = await readFile("styles/feature-driving.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 
-test("la distribution active annonce Shuffle+ 9.9.44", () => {
-    assert.equal(versionSource, "9.9.44");
-    assert.match(indexSource, /shuffleplus-version" content="9\.9\.44/);
-    assert.match(appSource, /const APP_VERSION = "9\.9\.44"/);
-    assert.match(serviceWorkerSource, /shuffleplus-v9\.9\.44/);
+test("la distribution active annonce Shuffle+ 9.9.45", () => {
+    assert.equal(versionSource, "9.9.45");
+    assert.match(indexSource, /shuffleplus-version" content="9\.9\.45/);
+    assert.match(appSource, /const APP_VERSION = "9\.9\.45"/);
+    assert.match(serviceWorkerSource, /shuffleplus-v9\.9\.45/);
 });
 
 test("les actions historiques reçoivent une variante sémantique stable", () => {
@@ -72,12 +72,12 @@ test("l’aperçu conduite conserve trois titres et normalise leurs durées", ()
     assert.equal(preview[0].durationLabel, "3:00");
 });
 
-test("le mode conduite affiche toujours la file, la progression et le lien Spotify", () => {
+test("le mode conduite affiche la file et la progression sans lien Spotify redondant", () => {
     assert.match(appSource, /function renderDrivingPlaybackProgress/);
     assert.match(appSource, /class="driving-playback-progress"/);
     assert.match(appSource, /class="driving-queue-preview \$\{upcoming\.length/);
     assert.match(appSource, /Charger la liste/);
-    assert.match(appSource, /class="driving-spotify-link"/);
+    assert.doesNotMatch(appSource, /class="driving-spotify-link"/);
 });
 
 test("le design system v8.4 couvre les formulaires et le layout conduite mobile", () => {

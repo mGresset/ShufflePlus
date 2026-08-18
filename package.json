@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.44",
+  "version": "9.9.45",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.44 — mode conduite équilibré sur toute la hauteur.",
+  "description": "Shuffle+ 9.9.45 — commandes secondaires conduite simplifiées et explicites.",
   "engines": {
     "node": ">=20"
   },
