@@ -1,8 +1,0 @@
-SHUFFLE+ V9.9.12 — INSTALLATION
-
-1. Déployer tous les fichiers du build v9.9.12.
-2. Attendre la publication GitHub Pages.
-3. Fermer complètement Shuffle+ sur l’iPhone.
-4. Rouvrir l’application avec Internet actif.
-5. Vérifier que l’en-tête affiche v9.9.12.
-6. Faire défiler rapidement l’accueil pendant au moins 10 secondes : la page ne doit plus revenir à une ancienne position.

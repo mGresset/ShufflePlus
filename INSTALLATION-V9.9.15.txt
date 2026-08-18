@@ -1,8 +1,0 @@
-Shuffle+ v9.9.15
-
-1. npm.cmd run validate
-2. git add -A
-3. git commit -m "Release Shuffle+ v9.9.15 - harmonisation desktop et assistant"
-4. git push origin main
-
-Après publication, fermer complètement la PWA puis vérifier l’affichage de v9.9.15.

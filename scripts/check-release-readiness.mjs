@@ -27,7 +27,10 @@ const requiredFiles = [
     "styles/feature-settings.css",
     "server/server.js",
     "server/test.js",
-    "server/Dockerfile"
+    "server/Dockerfile",
+    "CHANGELOG.md",
+    "DEPLOIEMENT.md",
+    "GUIDE-RACCOURCI.md"
 ];
 
 for (const relative of requiredFiles) {
@@ -84,6 +87,16 @@ for (const asset of new Set(declaredAssets)) {
 }
 
 const rootEntries = await readdir(root);
+const obsoleteReleaseDocs = rootEntries.filter((name) => (
+    /^V\d+\.\d+\.\d+_NOTES\.md$/.test(name) ||
+    /^DEPLOIEMENT-V\d+\.\d+\.\d+\.md$/.test(name) ||
+    /^INSTALLATION-V\d+\.\d+\.\d+\.txt$/.test(name) ||
+    /^PATCH_MANIFEST_V\d+\.\d+\.\d+\.txt$/.test(name)
+));
+if (obsoleteReleaseDocs.length) {
+    fail(`Documentation de release obsolète présente : ${obsoleteReleaseDocs.join(", ")}`);
+}
+
 const forbiddenEnvironmentFiles = rootEntries.filter((name) => (
     name === ".env" || /^\.env\.(?!example$)/.test(name)
 ));

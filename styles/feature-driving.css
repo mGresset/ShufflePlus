@@ -1481,7 +1481,7 @@ body.is-driving-mode .driving-mode-page {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.46 — conduite équilibrée sur toute la hauteur
+   Shuffle+ v9.9.47 — conduite équilibrée sur toute la hauteur
    ===================================================================== */
 
 @media (max-width: 700px) and (orientation: portrait) {
@@ -1559,7 +1559,7 @@ body.is-driving-mode .driving-mode-page {
 
 
 /* =====================================================================
-   Shuffle+ v9.9.46 — bouton Aléatoire explicite en conduite
+   Shuffle+ v9.9.47 — bouton Aléatoire explicite en conduite
    ===================================================================== */
 
 body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle-on {

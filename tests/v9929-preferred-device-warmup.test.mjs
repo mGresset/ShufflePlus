@@ -9,8 +9,8 @@ import {
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
-test("Shuffle+ 9.9.46 prolonge la détection de l’iPhone enregistré", () => {
-    assert.equal(version, "9.9.46");
+test("Shuffle+ 9.9.47 prolonge la détection de l’iPhone enregistré", () => {
+    assert.equal(version, "9.9.47");
     const policy = buildPreferredDeviceDiscoveryPolicy({
         strict: true,
         attempts: 6,

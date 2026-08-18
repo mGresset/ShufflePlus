@@ -1,8 +1,0 @@
-SHUFFLE+ v9.9.19
-
-1. Publier le contenu du dossier dist/ sur GitHub Pages.
-2. Fermer complètement la PWA ou l’onglet Safari.
-3. Rouvrir Shuffle+ avec une connexion Internet active.
-4. Vérifier que l’en-tête affiche v9.9.19.
-5. Ouvrir le mode Conduite et vérifier qu’il occupe toute la hauteur visible.
-6. Laisser l’actualisation automatique fonctionner et vérifier que la pochette ne clignote plus.

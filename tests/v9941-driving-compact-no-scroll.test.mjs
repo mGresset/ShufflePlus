@@ -6,8 +6,8 @@ const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8"))
 const css = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
-test("Shuffle+ 9.9.46 compacte le mode conduite sans défilement mobile", () => {
-    assert.equal(version, "9.9.46");
+test("Shuffle+ 9.9.47 compacte le mode conduite sans défilement mobile", () => {
+    assert.equal(version, "9.9.47");
     assert.match(css, /v9\.9\.41 — conduite compacte sans défilement/);
     assert.match(css, /\.driving-mode-page\s*\{[\s\S]*?overflow:\s*hidden/);
     assert.match(css, /grid-template-rows:\s*repeat\(2, minmax\(68px, 1fr\)\)/);
