@@ -131,33 +131,6 @@ body.is-driving-mode {
     line-height: 1.45;
 }
 
-.driving-spotify-link {
-    display: grid;
-    grid-template-columns: auto auto;
-    min-width: 0;
-    min-height: 42px;
-    place-content: center;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 9px;
-    border: 1px solid var(--ui-control-border);
-    border-radius: 12px;
-    background: var(--ui-control-bg);
-    color: var(--text-main);
-    text-decoration: none;
-}
-
-.driving-spotify-link span {
-    color: var(--accent);
-    font-size: 16px;
-}
-
-.driving-spotify-link small {
-    overflow: hidden;
-    font-size: 10px;
-    text-overflow: ellipsis;
-}
-
 @media (max-width: 600px) {
     body.is-driving-mode .driving-mode-page {
         grid-template-areas:
@@ -255,8 +228,7 @@ body.is-driving-mode {
 
     body.is-driving-mode .driving-secondary-controls :where(
         button,
-        label,
-        .driving-spotify-link
+        label
     ) {
         min-height: 36px;
         padding: 4px 5px;
@@ -835,8 +807,25 @@ body.is-driving-mode .driving-mode-page {
 }
 
 /* =====================================================================
-   Shuffle+ v9.9.30 — mode conduite adaptatif avec défilement interne
+   Shuffle+ v9.9.48 — contrat mobile conduite consolidé
+   ---------------------------------------------------------------------
+   Cette section remplace les correctifs successifs 9.9.30 → 9.9.47.
+   Une seule source de vérité gère désormais le viewport Safari, la densité
+   des commandes et la variante ultra-compacte en portrait.
    ===================================================================== */
+
+body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle-on {
+    border-color: color-mix(in srgb, var(--accent) 76%, white 8%);
+    background: linear-gradient(
+        145deg,
+        color-mix(in srgb, var(--accent) 34%, #11111a),
+        color-mix(in srgb, var(--accent-secondary) 18%, #101018)
+    );
+}
+
+body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle-off:not(.driving-control-primary) {
+    border-color: rgb(var(--accent-rgb) / 27%);
+}
 
 @media (max-width: 700px) and (orientation: portrait) {
     body.is-driving-mode,
@@ -846,204 +835,9 @@ body.is-driving-mode .driving-mode-page {
         overflow: hidden;
     }
 
-    body.is-driving-mode .driving-mode-page {
-        width: 100%;
-        height: 100%;
-        min-height: 0;
-        max-height: 100%;
-        align-content: start;
-        grid-auto-rows: max-content;
-        grid-template-rows:
-            auto auto auto auto auto auto auto auto auto auto auto;
-        padding-bottom: calc(18px + env(safe-area-inset-bottom));
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior-y: contain;
-        scroll-padding-bottom: calc(24px + env(safe-area-inset-bottom));
-        touch-action: pan-y;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    body.is-driving-mode .driving-now-playing,
-    body.is-driving-mode .driving-main-controls,
-    body.is-driving-mode .driving-queue-preview {
-        min-height: max-content;
-    }
-
-    body.is-driving-mode .driving-main-controls {
-        grid-template-rows: repeat(2, minmax(112px, auto));
-    }
-
-    body.is-driving-mode .driving-queue-preview {
-        overflow: visible;
-    }
-}
-
-/* =====================================================================
-   Shuffle+ v9.9.33 — flux mobile conduite sans chevauchement
-   ===================================================================== */
-
-@media (max-width: 700px) and (orientation: portrait) {
-    /* La grille historique imposait des lignes plus courtes que leur
-       contenu. La file et les commandes débordaient alors sur la ligne
-       suivante. Le téléphone utilise désormais un flux vertical naturel,
-       défilable à l'intérieur du cadre conduite. */
-    body.is-driving-mode .driving-mode-page {
-        display: flex;
-        width: 100%;
-        height: 100%;
-        min-height: 0;
-        max-height: 100%;
-        flex-direction: column;
-        align-items: stretch;
-        align-content: normal;
-        gap: clamp(6px, 1.05dvh, 10px);
-        grid-template: none;
-        grid-auto-rows: unset;
-        padding-bottom: calc(22px + env(safe-area-inset-bottom));
-        overflow-x: hidden;
-        overflow-y: auto;
-        overscroll-behavior-y: contain;
-        scroll-padding-bottom: calc(28px + env(safe-area-inset-bottom));
-        touch-action: pan-y;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    body.is-driving-mode .driving-mode-page > :not(.driving-queue-sheet) {
-        position: relative;
-        inset: auto;
-        z-index: auto;
-        min-width: 0;
-        flex: 0 0 auto;
-        align-self: stretch;
-    }
-
-    body.is-driving-mode :where(
-        .driving-playback-progress,
-        .driving-queue-preview,
-        .driving-main-controls,
-        .driving-feedback-controls,
-        .driving-secondary-controls,
-        .driving-preferences-panel,
-        .driving-message
-    ) {
-        grid-area: auto;
-        margin-block: 0;
-    }
-
-    body.is-driving-mode .driving-queue-preview {
-        display: grid;
-        width: 100%;
-        height: auto;
-        min-height: 0;
-        max-height: none;
-        overflow: hidden;
-    }
-
-    body.is-driving-mode .driving-queue-preview ol {
-        width: 100%;
-        height: auto;
-        min-height: 0;
-        max-height: none;
-        overflow: visible;
-    }
-
-    body.is-driving-mode .driving-main-controls {
-        width: 100%;
-        height: auto;
-        min-height: 0;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-rows: none;
-        grid-auto-rows: minmax(112px, auto);
-    }
-
-    body.is-driving-mode .driving-control {
-        height: auto;
-        min-height: 112px;
-    }
-
-    body.is-driving-mode .driving-feedback-controls,
-    body.is-driving-mode .driving-secondary-controls {
-        width: 100%;
-        height: auto;
-        min-height: 0;
-    }
-}
-
-/* =====================================================================
-   Shuffle+ v9.9.34 — bas du mode conduite accessible sur Safari iPhone
-   ===================================================================== */
-
-@media (max-width: 700px) and (orientation: portrait) {
-    body.is-driving-mode,
-    body.is-driving-mode .app {
-        height: var(--driving-viewport-height, 100dvh);
-        max-height: var(--driving-viewport-height, 100dvh);
-    }
-
-    body.is-driving-mode .app {
-        padding-bottom: max(4px, env(safe-area-inset-bottom));
-    }
-
-    body.is-driving-mode #content {
-        height: 100%;
-        min-height: 0;
-        max-height: 100%;
-    }
-
-    body.is-driving-mode .driving-mode-page {
-        height: 100%;
-        min-height: 0;
-        max-height: 100%;
-        padding-bottom: calc(
-            36px +
-            env(safe-area-inset-bottom) +
-            var(--driving-browser-bottom-clearance, 0px)
-        );
-        scroll-padding-bottom: calc(
-            64px +
-            env(safe-area-inset-bottom) +
-            var(--driving-browser-bottom-clearance, 0px)
-        );
-    }
-
-    /* Le spacer fait partie du flux flex et garantit que la dernière rangée
-       peut remonter entièrement au-dessus de la barre Safari. */
-    body.is-driving-mode .driving-mode-page::after {
-        content: "";
-        display: block;
-        width: 100%;
-        min-height: calc(
-            72px +
-            env(safe-area-inset-bottom) +
-            var(--driving-browser-bottom-clearance, 0px)
-        );
-        flex: 0 0 calc(
-            72px +
-            env(safe-area-inset-bottom) +
-            var(--driving-browser-bottom-clearance, 0px)
-        );
-        pointer-events: none;
-    }
-
-    body.is-driving-mode .driving-secondary-controls,
-    body.is-driving-mode .driving-preferences-panel,
-    body.is-driving-mode .driving-message {
-        position: relative;
-        z-index: 1;
-        flex-shrink: 0;
-    }
-}
-
-/* =====================================================================
-   Shuffle+ v9.9.39 — viewport Safari ancré et bas de conduite durable
-   ===================================================================== */
-
-@media (max-width: 700px) and (orientation: portrait) {
-    /* Safari déplace son visual viewport lorsque ses barres apparaissent.
-       Le panneau est donc fixé sur cette zone réelle, et non sur l'ancien
-       layout viewport qui pouvait laisser les derniers contrôles sous la
-       barre du navigateur. */
+    /* Safari iPhone peut déplacer le visual viewport lorsque ses barres
+       apparaissent. L'application suit donc exactement la hauteur et le
+       décalage mesurés par JavaScript, sans ajouter de spacer artificiel. */
     body.is-driving-mode .app {
         position: fixed;
         z-index: 0;
@@ -1053,66 +847,562 @@ body.is-driving-mode .driving-mode-page {
         left: 0;
         width: 100%;
         height: var(--driving-viewport-height, 100dvh);
-        min-height: 0;
         max-height: var(--driving-viewport-height, 100dvh);
         margin: 0;
+        padding:
+            max(4px, env(safe-area-inset-top))
+            max(4px, env(safe-area-inset-right))
+            max(4px, env(safe-area-inset-bottom))
+            max(4px, env(safe-area-inset-left));
         overflow: hidden;
     }
 
     body.is-driving-mode #content {
+        display: flex;
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        max-height: 100%;
+        margin: 0;
+        align-items: stretch;
+    }
+
+    body.is-driving-mode .driving-mode-page,
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout {
+        display: flex;
         width: 100%;
         height: 100%;
         min-height: 0;
         max-height: 100%;
+        flex: 1 1 auto;
+        flex-direction: column;
+        align-items: stretch;
+        align-self: stretch;
+        justify-content: space-between;
+        gap: clamp(3px, 0.55dvh, 7px);
+        padding: clamp(5px, 0.8dvh, 8px);
+        overflow: hidden;
+        border-radius: clamp(12px, 3.5vw, 18px);
+        box-shadow: none;
+        overscroll-behavior: none;
+        touch-action: manipulation;
+        scrollbar-width: none;
+    }
+
+    body.is-driving-mode .driving-mode-page::-webkit-scrollbar {
+        display: none;
+    }
+
+    body.is-driving-mode .driving-mode-page::after {
+        content: none;
+        display: none;
+    }
+
+    body.is-driving-mode .driving-mode-page > :not(.driving-queue-sheet) {
+        position: relative;
+        inset: auto;
+        z-index: auto;
+        min-width: 0;
+        flex-shrink: 0;
+        align-self: stretch;
+        margin-block: 0;
+    }
+
+    body.is-driving-mode .driving-mode-header {
+        display: grid;
+        min-height: 42px;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 6px;
+    }
+
+    body.is-driving-mode .driving-mode-header-copy {
+        min-width: 0;
+    }
+
+    body.is-driving-mode .driving-mode-header span {
+        display: block;
+        overflow: hidden;
+        font-size: 10px;
+        line-height: 1.1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-mode-header h2 {
+        margin: 1px 0 0;
+        font-size: clamp(20px, 5.4vw, 24px);
+        line-height: 1;
+    }
+
+    body.is-driving-mode .driving-header-actions {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 5px;
+    }
+
+    body.is-driving-mode :where(
+        .driving-safety-lock-button,
+        .driving-exit-button
+    ) {
+        min-height: 36px;
+        width: auto;
+        padding: 6px 10px;
+        font-size: 12px;
+    }
+
+    body.is-driving-mode .driving-safety-lock-button strong {
+        max-width: 7.4rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-safety-note {
+        min-height: 24px;
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+
+    body.is-driving-mode .driving-context-card {
+        min-height: 32px;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        gap: 6px;
+        padding: 5px 9px;
+    }
+
+    body.is-driving-mode .driving-context-card strong {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 13px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-context-card small {
+        font-size: 10px;
+    }
+
+    body.is-driving-mode .driving-now-playing {
+        min-height: 68px;
+        grid-template-columns: 58px minmax(0, 1fr);
+        gap: 8px;
+        padding: 6px 9px;
+    }
+
+    body.is-driving-mode .driving-cover-frame,
+    body.is-driving-mode .driving-now-playing img,
+    body.is-driving-mode .driving-cover-placeholder {
+        width: 58px;
+        height: 58px;
+        border-radius: 10px;
+    }
+
+    body.is-driving-mode .driving-now-playing > div {
+        min-width: 0;
+    }
+
+    body.is-driving-mode .driving-now-playing h3 {
+        margin: 1px 0;
+        overflow: hidden;
+        font-size: clamp(17px, 4.7vw, 21px);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-now-playing p,
+    body.is-driving-mode .driving-now-playing small {
+        overflow: hidden;
+        font-size: 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-playback-progress {
+        gap: 2px;
+        padding-inline: 3px;
+    }
+
+    body.is-driving-mode .driving-playback-progress-track {
+        height: 5px;
+    }
+
+    body.is-driving-mode .driving-playback-progress > div:last-child {
+        font-size: 9px;
+    }
+
+    /* La file est le seul bloc qui peut absorber une petite variation de
+       hauteur. Elle ne défile pas : les détails moins prioritaires sont
+       réduits sur les viewports courts ci-dessous. */
+    body.is-driving-mode .driving-queue-preview {
+        display: grid;
+        width: 100%;
+        min-height: 0;
+        max-height: 142px;
+        flex: 1 1 92px;
+        gap: 4px;
+        padding: 6px 7px;
+        overflow: hidden;
+        border-radius: 12px;
+    }
+
+    body.is-driving-mode .driving-queue-preview > header {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 6px;
+    }
+
+    body.is-driving-mode .driving-queue-freshness {
+        display: none;
+    }
+
+    body.is-driving-mode .driving-queue-preview > header button {
+        min-height: 30px;
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+
+    body.is-driving-mode .queue-continuity-badges {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 4px;
+        margin: 2px 0;
+    }
+
+    body.is-driving-mode .queue-continuity-badges span {
+        min-height: 24px;
+        padding: 3px 5px;
+        overflow: hidden;
+        font-size: 9px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-queue-preview ol {
+        width: 100%;
+        min-height: 0;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 4px;
         overflow: hidden;
     }
 
-    body.is-driving-mode .driving-mode-page {
-        height: 100%;
+    body.is-driving-mode .driving-queue-preview li {
+        grid-template-columns: 24px minmax(0, 1fr);
+        gap: 4px;
+        min-width: 0;
+        padding: 4px;
+    }
+
+    body.is-driving-mode .driving-queue-preview li img,
+    body.is-driving-mode .driving-queue-preview-index {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+    }
+
+    body.is-driving-mode .driving-queue-preview li strong,
+    body.is-driving-mode .driving-queue-preview li small {
+        overflow: hidden;
+        font-size: 8.5px;
+        line-height: 1.1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.is-driving-mode .driving-queue-preview li time {
+        display: none;
+    }
+
+    body.is-driving-mode .driving-main-controls {
+        display: grid;
+        width: 100%;
+        height: auto;
         min-height: 0;
-        max-height: 100%;
-        padding-bottom: max(
-            96px,
-            calc(
-                52px +
-                env(safe-area-inset-bottom) +
-                var(--driving-browser-bottom-clearance, 0px)
-            )
-        );
+        flex: 0 0 auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(2, minmax(68px, 1fr));
+        grid-auto-rows: unset;
+        gap: 5px;
+    }
+
+    body.is-driving-mode .driving-control-primary {
+        grid-column: auto;
+    }
+
+    body.is-driving-mode .driving-control {
+        min-width: 0;
+        min-height: 68px;
+        height: auto;
+        gap: 1px;
+        padding: 5px;
+        border-radius: 13px;
+    }
+
+    body.is-driving-mode .driving-control span {
+        font-size: clamp(23px, 6.5vw, 28px);
+        line-height: 1;
+    }
+
+    body.is-driving-mode .driving-control strong,
+    body.is-driving-mode .driving-control[data-driving-control="shuffle"] strong {
+        max-width: 100%;
+        overflow: visible;
+        font-size: clamp(11px, 3.1vw, 14px);
+        line-height: 1.05;
+        overflow-wrap: anywhere;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    body.is-driving-mode .driving-control small {
+        display: none;
+    }
+
+    body.is-driving-mode .driving-feedback-controls {
+        display: grid;
+        width: 100%;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px;
+    }
+
+    body.is-driving-mode .driving-feedback-controls button {
+        min-height: 34px;
+        padding: 4px 7px;
+        border-radius: 11px;
+        font-size: 12px;
+    }
+
+    body.is-driving-mode .driving-secondary-controls {
+        display: grid;
+        width: 100%;
+        min-height: 0;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+    body.is-driving-mode .driving-secondary-controls :where(button, label) {
+        display: grid;
+        min-width: 0;
+        min-height: 38px;
+        grid-template-columns: auto minmax(0, 1fr);
+        place-content: center;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        padding: 5px 7px;
+        border-radius: 10px;
+        white-space: normal;
+    }
+
+    body.is-driving-mode .driving-secondary-controls input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    body.is-driving-mode .driving-secondary-controls small {
+        display: block;
+        min-width: 0;
+        overflow: visible;
+        font-size: 10px;
+        line-height: 1.05;
+        text-align: center;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    body.is-driving-mode .driving-preferences-panel {
+        position: static;
+        width: 100%;
+        min-height: 32px;
+        max-width: none;
+        margin: 0;
+        border-radius: 12px;
+        box-shadow: none;
+    }
+
+    body.is-driving-mode .driving-preferences-panel > summary {
+        min-height: 32px;
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    /* Ouvert, le panneau de personnalisation reste autonome et défilable.
+       C'est volontairement le seul scroll de l'interface conduite mobile. */
+    body.is-driving-mode .driving-preferences-panel[open] {
+        position: fixed;
+        z-index: 180;
+        inset:
+            max(6px, env(safe-area-inset-top))
+            max(6px, env(safe-area-inset-right))
+            max(6px, env(safe-area-inset-bottom))
+            max(6px, env(safe-area-inset-left));
+        display: flex;
+        width: auto;
+        max-width: none;
+        min-height: 0;
+        max-height: none;
+        flex-direction: column;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 16px;
+        box-shadow: 0 24px 70px rgb(0 0 0 / 62%);
+        background: color-mix(in srgb, var(--surface-0) 96%, black);
+    }
+
+    body.is-driving-mode .driving-preferences-panel[open] > summary {
+        min-height: 48px;
+        flex: 0 0 auto;
+        justify-content: flex-start;
+        padding: 10px max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
+        border-bottom: 1px solid rgb(var(--accent-rgb) / 22%);
+        font-size: 14px;
+    }
+
+    body.is-driving-mode .driving-preferences-panel[open] .driving-preferences-grid {
+        min-height: 0;
+        max-height: none;
+        flex: 1 1 auto;
+        align-content: start;
+        padding:
+            12px
+            max(12px, env(safe-area-inset-right))
+            calc(24px + env(safe-area-inset-bottom))
+            max(12px, env(safe-area-inset-left));
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior-y: contain;
-        scroll-padding-bottom: max(
-            144px,
-            calc(
-                88px +
-                env(safe-area-inset-bottom) +
-                var(--driving-browser-bottom-clearance, 0px)
-            )
-        );
         touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
     }
 
-    /* Une réserve indépendante du contenu garantit que les commandes
-       secondaires, les préférences et le message peuvent toujours être
-       remontés entièrement au-dessus de la barre Safari. */
-    body.is-driving-mode .driving-mode-page::after {
-        min-height: max(
-            144px,
-            calc(
-                88px +
-                env(safe-area-inset-bottom) +
-                var(--driving-browser-bottom-clearance, 0px)
-            )
-        );
-        flex-basis: max(
-            144px,
-            calc(
-                88px +
-                env(safe-area-inset-bottom) +
-                var(--driving-browser-bottom-clearance, 0px)
-            )
-        );
+    body.is-driving-mode .driving-message {
+        min-height: 22px;
+        max-height: 24px;
+        margin: 0;
+        padding: 4px 8px;
+        overflow: hidden;
+        font-size: 9px;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 700px) and (orientation: portrait) and (max-height: 760px) {
+    body.is-driving-mode .driving-mode-page,
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout {
+        justify-content: flex-start;
+        gap: 3px;
+        padding: 4px;
+    }
+
+    body.is-driving-mode .driving-mode-header {
+        min-height: 36px;
+    }
+
+    body.is-driving-mode .driving-mode-header h2 {
+        font-size: 19px;
+    }
+
+    body.is-driving-mode :where(
+        .driving-safety-lock-button,
+        .driving-exit-button
+    ) {
+        min-height: 31px;
+        padding: 4px 7px;
+        font-size: 10px;
+    }
+
+    body.is-driving-mode .driving-safety-note {
+        min-height: 20px;
+        padding-block: 2px;
+        font-size: 8.5px;
+    }
+
+    body.is-driving-mode .driving-context-card {
+        min-height: 27px;
+        padding-block: 3px;
+    }
+
+    body.is-driving-mode .driving-now-playing {
+        min-height: 56px;
+        grid-template-columns: 48px minmax(0, 1fr);
+        padding: 4px 7px;
+    }
+
+    body.is-driving-mode .driving-cover-frame,
+    body.is-driving-mode .driving-now-playing img,
+    body.is-driving-mode .driving-cover-placeholder {
+        width: 48px;
+        height: 48px;
+    }
+
+    body.is-driving-mode .driving-now-playing h3 {
+        font-size: 16px;
+    }
+
+    body.is-driving-mode .queue-continuity-badges span:nth-child(n + 3),
+    body.is-driving-mode .driving-queue-preview li:nth-child(n + 3) {
+        display: none;
+    }
+
+    body.is-driving-mode .driving-queue-preview {
+        max-height: 108px;
+        flex-basis: 70px;
+    }
+
+    body.is-driving-mode .driving-main-controls {
+        grid-template-rows: repeat(2, minmax(58px, 1fr));
+        gap: 4px;
+    }
+
+    body.is-driving-mode .driving-control {
+        min-height: 58px;
+        padding: 3px;
+    }
+
+    body.is-driving-mode .driving-control span {
+        font-size: 21px;
+    }
+
+    body.is-driving-mode .driving-feedback-controls button,
+    body.is-driving-mode .driving-secondary-controls :where(button, label) {
+        min-height: 29px;
+    }
+
+    body.is-driving-mode .driving-preferences-panel,
+    body.is-driving-mode .driving-preferences-panel > summary {
+        min-height: 28px;
+    }
+
+    body.is-driving-mode .driving-message {
+        display: none;
+    }
+}
+
+/* Mesure réelle de secours pour les viewports Safari exceptionnellement
+   courts. JavaScript active cette classe uniquement si nécessaire. */
+@media (max-width: 700px) and (orientation: portrait) {
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout
+    .queue-continuity-badges span:nth-child(n + 3),
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout
+    .driving-queue-preview li:nth-child(n + 3),
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout
+    .driving-message {
+        display: none;
+    }
+
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout
+    .driving-main-controls {
+        grid-template-rows: repeat(2, minmax(56px, 1fr));
+    }
+
+    body.is-driving-mode .driving-mode-page.is-ultra-compact-layout
+    .driving-control {
+        min-height: 56px;
     }
 }

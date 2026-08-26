@@ -57,22 +57,42 @@ try {
     if (!ready) throw new Error("Serveur de test non démarré");
 
     const launchRequestId = crypto.randomUUID();
+    const launchToken = crypto.randomUUID();
+    const wrongLaunchToken = crypto.randomUUID();
+    const launchResultPath = `/v1/launch-results/${launchRequestId}`;
+
+    const unauthenticatedLaunch = await request(launchResultPath);
+    if (unauthenticatedLaunch.response.status !== 401) {
+        throw new Error("Canal de lancement accessible sans jeton");
+    }
+
     const pendingLaunch = await request(
-        `/v1/launch-results/${launchRequestId}`
+        `${launchResultPath}?token=${encodeURIComponent(launchToken)}`
     );
     if (
         pendingLaunch.response.status !== 202 ||
         pendingLaunch.data.status !== "pending"
     ) {
-        throw new Error("Résultat de lancement en attente incorrect");
+        throw new Error("Résultat de lancement authentifié en attente incorrect");
     }
 
+    const wrongTokenLaunch = await request(
+        `${launchResultPath}?token=${encodeURIComponent(wrongLaunchToken)}`
+    );
+    if (wrongTokenLaunch.response.status !== 403) {
+        throw new Error("Un mauvais jeton de lancement n’est pas refusé");
+    }
+
+    const launchAuth = {
+        Authorization: `Bearer ${launchToken}`
+    };
     const runningLaunch = await request(
-        `/v1/launch-results/${launchRequestId}`,
+        launchResultPath,
         {
             method: "POST",
+            headers: launchAuth,
             body: JSON.stringify({
-                version: "9.9.28",
+                version: "9.9.48",
                 status: "running",
                 message: "Lancement en cours"
             })
@@ -82,15 +102,16 @@ try {
         runningLaunch.response.status !== 202 ||
         runningLaunch.data.status !== "running"
     ) {
-        throw new Error("Publication running échouée");
+        throw new Error("Publication running authentifiée échouée");
     }
 
     const completedLaunch = await request(
-        `/v1/launch-results/${launchRequestId}`,
+        launchResultPath,
         {
             method: "POST",
+            headers: launchAuth,
             body: JSON.stringify({
-                version: "9.9.28",
+                version: "9.9.48",
                 status: "success",
                 success: true,
                 device: "iPhone de test",
@@ -99,18 +120,18 @@ try {
         }
     );
     if (completedLaunch.response.status !== 201) {
-        throw new Error("Publication du résultat final échouée");
+        throw new Error("Publication du résultat final authentifié échouée");
     }
 
     const launchResult = await request(
-        `/v1/launch-results/${launchRequestId}`
+        `${launchResultPath}?token=${encodeURIComponent(launchToken)}`
     );
     if (
         launchResult.response.status !== 200 ||
         launchResult.data.status !== "success" ||
         launchResult.data.device !== "iPhone de test"
     ) {
-        throw new Error("Lecture du résultat final échouée");
+        throw new Error("Lecture du résultat final authentifié échouée");
     }
 
     const secret = crypto.randomBytes(32).toString("base64url");
@@ -250,7 +271,7 @@ try {
         throw new Error("Suppression espace échouée");
     }
 
-    console.log("Tests serveur Shuffle+ v5.1 : OK");
+    console.log("Tests serveur Shuffle+ v5.2 : OK");
 } finally {
     child.kill("SIGTERM");
     await fs.rm(dataDir, {

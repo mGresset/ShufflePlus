@@ -32,6 +32,22 @@ if (!diagnostics.valid || diagnostics.allowsEval || diagnostics.allowsInlineScri
     process.exit(1);
 }
 
+if (/connect-src\s+[^;]*\shttps:(?:\s|;)/.test(normalizedActual)) {
+    console.error("La politique CSP autorise encore toutes les destinations HTTPS dans connect-src.");
+    process.exit(1);
+}
+
+for (const requiredConnectSource of [
+    "https://accounts.spotify.com",
+    "https://api.spotify.com",
+    "https://*.up.railway.app"
+]) {
+    if (!normalizedActual.includes(requiredConnectSource)) {
+        console.error(`Source connect-src requise absente : ${requiredConnectSource}`);
+        process.exit(1);
+    }
+}
+
 if (/\son[a-z]+\s*=/i.test(indexSource)) {
     console.error("Un gestionnaire d’événement HTML inline est présent dans index.html.");
     process.exit(1);

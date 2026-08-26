@@ -95,12 +95,19 @@
 }
 
 .v9-home-readiness {
+    display: inline-flex;
     flex: 0 0 auto;
+    align-self: center;
+    align-items: center;
+    justify-content: center;
+    min-height: 2rem;
     border-radius: 999px;
     padding: 0.45rem 0.7rem;
     background: rgba(255, 255, 255, 0.08);
     font-size: 0.78rem;
     font-weight: 800;
+    line-height: 1.1;
+    text-align: center;
 }
 
 .v9-home-readiness.is-ready,
@@ -373,6 +380,13 @@
     .v9-home-card-heading,
     .v9-home-queue > header {
         align-items: stretch;
+    }
+
+    /* Shuffle+ v9.9.45 — le badge reste une pastille centrée même si
+       l’en-tête mobile étire ses autres éléments. */
+    .v9-home-card-heading .v9-home-readiness {
+        align-self: center;
+        place-content: center;
     }
 
     .v9-home-profile-form > div,

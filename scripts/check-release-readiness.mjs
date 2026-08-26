@@ -27,7 +27,10 @@ const requiredFiles = [
     "styles/feature-settings.css",
     "server/server.js",
     "server/test.js",
-    "server/Dockerfile"
+    "server/Dockerfile",
+    "CHANGELOG.md",
+    "DEPLOIEMENT.md",
+    "GUIDE-RACCOURCI.md"
 ];
 
 for (const relative of requiredFiles) {
@@ -43,6 +46,8 @@ const serviceWorker = await readFile(path.join(root, "service-worker.js"), "utf8
 const app = await readFile(path.join(root, "app.js"), "utf8");
 const server = await readFile(path.join(root, "server/server.js"), "utf8");
 const packageJson = JSON.parse(await readFile(path.join(root, "package.json"), "utf8"));
+const bootstrap = await readFile(path.join(root, `bootstrap-${version}.js`), "utf8");
+const startupRecovery = await readFile(path.join(root, `startup-recovery-${version}.js`), "utf8");
 
 const expectedTexts = [
     ["index.html", index, `shuffleplus-version\" content=\"${version}`],
@@ -53,12 +58,24 @@ const expectedTexts = [
     ["service-worker.js", serviceWorker, `shuffleplus-v${version}`],
     ["service-worker.js", serviceWorker, `./core/release-readiness.js`],
     ["app.js", app, `const APP_VERSION = "${version}"`],
-    ["server/server.js", server, 'requestUrl.pathname === "/health"']
+    ["server/server.js", server, 'requestUrl.pathname === "/health"'],
+    ["server/server.js", server, 'const VERSION = "5.2.0"'],
+    ["server/server.js", server, "ensureLaunchResultReservation"],
+    ["server/server.js", server, "tokenHash: sha256(token)"]
 ];
 
 for (const [file, content, expected] of expectedTexts) {
     if (!content.includes(expected)) {
         fail(`${file} ne contient pas : ${expected}`);
+    }
+}
+
+for (const [name, source] of [[`bootstrap-${version}.js`, bootstrap], [`startup-recovery-${version}.js`, startupRecovery]]) {
+    if (!source.includes('registration.scope === shufflePlusScope')) {
+        fail(`${name} ne limite pas la réparation PWA au scope exact.`);
+    }
+    if (source.includes('registration.scope.startsWith(window.location.origin)')) {
+        fail(`${name} contient encore une suppression de Service Workers trop large.`);
     }
 }
 
@@ -84,6 +101,16 @@ for (const asset of new Set(declaredAssets)) {
 }
 
 const rootEntries = await readdir(root);
+const obsoleteReleaseDocs = rootEntries.filter((name) => (
+    /^V\d+\.\d+\.\d+_NOTES\.md$/.test(name) ||
+    /^DEPLOIEMENT-V\d+\.\d+\.\d+\.md$/.test(name) ||
+    /^INSTALLATION-V\d+\.\d+\.\d+\.txt$/.test(name) ||
+    /^PATCH_MANIFEST_V\d+\.\d+\.\d+\.txt$/.test(name)
+));
+if (obsoleteReleaseDocs.length) {
+    fail(`Documentation de release obsolète présente : ${obsoleteReleaseDocs.join(", ")}`);
+}
+
 const forbiddenEnvironmentFiles = rootEntries.filter((name) => (
     name === ".env" || /^\.env\.(?!example$)/.test(name)
 ));

@@ -5,7 +5,7 @@
 
     <meta
         http-equiv="Content-Security-Policy"
-        content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https:; manifest-src 'self'; worker-src 'self' blob:; media-src 'self' blob: https:"
+        content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://accounts.spotify.com https://api.spotify.com https://*.up.railway.app; manifest-src 'self'; worker-src 'self' blob:; media-src 'self' blob: https:"
     >
     <meta name="referrer" content="no-referrer">
 
@@ -16,11 +16,11 @@
 
     <meta
         name="description"
-        content="Shuffle+ 9.9.40 — viewport conduite stable après chaque commande."
+        content="Shuffle+ — mix intelligent, profils de lecture et commandes Spotify."
     >
 
     <meta name="theme-color" content="#8b5cf6">
-    <meta name="shuffleplus-version" content="9.9.40">
+    <meta name="shuffleplus-version" content="9.9.48">
     <meta name="shuffleplus-release-channel" content="release-candidate">
     <meta name="shuffleplus-build-validated" content="true">
     <meta name="shuffleplus-server-tests-validated" content="true">
@@ -55,8 +55,8 @@
         sizes="180x180"
         href="./icons/apple-touch-icon-180.png"
     >
-    <link rel="stylesheet" href="./style.css?v=9.9.40">
-    <link rel="stylesheet" href="./design-system.css?v=9.9.40">
+    <link rel="stylesheet" href="./style.css?v=9.9.48">
+    <link rel="stylesheet" href="./design-system.css?v=9.9.48">
 </head>
 
 <body>
@@ -153,7 +153,7 @@
                 </div>
 
                 <div class="spotify-setup-public-intro">
-                    <span>Shuffle+ 9.9.40 · Candidate v10</span>
+                    <span>Shuffle+ 9.9.48 · Candidate v10</span>
                     <h4>Votre playlist Spotify en une seule action</h4>
                     <p>
                         Lancez une playlist en mode aléatoire depuis un raccourci
@@ -330,7 +330,7 @@
         </div>
     </aside>
 
-    <script src="./startup-recovery-9.9.40.js" defer></script>
-    <script type="module" src="./bootstrap-9.9.40.js"></script>
+    <script src="./startup-recovery-9.9.48.js" defer></script>
+    <script type="module" src="./bootstrap-9.9.48.js"></script>
 </body>
 </html>

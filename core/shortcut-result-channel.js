@@ -1,10 +1,13 @@
 const MAX_REQUEST_ID_LENGTH = 160;
 const MAX_SERVER_URL_LENGTH = 2048;
+const MIN_RESULT_TOKEN_LENGTH = 16;
+const MAX_RESULT_TOKEN_LENGTH = 256;
 const PUBLISH_TIMEOUT_MS = 5000;
 
 export const SHORTCUT_RESULT_QUERY_KEYS = Object.freeze([
     "requestId",
-    "resultServer"
+    "resultServer",
+    "resultToken"
 ]);
 
 export function normalizeShortcutResultRequestId(value = "") {
@@ -13,6 +16,20 @@ export function normalizeShortcutResultRequestId(value = "") {
     if (
         candidate.length < 8 ||
         candidate.length > MAX_REQUEST_ID_LENGTH ||
+        !/^[A-Za-z0-9._~-]+$/.test(candidate)
+    ) {
+        return "";
+    }
+
+    return candidate;
+}
+
+export function normalizeShortcutResultToken(value = "") {
+    const candidate = String(value || "").trim();
+
+    if (
+        candidate.length < MIN_RESULT_TOKEN_LENGTH ||
+        candidate.length > MAX_RESULT_TOKEN_LENGTH ||
         !/^[A-Za-z0-9._~-]+$/.test(candidate)
     ) {
         return "";
@@ -57,11 +74,15 @@ export function readShortcutResultChannelConfig(searchParams) {
     const serverUrl = normalizeShortcutResultServerUrl(
         params.get("resultServer")
     );
+    const token = normalizeShortcutResultToken(
+        params.get("resultToken")
+    );
 
     return {
         requestId,
         serverUrl,
-        enabled: Boolean(requestId && serverUrl)
+        token,
+        enabled: Boolean(requestId && serverUrl && token)
     };
 }
 
@@ -72,11 +93,15 @@ export function normalizeShortcutResultChannelConfig(value = {}) {
     const serverUrl = normalizeShortcutResultServerUrl(
         value.serverUrl || value.resultServerUrl
     );
+    const token = normalizeShortcutResultToken(
+        value.token || value.resultToken
+    );
 
     return {
         requestId,
         serverUrl,
-        enabled: Boolean(requestId && serverUrl)
+        token,
+        enabled: Boolean(requestId && serverUrl && token)
     };
 }
 
@@ -173,7 +198,8 @@ export async function publishShortcutResult(
                 {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${normalizeShortcutResultChannelConfig(config).token}`
                     },
                     cache: "no-store",
                     body: JSON.stringify(payload)

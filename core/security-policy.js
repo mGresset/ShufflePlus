@@ -15,7 +15,12 @@ export const SHUFFLEPLUS_CSP_DIRECTIVES = Object.freeze({
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
-    "connect-src": ["'self'", "https:"],
+    "connect-src": [
+        "'self'",
+        "https://accounts.spotify.com",
+        "https://api.spotify.com",
+        "https://*.up.railway.app"
+    ],
     "manifest-src": ["'self'"],
     "worker-src": ["'self'", "blob:"],
     "media-src": ["'self'", "blob:", "https:"]

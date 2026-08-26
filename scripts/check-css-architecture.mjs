@@ -58,6 +58,12 @@ if (!settings.includes(".pwa-capabilities > .pwa-capability")) {
 if (!driving.includes(".driving-playback-progress")) {
     failures.push("feature-driving.css ne contient pas l’interface de conduite");
 }
+if (!driving.includes("Shuffle+ v9.9.48 — contrat mobile conduite consolidé")) {
+    failures.push("le contrat mobile conduite consolidé 9.9.48 est absent");
+}
+if (/Shuffle\+ v9\.9\.(?:30|33|34|39|41|42|45|47) —/.test(driving)) {
+    failures.push("des couches CSS conduite historiques 9.9.30→9.9.47 sont encore actives");
+}
 if (/feature-(?:home|search|settings|driving)\.css/.test(index)) {
     failures.push("les styles de fonctionnalité sont encore chargés statiquement dans index.html");
 }

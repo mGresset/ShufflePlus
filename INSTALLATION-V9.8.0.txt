@@ -1,5 +1,0 @@
-1. Conserver le dossier caché .git du dépôt local.
-2. Remplacer les fichiers par ceux de Shuffle+ v9.8.0.
-3. Exécuter npm.cmd run validate.
-4. Exécuter git add -A, git commit puis git push origin main.
-5. Après publication, fermer puis rouvrir complètement la PWA.

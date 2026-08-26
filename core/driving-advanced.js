@@ -1,5 +1,5 @@
 export const DRIVING_PRIMARY_ACTIONS = Object.freeze([
-    "adaptive",
+    "shuffle",
     "playpause",
     "next",
     "voice"
@@ -12,7 +12,7 @@ export const DEFAULT_ADVANCED_DRIVING_SETTINGS = Object.freeze({
     hapticFeedback: true,
     lockOnEntry: false,
     fullscreenQueue: true,
-    primaryAction: "adaptive"
+    primaryAction: "shuffle"
 });
 
 export const DRIVING_UNLOCK_HOLD_MS = 1000;
@@ -21,10 +21,14 @@ export function normalizeDrivingAdvancedSettings(settings = {}) {
     const source = settings && typeof settings === "object"
         ? settings
         : {};
+    const storedPrimaryAction = String(source.primaryAction || "");
+    const migratedPrimaryAction = storedPrimaryAction === "adaptive"
+        ? "shuffle"
+        : storedPrimaryAction;
     const primaryAction = DRIVING_PRIMARY_ACTIONS.includes(
-        String(source.primaryAction || "")
+        migratedPrimaryAction
     )
-        ? String(source.primaryAction)
+        ? migratedPrimaryAction
         : DEFAULT_ADVANCED_DRIVING_SETTINGS.primaryAction;
 
     return {
@@ -40,7 +44,7 @@ export function normalizeDrivingAdvancedSettings(settings = {}) {
 
 export function orderDrivingControls(
     controls = [],
-    primaryAction = "adaptive"
+    primaryAction = "shuffle"
 ) {
     const safeControls = Array.isArray(controls)
         ? controls.filter((control) => control && control.id)

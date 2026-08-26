@@ -6,6 +6,7 @@ import {
     buildShortcutResultEndpoint,
     normalizeShortcutResultRequestId,
     normalizeShortcutResultServerUrl,
+    normalizeShortcutResultToken,
     publishShortcutResult,
     readShortcutResultChannelConfig
 } from "../core/shortcut-result-channel.js";
@@ -14,8 +15,8 @@ const appSource = await readFile("app.js", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("Shuffle+ 9.9.40 publie un résultat de raccourci sur Railway", () => {
-    assert.equal(version, "9.9.40");
+test("Shuffle+ 9.9.48 publie un résultat de raccourci sur Railway", () => {
+    assert.equal(version, "9.9.48");
     assert.match(appSource, /publishAutomationResult/);
     assert.match(appSource, /status: "running"/);
     assert.match(workerSource, /core\/shortcut-result-channel\.js/);
@@ -27,6 +28,15 @@ test("l’identifiant de requête reste une capacité URL sûre", () => {
         "550e8400-e29b-41d4-a716-446655440000"
     );
     assert.equal(normalizeShortcutResultRequestId("../secret"), "");
+});
+
+test("le jeton de résultat est une capacité distincte et non triviale", () => {
+    assert.equal(
+        normalizeShortcutResultToken("68b19b94-19a4-4ef6-83ac-6d932eea7f47"),
+        "68b19b94-19a4-4ef6-83ac-6d932eea7f47"
+    );
+    assert.equal(normalizeShortcutResultToken("court"), "");
+    assert.equal(normalizeShortcutResultToken("../secret"), "");
 });
 
 test("le serveur de résultat exige HTTPS hors développement local", () => {
@@ -48,7 +58,8 @@ test("la configuration est lue depuis l’URL de lancement", () => {
     const config = readShortcutResultChannelConfig(
         new URLSearchParams({
             requestId: "550e8400-e29b-41d4-a716-446655440000",
-            resultServer: "https://shuffleplus.up.railway.app"
+            resultServer: "https://shuffleplus.up.railway.app",
+            resultToken: "68b19b94-19a4-4ef6-83ac-6d932eea7f47"
         })
     );
     assert.equal(config.enabled, true);
@@ -71,10 +82,11 @@ test("la publication envoie un JSON minimal et retente en cas d’échec", async
     const result = await publishShortcutResult(
         {
             requestId: "550e8400-e29b-41d4-a716-446655440000",
-            serverUrl: "https://shuffleplus.up.railway.app"
+            serverUrl: "https://shuffleplus.up.railway.app",
+            token: "68b19b94-19a4-4ef6-83ac-6d932eea7f47"
         },
         {
-            version: "9.9.40",
+            version: "9.9.48",
             status: "success",
             device: "iPhone",
             message: "Lecture confirmée"
@@ -88,4 +100,8 @@ test("la publication envoie un JSON minimal et retente en cas d’échec", async
     assert.equal(payload.success, true);
     assert.equal(payload.status, "success");
     assert.equal(payload.device, "iPhone");
+    assert.equal(
+        calls[1].options.headers.Authorization,
+        "Bearer 68b19b94-19a4-4ef6-83ac-6d932eea7f47"
+    );
 });

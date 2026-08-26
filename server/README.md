@@ -1,4 +1,4 @@
-# Serveur Shuffle+ v5.1
+# Serveur Shuffle+ v5.2
 
 Serveur Node.js sans dépendance externe. Il transporte les enveloppes de synchronisation déjà chiffrées dans le navigateur et héberge les résultats temporaires des lancements Apple Raccourcis.
 
@@ -21,8 +21,9 @@ npm test
 ## Routes de résultat de lancement
 
 ```text
-GET  /v1/launch-results/:requestId
+GET  /v1/launch-results/:requestId?token=<ResultToken>
 POST /v1/launch-results/:requestId
+Authorization: Bearer <ResultToken>
 ```
 
 Un GET retourne :

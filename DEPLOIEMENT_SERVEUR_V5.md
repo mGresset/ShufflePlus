@@ -38,3 +38,8 @@ La clé de chiffrement reste dans les navigateurs. Le serveur conserve uniquemen
 - le nom et la dernière activité des installations.
 
 Le code SP5 contient la clé : il doit être traité comme un mot de passe principal.
+
+
+## Canal de résultat des raccourcis — v5.2
+
+Le serveur exige maintenant un `ResultToken` aléatoire distinct du `requestId`. Aucune nouvelle variable Railway n’est requise. Après le déploiement du serveur v5.2, le raccourci iPhone doit être mis à jour selon `GUIDE-RACCOURCI.md`.

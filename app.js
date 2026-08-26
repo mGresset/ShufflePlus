@@ -415,7 +415,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.40";
+const APP_VERSION = "9.9.48";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -889,7 +889,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.40-shell";
+    "shuffleplus-v9.9.48-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1642,6 +1642,7 @@ let smartQueueSession = readSmartQueueSession();
 let musicFeedbackState = readMusicFeedbackState();
 let drivingModeSettings = readDrivingModeSettings();
 let drivingPlaybackState = null;
+let drivingShuffleUiOverride = null;
 let drivingQueueState = {
     current: null,
     queue: [],
@@ -5405,7 +5406,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.40
+                        ✨ Apparence v9.9.48
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6439,7 +6440,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.40",
+                "./service-worker.js?v=9.9.48",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7112,7 +7113,7 @@ function renderReleaseReadinessPanel() {
                     <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La v9.9.40 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        La v9.9.48 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -10149,23 +10150,6 @@ function renderDrivingQueueItem(item, index, flag = {}) {
     `;
 }
 
-function getDrivingSpotifyUrl(track = {}) {
-    const externalUrl = String(
-        track?.external_urls?.spotify || ""
-    ).trim();
-
-    if (externalUrl.startsWith("https://open.spotify.com/")) {
-        return externalUrl;
-    }
-
-    const uri = String(track?.uri || "");
-    const match = uri.match(/^spotify:track:([a-zA-Z0-9]+)$/);
-
-    return match
-        ? `https://open.spotify.com/track/${match[1]}`
-        : "";
-}
-
 function renderDrivingPlaybackProgress(playback = {}) {
     const progress = getDrivingPlaybackProgress(playback);
 
@@ -10498,8 +10482,45 @@ function syncDrivingViewportHeight({ force = false } = {}) {
         `${Math.min(140, Math.round(bottomOcclusion))}px`
     );
     drivingViewportMetricsReady = true;
+
+    if (activeAppMenu === "driving") {
+        window.requestAnimationFrame(syncDrivingCompactLayout);
+    }
 }
 
+
+function syncDrivingCompactLayout() {
+    const page = contentElement.querySelector(".driving-mode-page");
+    if (!page || activeAppMenu !== "driving") {
+        return;
+    }
+
+    const mobilePortrait =
+        window.matchMedia?.("(max-width: 700px) and (orientation: portrait)")
+            ?.matches === true;
+
+    if (!mobilePortrait) {
+        page.classList.remove("is-ultra-compact-layout");
+        return;
+    }
+
+    page.classList.toggle(
+        "is-ultra-compact-layout",
+        page.clientHeight > 0 && page.clientHeight <= 760
+    );
+    page.scrollTop = 0;
+
+    window.requestAnimationFrame(() => {
+        if (!page.isConnected) {
+            return;
+        }
+
+        if (page.scrollHeight > page.clientHeight + 2) {
+            page.classList.add("is-ultra-compact-layout");
+        }
+        page.scrollTop = 0;
+    });
+}
 
 function setDrivingWakeLockStatus(
     state = "idle",
@@ -10782,20 +10803,21 @@ function cancelDrivingUnlockHold() {
 }
 
 function renderDrivingMainControls({
-    adaptive,
     isPlaying,
-    voiceSupported
+    voiceSupported,
+    shuffleEnabled
 }) {
     const disabledForLock = drivingControlsLocked;
     const controls = [
         {
-            id: "adaptive",
-            buttonId: "drivingAdaptiveButton",
-            icon: "🤖",
-            label: "Lancer Adaptive DJ",
-            detail: adaptive.slot.label,
-            disabled: drivingActionBusy || disabledForLock || !adaptive.mix,
-            extraClass: ""
+            id: "shuffle",
+            buttonId: "drivingShuffleButton",
+            icon: "🔀",
+            label: `Aléatoire ${shuffleEnabled ? "ON" : "OFF"}`,
+            detail: shuffleEnabled ? "Activé" : "Désactivé",
+            disabled: drivingActionBusy || disabledForLock || !drivingPlaybackState?.device,
+            extraClass: shuffleEnabled ? "is-shuffle-on" : "is-shuffle-off",
+            pressed: shuffleEnabled
         },
         {
             id: "playpause",
@@ -10847,6 +10869,7 @@ function renderDrivingMainControls({
                         : ""
                 } ${escapeHtml(control.extraClass)}"
                 type="button"
+                ${typeof control.pressed === "boolean" ? `aria-pressed="${String(control.pressed)}"` : ""}
                 ${control.disabled ? "disabled" : ""}
                 data-driving-control="${escapeHtml(control.id)}"
             >
@@ -10862,7 +10885,7 @@ function renderDrivingMainControls({
 
 function renderDrivingPreferencesPanel() {
     const actionLabels = {
-        adaptive: "Adaptive DJ",
+        shuffle: "Aléatoire Spotify",
         playpause: "Pause / reprise",
         next: "Titre suivant",
         voice: "Commande vocale"
@@ -11017,6 +11040,31 @@ function updateDrivingCoverDom(frame, imageUrl = "") {
     );
 }
 
+function getDrivingShuffleEnabled(playback = null) {
+    if (
+        drivingShuffleUiOverride &&
+        Number(drivingShuffleUiOverride.expiresAt || 0) > Date.now()
+    ) {
+        return drivingShuffleUiOverride.enabled === true;
+    }
+
+    drivingShuffleUiOverride = null;
+    return playback?.shuffle_state === true;
+}
+
+function reconcileDrivingShuffleOverride(playback = null) {
+    if (!drivingShuffleUiOverride) {
+        return;
+    }
+
+    if (
+        playback?.shuffle_state === drivingShuffleUiOverride.enabled ||
+        Number(drivingShuffleUiOverride.expiresAt || 0) <= Date.now()
+    ) {
+        drivingShuffleUiOverride = null;
+    }
+}
+
 function updateDrivingPlaybackDom() {
     const page = contentElement.querySelector(".driving-mode-page");
     const nowPlaying = page?.querySelector(".driving-now-playing");
@@ -11043,6 +11091,7 @@ function updateDrivingPlaybackDom() {
     }
 
     const isPlaying = Boolean(effectivePlayback?.is_playing);
+    const shuffleEnabled = getDrivingShuffleEnabled(effectivePlayback);
     const deviceName =
         effectivePlayback?.device?.name ||
         "Aucun appareil actif";
@@ -11103,10 +11152,35 @@ function updateDrivingPlaybackDom() {
         );
     }
 
-    const spotifyLink = page.querySelector(".driving-spotify-link");
-    const spotifyUrl = getDrivingSpotifyUrl(track);
-    if (spotifyLink && spotifyUrl) {
-        spotifyLink.setAttribute("href", spotifyUrl);
+    const shuffleButton = page.querySelector(
+        '[data-driving-control="shuffle"]'
+    );
+    if (shuffleButton) {
+        const label = shuffleButton.querySelector("strong");
+        const detail = shuffleButton.querySelector("small");
+        shuffleButton.setAttribute(
+            "aria-pressed",
+            String(shuffleEnabled)
+        );
+        shuffleButton.classList.toggle(
+            "is-shuffle-on",
+            shuffleEnabled
+        );
+        shuffleButton.classList.toggle(
+            "is-shuffle-off",
+            !shuffleEnabled
+        );
+        if (label) {
+            label.textContent = `Aléatoire ${shuffleEnabled ? "ON" : "OFF"}`;
+        }
+        if (detail) {
+            detail.textContent = shuffleEnabled ? "Activé" : "Désactivé";
+        }
+        shuffleButton.disabled = Boolean(
+            drivingActionBusy ||
+            drivingControlsLocked ||
+            !effectivePlayback?.device
+        );
     }
 
     const feedbackAction = getDrivingCurrentFeedbackAction(track);
@@ -11167,6 +11241,7 @@ function renderDrivingModePage() {
     const isPlaying = Boolean(
         effectivePlayback?.is_playing
     );
+    const shuffleEnabled = getDrivingShuffleEnabled(effectivePlayback);
     const deviceName =
         effectivePlayback?.device?.name ||
         "Aucun appareil actif";
@@ -11182,10 +11257,6 @@ function renderDrivingModePage() {
         wakeLockState.supported;
     const voiceSupported =
         isVoiceAssistantSupported();
-    const queueCount =
-        drivingQueueState.queue?.length || 0;
-    const spotifyUrl = getDrivingSpotifyUrl(track);
-
     contentElement.innerHTML = `
         <section class="driving-mode-page" aria-label="Mode conduite" data-has-track="${String(Boolean(track))}" data-track-key="${escapeHtml(getDrivingTrackKey(track))}">
             <header class="driving-mode-header">
@@ -11261,9 +11332,9 @@ function renderDrivingModePage() {
 
             <div class="driving-main-controls ${drivingControlsLocked ? "is-locked" : ""}">
                 ${renderDrivingMainControls({
-                    adaptive,
                     isPlaying,
-                    voiceSupported
+                    voiceSupported,
+                    shuffleEnabled
                 })}
             </div>
 
@@ -11292,31 +11363,6 @@ function renderDrivingModePage() {
             ` : ""}
 
             <div class="driving-secondary-controls">
-                ${spotifyUrl ? `
-                    <a
-                        class="driving-spotify-link"
-                        href="${escapeHtml(spotifyUrl)}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Ouvrir le titre actuel dans Spotify"
-                    >
-                        <span aria-hidden="true">◉</span>
-                        <small>Spotify</small>
-                    </a>
-                ` : ""}
-
-                <button
-                    id="drivingQueueButton"
-                    class="driving-queue-control ${drivingQueueOpen ? "is-active" : ""}"
-                    type="button"
-                    ${drivingActionBusy || !drivingPlaybackState?.device ? "disabled" : ""}
-                    aria-label="Afficher la liste de lecture"
-                    title="Afficher la liste de lecture"
-                >
-                    <span aria-hidden="true">📋</span>
-                    <small>${queueCount ? `${queueCount} à venir` : "Liste"}</small>
-                </button>
-
                 <button
                     id="drivingRefreshButton"
                     type="button"
@@ -11345,8 +11391,8 @@ function renderDrivingModePage() {
                 </label>
 
                 <label
-                    aria-label="Actualisation automatique"
-                    title="Actualisation automatique"
+                    aria-label="Actualisation automatique Spotify"
+                    title="Actualisation automatique de la lecture Spotify"
                 >
                     <input
                         id="drivingAutoRefreshInput"
@@ -11354,7 +11400,7 @@ function renderDrivingModePage() {
                         ${drivingModeSettings.autoRefresh ? "checked" : ""}
                     >
                     <span aria-hidden="true">🔄</span>
-                    <small>Auto</small>
+                    <small>Actualisation auto</small>
                 </label>
             </div>
 
@@ -11387,14 +11433,23 @@ function renderDrivingModePage() {
             ".driving-mode-page"
         );
         if (drivingPage) {
-            const maximumPageScrollTop = Math.max(
-                0,
-                drivingPage.scrollHeight - drivingPage.clientHeight
-            );
-            drivingPage.scrollTop = Math.min(
-                drivingPageScrollTop,
-                maximumPageScrollTop
-            );
+            syncDrivingCompactLayout();
+            const mobilePortrait =
+                window.matchMedia?.("(max-width: 700px) and (orientation: portrait)")
+                    ?.matches === true;
+            if (mobilePortrait) {
+                drivingPageScrollTop = 0;
+                drivingPage.scrollTop = 0;
+            } else {
+                const maximumPageScrollTop = Math.max(
+                    0,
+                    drivingPage.scrollHeight - drivingPage.clientHeight
+                );
+                drivingPage.scrollTop = Math.min(
+                    drivingPageScrollTop,
+                    maximumPageScrollTop
+                );
+            }
         }
 
         if (!drivingPreferencesOpen) {
@@ -11666,6 +11721,9 @@ async function refreshDrivingPlayback({
             );
         quickPlaybackState =
             drivingPlaybackState;
+        reconcileDrivingShuffleOverride(
+            drivingPlaybackState
+        );
 
         if (!silent) {
             setDrivingMessage(
@@ -11839,25 +11897,79 @@ async function runDrivingAction(action) {
     }
 }
 
-async function launchDrivingAdaptiveDj() {
+async function toggleDrivingShuffle() {
     await runDrivingAction(async () => {
-        const result = await runAdaptiveDj({
-            autoplay: true
-        });
-        activeAppMenu = "driving";
-        saveActiveAppMenu();
-        drivingPlaybackState =
-            await getCurrentPlayback().catch(
-                () => null
+        const state =
+            getEffectivePlaybackState(
+                drivingPlaybackState || quickPlaybackState
+            ) ||
+            await getCurrentPlayback({ fresh: true });
+        const deviceId = state?.device?.id || "";
+
+        if (!deviceId) {
+            throw new Error(
+                "Aucun appareil Spotify actif."
             );
+        }
+
+        const previousShuffleState =
+            getDrivingShuffleEnabled(state);
+        const nextShuffleState =
+            !previousShuffleState;
+
+        drivingShuffleUiOverride = {
+            enabled: nextShuffleState,
+            expiresAt: Date.now() + 5000
+        };
+
+        drivingPlaybackState = {
+            ...(drivingPlaybackState || state),
+            shuffle_state: nextShuffleState
+        };
+        quickPlaybackState = drivingPlaybackState;
+        renderDrivingModePage();
+
+        try {
+            await setPlaybackShuffle(
+                nextShuffleState,
+                deviceId
+            );
+        } catch (error) {
+            drivingShuffleUiOverride = null;
+            drivingPlaybackState = {
+                ...(drivingPlaybackState || state),
+                shuffle_state: previousShuffleState
+            };
+            quickPlaybackState = drivingPlaybackState;
+            throw error;
+        }
+
         setDrivingMessage(
-            result?.mix?.name
-                ? `« ${result.mix.name} » lancé.`
-                : "Adaptive DJ lancé.",
+            nextShuffleState
+                ? "Lecture aléatoire activée."
+                : "Lecture aléatoire désactivée.",
             "success"
         );
-        startDrivingRefreshTimer();
-        await requestDrivingWakeLock();
+
+        await new Promise((resolve) =>
+            window.setTimeout(resolve, 450)
+        );
+
+        const refreshedPlayback =
+            await getCurrentPlayback({ fresh: true }).catch(
+                () => null
+            );
+        if (refreshedPlayback) {
+            drivingPlaybackState =
+                reconcilePlaybackWithUiOverride(
+                    refreshedPlayback,
+                    { fresh: true }
+                );
+            quickPlaybackState = drivingPlaybackState;
+            reconcileDrivingShuffleOverride(
+                drivingPlaybackState
+            );
+        }
     });
 }
 
@@ -22611,7 +22723,7 @@ function renderIosCommandsPanel() {
                     </strong>
                     <small>
                         ${serverSyncState?.serverUrl
-                            ? `Les URL copiées incluent ${escapeHtml(serverSyncState.serverUrl)}. Le raccourci doit ajouter un requestId UUID unique.`
+                            ? `Les URL copiées incluent ${escapeHtml(serverSyncState.serverUrl)}. Le raccourci doit ajouter un requestId et un resultToken UUID uniques.`
                             : "Enregistre l’URL Railway dans Réglages > Synchronisation serveur pour recevoir le résultat du lancement."}
                     </small>
                 </div>
@@ -23131,6 +23243,8 @@ function normalizeAutomationCommand(command = {}) {
             normalizeShortcutResultChannelConfig(command).requestId,
         resultServerUrl:
             normalizeShortcutResultChannelConfig(command).serverUrl,
+        resultToken:
+            normalizeShortcutResultChannelConfig(command).token,
         createdAt: Number(
             command.createdAt || Date.now()
         )
@@ -23299,6 +23413,8 @@ function parseAutomationCommandFromUrl() {
             shortcutResultChannel.requestId,
         resultServerUrl:
             shortcutResultChannel.serverUrl,
+        resultToken:
+            shortcutResultChannel.token,
         createdAt: Date.now()
     });
 }
@@ -25172,7 +25288,8 @@ function getAutomationResultChannelConfig(command = {}) {
         serverUrl:
             command.resultServerUrl ||
             serverSyncState?.serverUrl ||
-            ""
+            "",
+        token: command.resultToken || ""
     });
 }
 
@@ -45657,10 +45774,10 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
-                "#drivingAdaptiveButton"
+                "#drivingShuffleButton"
             )
         ) {
-            await launchDrivingAdaptiveDj();
+            await toggleDrivingShuffle();
             return;
         }
 
@@ -45684,7 +45801,7 @@ contentElement.addEventListener(
 
         if (
             event.target.closest(
-                "#drivingQueueButton, [data-open-driving-queue]"
+                "[data-open-driving-queue]"
             )
         ) {
             if (activeAppMenu !== "driving") {

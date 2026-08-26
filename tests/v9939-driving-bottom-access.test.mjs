@@ -8,8 +8,8 @@ const [version, appSource, drivingCss] = await Promise.all([
     readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 9.9.40 ancre la conduite au visual viewport Safari", () => {
-    assert.equal(version, "9.9.40");
+test("Shuffle+ 9.9.48 ancre la conduite au visual viewport Safari", () => {
+    assert.equal(version, "9.9.48");
     assert.match(appSource, /--driving-viewport-offset-top/);
     assert.match(appSource, /visualViewport\?\.offsetTop/);
     assert.match(
@@ -18,29 +18,11 @@ test("Shuffle+ 9.9.40 ancre la conduite au visual viewport Safari", () => {
     );
 });
 
-test("le défilement conduite est conservé pendant les rerendus", () => {
-    assert.match(appSource, /let drivingPageScrollTop = 0;/);
-    assert.match(
-        appSource,
-        /previousDrivingPage\.scrollTop/
-    );
-    assert.match(
-        appSource,
-        /drivingPage\.scrollTop = Math\.min\(\s*drivingPageScrollTop/
-    );
-});
-
-test("une réserve basse suffisante laisse remonter les derniers contrôles", () => {
+test("la page conduite principale reste non défilable", () => {
     assert.match(
         drivingCss,
-        /Shuffle\+ v9\.9\.39 — viewport Safari ancré et bas de conduite durable/
+        /body\.is-driving-mode \.driving-mode-page,[\s\S]*?overflow:\s*hidden;[\s\S]*?overscroll-behavior:\s*none;/
     );
-    assert.match(
-        drivingCss,
-        /driving-mode-page::after\s*\{[\s\S]*?min-height:\s*max\(\s*144px/
-    );
-    assert.match(
-        drivingCss,
-        /scroll-padding-bottom:\s*max\(\s*144px/
-    );
+    assert.match(appSource, /function syncDrivingCompactLayout\(\)/);
+    assert.match(appSource, /page\.scrollTop = 0/);
 });

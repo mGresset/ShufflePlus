@@ -1,8 +1,0 @@
-Shuffle+ v9.9.28
-
-1. Déployer le frontend GitHub Pages.
-2. Redéployer le service Railway depuis le dossier server/.
-3. Vérifier GET /health : version serveur 5.1.0.
-4. Dans Shuffle+ > Réglages > Synchronisation serveur, enregistrer l’URL Railway.
-5. Copier l’URL du profil iOS : elle doit contenir resultServer=...
-6. Construire le raccourci avec un UUID unique et le polling /v1/launch-results/<UUID>.

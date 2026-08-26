@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "5.1.0";
+const VERSION = "5.2.0";
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
 const MAX_BODY_BYTES = Number(
@@ -38,6 +38,8 @@ const RATE_MAX = Number(
     process.env.SHUFFLEPLUS_RATE_LIMIT || 180
 );
 const rateBuckets = new Map();
+let nextRateBucketSweepAt = 0;
+const MAX_RATE_BUCKETS = 10_000;
 
 await Promise.all([
     fs.mkdir(SPACES_DIR, { recursive: true }),
@@ -88,8 +90,43 @@ function launchResultFile(requestId) {
     return path.join(LAUNCH_RESULTS_DIR, `${requestId}.json`);
 }
 
+function validLaunchToken(value) {
+    return typeof value === "string" &&
+        value.length >= 16 &&
+        value.length <= 256 &&
+        /^[A-Za-z0-9._~-]+$/.test(value);
+}
+
+function readLaunchToken(req, requestUrl) {
+    const authorization = String(req.headers.authorization || "").trim();
+    const bearer = authorization.match(/^Bearer\s+(.+)$/i)?.[1]?.trim() || "";
+    const queryToken = String(requestUrl.searchParams.get("token") || "").trim();
+    const token = bearer || queryToken;
+
+    if (!validLaunchToken(token)) {
+        throw Object.assign(
+            new Error("Jeton de résultat de lancement requis."),
+            { status: 401 }
+        );
+    }
+
+    return token;
+}
+
+function assertLaunchToken(record, token) {
+    if (
+        !record?.tokenHash ||
+        !safeEqual(record.tokenHash, sha256(token))
+    ) {
+        throw Object.assign(
+            new Error("Jeton de résultat de lancement invalide."),
+            { status: 403 }
+        );
+    }
+}
+
 function normalizeLaunchResult(value = {}) {
-    const status = ["running", "success", "error", "cancel"].includes(
+    const status = ["pending", "running", "success", "error", "cancel"].includes(
         value.status
     )
         ? value.status
@@ -112,22 +149,6 @@ function normalizeLaunchResult(value = {}) {
     };
 }
 
-async function writeLaunchResult(requestId, value = {}) {
-    const filename = launchResultFile(requestId);
-    const now = Date.now();
-    const record = {
-        schemaVersion: 1,
-        requestId,
-        createdAt: now,
-        expiresAt: now + LAUNCH_RESULT_TTL_MS,
-        result: normalizeLaunchResult(value)
-    };
-    const temp = `${filename}.${process.pid}.${now}.tmp`;
-    await fs.writeFile(temp, JSON.stringify(record, null, 2), { mode: 0o600 });
-    await fs.rename(temp, filename);
-    return record;
-}
-
 async function readLaunchResult(requestId) {
     const filename = launchResultFile(requestId);
     try {
@@ -143,6 +164,74 @@ async function readLaunchResult(requestId) {
         }
         throw error;
     }
+}
+
+async function writeLaunchRecord(filename, record, { exclusive = false } = {}) {
+    const payload = JSON.stringify(record, null, 2);
+    if (exclusive) {
+        await fs.writeFile(filename, payload, { mode: 0o600, flag: "wx" });
+        return;
+    }
+    const temp = `${filename}.${process.pid}.${Date.now()}.tmp`;
+    await fs.writeFile(temp, payload, { mode: 0o600 });
+    await fs.rename(temp, filename);
+}
+
+async function ensureLaunchResultReservation(requestId, token) {
+    const filename = launchResultFile(requestId);
+    let record = await readLaunchResult(requestId);
+
+    if (record) {
+        assertLaunchToken(record, token);
+        return record;
+    }
+
+    const now = Date.now();
+    const reservation = {
+        schemaVersion: 2,
+        requestId,
+        tokenHash: sha256(token),
+        createdAt: now,
+        expiresAt: now + LAUNCH_RESULT_TTL_MS,
+        result: normalizeLaunchResult({
+            status: "pending",
+            message: "Résultat Shuffle+ en attente."
+        })
+    };
+
+    try {
+        await writeLaunchRecord(filename, reservation, { exclusive: true });
+        return reservation;
+    } catch (error) {
+        if (error.code !== "EEXIST") {
+            throw error;
+        }
+        record = await readLaunchResult(requestId);
+        if (!record) {
+            throw Object.assign(
+                new Error("Réservation de lancement indisponible."),
+                { status: 409 }
+            );
+        }
+        assertLaunchToken(record, token);
+        return record;
+    }
+}
+
+async function writeLaunchResult(requestId, token, value = {}) {
+    const filename = launchResultFile(requestId);
+    const existing = await ensureLaunchResultReservation(requestId, token);
+    const now = Date.now();
+    const record = {
+        schemaVersion: 2,
+        requestId,
+        tokenHash: existing.tokenHash,
+        createdAt: Number(existing.createdAt || now),
+        expiresAt: now + LAUNCH_RESULT_TTL_MS,
+        result: normalizeLaunchResult(value)
+    };
+    await writeLaunchRecord(filename, record);
+    return record;
 }
 
 async function cleanupExpiredLaunchResults() {
@@ -258,10 +347,40 @@ function checkOrigin(req) {
         ALLOWED_ORIGINS.has(origin);
 }
 
+function getRateLimitAddress(req) {
+    const forwarded = String(req.headers["x-forwarded-for"] || "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean);
+    const candidate = forwarded.at(-1) || req.socket.remoteAddress || "unknown";
+    return String(candidate).slice(0, 160);
+}
+
+function sweepRateBuckets(now) {
+    if (now < nextRateBucketSweepAt && rateBuckets.size < MAX_RATE_BUCKETS) {
+        return;
+    }
+    for (const [address, bucket] of rateBuckets) {
+        if (!bucket || now - bucket.startedAt > RATE_WINDOW_MS) {
+            rateBuckets.delete(address);
+        }
+    }
+    if (rateBuckets.size > MAX_RATE_BUCKETS) {
+        const excess = rateBuckets.size - MAX_RATE_BUCKETS;
+        for (const address of rateBuckets.keys()) {
+            rateBuckets.delete(address);
+            if (rateBuckets.size <= MAX_RATE_BUCKETS - Math.min(excess, 1000)) {
+                break;
+            }
+        }
+    }
+    nextRateBucketSweepAt = now + RATE_WINDOW_MS;
+}
+
 function checkRateLimit(req) {
-    const address =
-        req.socket.remoteAddress || "unknown";
+    const address = getRateLimitAddress(req);
     const now = Date.now();
+    sweepRateBuckets(now);
     const current = rateBuckets.get(address);
     if (!current || now - current.startedAt > RATE_WINDOW_MS) {
         rateBuckets.set(address, {
@@ -443,35 +562,33 @@ const server = http.createServer(
                 parts[1] === "launch-results"
             ) {
                 const requestId = parts[2];
+                const launchToken = readLaunchToken(req, requestUrl);
 
                 if (req.method === "GET") {
-                    const record = await readLaunchResult(requestId);
-                    if (!record) {
-                        return json(res, 202, {
-                            requestId,
-                            status: "pending",
-                            success: false,
-                            message: "Résultat Shuffle+ en attente.",
-                            retryAfterMs: 1000
-                        });
-                    }
-
+                    const record = await ensureLaunchResultReservation(
+                        requestId,
+                        launchToken
+                    );
                     const status = record.result?.status || "pending";
                     return json(
                         res,
-                        status === "running" ? 202 : 200,
+                        ["pending", "running"].includes(status) ? 202 : 200,
                         {
                             requestId,
                             ...record.result,
                             expiresAt: new Date(record.expiresAt).toISOString(),
-                            retryAfterMs: status === "running" ? 1000 : 0
+                            retryAfterMs: ["pending", "running"].includes(status) ? 1000 : 0
                         }
                     );
                 }
 
                 if (req.method === "POST") {
                     const body = await readJson(req);
-                    const record = await writeLaunchResult(requestId, body);
+                    const record = await writeLaunchResult(
+                        requestId,
+                        launchToken,
+                        body
+                    );
                     cleanupExpiredLaunchResults().catch(() => {});
                     return json(
                         res,
