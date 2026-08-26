@@ -9,6 +9,7 @@ const workerSource = await readFile("service-worker.js", "utf8");
 const buildSource = await readFile("scripts/build.mjs", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
+<<<<<<< HEAD
 test("la v9.9.48 charge le design system après les styles historiques", () => {
     assert.equal(versionSource, "9.9.48");
 
@@ -18,6 +19,17 @@ test("la v9.9.48 charge le design system après les styles historiques", () => {
     assert.ok(legacyStyle > 0);
     assert.ok(designStyle > legacyStyle);
     assert.match(workerSource, /design-system\.css\?v=9\.9\.48/);
+=======
+test("la v9.9.47 charge le design system après les styles historiques", () => {
+    assert.equal(versionSource, "9.9.47");
+
+    const legacyStyle = indexSource.indexOf("style.css?v=9.9.47");
+    const designStyle = indexSource.indexOf("design-system.css?v=9.9.47");
+
+    assert.ok(legacyStyle > 0);
+    assert.ok(designStyle > legacyStyle);
+    assert.match(workerSource, /design-system\.css\?v=9\.9\.47/);
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(buildSource, /"design-system\.css"/);
 });
 

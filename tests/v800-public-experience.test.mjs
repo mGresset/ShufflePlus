@@ -180,7 +180,11 @@ test("Shuffle+ 8 relie l’expérience publique et la récupération serveur à 
     assert.match(appSource, /recoverServerSyncState\(/);
     assert.match(appSource, /rememberServerSyncState\(/);
     assert.match(appSource, /isExpertExperience\(experienceMode\)/);
+<<<<<<< HEAD
     assert.match(indexSource, /Shuffle\+ 9\.9\.48 · Candidate v10/);
+=======
+    assert.match(indexSource, /Shuffle\+ 9\.9\.47 · Candidate v10/);
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(styleSource, /\.v8-welcome-panel/);
     assert.match(styleSource, /\.experience-mode-options/);
     assert.match(workerSource, /\.\/core\/experience-mode\.js/);

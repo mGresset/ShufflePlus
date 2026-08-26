@@ -47,8 +47,13 @@ function createSnapshot(overrides = {}) {
     };
 }
 
+<<<<<<< HEAD
 test("la distribution active annonce Shuffle+ 9.9.48", () => {
     assert.equal(version, "9.9.48");
+=======
+test("la distribution active annonce Shuffle+ 9.9.47", () => {
+    assert.equal(version, "9.9.47");
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 });
 
 test("le journal normalise, déduplique et limite les événements", () => {
@@ -77,7 +82,11 @@ test("les statuts importants deviennent des événements génériques et privés
         3_000
     );
     const server = deriveReliabilityEventFromStatus(
+<<<<<<< HEAD
         "Serveur disponible · 9.9.48.",
+=======
+        "Serveur disponible · 9.9.47.",
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
         "success",
         4_000
     );
@@ -92,7 +101,11 @@ test("le centre construit quatre services et un plan de récupération", () => {
     const services = buildReliabilityServices(snapshot, {
         serverHealth: {
             status: "healthy",
+<<<<<<< HEAD
             version: "9.9.48",
+=======
+            version: "9.9.47",
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
             latencyMs: 42
         },
         queueState: {
@@ -151,7 +164,11 @@ test("le plan propose les actions adaptées aux pannes", () => {
 
 test("l’export masque les données sensibles", () => {
     const exported = buildReliabilityExport({
+<<<<<<< HEAD
         snapshot: { appVersion: "9.9.48" },
+=======
+        snapshot: { appVersion: "9.9.47" },
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
         events: [{
             category: "spotify",
             level: "success",

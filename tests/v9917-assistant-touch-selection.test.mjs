@@ -7,8 +7,13 @@ const appSource = await readFile("app.js", "utf8");
 const styleSource = await readFile("style.css", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
+<<<<<<< HEAD
 test("Shuffle+ 9.9.48 neutralise le survol tactile persistant", () => {
     assert.equal(version, "9.9.48");
+=======
+test("Shuffle+ 9.9.47 neutralise le survol tactile persistant", () => {
+    assert.equal(version, "9.9.47");
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(
         designSource,
         /button\[aria-pressed="false"\]:hover,[\s\S]*button\[aria-pressed="false"\]:active[\s\S]*background:\s*var\(--ui-control-bg\)\s*!important/

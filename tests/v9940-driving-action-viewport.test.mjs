@@ -5,8 +5,13 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 
+<<<<<<< HEAD
 test("Shuffle+ 9.9.48 conserve le viewport stable pendant une commande conduite", () => {
     assert.equal(version, "9.9.48");
+=======
+test("Shuffle+ 9.9.47 conserve le viewport stable pendant une commande conduite", () => {
+    assert.equal(version, "9.9.47");
+>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(appSource, /let drivingViewportMetricsReady = false;/);
     assert.match(appSource, /function freezeDrivingViewportForAction\(/);
     assert.match(
