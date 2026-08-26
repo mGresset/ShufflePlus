@@ -3,6 +3,21 @@
 Ce fichier regroupe l’historique qui était auparavant réparti dans les fichiers `Vx.x.x_NOTES.md`.
 Git conserve en complément l’historique complet de chaque modification.
 
+## 9.9.49
+
+### Connexion Spotify iPhone et réparation PWA
+
+- Protection du callback Spotify OAuth/PKCE : la récupération de démarrage ne supprime plus `code_verifier` ni `state` pendant le retour de Spotify.
+- Le watchdog de démarrage passe de 10 à 25 secondes et devient non destructif lorsqu’un callback OAuth est présent.
+- Ajout d’un verrou anti-boucle de réparation basé à la fois sur `sessionStorage` et sur le paramètre `recovery` de l’URL.
+- Une réparation injecte le `shuffleplus_build` courant dans l’URL afin d’empêcher le bootstrap de déclencher une seconde purge si `localStorage` est indisponible sur Safari/PWA iOS.
+- Les marqueurs de réparation ne sont nettoyés qu’après 20 secondes de stabilité, au lieu d’être supprimés dès le chargement principal.
+- Le bouton de réparation des Réglages délègue désormais au même moteur de récupération sécurisé, au lieu d’utiliser une deuxième implémentation avec `location.reload()`.
+- Le mode de secours limite lui aussi le désenregistrement du Service Worker au scope exact de Shuffle+.
+- Ajout de tests de non-régression dédiés à la connexion Spotify et aux boucles de rechargement iPhone.
+
+---
+
 ## 9.9.48
 
 ### Consolidation avant version finale

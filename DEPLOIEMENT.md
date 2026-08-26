@@ -14,7 +14,7 @@ La commande exécute les contrôles JavaScript, les tests applicatifs et serveur
 
 ```powershell
 git add -A
-git commit -m "Release Shuffle+ v9.9.48 - consolidation finale"
+git commit -m "Release Shuffle+ v9.9.49 - consolidation finale"
 git push origin main
 ```
 
@@ -22,7 +22,7 @@ git push origin main
 
 1. Fermer complètement Shuffle+ sur l’iPhone.
 2. Rouvrir l’application avec Internet actif.
-3. Vérifier que l’interface affiche **v9.9.48**.
+3. Vérifier que l’interface affiche **v9.9.49**.
 4. Tester au minimum la connexion Spotify, Pause/Lecture, Titre suivant et le mode conduite.
 
 ## Railway et raccourci iPhone

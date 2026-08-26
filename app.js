@@ -415,7 +415,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.48";
+const APP_VERSION = "9.9.49";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -889,7 +889,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.48-shell";
+    "shuffleplus-v9.9.49-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5406,7 +5406,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.48
+                        ✨ Apparence v9.9.49
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6440,7 +6440,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.48",
+                "./service-worker.js?v=9.9.49",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7420,7 +7420,7 @@ async function repairPwaCache() {
     }
 
     const confirmed = window.confirm(
-        "Réparer le cache de Shuffle+ ? Les réglages, mix et connexions ne seront pas supprimés. L’application va ensuite se recharger."
+        "Réparer le cache de Shuffle+ ? Les réglages, mix et connexions ne seront pas supprimés. L’application va ensuite se recharger une seule fois."
     );
 
     if (!confirmed) {
@@ -7432,20 +7432,28 @@ async function repairPwaCache() {
     );
 
     try {
+        // Une seule implémentation de réparation : elle protège le callback
+        // Spotify PKCE et empêche les cascades de reload sur Safari/PWA iOS.
+        if (typeof window.ShufflePlusRecovery?.repair === "function") {
+            await window.ShufflePlusRecovery.repair();
+            return;
+        }
+
+        // Secours si le module de récupération n’a pas pu être chargé.
         if ("serviceWorker" in navigator) {
             const registrations =
                 await navigator
                     .serviceWorker
                     .getRegistrations();
+            const shufflePlusScope =
+                new URL("./", window.location.href).href;
 
             await Promise.all(
                 registrations
                     .filter(
                         (registration) =>
-                            registration.scope
-                                .startsWith(
-                                    window.location.origin
-                                )
+                            registration.scope ===
+                            shufflePlusScope
                     )
                     .map(
                         (registration) =>
@@ -7455,8 +7463,7 @@ async function repairPwaCache() {
         }
 
         if ("caches" in window) {
-            const names =
-                await caches.keys();
+            const names = await caches.keys();
             await Promise.all(
                 names
                     .filter(
@@ -7472,11 +7479,20 @@ async function repairPwaCache() {
             );
         }
 
-        window.location.reload();
+        const url = new URL(window.location.href);
+        url.searchParams.set(
+            "shuffleplus_build",
+            `${APP_VERSION}-pwa-reset-1`
+        );
+        url.searchParams.set(
+            "recovery",
+            String(Date.now())
+        );
+        window.location.replace(url.toString());
     } catch (error) {
         console.error(error);
         setStatus(
-            "La réparation automatique a échoué. Ferme complètement Shuffle+ puis relance-la.",
+            "La réparation a échoué. Ferme complètement Shuffle+ puis relance-la.",
             "error"
         );
     }

@@ -1,9 +1,15 @@
 (() => {
     "use strict";
 
-    const APP_VERSION = "9.9.48";
+    const APP_VERSION = "9.9.49";
+    const BUILD_ID = `${APP_VERSION}-pwa-reset-1`;
+    const BUILD_QUERY_KEY = "shuffleplus_build";
     const CACHE_PREFIX = "shuffleplus-";
     const AUTO_REPAIR_KEY = `shuffleplus_auto_repair_${APP_VERSION}`;
+    const REPAIR_RELOAD_KEY = `shuffleplus_repair_reload_${APP_VERSION}`;
+    const REPAIR_COOLDOWN_MS = 60_000;
+    const RECOVERY_STABILITY_MS = 20_000;
+    const STARTUP_WATCHDOG_MS = 25_000;
     const AUTH_LOCAL_KEYS = [
         "shuffleplus_access_token",
         "shuffleplus_refresh_token",
@@ -33,6 +39,71 @@
         } catch {
             // Un stockage bloqué ne doit pas empêcher la réparation du cache.
         }
+    }
+
+    function safeStorageGet(storage, key) {
+        try {
+            return storage?.getItem(key) || "";
+        } catch {
+            return "";
+        }
+    }
+
+    function safeStorageSet(storage, key, value) {
+        try {
+            storage?.setItem(key, String(value));
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    function getNavigationState() {
+        const url = new URL(window.location.href);
+        const recoveryAt = Number(url.searchParams.get("recovery") || 0);
+        const storedRepairAt = Number(
+            safeStorageGet(sessionStorage, REPAIR_RELOAD_KEY) || 0
+        );
+        const now = Date.now();
+        const recentUrlRepair = Number.isFinite(recoveryAt) &&
+            recoveryAt > 0 &&
+            now - recoveryAt >= 0 &&
+            now - recoveryAt < REPAIR_COOLDOWN_MS;
+        const recentStoredRepair = Number.isFinite(storedRepairAt) &&
+            storedRepairAt > 0 &&
+            now - storedRepairAt >= 0 &&
+            now - storedRepairAt < REPAIR_COOLDOWN_MS;
+
+        return {
+            url,
+            hasOAuthCallback: Boolean(
+                url.searchParams.get("code") ||
+                url.searchParams.get("error")
+            ),
+            recentRepair: recentUrlRepair || recentStoredRepair
+        };
+    }
+
+    function markRepairReload(timestamp = Date.now()) {
+        safeStorageSet(sessionStorage, REPAIR_RELOAD_KEY, timestamp);
+        return timestamp;
+    }
+
+    function cleanRecoveryMarkerAfterStability() {
+        window.setTimeout(() => {
+            safeStorageRemove(sessionStorage, AUTO_REPAIR_KEY);
+            safeStorageRemove(sessionStorage, REPAIR_RELOAD_KEY);
+
+            const url = new URL(window.location.href);
+            if (url.searchParams.has("recovery")) {
+                url.searchParams.delete("recovery");
+                window.history.replaceState(
+                    window.history.state,
+                    document.title,
+                    url.toString()
+                );
+            }
+        }, RECOVERY_STABILITY_MS);
     }
 
     function setDetails(message) {
@@ -100,18 +171,46 @@
         clearTemporarySpotifyState();
     }
 
-    function reloadWithoutCachedNavigation() {
+    function reloadWithoutCachedNavigation(repairTimestamp = Date.now()) {
         const url = new URL(window.location.href);
         url.searchParams.delete("code");
         url.searchParams.delete("state");
         url.searchParams.delete("error");
-        url.searchParams.set("recovery", String(Date.now()));
+        // Le build dans l’URL empêche bootstrap d’effectuer une seconde purge
+        // si localStorage est indisponible (cas rencontré sur Safari/PWA iOS).
+        url.searchParams.set(BUILD_QUERY_KEY, BUILD_ID);
+        url.searchParams.set("recovery", String(repairTimestamp));
         window.location.replace(url.toString());
     }
 
     async function repairApplication({ resetSpotify = false, automatic = false } = {}) {
         if (repairInProgress) {
-            return;
+            return false;
+        }
+
+        const navigation = getNavigationState();
+
+        // Le code_verifier et le state PKCE vivent dans sessionStorage. Les
+        // supprimer pendant le callback Spotify rend la connexion impossible.
+        if (navigation.hasOAuthCallback) {
+            showPanel(
+                automatic
+                    ? "La connexion Spotify est en cours. La réparation automatique a été suspendue pour préserver la vérification de sécurité."
+                    : "Connexion Spotify en cours : Shuffle+ ne réparera pas le cache avant la fin du retour Spotify afin de préserver la vérification de sécurité."
+            );
+            if (loginButton) {
+                loginButton.disabled = false;
+            }
+            return false;
+        }
+
+        // Après une réparation, aucun watchdog ne doit pouvoir relancer une
+        // deuxième purge pendant le même démarrage à froid.
+        if (automatic && navigation.recentRepair) {
+            showPanel(
+                "Shuffle+ vient déjà d’être réparée. Aucun nouveau rechargement automatique ne sera lancé."
+            );
+            return false;
         }
 
         repairInProgress = true;
@@ -130,9 +229,11 @@
                 clearTemporarySpotifyState();
             }
 
+            const repairTimestamp = markRepairReload();
             await unregisterShufflePlusWorkers();
             await clearShufflePlusCaches();
-            reloadWithoutCachedNavigation();
+            reloadWithoutCachedNavigation(repairTimestamp);
+            return true;
         } catch (error) {
             console.error("Réparation de démarrage impossible :", error);
             repairInProgress = false;
@@ -145,6 +246,25 @@
     }
 
     async function tryAutomaticRepair(reason) {
+        const navigation = getNavigationState();
+        if (navigation.hasOAuthCallback) {
+            showPanel(
+                `${reason} La connexion Spotify est en cours : aucune donnée PKCE ne sera supprimée et aucun rechargement automatique ne sera lancé.`
+            );
+            if (loginButton) {
+                loginButton.disabled = false;
+                loginButton.textContent = "Se connecter à Spotify";
+            }
+            return;
+        }
+
+        if (navigation.recentRepair) {
+            showPanel(
+                `${reason} Une réparation vient déjà d’être effectuée : Shuffle+ bloque un nouveau rechargement automatique.`
+            );
+            return;
+        }
+
         let alreadyTried = false;
         try {
             alreadyTried = sessionStorage.getItem(AUTO_REPAIR_KEY) === "1";
@@ -207,11 +327,10 @@
             return;
         }
 
-        try {
-            sessionStorage.removeItem(AUTO_REPAIR_KEY);
-        } catch {
-            // Sans conséquence.
-        }
+        // Le verrou reste actif pendant une courte période de stabilité.
+        // Le retirer immédiatement permettait au démarrage PWA suivant de
+        // relancer une réparation et de créer une boucle sur Safari iOS.
+        cleanRecoveryMarkerAfterStability();
     });
 
     window.addEventListener("shuffleplus:startup-error", (event) => {
@@ -235,7 +354,7 @@
                 "Le démarrage de Shuffle+ prend anormalement longtemps."
             );
         }
-    }, 10_000);
+    }, STARTUP_WATCHDOG_MS);
 
     window.ShufflePlusRecovery = Object.freeze({
         version: APP_VERSION,

@@ -6,9 +6,9 @@ const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8"))
 const css = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
-test("Shuffle+ 9.9.48 compacte le mode conduite sans tronquer les commandes", () => {
-    assert.equal(version, "9.9.48");
-    assert.match(css, /v9\.9\.48 — contrat mobile conduite consolidé/);
+test("Shuffle+ 9.9.49 compacte le mode conduite sans tronquer les commandes", () => {
+    assert.equal(version, "9.9.49");
+    assert.match(css, /v9\.9\.49 — contrat mobile conduite consolidé/);
     assert.match(css, /grid-template-rows:\s*repeat\(2, minmax\(68px, 1fr\)\)/);
     assert.match(css, /\.driving-control\s*\{[\s\S]*?min-height:\s*68px/);
     assert.match(css, /\.driving-control strong,[\s\S]*?white-space:\s*normal;/);

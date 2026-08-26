@@ -14,11 +14,11 @@ const serviceWorkerSource = await readFile(
 );
 const appSource = await readFile("app.js", "utf8");
 
-test("la v9.9.48 charge l'application par un bootstrap propre à la release", () => {
-    assert.equal(version, "9.9.48");
+test("la v9.9.49 charge l'application par un bootstrap propre à la release", () => {
+    assert.equal(version, "9.9.49");
     assert.match(
         indexSource,
-        /type="module" src="\.\/bootstrap-9\.9\.48\.js"/
+        /type="module" src="\.\/bootstrap-9\.9\.49\.js"/
     );
     assert.doesNotMatch(
         indexSource,
@@ -26,7 +26,7 @@ test("la v9.9.48 charge l'application par un bootstrap propre à la release", ()
     );
     assert.match(
         bootstrapSource,
-        /const BUILD_ID = "9\.9\.48-pwa-reset-1"/
+        /const BUILD_ID = "9\.9\.49-pwa-reset-1"/
     );
     assert.match(
         bootstrapSource,
@@ -41,11 +41,11 @@ test("la v9.9.48 charge l'application par un bootstrap propre à la release", ()
 test("le Service Worker précharge les ressources portant l'identité exacte du build", () => {
     assert.match(
         serviceWorkerSource,
-        /"\.\/bootstrap-9\.9\.48\.js"/
+        /"\.\/bootstrap-9\.9\.49\.js"/
     );
     assert.match(
         serviceWorkerSource,
-        /"\.\/app\.js\?v=9\.9\.48&build=9\.9\.48-pwa-reset-1"/
+        /"\.\/app\.js\?v=9\.9\.49&build=9\.9\.49-pwa-reset-1"/
     );
 });
 
