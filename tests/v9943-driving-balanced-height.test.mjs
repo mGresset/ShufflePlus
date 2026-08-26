@@ -3,25 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
-<<<<<<< HEAD
 const css = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 
 test("Shuffle+ 9.9.48 équilibre le mode conduite sur toute la hauteur utile", () => {
     assert.equal(version, "9.9.48");
     assert.match(css, /body\.is-driving-mode #content\s*\{[\s\S]*?align-items:\s*stretch;/);
     assert.match(css, /body\.is-driving-mode \.driving-mode-page,[\s\S]*?height:\s*100%;/);
-=======
-const css = await readFile(
-    new URL("../styles/feature-driving.css", import.meta.url),
-    "utf8"
-);
-
-test("Shuffle+ 9.9.47 équilibre le mode conduite sur toute la hauteur", () => {
-    assert.equal(version, "9.9.47");
-    assert.match(css, /v9\.9\.47 — conduite équilibrée sur toute la hauteur/);
-    assert.match(css, /body\.is-driving-mode #content\s*\{[\s\S]*?align-items:\s*stretch;/);
-    assert.match(css, /body\.is-driving-mode \.driving-mode-page\s*\{[\s\S]*?height:\s*100%;/);
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(css, /flex:\s*1 1 auto;/);
     assert.match(css, /align-self:\s*stretch;/);
     assert.match(css, /justify-content:\s*space-between;/);

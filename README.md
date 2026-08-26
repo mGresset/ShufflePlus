@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 # Shuffle+ v9.9.48
-=======
-# Shuffle+ v9.9.47
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -19,11 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-<<<<<<< HEAD
 > **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.48**.
-=======
-> **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.47**.
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 
 ---
 
@@ -653,11 +645,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-<<<<<<< HEAD
 git commit -m "Release Shuffle+ v9.9.48"
-=======
-git commit -m "Release Shuffle+ v9.9.47"
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 git push origin main
 ```
 
@@ -667,11 +655,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-<<<<<<< HEAD
 3. vérifier que l’en-tête affiche **v9.9.48** ;
-=======
-3. vérifier que l’en-tête affiche **v9.9.47** ;
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -688,13 +672,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-<<<<<<< HEAD
 bootstrap-9.9.48.js        Chargement versionné et migration du runtime
 startup-recovery-9.9.48.js Réparation avant le chargement principal
-=======
-bootstrap-9.9.47.js        Chargement versionné et migration du runtime
-startup-recovery-9.9.47.js Réparation avant le chargement principal
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -742,11 +721,7 @@ server/README.md
 
 ## Validation et tests
 
-<<<<<<< HEAD
 La v9.9.48 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
-=======
-La v9.9.47 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 - tests du serveur réussis ;
 - 163 fichiers JavaScript contrôlés ;
 - 59 modules reliés à `app.js` ;

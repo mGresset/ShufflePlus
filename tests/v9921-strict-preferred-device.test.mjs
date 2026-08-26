@@ -10,13 +10,8 @@ import {
 const appSource = await readFile("app.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-<<<<<<< HEAD
 test("Shuffle+ 9.9.48 active le ciblage strict de l’iPhone enregistré", () => {
     assert.equal(version, "9.9.48");
-=======
-test("Shuffle+ 9.9.47 active le ciblage strict de l’iPhone enregistré", () => {
-    assert.equal(version, "9.9.47");
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(
         appSource,
         /strictPreferredDevice[\s\S]*fallbackCandidates:\s*strictPreferredDevice\s*\?\s*\[\]/

@@ -45,11 +45,7 @@ test("un succès renvoie un résultat JSON au raccourci", () => {
             successUrl: "shortcuts://x-callback-url/ic-success/ok"
         },
         {
-<<<<<<< HEAD
             version: "9.9.48",
-=======
-            version: "9.9.47",
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
             status: "success",
             action: "quickplay",
             device: "iPhone enregistré",
@@ -60,11 +56,7 @@ test("un succès renvoie un résultat JSON au raccourci", () => {
     const result = JSON.parse(url.searchParams.get("result"));
 
     assert.equal(result.success, true);
-<<<<<<< HEAD
     assert.equal(result.version, "9.9.48");
-=======
-    assert.equal(result.version, "9.9.47");
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.equal(result.device, "iPhone enregistré");
 });
 

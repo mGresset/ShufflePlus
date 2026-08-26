@@ -1,11 +1,7 @@
 (() => {
     "use strict";
 
-<<<<<<<< HEAD:startup-recovery-9.9.48.js
     const APP_VERSION = "9.9.48";
-========
-    const APP_VERSION = "9.9.47";
->>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9:startup-recovery-9.9.47.js
     const CACHE_PREFIX = "shuffleplus-";
     const AUTO_REPAIR_KEY = `shuffleplus_auto_repair_${APP_VERSION}`;
     const AUTH_LOCAL_KEYS = [

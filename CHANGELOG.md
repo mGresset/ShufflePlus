@@ -3,7 +3,6 @@
 Ce fichier regroupe l’historique qui était auparavant réparti dans les fichiers `Vx.x.x_NOTES.md`.
 Git conserve en complément l’historique complet de chaque modification.
 
-<<<<<<< HEAD
 ## 9.9.48
 
 ### Consolidation avant version finale
@@ -21,8 +20,6 @@ Git conserve en complément l’historique complet de chaque modification.
 
 ---
 
-=======
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 ## 9.9.47
 
 ### Nettoyage de la documentation

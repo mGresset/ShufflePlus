@@ -1,10 +1,5 @@
-<<<<<<<< HEAD:bootstrap-9.9.48.js
 const APP_VERSION = "9.9.48";
 const BUILD_ID = "9.9.48-pwa-reset-1";
-========
-const APP_VERSION = "9.9.47";
-const BUILD_ID = "9.9.47-pwa-reset-1";
->>>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9:bootstrap-9.9.47.js
 const BUILD_STORAGE_KEY = "shuffleplus_runtime_build_id";
 const BUILD_QUERY_KEY = "shuffleplus_build";
 const AUTOMATION_HANDOFF_KEY =

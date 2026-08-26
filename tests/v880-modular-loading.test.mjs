@@ -50,13 +50,8 @@ function createFakeDocument() {
     };
 }
 
-<<<<<<< HEAD
 test("la distribution active annonce Shuffle+ 9.9.48", () => {
     assert.equal(version, "9.9.48");
-=======
-test("la distribution active annonce Shuffle+ 9.9.47", () => {
-    assert.equal(version, "9.9.47");
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 });
 
 test("les feuilles de fonctionnalités sont déclarées centralement", () => {
@@ -71,20 +66,12 @@ test("le chargeur ajoute une feuille versionnée une seule fois", async () => {
     const documentObject = createFakeDocument();
     const loader = createStylesheetLoader(
         { search: "./styles/feature-search.css" },
-<<<<<<< HEAD
         { documentObject, version: "9.9.48" }
-=======
-        { documentObject, version: "9.9.47" }
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     );
     await loader.load("search");
     await loader.load("search");
     assert.equal(documentObject.links.length, 1);
-<<<<<<< HEAD
     assert.match(documentObject.links[0].href, /feature-search\.css\?v=9\.9\.48$/);
-=======
-    assert.match(documentObject.links[0].href, /feature-search\.css\?v=9\.9\.47$/);
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.equal(loader.isLoaded("search"), true);
 });
 
@@ -95,11 +82,7 @@ test("la recherche universelle est chargée dynamiquement", () => {
 });
 
 test("les styles spécialisés ne gonflent plus la feuille initiale", () => {
-<<<<<<< HEAD
     assert.doesNotMatch(styleSource, /Shuffle\+ v9\.9\.48 — Recherche compacte/);
-=======
-    assert.doesNotMatch(styleSource, /Shuffle\+ v9\.9\.47 — Recherche compacte/);
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.doesNotMatch(designSource, /Mode conduite v8\.4 : progression/);
     assert.doesNotMatch(indexSource, /feature-home\.css|feature-search\.css|feature-settings\.css|feature-driving\.css/);
 });

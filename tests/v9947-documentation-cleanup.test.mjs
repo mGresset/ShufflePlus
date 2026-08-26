@@ -5,13 +5,8 @@ import test from "node:test";
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const rootUrl = new URL("../", import.meta.url);
 
-<<<<<<< HEAD
 test("Shuffle+ 9.9.48 consolide la documentation de release", async () => {
     assert.equal(version, "9.9.48");
-=======
-test("Shuffle+ 9.9.47 consolide la documentation de release", async () => {
-    assert.equal(version, "9.9.47");
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
 
     for (const file of ["CHANGELOG.md", "DEPLOIEMENT.md", "GUIDE-RACCOURCI.md"]) {
         await access(new URL(`../${file}`, import.meta.url));
@@ -25,12 +20,7 @@ test("Shuffle+ 9.9.47 consolide la documentation de release", async () => {
 
     const changelog = await readFile(new URL("../CHANGELOG.md", import.meta.url), "utf8");
     assert.match(changelog, /^# Changelog Shuffle\+/);
-<<<<<<< HEAD
     assert.match(changelog, /## 9\.9\.48/);
     assert.match(changelog, /## 9\.9\.48/);
-=======
-    assert.match(changelog, /## 9\.9\.47/);
-    assert.match(changelog, /## 9\.9\.47/);
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
     assert.match(changelog, /## 9\.0\.0/);
 });

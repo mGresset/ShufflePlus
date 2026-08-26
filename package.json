@@ -1,16 +1,9 @@
 {
   "name": "shuffleplus",
-<<<<<<< HEAD
   "version": "9.9.48",
   "private": true,
   "type": "module",
   "description": "Shuffle+ 9.9.48 — consolidation sécurité, PWA, Railway et mode conduite.",
-=======
-  "version": "9.9.47",
-  "private": true,
-  "type": "module",
-  "description": "Shuffle+ 9.9.47 — bouton Aléatoire Spotify dans le mode conduite.",
->>>>>>> 52d770a83528fa73c8bfab6870d9cad4767612e9
   "engines": {
     "node": ">=20"
   },
