@@ -15931,7 +15931,7 @@ body.is-connected .startup-recovery-panel {
 .app-section-menu {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
     gap: 10px;
     margin: 10px 0 18px;
@@ -15945,7 +15945,7 @@ body.is-connected .startup-recovery-panel {
 .app-section-more__items {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     flex-wrap: wrap;
     gap: 8px;
 }
@@ -16086,7 +16086,7 @@ body.is-connected .startup-recovery-panel {
 
     .app-section-menu {
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         flex-wrap: wrap;
         margin-top: 8px;
         padding: 8px;
@@ -16096,7 +16096,7 @@ body.is-connected .startup-recovery-panel {
         min-width: 0;
         max-width: 100%;
         flex: 0 1 auto;
-        justify-content: center;
+        justify-content: flex-start;
         flex-wrap: wrap;
         overflow: visible;
     }
@@ -17883,6 +17883,15 @@ html[data-experience-mode="essential"] .app-section-more {
     .launch-center-actions button,
     .launch-center-diagnostic button {
         width: 100%;
+    }
+
+    /* En disposition verticale, le flex-basis horizontal de 260 px du
+       sélecteur ne doit pas devenir sa hauteur sur Safari iPhone. */
+    .launch-center-profile-form select {
+        min-width: 0;
+        height: auto;
+        min-height: var(--ui-control-height, 48px);
+        flex: 0 0 auto;
     }
 
     .guided-setup-current-step {

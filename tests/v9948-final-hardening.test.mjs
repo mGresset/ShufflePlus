@@ -14,8 +14,8 @@ const [
     manifest
 ] = await Promise.all([
     readFile(new URL("../VERSION", import.meta.url), "utf8").then((value) => value.trim()),
-    readFile(new URL("../bootstrap-10.1.3.js", import.meta.url), "utf8"),
-    readFile(new URL("../startup-recovery-10.1.3.js", import.meta.url), "utf8"),
+    readFile(new URL("../bootstrap-10.1.4.js", import.meta.url), "utf8"),
+    readFile(new URL("../startup-recovery-10.1.4.js", import.meta.url), "utf8"),
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../core/security-policy.js", import.meta.url), "utf8"),
     readFile(new URL("../core/shortcut-result-channel.js", import.meta.url), "utf8"),
@@ -24,8 +24,8 @@ const [
     readFile(new URL("../manifest.webmanifest", import.meta.url), "utf8")
 ]);
 
-test("10.1.3 limite la réparation PWA au scope Shuffle+ exact", () => {
-    assert.equal(version, "10.1.3");
+test("10.1.4 limite la réparation PWA au scope Shuffle+ exact", () => {
+    assert.equal(version, "10.1.4");
     for (const source of [bootstrap, recovery]) {
         assert.match(source, /const shufflePlusScope = new URL\("\.\/", window\.location\.href\)\.href;/);
         assert.match(source, /registration\.scope === shufflePlusScope/);
@@ -33,7 +33,7 @@ test("10.1.3 limite la réparation PWA au scope Shuffle+ exact", () => {
     }
 });
 
-test("10.1.3 borne connect-src aux services réellement utilisés", () => {
+test("10.1.4 borne connect-src aux services réellement utilisés", () => {
     assert.match(index, /connect-src 'self' https:\/\/accounts\.spotify\.com https:\/\/api\.spotify\.com https:\/\/\*\.up\.railway\.app;/);
     assert.doesNotMatch(index, /connect-src 'self' https:;/);
     assert.match(securityPolicy, /https:\/\/\*\.up\.railway\.app/);
@@ -61,7 +61,7 @@ test("le rate limiter Railway purge ses buckets et tient compte du proxy", () =>
 });
 
 test("le mode conduite et le manifeste n'accumulent plus les anciens patchs", () => {
-    assert.match(drivingCss, /v10\.1\.3 — contrat mobile conduite consolidé/);
+    assert.match(drivingCss, /v10\.1\.4 — contrat mobile conduite consolidé/);
     assert.doesNotMatch(drivingCss, /v9\.9\.(?:30|33|34|39|41|42|45|47) —/);
     const parsedManifest = JSON.parse(manifest);
     assert.equal(

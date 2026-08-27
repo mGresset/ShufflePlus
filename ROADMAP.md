@@ -27,4 +27,5 @@
 - **v9.9.5 — Horloge locale et verrou Pause/Lecture : terminée**
 - **v9.9.6 — Convergence Spotify, cache anti-course et confirmation stable : terminée**
 - **v10.1.3 — Fiabilité iPhone et centrage global des sous-menus : terminée**
+- **v10.1.4 — Sous-menus alignés à gauche et sélecteur de profil mobile compact : terminée**
 - **v10.2.0 — Poursuite du découpage des contrôleurs Spotify, conduite et synchronisation : envisagée**

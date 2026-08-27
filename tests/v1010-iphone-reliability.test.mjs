@@ -29,8 +29,8 @@ function memoryStorage() {
     };
 }
 
-test("Shuffle+ 10.1.3 détecte les raccourcis legacy sans ResultToken", () => {
-    assert.equal(version, "10.1.3");
+test("Shuffle+ 10.1.4 détecte les raccourcis legacy sans ResultToken", () => {
+    assert.equal(version, "10.1.4");
     const result = inspectLegacyShortcutUrl(
         "https://example.test/?action=quickplay&resultServer=https%3A%2F%2Frailway.test&requestId=abc12345"
     );
@@ -81,13 +81,13 @@ test("une sauvegarde locale est créée avant une mise à jour PWA et reste reli
     };
     const saved = savePreUpdateSnapshot(storage, backup, {
         fromVersion: "10.0.1",
-        toVersion: "10.1.3",
+        toVersion: "10.1.4",
         now: 1234
     });
     assert.equal(saved.saved, true);
     const snapshot = readPreUpdateSnapshot(storage);
     assert.equal(snapshot.fromVersion, "10.0.1");
-    assert.equal(snapshot.toVersion, "10.1.3");
+    assert.equal(snapshot.toVersion, "10.1.4");
     assert.equal(snapshot.backup.data.iosCommands[0].id, "car");
     assert.equal(getPreUpdateSnapshotSummary(snapshot).available, true);
 });

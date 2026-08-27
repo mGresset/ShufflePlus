@@ -6,8 +6,8 @@ const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("Shuffle+ 10.1.3 utilise un état dédié pour l’exemple actif", () => {
-    assert.equal(version, "10.1.3");
+test("Shuffle+ 10.1.4 utilise un état dédié pour l’exemple actif", () => {
+    assert.equal(version, "10.1.4");
     assert.match(
         appSource,
         /let musicalAssistantSelectedExample = "";/

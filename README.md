@@ -1,4 +1,4 @@
-# Shuffle+ v10.1.3
+# Shuffle+ v10.1.4
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.1.3** est une mise à jour de fiabilité et de finition de la branche V10. Elle conserve les correctifs iPhone/Railway et centre désormais les sous-menus de rubrique sur ordinateur comme sur iPhone, sans changer le serveur Railway v5.2.0.
+> **État du projet :** **Shuffle+ 10.1.4** est une mise à jour corrective de la branche V10. Elle conserve les correctifs iPhone/Railway, rétablit les sous-menus alignés à gauche et corrige la hauteur anormale du sélecteur de profil principal sur iPhone, sans changer le serveur Railway v5.2.0.
 
 ---
 
@@ -716,7 +716,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.1.3"
+git commit -m "Release Shuffle+ v10.1.4"
 git push origin main
 ```
 
@@ -726,7 +726,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.1.3** ;
+3. vérifier que l’en-tête affiche **v10.1.4** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -743,8 +743,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-10.1.3.js        Chargement versionné et migration du runtime
-startup-recovery-10.1.3.js Réparation avant le chargement principal
+bootstrap-10.1.4.js        Chargement versionné et migration du runtime
+startup-recovery-10.1.4.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -792,7 +792,7 @@ server/README.md
 
 ## Validation et tests
 
-La v10.1.3 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.1.4 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
 - **411 tests applicatifs réussis** ;
 - 177 fichiers JavaScript contrôlés ;
@@ -892,7 +892,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.1.3 sera déclarée stable après validation réelle de :
+La v10.1.4 sera déclarée stable après validation réelle de :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

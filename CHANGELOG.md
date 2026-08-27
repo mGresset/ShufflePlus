@@ -1,5 +1,12 @@
 # Changelog Shuffle+
 
+## 10.1.4
+
+- rétablit l’alignement à gauche des sous-menus de rubrique sur ordinateur et iPhone ;
+- conserve le retour à la ligne responsive sur petit écran, sans réintroduire de défilement horizontal ;
+- corrige le sélecteur « Profil principal » du Centre de lancement sur iPhone : son `flex-basis` horizontal ne devient plus une hauteur de 260 px lorsque le formulaire passe en colonne ;
+- ajoute un garde-fou de test dédié à la compacité du sélecteur mobile et à l’alignement des sous-menus.
+
 ## 10.1.3
 
 - centre horizontalement tous les sous-menus de rubrique (`Musique`, `Créer`, `Lancer` et `Réglages`) ;

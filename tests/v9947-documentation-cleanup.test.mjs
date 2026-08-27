@@ -5,8 +5,8 @@ import test from "node:test";
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const rootUrl = new URL("../", import.meta.url);
 
-test("Shuffle+ 10.1.3 consolide la documentation de release", async () => {
-    assert.equal(version, "10.1.3");
+test("Shuffle+ 10.1.4 consolide la documentation de release", async () => {
+    assert.equal(version, "10.1.4");
 
     for (const file of ["CHANGELOG.md", "DEPLOIEMENT.md", "GUIDE-RACCOURCI.md"]) {
         await access(new URL(`../${file}`, import.meta.url));
@@ -20,7 +20,7 @@ test("Shuffle+ 10.1.3 consolide la documentation de release", async () => {
 
     const changelog = await readFile(new URL("../CHANGELOG.md", import.meta.url), "utf8");
     assert.match(changelog, /^# Changelog Shuffle\+/);
-    assert.match(changelog, /## 10\.1\.3/);
+    assert.match(changelog, /## 10\.1\.4/);
     assert.match(changelog, /## 10\.1\.1/);
     assert.match(changelog, /## 9\.0\.0/);
 });

@@ -92,7 +92,7 @@ try {
             method: "POST",
             headers: launchAuth,
             body: JSON.stringify({
-                version: "10.1.3",
+                version: "10.1.4",
                 status: "running",
                 message: "Lancement en cours"
             })
@@ -111,7 +111,7 @@ try {
             method: "POST",
             headers: launchAuth,
             body: JSON.stringify({
-                version: "10.1.3",
+                version: "10.1.4",
                 status: "success",
                 success: true,
                 device: "iPhone de test",

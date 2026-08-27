@@ -8,8 +8,8 @@ const css = await readFile(
     "utf8"
 );
 
-test("Shuffle+ 10.1.3 centre le badge Prêt à tester", () => {
-    assert.equal(version, "10.1.3");
+test("Shuffle+ 10.1.4 centre le badge Prêt à tester", () => {
+    assert.equal(version, "10.1.4");
     assert.match(css, /\.v9-home-readiness\s*\{[\s\S]*?display:\s*inline-flex;/);
     assert.match(css, /\.v9-home-readiness\s*\{[\s\S]*?align-items:\s*center;/);
     assert.match(css, /\.v9-home-readiness\s*\{[\s\S]*?justify-content:\s*center;/);
