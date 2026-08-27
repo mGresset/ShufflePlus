@@ -1,5 +1,5 @@
-const APP_VERSION = "10.0.0";
-const CACHE_VERSION = "shuffleplus-v10.0.0";
+const APP_VERSION = "10.1.0";
+const CACHE_VERSION = "shuffleplus-v10.1.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,15 +7,15 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CRITICAL_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=10.0.0",
-    "./design-system.css?v=10.0.0",
-    "./bootstrap-10.0.0.js",
-    "./app.js?v=10.0.0&build=10.0.0-pwa-reset-1",
+    "./style.css?v=10.1.0",
+    "./design-system.css?v=10.1.0",
+    "./bootstrap-10.1.0.js",
+    "./app.js?v=10.1.0&build=10.1.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-10.0.0.js",
+    "./startup-recovery-10.1.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -28,6 +28,8 @@ const CRITICAL_APP_SHELL = [
     "./core/server-sync-recovery.js",
     "./core/server-sync-ui.js",
     "./core/pwa-update.js",
+    "./core/update-safety.js",
+    "./core/backup-ui.js",
     "./core/pwa-install-ui.js",
     "./core/spotify-setup-ui.js",
     "./core/security-policy.js",
@@ -52,6 +54,7 @@ const CRITICAL_APP_SHELL = [
     "./core/dynamic-lyrics.js",
     "./core/session-recovery.js",
     "./core/shortcut-profiles.js",
+    "./core/shortcut-migration.js",
     "./core/shortcut-callback.js",
     "./core/shortcut-result-channel.js",
     "./core/launch-reliability.js",
@@ -75,11 +78,11 @@ const CRITICAL_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=10.0.0",
+    "./styles/feature-home.css?v=10.1.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=10.0.0",
-    "./styles/feature-settings.css?v=10.0.0",
-    "./styles/feature-driving.css?v=10.0.0",
+    "./styles/feature-search.css?v=10.1.0",
+    "./styles/feature-settings.css?v=10.1.0",
+    "./styles/feature-driving.css?v=10.1.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

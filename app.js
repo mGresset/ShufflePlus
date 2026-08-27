@@ -247,6 +247,16 @@ import {
 } from "./core/pwa-update.js";
 
 import {
+    getPreUpdateSnapshotSummary,
+    readPreUpdateSnapshot,
+    savePreUpdateSnapshot
+} from "./core/update-safety.js";
+
+import {
+    renderBackupPanelMarkup
+} from "./core/backup-ui.js";
+
+import {
     buildPwaInstallState,
     renderPwaInstallGuideMarkup,
     renderPwaSettingsPanelMarkup
@@ -318,6 +328,14 @@ import {
     formatShortcutRunDuration,
     normalizeShortcutHistorySteps
 } from "./core/shortcut-profiles.js";
+
+import {
+    buildShortcutMigrationGuide,
+    buildShortcutResultUrlTemplate,
+    getShortcutCompatibilityState,
+    inspectLegacyShortcutUrl,
+    renderShortcutMigrationPanelMarkup
+} from "./core/shortcut-migration.js";
 
 import {
     SHORTCUT_CALLBACK_QUERY_KEYS,
@@ -423,7 +441,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.0.0";
+const APP_VERSION = "10.1.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -897,7 +915,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.0.0-shell";
+    "shuffleplus-v10.1.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1890,6 +1908,7 @@ let pendingAutomationCommand =
 let automationRunInProgress = false;
 let shortcutCallbackDispatching = false;
 let lastLaunchDiagnosticText = "";
+let shortcutMigrationInspection = null;
 let mixSchedules = readMixSchedules();
 let scheduleCheckTimer = 0;
 let scheduleRunInProgress = false;
@@ -2033,12 +2052,20 @@ function getReliabilityActiveDevice() {
 function getReliabilityContext(snapshot = appHealthSnapshot) {
     const queueState = getReliabilityQueueState();
     const activeDevice = getReliabilityActiveDevice();
+    const shortcutState = getShortcutCompatibilityState({
+        commandCount: iosCommands.length,
+        serverUrl: serverSyncState?.serverUrl || "",
+        successfulRuns: iosCommandHistory.filter(
+            (entry) => entry?.status === "success"
+        ).length
+    });
     const services = buildReliabilityServices(
         snapshot || {},
         {
             serverHealth: reliabilityServerHealth,
             queueState,
-            activeDevice
+            activeDevice,
+            shortcutState
         }
     );
     const recovery = buildReliabilityRecoveryPlan(
@@ -2055,7 +2082,8 @@ function getReliabilityContext(snapshot = appHealthSnapshot) {
         queueState,
         activeDevice,
         services,
-        recovery
+        recovery,
+        shortcutState
     };
 }
 
@@ -6328,7 +6356,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.0.0",
+                "./service-worker.js?v=10.1.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -22011,6 +22039,97 @@ async function shareUniversalLaunchUrl() {
     }
 }
 
+function getIosShortcutMigrationLaunchUrl() {
+    const command =
+        getPrincipalIosCommand() ||
+        iosCommands[0] ||
+        null;
+
+    return command
+        ? buildIosCommandUrl(command)
+        : buildUniversalLaunchUrl();
+}
+
+async function handleIosShortcutMigrationAction(action = "") {
+    const launchUrl = getIosShortcutMigrationLaunchUrl();
+    const serverUrl = serverSyncState?.serverUrl || "";
+
+    if (action === "copy-launch") {
+        try {
+            await copyTextToClipboard(launchUrl);
+            showToast("✅ URL Shuffle+ V10.1 copiée.", "success");
+            setStatus("URL V10.1 copiée pour la migration du raccourci.");
+        } catch (error) {
+            console.error(error);
+            window.prompt("Copie cette URL dans Raccourcis :", launchUrl);
+        }
+        return true;
+    }
+
+    if (action === "copy-result") {
+        const resultUrl = buildShortcutResultUrlTemplate(serverUrl);
+        if (!resultUrl) {
+            setStatus(
+                "Configure d’abord Railway dans Réglages > Synchronisation serveur.",
+                "error"
+            );
+            return false;
+        }
+        try {
+            await copyTextToClipboard(resultUrl);
+            showToast("✅ URL Railway V10.1 copiée.", "success");
+            setStatus("URL de résultat Railway copiée.");
+        } catch (error) {
+            console.error(error);
+            window.prompt("Copie cette URL dans Raccourcis :", resultUrl);
+        }
+        return true;
+    }
+
+    if (action === "copy-guide") {
+        const guide = buildShortcutMigrationGuide({ launchUrl, serverUrl });
+        try {
+            await copyTextToClipboard(guide);
+            showToast("✅ Guide de migration copié.", "success");
+            setStatus("Guide de migration iOS copié.");
+        } catch (error) {
+            console.error(error);
+            window.prompt("Copie ce guide :", guide);
+        }
+        return true;
+    }
+
+    if (action === "inspect") {
+        const input = document.getElementById("legacyShortcutUrlInput");
+        shortcutMigrationInspection = inspectLegacyShortcutUrl(
+            input?.value || ""
+        );
+        recordReliabilityEvent({
+            category: "shortcut",
+            level: shortcutMigrationInspection.compatible
+                ? "success"
+                : shortcutMigrationInspection.legacy
+                    ? "warning"
+                    : "info",
+            label: shortcutMigrationInspection.label,
+            detail: shortcutMigrationInspection.message,
+            createdAt: Date.now()
+        });
+        setStatus(
+            shortcutMigrationInspection.message,
+            shortcutMigrationInspection.compatible
+                ? "success"
+                : shortcutMigrationInspection.legacy
+                    ? "warning"
+                    : ""
+        );
+        displayPlaylists(playlistsCache);
+        return shortcutMigrationInspection.compatible;
+    }
+
+    return false;
+}
+
 function saveIosCommandFromForm(form) {
     if (
         !editingIosCommandId &&
@@ -22543,6 +22662,12 @@ function renderIosCommandsPanel() {
                     </small>
                 </div>
             </section>
+
+            ${renderShortcutMigrationPanelMarkup({
+                launchUrl: getIosShortcutMigrationLaunchUrl(),
+                serverUrl: serverSyncState?.serverUrl || "",
+                inspection: shortcutMigrationInspection
+            })}
 
             <section class="ios-preferred-device-panel">
                 <div class="ios-preferred-device-heading">
@@ -39735,43 +39860,70 @@ async function applyPendingSyncPackage(action) {
 }
 
 function renderBackupPanel() {
-    return `
-        <section class="backup-panel settings-panel" aria-label="Sauvegarde des données">
-            <div class="backup-panel-copy">
-                <h3>Sauvegarde et restauration</h3>
-                <p>
-                    Exporte tes mix, leurs réglages, tes favoris,
-                    les filtres et l’historique local de Shuffle+.
-                </p>
-            </div>
+    const safetySnapshot = readPreUpdateSnapshot(localStorage);
+    const safetySummary = getPreUpdateSnapshotSummary(safetySnapshot);
+    const safetyDate = safetySummary.createdAt
+        ? new Intl.DateTimeFormat("fr-FR", {
+            dateStyle: "short",
+            timeStyle: "short"
+        }).format(new Date(safetySummary.createdAt))
+        : "";
 
-            <div class="backup-panel-actions">
-                <button
-                    id="exportBackupButton"
-                    class="backup-export-button"
-                    type="button"
-                >
-                    ⬇ Exporter mes données
-                </button>
+    return renderBackupPanelMarkup({
+        safetySummary,
+        safetyDate
+    });
+}
 
-                <button
-                    id="importBackupButton"
-                    class="backup-import-button"
-                    type="button"
-                >
-                    ⬆ Importer une sauvegarde
-                </button>
+function downloadPreUpdateBackup() {
+    const snapshot = readPreUpdateSnapshot(localStorage);
+    if (!snapshot?.backup) {
+        setStatus("Aucune sauvegarde automatique disponible.", "warning");
+        return false;
+    }
 
-                <input
-                    id="backupFileInput"
-                    class="backup-file-input"
-                    type="file"
-                    accept="application/json,.json"
-                    aria-label="Choisir une sauvegarde Shuffle+"
-                >
-            </div>
-        </section>
-    `;
+    downloadJsonPayload(
+        snapshot.backup,
+        `shuffleplus-avant-maj-${snapshot.toVersion || "securite"}.json`
+    );
+    setStatus("Sauvegarde automatique téléchargée.");
+    return true;
+}
+
+function restorePreUpdateBackup() {
+    const snapshot = readPreUpdateSnapshot(localStorage);
+    if (!snapshot?.backup) {
+        setStatus("Aucune sauvegarde automatique disponible.", "warning");
+        return false;
+    }
+
+    try {
+        const imported = validateBackupPayload(snapshot.backup);
+        const confirmed = window.confirm(
+            `Restaurer les réglages sauvegardés avant la mise à jour ${snapshot.toVersion || "précédente"} ?\n\n` +
+            "Les données locales actuelles seront remplacées."
+        );
+        if (!confirmed) return false;
+
+        applyValidatedBackupState(imported);
+        displayPlaylists(playlistsCache);
+        recordReliabilityEvent({
+            category: "storage",
+            level: "success",
+            label: "Sauvegarde avant mise à jour restaurée",
+            detail: `Configuration restaurée depuis ${snapshot.fromVersion || "la version précédente"}.`,
+            createdAt: Date.now()
+        });
+        setStatus("Sauvegarde de sécurité restaurée.", "success");
+        return true;
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error?.message || "Impossible de restaurer la sauvegarde automatique.",
+            "error"
+        );
+        return false;
+    }
 }
 
 function normalizeSearchText(value = "") {
@@ -44386,6 +44538,35 @@ applyPwaUpdateButton.addEventListener(
                 waitingWorker
             );
 
+        const updateSafety = savePreUpdateSnapshot(
+            localStorage,
+            buildBackupPayload(),
+            {
+                fromVersion: APP_VERSION,
+                toVersion: targetVersion
+            }
+        );
+
+        if (updateSafety.saved) {
+            recordReliabilityEvent({
+                category: "storage",
+                level: "success",
+                label: "Sauvegarde avant mise à jour créée",
+                detail: `Une restauration locale est disponible avant ${targetVersion || "la nouvelle version"}.`,
+                createdAt: Date.now()
+            });
+        } else {
+            recordReliabilityEvent({
+                category: "storage",
+                level: "warning",
+                label: "Sauvegarde avant mise à jour non créée",
+                detail: updateSafety.reason === "too-large"
+                    ? "La sauvegarde locale dépasse la taille de sécurité ; la mise à jour continue sans copie automatique."
+                    : "Le stockage local n’a pas accepté la copie automatique ; la mise à jour continue.",
+                createdAt: Date.now()
+            });
+        }
+
         pwaUpdateApplying = true;
         pwaReloadRequested = true;
         pwaPendingUpdateVersion =
@@ -46112,6 +46293,18 @@ contentElement.addEventListener(
             return;
         }
 
+        const iosMigrationButton =
+            event.target.closest(
+                "[data-ios-migration-action]"
+            );
+
+        if (iosMigrationButton) {
+            await handleIosShortcutMigrationAction(
+                iosMigrationButton.dataset.iosMigrationAction || ""
+            );
+            return;
+        }
+
         const iosCommandActionButton =
             event.target.closest(
                 "[data-ios-command-action]"
@@ -46698,6 +46891,16 @@ contentElement.addEventListener(
 
         if (exportBackupButton) {
             downloadBackupFile();
+            return;
+        }
+
+        if (event.target.closest("#downloadPreUpdateBackupButton")) {
+            downloadPreUpdateBackup();
+            return;
+        }
+
+        if (event.target.closest("#restorePreUpdateBackupButton")) {
+            restorePreUpdateBackup();
             return;
         }
 

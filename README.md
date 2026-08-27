@@ -1,4 +1,4 @@
-# Shuffle+ v10.0.0
+# Shuffle+ v10.1.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.0.0** est la première release V10. Les contrôles automatisés valident le code et le build ; les validations terrain (Spotify Premium, iPhone/PWA, Railway, sauvegarde et conduite) restent visibles dans le centre de fiabilité pour être confirmées sur les appareils réels.
+> **État du projet :** **Shuffle+ 10.1.0** est une mise à jour de fiabilité de la branche V10. Elle améliore surtout la migration des raccourcis iPhone, le diagnostic Railway/PWA et la sécurité des mises à jour, sans changer le serveur Railway v5.2.0.
 
 ---
 
@@ -379,6 +379,61 @@ Le serveur Railway configuré dans **Réglages > Synchronisation serveur** est a
 
 L’ancien mécanisme x-callback reste accepté pour compatibilité, mais il n’est plus recommandé dans Safari iOS.
 
+#### Migration d’un ancien raccourci vers V10.1
+
+Dans **Créer > Centre de commandes iOS**, la V10.1 affiche un bloc **Migration V10.1**. Il permet :
+
+- de copier une URL de profil actuelle ;
+- de copier le modèle Railway sécurisé ;
+- de copier un guide de migration complet ;
+- de coller l’URL d’un ancien raccourci pour vérifier si `resultToken` manque.
+
+Un ancien raccourci qui possède déjà `RequestId` ne doit pas être recréé : ajouter un second UUID `ResultToken`, puis l’utiliser à la fois dans l’URL Shuffle+ et dans `?token=[ResultToken]` sur l’URL `/v1/launch-results/[RequestId]`.
+
+#### Tutoriel rapide : créer le raccourci iPhone complet
+
+Ce résumé suffit pour construire le raccourci sans ouvrir un autre document. Le guide `GUIDE-RACCOURCI.md` reste la référence détaillée pour le dépannage et les variantes.
+
+**Préparation dans Shuffle+**
+
+1. Dans **Réglages > Synchronisation serveur**, vérifier que le serveur Railway est enregistré.
+2. Dans **Créer > Centre de commandes iOS**, choisir le profil puis utiliser **Copier l’URL**.
+3. Vérifier que l’URL copiée contient déjà le paramètre `resultServer=`. Ne pas reconstruire manuellement l’URL du profil.
+
+**Actions à ajouter dans Apple Raccourcis**
+
+1. Ajouter **Continuer le raccourci dans l’app**.
+2. Ajouter **Générer un UUID** et renommer sa variable magique `RequestId`.
+3. Ajouter un second **Générer un UUID** et renommer sa variable magique `ResultToken`.
+4. Ajouter une action **Texte**, coller l’URL copiée depuis Shuffle+, puis ajouter à sa fin :
+
+```text
+&requestId=[RequestId]&resultToken=[ResultToken]
+```
+
+`[RequestId]` et `[ResultToken]` représentent les **variables magiques** de Raccourcis : ne pas saisir les crochets ni ces noms comme du texte ordinaire.
+
+5. Ajouter **Ouvrir l’app** → **Spotify**.
+6. Ajouter **Attendre** → **2 secondes**.
+7. Ajouter **Ouvrir les URL** → sélectionner le bloc Texte créé à l’étape 4. Ne pas utiliser **Ouvrir les URL X-Callback**.
+8. Ajouter une nouvelle action **Texte** contenant l’URL de résultat suivante :
+
+```text
+https://shuffleplus-production.up.railway.app/v1/launch-results/[RequestId]?token=[ResultToken]
+```
+
+9. Renommer ce deuxième texte `ResultUrl`.
+10. Ajouter **Répéter 30 fois**. Dans la répétition :
+    - **Obtenir le contenu de l’URL** → `ResultUrl`, méthode GET ;
+    - **Obtenir la valeur du dictionnaire** → clé `status` ;
+    - si `status` = `success`, afficher une notification puis terminer le raccourci ;
+    - si `status` = `error`, afficher `message`/`code` puis terminer ;
+    - si `status` = `cancel`, afficher **Lancement annulé** puis terminer ;
+    - sinon, **Attendre 1 seconde** avant la tentative suivante.
+11. Après la répétition, afficher **Shuffle+ n’a pas répondu dans le délai prévu.**
+
+Les trois paramètres nécessaires au retour sécurisé sont donc `resultServer`, `requestId` et `resultToken`. Le premier est fourni par Shuffle+ dans l’URL copiée ; les deux autres sont ajoutés par Raccourcis à chaque lancement.
+
 #### Planificateur intelligent
 
 Le formulaire de routine permet de choisir :
@@ -492,14 +547,16 @@ L’application peut également afficher un bouton **Installer l’application**
 
 ### Mise à jour
 
+Lorsqu’un nouveau Service Worker est prêt, Shuffle+ affiche un bandeau de mise à jour. Avant d’activer la nouvelle version, la V10.1 tente de créer une **sauvegarde automatique locale** des données exportables, puis active le nouveau runtime avec un seul rechargement.
+
 Après un nouveau déploiement :
 
 1. vérifier que l’en-tête affiche la nouvelle version ;
-2. fermer complètement la PWA ;
+2. fermer complètement la PWA si l’ancienne interface reste visible ;
 3. la rouvrir avec Internet actif ;
-4. utiliser l’outil de réparation dans les réglages si un ancien runtime reste chargé.
+4. utiliser l’outil de réparation dans les réglages uniquement si un ancien runtime reste chargé.
 
-Le bootstrap versionné et le Service Worker nettoient les anciens caches `shuffleplus-*` lorsque nécessaire.
+Le bootstrap versionné et le Service Worker nettoient les anciens caches `shuffleplus-*` lorsque nécessaire. La sauvegarde pré-mise-à-jour reste accessible dans **Réglages > Sauvegarde et restauration** tant qu’elle n’est pas remplacée par une mise à jour ultérieure.
 
 ### Hors connexion
 
@@ -524,6 +581,8 @@ Vider les données du site ou désinstaller la PWA peut supprimer ces informatio
 ### Sauvegarde JSON
 
 Le centre de sauvegarde permet d’exporter puis de restaurer les données Shuffle+. Le paquet n’inclut pas les secrets Spotify.
+
+Depuis la V10.1, Shuffle+ tente aussi de conserver automatiquement une copie locale juste avant l’application d’une mise à jour PWA. Cette copie peut être **téléchargée** ou **restaurée** depuis le même panneau. Elle ne remplace pas une sauvegarde JSON conservée hors de l’iPhone.
 
 Il est recommandé d’exporter une sauvegarde avant :
 
@@ -657,7 +716,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.0.0"
+git commit -m "Release Shuffle+ v10.1.0"
 git push origin main
 ```
 
@@ -667,7 +726,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.0.0** ;
+3. vérifier que l’en-tête affiche **v10.1.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -684,8 +743,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-10.0.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.0.0.js Réparation avant le chargement principal
+bootstrap-10.1.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.1.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -733,12 +792,12 @@ server/README.md
 
 ## Validation et tests
 
-La v10.0.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.1.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
-- **399 tests applicatifs réussis** ;
-- 169 fichiers JavaScript contrôlés ;
-- 61 modules reliés à `app.js` ;
-- 76 ressources PWA contrôlées ;
+- **405 tests applicatifs réussis** ;
+- 174 fichiers JavaScript contrôlés ;
+- 64 modules reliés à `app.js` ;
+- 79 ressources PWA contrôlées ;
 - validation CSP ;
 - contrôle de l’architecture CSS ;
 - build GitHub Pages vérifié ;
@@ -833,7 +892,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.0.0 sera déclarée stable après validation réelle de :
+La v10.1.0 sera déclarée stable après validation réelle de :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

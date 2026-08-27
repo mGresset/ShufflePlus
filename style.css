@@ -18460,3 +18460,163 @@ html[data-experience-mode="essential"] .app-section-more {
     width: 100%;
     margin-top: 4px;
 }
+
+/* Shuffle+ 10.1 — migration iOS et sécurité des mises à jour */
+.ios-shortcut-migration-panel {
+    display: grid;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 16px;
+    background: var(--surface-2, rgba(255, 255, 255, 0.035));
+}
+
+.ios-shortcut-migration-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.ios-shortcut-migration-heading > div {
+    display: grid;
+    gap: 4px;
+}
+
+.ios-shortcut-migration-heading > div > span,
+.ios-shortcut-migration-check > span,
+.preupdate-backup span {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.ios-shortcut-migration-heading small,
+.ios-shortcut-migration-check small,
+.preupdate-backup small {
+    color: var(--text-muted, #aeb6c5);
+}
+
+.ios-shortcut-migration-badge {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.ios-shortcut-migration-badge.is-ready,
+.ios-shortcut-migration-check small.is-ready {
+    color: #87e2ad;
+}
+
+.ios-shortcut-migration-badge.is-legacy,
+.ios-shortcut-migration-check small.is-legacy {
+    color: #ffd28a;
+}
+
+.ios-shortcut-migration-steps {
+    display: grid;
+    gap: 9px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.ios-shortcut-migration-steps li {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 9px;
+    align-items: start;
+}
+
+.ios-shortcut-migration-steps li > b {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ios-shortcut-migration-steps code,
+.ios-shortcut-migration-heading code {
+    overflow-wrap: anywhere;
+}
+
+.ios-shortcut-migration-actions,
+.preupdate-backup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ios-shortcut-migration-actions button,
+.ios-shortcut-migration-check button,
+.preupdate-backup-actions button {
+    min-height: 44px;
+}
+
+.ios-shortcut-migration-check {
+    display: grid;
+    gap: 7px;
+}
+
+.ios-shortcut-migration-check > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+}
+
+.ios-shortcut-migration-check input {
+    min-width: 0;
+}
+
+.preupdate-backup {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 14px;
+}
+
+.preupdate-backup > div:first-child {
+    display: grid;
+    gap: 4px;
+}
+
+.preupdate-backup.is-available {
+    border-style: solid;
+}
+
+@media (max-width: 700px) {
+    .ios-shortcut-migration-heading,
+    .preupdate-backup {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .ios-shortcut-migration-badge {
+        align-self: flex-start;
+    }
+
+    .ios-shortcut-migration-actions,
+    .preupdate-backup-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .ios-shortcut-migration-check > div {
+        grid-template-columns: 1fr;
+    }
+
+    .ios-shortcut-migration-actions button,
+    .preupdate-backup-actions button,
+    .ios-shortcut-migration-check button {
+        width: 100%;
+    }
+}

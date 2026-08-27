@@ -47,8 +47,8 @@ function createSnapshot(overrides = {}) {
     };
 }
 
-test("la distribution active annonce Shuffle+ 10.0.0", () => {
-    assert.equal(version, "10.0.0");
+test("la distribution active annonce Shuffle+ 10.1.0", () => {
+    assert.equal(version, "10.1.0");
 });
 
 test("le journal normalise, déduplique et limite les événements", () => {
@@ -77,7 +77,7 @@ test("les statuts importants deviennent des événements génériques et privés
         3_000
     );
     const server = deriveReliabilityEventFromStatus(
-        "Serveur disponible · 10.0.0.",
+        "Serveur disponible · 10.1.0.",
         "success",
         4_000
     );
@@ -87,12 +87,12 @@ test("les statuts importants deviennent des événements génériques et privés
     assert.equal(server.label, "Serveur Railway disponible");
 });
 
-test("le centre construit quatre services et un plan de récupération", () => {
+test("le centre construit cinq services et un plan de récupération", () => {
     const snapshot = createSnapshot();
     const services = buildReliabilityServices(snapshot, {
         serverHealth: {
             status: "healthy",
-            version: "10.0.0",
+            version: "10.1.0",
             latencyMs: 42
         },
         queueState: {
@@ -102,6 +102,11 @@ test("le centre construit quatre services et un plan de récupération", () => {
         activeDevice: {
             name: "iPhone",
             type: "Smartphone"
+        },
+        shortcutState: {
+            level: "healthy",
+            value: "Compatible V10.1",
+            detail: "Raccourci validé."
         }
     });
     const recovery = buildReliabilityRecoveryPlan(snapshot, {
@@ -112,7 +117,7 @@ test("le centre construit quatre services et un plan de récupération", () => {
 
     assert.deepEqual(
         services.map((service) => service.id),
-        ["spotify", "railway", "pwa", "device"]
+        ["spotify", "railway", "pwa", "device", "shortcuts"]
     );
     assert.equal(services[0].level, "healthy");
     assert.equal(services[1].value, "42 ms");
@@ -151,7 +156,7 @@ test("le plan propose les actions adaptées aux pannes", () => {
 
 test("l’export masque les données sensibles", () => {
     const exported = buildReliabilityExport({
-        snapshot: { appVersion: "10.0.0" },
+        snapshot: { appVersion: "10.1.0" },
         events: [{
             category: "spotify",
             level: "success",

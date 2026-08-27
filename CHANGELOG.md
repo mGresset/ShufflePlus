@@ -1,5 +1,36 @@
 # Changelog Shuffle+
 
+## 10.1.0
+
+### Fiabilité & iPhone
+
+- Ajout d’un assistant de migration directement dans **Créer > Centre de commandes iOS** pour mettre à jour les anciens raccourcis sans les reconstruire.
+- Détection d’une URL legacy utilisant `requestId` sans `resultToken`, avec diagnostic lisible et guide de correction.
+- Ajout de boutons pour copier l’URL Shuffle+ V10.1, le guide de migration et l’URL Railway sécurisée.
+- Le **Centre de fiabilité** affiche désormais un service dédié aux raccourcis iOS : non configuré, Railway requis, prêt à tester ou compatible V10.1 après un lancement confirmé.
+- Avant l’application d’une mise à jour PWA, Shuffle+ tente de créer automatiquement une sauvegarde locale des données exportables.
+- La sauvegarde pré-mise-à-jour peut être téléchargée ou restaurée depuis **Sauvegarde et restauration**.
+- Nouveau module `core/shortcut-migration.js` pour centraliser la compatibilité et les modèles d’URL iOS.
+- Nouveau module `core/update-safety.js` pour la sauvegarde de sécurité des mises à jour.
+- Extraction du rendu de sauvegarde dans `core/backup-ui.js` afin de poursuivre le découpage progressif de `app.js`.
+- Le serveur Railway reste en **v5.2.0** ; aucune nouvelle variable d’environnement n’est requise.
+
+---
+
+## 10.0.1
+
+### Documentation du raccourci iPhone
+
+- Ajout dans le `README.md` d’un tutoriel iOS autonome avec toutes les actions Apple Raccourcis à créer.
+- Documentation explicite des variables magiques `RequestId` et `ResultToken`.
+- Ajout des paramètres `requestId` et `resultToken` à l’URL Shuffle+ copiée depuis le Centre de commandes iOS.
+- Ajout de l’URL Railway complète de lecture du résultat et de la boucle de polling `status`.
+- Conservation de `GUIDE-RACCOURCI.md` comme référence détaillée, avec le même flux que le README.
+- Aucun changement fonctionnel du moteur Spotify, de la PWA ou du serveur Railway v5.2.0.
+- Validation complète : **400/400 tests applicatifs**, tests serveur v5.2.0, build et smoke test réussis.
+
+---
+
 ## 10.0.0
 
 ### Première release V10

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "10.0.0",
+  "version": "10.1.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.0.0 — version stable centrée sur la fiabilité Spotify, iPhone/PWA et la simplicité d’usage.",
+  "description": "Shuffle+ 10.1.0 — version stable centrée sur la fiabilité Spotify, iPhone/PWA et la simplicité d’usage.",
   "engines": {
     "node": ">=20"
   },

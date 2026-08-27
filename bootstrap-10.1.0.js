@@ -1,5 +1,5 @@
-const APP_VERSION = "10.0.0";
-const BUILD_ID = "10.0.0-pwa-reset-1";
+const APP_VERSION = "10.1.0";
+const BUILD_ID = "10.1.0-pwa-reset-1";
 const BUILD_STORAGE_KEY = "shuffleplus_runtime_build_id";
 const BUILD_QUERY_KEY = "shuffleplus_build";
 const AUTOMATION_HANDOFF_KEY =

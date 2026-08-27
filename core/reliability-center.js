@@ -223,7 +223,8 @@ export function buildReliabilityServices(
     {
         serverHealth = {},
         queueState = {},
-        activeDevice = {}
+        activeDevice = {},
+        shortcutState = {}
     } = {}
 ) {
     const spotifyApi = snapshot?.runtime?.spotifyApi || {};
@@ -312,6 +313,16 @@ export function buildReliabilityServices(
                 : deviceName
                     ? "L’appareil est connu, mais la file mérite une actualisation."
                     : "Lance Spotify sur un appareil pour compléter ce diagnostic."
+        ),
+        serviceState(
+            "shortcuts",
+            "Raccourcis iOS",
+            "⚡",
+            ["healthy", "attention", "critical", "neutral"].includes(shortcutState.level)
+                ? shortcutState.level
+                : "neutral",
+            String(shortcutState.value || "Non vérifié"),
+            String(shortcutState.detail || "Le Centre de commandes iOS peut vérifier la compatibilité V10.1.")
         )
     ];
 }

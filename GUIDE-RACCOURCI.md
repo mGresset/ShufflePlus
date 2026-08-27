@@ -2,7 +2,7 @@
 
 ## Préparation dans Shuffle+
 
-1. Déploie Shuffle+ **v10.0.0** et le serveur Railway **v5.2.0**.
+1. Déploie Shuffle+ **v10.1.0** et le serveur Railway **v5.2.0**.
 2. Dans **Réglages > Synchronisation serveur**, vérifie que l’adresse Railway est enregistrée.
 3. Dans **Créer > Centre de commandes iOS**, copie l’URL du profil.
 4. Vérifie que l’URL contient `resultServer=`.

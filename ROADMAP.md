@@ -26,4 +26,5 @@
 - **v9.7.2 — Thème Corail et grille de couleurs complète : terminée**
 - **v9.9.5 — Horloge locale et verrou Pause/Lecture : terminée**
 - **v9.9.6 — Convergence Spotify, cache anti-course et confirmation stable : terminée**
-- **v10.0.0 — Découpage majeur des contrôleurs métier hors de `app.js` : prévue**
+- **v10.1.0 — Fiabilité iPhone, migration des raccourcis, sauvegarde avant mise à jour et découpage progressif : terminée**
+- **v10.2.0 — Poursuite du découpage des contrôleurs Spotify, conduite et synchronisation : envisagée**
