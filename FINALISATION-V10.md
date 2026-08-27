@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v10.1.0
+# Validation terrain Shuffle+ v10.1.1
 
 ## Conditions obligatoires
 
@@ -12,4 +12,4 @@
 
 ## Ce que « final » signifie
 
-La v10.1.0 constitue la première branche V10 stable du code. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.
+La v10.1.1 constitue la première branche V10 stable du code. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.

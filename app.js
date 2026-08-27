@@ -441,7 +441,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.1.0";
+const APP_VERSION = "10.1.1";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -915,7 +915,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.1.0-shell";
+    "shuffleplus-v10.1.1-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6356,7 +6356,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.1.0",
+                "./service-worker.js?v=10.1.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -23477,7 +23477,10 @@ async function getAutomationDeviceWithRetry(
                 message: `Recherche Spotify Connect ${attempt}/${maxAttempts}`
             });
 
-            lastDevices = await getAvailableDevices();
+            // La détection de raccourci doit toujours interroger Spotify
+            // réellement : un cache vide de /devices ne doit pas masquer
+            // l’iPhone pendant toute la fenêtre de retry.
+            lastDevices = await getAvailableDevices({ fresh: true });
             availableDevices = lastDevices;
 
             if (
@@ -23493,7 +23496,7 @@ async function getAutomationDeviceWithRetry(
                 throw restrictedError;
             }
 
-            const candidates = prioritizeLaunchDevices(
+            let candidates = prioritizeLaunchDevices(
                 lastDevices,
                 {
                     preferredDevice: preferredSpotifyDevice,
@@ -23502,10 +23505,46 @@ async function getAutomationDeviceWithRetry(
                     deviceName: settings.deviceName || ""
                 }
             );
-            const resolved = settings.fallbackDeviceMode
+            let resolved = settings.fallbackDeviceMode
                 ? resolveIosCommandDevice(lastDevices, settings)
                 : findAutomationDevice(lastDevices, settings);
-            const device = candidates[0] || resolved || null;
+            let device = candidates[0] || resolved || null;
+
+            // Spotify peut annoncer l’appareil actif dans /me/player avant
+            // qu’il n’apparaisse dans /me/player/devices. Si une musique est
+            // déjà en cours sur l’iPhone, ce fallback évite un faux NO_DEVICE.
+            if (!device) {
+                const playback = await getCurrentPlayback({ fresh: true })
+                    .catch(() => null);
+                const playbackDevice = playback?.device;
+
+                if (
+                    playbackDevice?.id &&
+                    playbackDevice.is_restricted !== true &&
+                    !lastDevices.some(
+                        (item) => item?.id === playbackDevice.id
+                    )
+                ) {
+                    lastDevices = [
+                        playbackDevice,
+                        ...lastDevices
+                    ];
+                    availableDevices = lastDevices;
+                    candidates = prioritizeLaunchDevices(
+                        lastDevices,
+                        {
+                            preferredDevice: preferredSpotifyDevice,
+                            lastWorkingDevice: lastWorkingSpotifyDevice,
+                            mode: settings.deviceMode || "preferred",
+                            deviceName: settings.deviceName || ""
+                        }
+                    );
+                    resolved = settings.fallbackDeviceMode
+                        ? resolveIosCommandDevice(lastDevices, settings)
+                        : findAutomationDevice(lastDevices, settings);
+                    device = candidates[0] || resolved || null;
+                }
+            }
 
             if (device) {
                 if (

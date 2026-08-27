@@ -1,5 +1,12 @@
 # Changelog Shuffle+
 
+## 10.1.1
+
+- Corrige la détection Spotify Connect des raccourcis iPhone : les retries ne réutilisent plus pendant 12 secondes une liste de devices vide mise en cache.
+- La recherche d’appareil force désormais un rafraîchissement réel de `GET /me/player/devices` à chaque tentative de raccourci.
+- Si Spotify joue déjà sur l’iPhone mais que `/me/player/devices` tarde à le publier, Shuffle+ récupère l’appareil actif via `GET /me/player` avant de conclure à `NO_DEVICE`.
+- Ajoute un test de non-régression dédié à ce scénario.
+
 ## 10.1.0
 
 ### Fiabilité & iPhone

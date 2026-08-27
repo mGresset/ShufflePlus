@@ -15,8 +15,8 @@ function extractFunction(name) {
     return appSource.slice(start, end);
 }
 
-test("la correction de défilement rapide annonce Shuffle+ 10.1.0", () => {
-    assert.equal(version, "10.1.0");
+test("la correction de défilement rapide annonce Shuffle+ 10.1.1", () => {
+    assert.equal(version, "10.1.1");
 });
 
 test("la position en mémoire suit immédiatement chaque événement de scroll", () => {

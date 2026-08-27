@@ -9,8 +9,8 @@ const [recovery, app, bootstrap] = await Promise.all([
     readFile(new URL(`../bootstrap-${version}.js`, import.meta.url), "utf8")
 ]);
 
-test("10.1.0 protège le callback Spotify avant toute purge PKCE", () => {
-    assert.equal(version, "10.1.0");
+test("10.1.1 protège le callback Spotify avant toute purge PKCE", () => {
+    assert.equal(version, "10.1.1");
     assert.match(recovery, /hasOAuthCallback: Boolean\(/);
     assert.match(recovery, /url\.searchParams\.get\("code"\)/);
     assert.match(recovery, /if \(navigation\.hasOAuthCallback\) \{/);
@@ -22,7 +22,7 @@ test("10.1.0 protège le callback Spotify avant toute purge PKCE", () => {
     assert.ok(tempClear > callbackGuard, "la purge PKCE doit arriver après le garde callback");
 });
 
-test("10.1.0 bloque une deuxième réparation après le reload", () => {
+test("10.1.1 bloque une deuxième réparation après le reload", () => {
     assert.match(recovery, /const REPAIR_RELOAD_KEY =/);
     assert.match(recovery, /const REPAIR_COOLDOWN_MS = 60_000;/);
     assert.match(recovery, /recentRepair: recentUrlRepair \|\| recentStoredRepair/);
@@ -31,13 +31,13 @@ test("10.1.0 bloque une deuxième réparation après le reload", () => {
     assert.match(recovery, /url\.searchParams\.set\("recovery", String\(repairTimestamp\)\)/);
 });
 
-test("10.1.0 court-circuite la deuxième migration bootstrap", () => {
+test("10.1.1 court-circuite la deuxième migration bootstrap", () => {
     assert.match(recovery, /const BUILD_QUERY_KEY = "shuffleplus_build";/);
     assert.match(recovery, /url\.searchParams\.set\(BUILD_QUERY_KEY, BUILD_ID\)/);
     assert.match(bootstrap, /if \(storedBuild === BUILD_ID \|\| queryBuild === BUILD_ID\)/);
 });
 
-test("10.1.0 garde le verrou jusqu’à la stabilité du runtime", () => {
+test("10.1.1 garde le verrou jusqu’à la stabilité du runtime", () => {
     assert.match(recovery, /const RECOVERY_STABILITY_MS = 20_000;/);
     assert.match(recovery, /const STARTUP_WATCHDOG_MS = 25_000;/);
     assert.match(recovery, /cleanRecoveryMarkerAfterStability\(\);/);

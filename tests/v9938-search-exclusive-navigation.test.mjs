@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 
-test("Shuffle+ 10.1.0 rend la sélection Recherche exclusive", () => {
-    assert.equal(version, "10.1.0");
+test("Shuffle+ 10.1.1 rend la sélection Recherche exclusive", () => {
+    assert.equal(version, "10.1.1");
     assert.match(
         appSource,
         /const selected =\s*!universalSearchOpen &&\s*button\.dataset\.appMenu ===\s*primaryMenu;/

@@ -7,8 +7,8 @@ const [version, designSystem] = await Promise.all([
     readFile(new URL("../design-system.css", import.meta.url), "utf8")
 ]);
 
-test("la version corrective active est 10.1.0", () => {
-    assert.equal(version, "10.1.0");
+test("la version corrective active est 10.1.1", () => {
+    assert.equal(version, "10.1.1");
 });
 
 test("le créateur de mix multi-sources suit le thème actif", () => {

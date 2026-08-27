@@ -5,8 +5,8 @@ import test from "node:test";
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const css = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 
-test("Shuffle+ 10.1.0 équilibre le mode conduite sur toute la hauteur utile", () => {
-    assert.equal(version, "10.1.0");
+test("Shuffle+ 10.1.1 équilibre le mode conduite sur toute la hauteur utile", () => {
+    assert.equal(version, "10.1.1");
     assert.match(css, /body\.is-driving-mode #content\s*\{[\s\S]*?align-items:\s*stretch;/);
     assert.match(css, /body\.is-driving-mode \.driving-mode-page,[\s\S]*?height:\s*100%;/);
     assert.match(css, /flex:\s*1 1 auto;/);

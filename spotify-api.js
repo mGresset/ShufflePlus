@@ -328,8 +328,13 @@ export async function getMySavedTracks() {
     return tracks;
 }
 
-export async function getAvailableDevices() {
-    const data = await spotifyFetch("/me/player/devices");
+export async function getAvailableDevices({
+    fresh = false
+} = {}) {
+    const data = await spotifyFetch(
+        "/me/player/devices",
+        { skipCache: Boolean(fresh) }
+    );
 
     return Array.isArray(data?.devices)
         ? data.devices.filter(
