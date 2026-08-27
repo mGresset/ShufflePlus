@@ -1,5 +1,20 @@
 # Changelog Shuffle+
 
+## 10.1.3
+
+- centre horizontalement tous les sous-menus de rubrique (`Musique`, `Créer`, `Lancer` et `Réglages`) ;
+- centre également le bouton « Voir plus » avec les autres entrées lorsqu’il est présent ;
+- sur iPhone, remplace le défilement horizontal du sous-menu par un retour à la ligne centré et lisible ;
+- conserve inchangé le menu principal fixe du bas ;
+- validation complète : **411/411 tests applicatifs**, serveur Railway v5.2.0, build et smoke test réussis.
+
+## 10.1.2
+
+- recentre visuellement le bandeau supérieur connecté sur iPhone ;
+- évite que la zone « Bienvenue » absorbe tout l’espace disponible dans l’en-tête mobile ;
+- corrige l’ouverture de l’éditeur de raccourci : le formulaire est maintenant aligné en haut de la zone visible au lieu d’être placé arbitrairement au centre ;
+- ajoute une marge de défilement dédiée pour que le titre et les premiers champs du formulaire restent immédiatement compréhensibles.
+
 ## 10.1.1
 
 - Corrige la détection Spotify Connect des raccourcis iPhone : les retries ne réutilisent plus pendant 12 secondes une liste de devices vide mise en cache.

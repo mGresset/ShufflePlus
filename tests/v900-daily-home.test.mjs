@@ -17,8 +17,8 @@ const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 const homeStyleSource = await readFile("styles/feature-home.css", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la distribution active annonce Shuffle+ 10.1.1", () => {
-    assert.equal(version, "10.1.1");
+test("la distribution active annonce Shuffle+ 10.1.3", () => {
+    assert.equal(version, "10.1.3");
 });
 
 test("l’accueil adapte son message au moment de la journée", () => {
@@ -76,5 +76,5 @@ test("l’accueil possède un style différé et reste réservé au tableau de b
     assert.match(homeStyleSource, /\.v9-home-launch-button/);
     assert.match(appSource, /function renderHomePanel\(/);
     assert.match(appSource, /renderDailyHomeMarkup/);
-    assert.match(serviceWorkerSource, /feature-home\.css\?v=10\.1\.1/);
+    assert.match(serviceWorkerSource, /feature-home\.css\?v=10\.1\.3/);
 });

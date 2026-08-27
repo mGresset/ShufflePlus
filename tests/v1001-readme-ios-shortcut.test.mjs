@@ -4,7 +4,7 @@ import fs from "node:fs";
 
 const readme = fs.readFileSync(new URL("../README.md", import.meta.url), "utf8");
 
-test("V10.1.1 README contains a self-contained iOS shortcut tutorial", () => {
+test("V10.1.3 README contains a self-contained iOS shortcut tutorial", () => {
     for (const required of [
         "Tutoriel rapide : créer le raccourci iPhone complet",
         "RequestId",

@@ -441,7 +441,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.1.1";
+const APP_VERSION = "10.1.3";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -915,7 +915,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.1.1-shell";
+    "shuffleplus-v10.1.3-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6356,7 +6356,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.1.1",
+                "./service-worker.js?v=10.1.3",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -22281,14 +22281,16 @@ function openShortcutProfileEditor(commandId = "") {
     saveActiveAppMenu();
     displayPlaylists(playlistsCache);
 
-    window.setTimeout(() => {
-        document
-            .getElementById("iosCommandForm")
-            ?.scrollIntoView({
-                behavior: "smooth",
-                block: "center"
-            });
-    }, 0);
+    window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+            document
+                .getElementById("iosCommandForm")
+                ?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start"
+                });
+        });
+    });
 }
 
 function editIosCommand(commandId) {

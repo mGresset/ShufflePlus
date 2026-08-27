@@ -15931,7 +15931,8 @@ body.is-connected .startup-recovery-panel {
 .app-section-menu {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    flex-wrap: wrap;
     gap: 10px;
     margin: 10px 0 18px;
     padding: 9px;
@@ -15944,6 +15945,7 @@ body.is-connected .startup-recovery-panel {
 .app-section-more__items {
     display: flex;
     align-items: center;
+    justify-content: center;
     flex-wrap: wrap;
     gap: 8px;
 }
@@ -16083,22 +16085,20 @@ body.is-connected .startup-recovery-panel {
     }
 
     .app-section-menu {
-        align-items: stretch;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
         margin-top: 8px;
         padding: 8px;
     }
 
     .app-section-menu__featured {
         min-width: 0;
-        flex: 1 1 auto;
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        scrollbar-width: none;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .app-section-menu__featured::-webkit-scrollbar {
-        display: none;
+        max-width: 100%;
+        flex: 0 1 auto;
+        justify-content: center;
+        flex-wrap: wrap;
+        overflow: visible;
     }
 
     .app-section-button {
@@ -16109,11 +16109,11 @@ body.is-connected .startup-recovery-panel {
     }
 
     .app-section-more {
-        align-self: stretch;
+        align-self: center;
     }
 
     .app-section-more summary {
-        height: 100%;
+        height: auto;
         min-height: 40px;
         padding: 8px 10px;
     }
