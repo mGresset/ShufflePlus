@@ -16512,8 +16512,7 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     }
 }
 
-/* Shuffle+ 8.0 — expérience publique simplifiée */
-.v8-welcome-panel,
+/* V10 — expérience Essentiel / Expert */
 .experience-mode-panel,
 .essential-advanced-callout {
     border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
@@ -16526,16 +16525,7 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
 }
 
-.v8-welcome-panel {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 24px;
-    align-items: center;
-    margin-bottom: 22px;
-    padding: 24px;
-}
 
-.v8-welcome-kicker,
 .experience-mode-current {
     display: inline-flex;
     align-items: center;
@@ -16550,26 +16540,9 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     letter-spacing: 0.02em;
 }
 
-.v8-welcome-panel h3 {
-    margin: 12px 0 8px;
-    font-size: clamp(1.45rem, 4vw, 2.15rem);
-}
 
-.v8-welcome-panel p {
-    max-width: 720px;
-    margin: 0;
-    color: var(--text-secondary, #b8b8c9);
-    line-height: 1.6;
-}
 
-.v8-welcome-actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(145px, 1fr));
-    gap: 10px;
-    min-width: min(100%, 330px);
-}
 
-.v8-welcome-actions button,
 .essential-advanced-callout button {
     min-height: 46px;
     padding: 10px 14px;
@@ -16581,16 +16554,11 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     cursor: pointer;
 }
 
-.v8-welcome-actions button:hover,
 .essential-advanced-callout button:hover {
     transform: translateY(-1px);
     border-color: var(--accent);
 }
 
-.v8-welcome-actions .is-secondary {
-    grid-column: 1 / -1;
-    background: transparent;
-}
 
 .experience-mode-panel {
     padding: 22px;
@@ -16753,15 +16721,6 @@ html[data-experience-mode="essential"] .app-section-more {
 }
 
 @media (max-width: 760px) {
-    .v8-welcome-panel {
-        grid-template-columns: 1fr;
-        padding: 19px;
-    }
-
-    .v8-welcome-actions {
-        width: 100%;
-        min-width: 0;
-    }
 
     .experience-mode-options {
         grid-template-columns: 1fr;
@@ -16773,17 +16732,8 @@ html[data-experience-mode="essential"] .app-section-more {
     }
 }
 
-@media (max-width: 430px) {
-    .v8-welcome-actions {
-        grid-template-columns: 1fr;
-    }
 
-    .v8-welcome-actions .is-secondary {
-        grid-column: auto;
-    }
-}
-
-/* Shuffle+ v8.1.0 — synchronisation simplifiée */
+/* V10 — synchronisation simplifiée */
 .sync-v810 {
     gap: 18px;
 }

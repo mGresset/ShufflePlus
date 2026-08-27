@@ -6,8 +6,8 @@ const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const cssSource = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 
-test("Shuffle+ 9.9.49 simplifie les commandes secondaires du mode conduite", () => {
-    assert.equal(version, "9.9.49");
+test("Shuffle+ 10.0.0 simplifie les commandes secondaires du mode conduite", () => {
+    assert.equal(version, "10.0.0");
     assert.doesNotMatch(appSource, /class="driving-spotify-link"/);
     assert.doesNotMatch(appSource, /id="drivingQueueButton"/);
     assert.doesNotMatch(appSource, /function getDrivingSpotifyUrl/);

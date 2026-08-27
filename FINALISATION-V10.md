@@ -1,4 +1,4 @@
-# Plan de finalisation Shuffle+ v10.0.0
+# Validation terrain Shuffle+ v10.0.0
 
 ## Conditions obligatoires
 
@@ -8,8 +8,8 @@
 4. Exporter puis restaurer une sauvegarde JSON.
 5. Tester le mode conduite : verrouillage, file, commandes et maintien d’écran.
 6. Exécuter `npm.cmd run validate` sans échec.
-7. Corriger tous les problèmes détectés en v9.9.x avant de renommer la release en 10.0.0.
+7. Vérifier que le garde-fou `check-v10-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique.
 
 ## Ce que « final » signifie
 
-La v10.0.0 sera la première version déclarée stable pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.
+La v10.0.0 constitue la première branche V10 stable du code. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.

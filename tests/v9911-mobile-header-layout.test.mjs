@@ -8,10 +8,10 @@ const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 const homeStyles = await readFile("styles/feature-home.css", "utf8");
 
-test("la correction mobile active annonce Shuffle+ 9.9.49", () => {
-    assert.equal(version, "9.9.49");
-    assert.match(indexSource, /bootstrap-9\.9\.49\.js/);
-    assert.match(indexSource, /startup-recovery-9\.9\.49\.js/);
+test("la correction mobile active annonce Shuffle+ 10.0.0", () => {
+    assert.equal(version, "10.0.0");
+    assert.match(indexSource, /bootstrap-10\.0\.0\.js/);
+    assert.match(indexSource, /startup-recovery-10\.0\.0\.js/);
 });
 
 test("la version compacte reste visible dans la barre connectée", () => {

@@ -31,9 +31,9 @@ function playback({
     };
 }
 
-test("la protection visuelle active annonce Shuffle+ 9.9.49", () => {
-    assert.equal(version, "9.9.49");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.49"/);
+test("la protection visuelle active annonce Shuffle+ 10.0.0", () => {
+    assert.equal(version, "10.0.0");
+    assert.match(appSource, /const APP_VERSION = "10\.0\.0"/);
 });
 
 test("cinq secondes d'ancien état Lecture ne déplacent plus une Pause locale", () => {
@@ -115,7 +115,7 @@ test("chaque rendu visible consomme l'état local effectif", () => {
     );
     assert.match(
         appSource,
-        /function renderV9HomePanel\(\)[\s\S]*playback: getEffectivePlaybackState/
+        /function renderHomePanel\(\)[\s\S]*playback: getEffectivePlaybackState/
     );
     assert.match(
         appSource,

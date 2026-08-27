@@ -19,6 +19,7 @@ const checks = [
     [`bootstrap-${expected}.js`, `const BUILD_ID = "${expected}-pwa-reset-1"`],
     [`bootstrap-${expected}.js`, "await import(`./app.js?v=${APP_VERSION}&build=${BUILD_ID}`)"],
     ["index.html", `shuffleplus-version\" content=\"${expected}`],
+    ["index.html", `shuffleplus-release-channel\" content=\"stable`],
     ["index.html", `startup-recovery-${expected}.js`],
     ["service-worker.js", `startup-recovery-${expected}.js`],
     ["app.js", `service-worker.js?v=${expected}`]

@@ -15,6 +15,7 @@ const appSource = await readFile("app.js", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 const settingsStyles = await readFile("styles/feature-settings.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
+const releaseReadinessUiSource = await readFile("core/release-readiness-ui.js", "utf8");
 const packageSource = JSON.parse(await readFile("package.json", "utf8"));
 
 function healthySnapshot() {
@@ -29,9 +30,9 @@ function healthySnapshot() {
     };
 }
 
-test("la préversion finale active annonce Shuffle+ 9.9.49", () => {
-    assert.equal(version, "9.9.49");
-    assert.match(indexSource, /release-candidate/);
+test("la release V10 active annonce Shuffle+ 10.0.0", () => {
+    assert.equal(version, "10.0.0");
+    assert.match(indexSource, /shuffleplus-release-channel" content="stable"/);
 });
 
 test("les validations terrain sont normalisées et horodatées", () => {
@@ -118,8 +119,8 @@ test("le rapport de préparation reste privé", () => {
 });
 
 test("l’interface, la sauvegarde et le cache intègrent la préparation v10", () => {
-    assert.match(appSource, /Pré-finalisation v10/);
-    assert.match(appSource, /data-finalization-check/);
+    assert.match(releaseReadinessUiSource, /V10 · Validation terrain/);
+    assert.match(releaseReadinessUiSource, /data-finalization-check/);
     assert.match(appSource, /payload\.data\.finalizationState/);
     assert.match(settingsStyles, /\.release-readiness-panel/);
     assert.match(serviceWorkerSource, /core\/release-readiness\.js/);

@@ -166,15 +166,15 @@ export function buildReleaseReadiness({
         : fieldPassed < fieldChecks.length
             ? {
                 id: "candidate",
-                label: "Candidate v10",
+                label: "Validation terrain",
                 icon: "🧪",
                 message: `${fieldChecks.length - fieldPassed} validation(s) terrain restent à confirmer.`
             }
             : {
                 id: "ready",
-                label: "Prête pour v10",
+                label: "V10 validée",
                 icon: "✅",
-                message: "Tous les contrôles automatiques et terrain sont confirmés."
+                message: "Tous les contrôles automatiques et terrain de la V10 sont confirmés."
             };
 
     return {

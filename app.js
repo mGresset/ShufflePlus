@@ -219,6 +219,10 @@ import {
 } from "./core/experience-mode.js";
 
 import {
+    renderExperienceModePanelMarkup
+} from "./core/experience-mode-ui.js";
+
+import {
     clearServerSyncRecovery,
     getServerSyncRecoveryDiagnostics,
     recoverServerSyncState,
@@ -289,6 +293,10 @@ import {
     normalizeFinalizationState,
     updateFinalizationConfirmation
 } from "./core/release-readiness.js";
+
+import {
+    renderReleaseReadinessPanelMarkup
+} from "./core/release-readiness-ui.js";
 
 import {
     canUseDrivingMode,
@@ -415,7 +423,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "9.9.49";
+const APP_VERSION = "10.0.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -889,7 +897,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v9.9.49-shell";
+    "shuffleplus-v10.0.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -2899,7 +2907,7 @@ function renderMusicalGoalsPage() {
         <section class="musical-goals-page">
             <header class="musical-goals-hero">
                 <div>
-                    <span class="musical-goals-kicker">🏆 Shuffle+ v6.5</span>
+                    <span class="musical-goals-kicker">🏆 Objectifs</span>
                     <h3>Objectifs & bilan hebdomadaire</h3>
                     <p>${escapeHtml(summary.weekLabel)} · ${summary.daysLeft} jour${summary.daysLeft > 1 ? "s" : ""} restant${summary.daysLeft > 1 ? "s" : ""}</p>
                 </div>
@@ -3823,7 +3831,7 @@ async function refreshMusicalDashboardPlayback({
 function openDashboardSection(id){return navigateToAppMenu(id);}
 function saveMusicalDashboardSettingsFromForm(form){const d=new FormData(form);musicalDashboardSettings=normalizeMusicalDashboardSettings({...musicalDashboardSettings,autoRefreshSeconds:Number(d.get("autoRefreshSeconds")||0),showNowPlaying:d.get("showNowPlaying")==="on",showRecommendation:d.get("showRecommendation")==="on",showScene:d.get("showScene")==="on",showSchedule:d.get("showSchedule")==="on",showStatistics:d.get("showStatistics")==="on",showQuickAccess:d.get("showQuickAccess")==="on"});saveMusicalDashboardSettings();displayPlaylists(playlistsCache);setStatus("Tableau de bord personnalisé.");}
 function exportMusicalDashboardSnapshot(){const d=new Date().toISOString().slice(0,10);downloadJsonPayload(buildMusicalDashboardExport(getMusicalDashboardSnapshot()),`shuffleplus-dashboard-${d}.json`);setStatus("Instantané exporté.");}
-function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),rawSet=s.settings,set=isExpertExperience(experienceMode)?rawSet:{...rawSet,showScene:false,showStatistics:false},p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Shuffle+ 8</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
+function renderMusicalDashboardPage(){const s=getMusicalDashboardSnapshot(),rawSet=s.settings,set=isExpertExperience(experienceMode)?rawSet:{...rawSet,showScene:false,showStatistics:false},p=s.playback,r=s.recommendation,sc=s.activeScene,sch=s.nextSchedule,st=s.statistics,card=(on,html)=>on?html:"";return `<section class="musical-dashboard-page"><header class="musical-dashboard-hero"><div><span>${escapeHtml(s.period.icon)} Tableau de bord</span><h3>${escapeHtml(s.period.greeting)}, ton univers musical</h3><p>${new Intl.DateTimeFormat("fr-FR",{weekday:"long",day:"numeric",month:"long"}).format(new Date())} · tout Shuffle+ sur un seul écran.</p></div><div class="musical-dashboard-score" style="--score:${s.readiness.score}"><strong>${s.readiness.score}%</strong><small>prêt</small></div></header><div class="musical-dashboard-toolbar"><button id="refreshMusicalDashboardButton">↻ Actualiser Spotify</button><button id="exportMusicalDashboardButton">⬇ Exporter</button></div><div class="musical-dashboard-grid">
 ${card(set.showNowPlaying,`<article class="musical-dashboard-card is-main"><header><span>▶ Maintenant</span><small>${escapeHtml(p.deviceName)}</small></header>${p.available?`<div class="musical-dashboard-track">${p.imageUrl?`<img src="${escapeHtml(p.imageUrl)}" alt="">`:`<b>🎵</b>`}<div><h4>${escapeHtml(p.title)}</h4><p>${escapeHtml(p.artist)}</p><small>${escapeHtml(p.album)}</small></div></div><div class="musical-dashboard-progress"><i style="width:${p.progressPercent}%"></i></div><div class="musical-dashboard-times"><span>${p.currentLabel}</span><span>${p.totalLabel}</span></div>`:`<div class="musical-dashboard-empty">🎧 <span>Aucune lecture Spotify détectée.</span></div>`}<footer><button data-dashboard-playback="playpause">${p.isPlaying?"⏸ Pause":"▶ Lecture"}</button><button data-dashboard-playback="next">⏭ Suivant</button>${DRIVING_MODE_AVAILABLE ? `<button data-dashboard-nav="driving">🚗 Conduite</button>` : ""}</footer></article>`)}
 ${card(set.showRecommendation,`<article class="musical-dashboard-card"><header><span>💜 Pour toi</span><small>${r.confidence||0}%</small></header><h4>${escapeHtml(r.title)}</h4><p>${escapeHtml(r.subtitle||"")}</p><p>${escapeHtml(r.reason||"")}</p><footer>${r.available?`<button class="primary" data-dashboard-recommendation="${escapeHtml(r.key)}">${escapeHtml(r.actionLabel||"Lancer")}</button>`:`<button class="primary" data-dashboard-nav="recommendations">Configurer</button>`}<button data-dashboard-nav="recommendations">Voir toutes</button></footer></article>`)}
 ${card(set.showScene,`<article class="musical-dashboard-card"><header><span>🤖 Scène active</span></header><h4>${escapeHtml(sc.icon||"🎵")} ${escapeHtml(sc.label||"Aucune scène")}</h4><p>${escapeHtml(sc.description||sc.mixName||"Configure une scène dans Adaptive DJ.")}</p><div class="musical-dashboard-mini"><span><b>${sc.energyTarget||0}%</b>Énergie</span><span><b>${sc.varietyTarget||0}%</b>Variété</span><span><b>${sc.discoveryTarget||0}%</b>Découverte</span></div><footer><button class="primary" data-dashboard-scene="${escapeHtml(sc.id||"")}" ${sc.mixId?"":"disabled"}>▶ Lancer</button><button data-dashboard-nav="adaptive">Configurer</button></footer></article>`)}
@@ -3988,7 +3996,7 @@ function renderPersonalizedRecommendationsPage() {
         <section class="personal-recommendations-page">
             <div class="personal-recommendations-hero">
                 <div>
-                    <span class="adaptive-menu-kicker">💜 Shuffle+ v6.2</span>
+                    <span class="adaptive-menu-kicker">💜 Pour toi</span>
                     <h3>Pour toi</h3>
                     <p>Des recommandations locales basées sur tes mix, tes scènes, l’heure et tes retours musicaux.</p>
                 </div>
@@ -4173,7 +4181,7 @@ function renderAdvancedListeningStatisticsPage() {
         <section class="listening-statistics-page">
             <div class="listening-statistics-hero">
                 <div>
-                    <span class="adaptive-menu-kicker">📊 Shuffle+ v6.3</span>
+                    <span class="adaptive-menu-kicker">📊 Statistiques</span>
                     <h3>Statistiques d’écoute</h3>
                     <p>
                         Analyse les lancements envoyés à Spotify
@@ -4700,69 +4708,8 @@ function applyExperienceMode(
 }
 
 function renderExperienceModePanel() {
-    const definition = getExperienceModeDefinition(
-        experienceMode
-    );
-    const expert = isExpertExperience(experienceMode);
-
-    return `
-        <section
-            id="experienceModePanel"
-            class="settings-panel experience-mode-panel"
-        >
-            <div class="panel-heading">
-                <div>
-                    <span class="settings-kicker">
-                        ${definition.icon} Expérience Shuffle+ 8
-                    </span>
-                    <h3>Choisir le niveau de simplicité</h3>
-                    <p>
-                        Le mode Essentiel allège les menus. Le mode Expert
-                        conserve toutes les analyses, automatisations et
-                        réglages avancés.
-                    </p>
-                </div>
-                <span class="experience-mode-current">
-                    ${escapeHtml(definition.label)}
-                </span>
-            </div>
-
-            <div class="experience-mode-options">
-                ${["essential", "expert"].map((modeId) => {
-                    const item = getExperienceModeDefinition(modeId);
-                    const selected = experienceMode === modeId;
-                    return `
-                        <button
-                            type="button"
-                            class="experience-mode-option
-                            ${selected ? "is-selected" : ""}"
-                            data-select-experience-mode="${modeId}"
-                            aria-pressed="${String(selected)}"
-                        >
-                            <span aria-hidden="true">${item.icon}</span>
-                            <strong>Mode ${escapeHtml(item.label)}</strong>
-                            <small>${escapeHtml(item.description)}</small>
-                        </button>
-                    `;
-                }).join("")}
-            </div>
-
-            ${expert
-                ? `
-                    <p class="experience-mode-note">
-                        Toutes les fonctions historiques de Shuffle+ sont visibles.
-                    </p>
-                `
-                : `
-                    <p class="experience-mode-note">
-                        Les fonctions avancées restent enregistrées et réapparaissent
-                        immédiatement en repassant en mode Expert.
-                    </p>
-                `}
-        </section>
-    `;
+    return renderExperienceModePanelMarkup(experienceMode);
 }
-
 
 function saveGuidedSetupPreferences(patch = {}) {
     guidedSetupState = updateGuidedSetupState(
@@ -5166,66 +5113,7 @@ function testGuidedInstallation() {
     }
 }
 
-function renderV8WelcomePanel() {
-    const definition = getExperienceModeDefinition(
-        experienceMode
-    );
-    const expert = isExpertExperience(experienceMode);
-
-    return `
-        <section class="v8-welcome-panel">
-            <div>
-                <span class="v8-welcome-kicker">
-                    ${definition.icon} Shuffle+ 9 · ${escapeHtml(definition.label)}
-                </span>
-                <h3>
-                    ${expert
-                        ? "Toute la puissance de Shuffle+"
-                        : "Ta musique, sans menus inutiles"}
-                </h3>
-                <p>
-                    ${expert
-                        ? "Les outils avancés sont actifs. Tu peux revenir à une interface plus légère à tout moment."
-                        : "Lance un raccourci iPhone, retrouve ta musique ou crée un mix. Les outils avancés restent disponibles dans le mode Expert."}
-                </p>
-            </div>
-            <div class="v8-welcome-actions">
-                <button
-                    type="button"
-                    class="ui-button ui-button--primary"
-                    data-app-menu="quick"
-                >
-                    ▶ Centre de lancement
-                </button>
-                <button
-                    type="button"
-                    class="ui-button ui-button--secondary"
-                    data-app-menu="music"
-                >
-                    🎵 Ma musique
-                </button>
-                <button
-                    type="button"
-                    class="ui-button ui-button--secondary"
-                    data-app-menu="mixes"
-                >
-                    ✨ Créer
-                </button>
-                <button
-                    type="button"
-                    class="is-secondary ui-button ui-button--ghost"
-                    data-select-experience-mode="${expert ? "essential" : "expert"}"
-                >
-                    ${expert ? "Passer en mode Essentiel" : "Activer le mode Expert"}
-                </button>
-            </div>
-        </section>
-        ${renderPrimaryLaunchPanel()}
-        ${renderGuidedSetupPanel()}
-    `;
-}
-
-function renderV9HomePanel() {
+function renderHomePanel() {
     const guidedSnapshot = getGuidedSetupSnapshot();
     const command = guidedSnapshot.primaryCommand;
     const playlistIds = playlistsCache
@@ -5406,7 +5294,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence v9.9.49
+                        ✨ Apparence V10
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6440,7 +6328,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=9.9.49",
+                "./service-worker.js?v=10.0.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7099,98 +6987,9 @@ function getCurrentReleaseReadiness() {
 }
 
 function renderReleaseReadinessPanel() {
-    const readiness = getCurrentReleaseReadiness();
-    const status = readiness.status;
-    const fieldChecks = readiness.fieldChecks;
-
-    return `
-        <section
-            id="releaseReadinessPanel"
-            class="settings-panel release-readiness-panel release-readiness-panel--${escapeHtml(status.id)}"
-        >
-            <div class="panel-heading">
-                <div>
-                    <span class="release-readiness-kicker">🏁 Pré-finalisation v10</span>
-                    <h3>Validation terrain</h3>
-                    <p>
-                        La v9.9.48 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
-                        Confirme uniquement les essais réellement effectués sur tes appareils.
-                    </p>
-                </div>
-                <span class="release-readiness-status release-readiness-status--${escapeHtml(status.id)}">
-                    ${escapeHtml(status.icon)} ${escapeHtml(status.label)}
-                </span>
-            </div>
-
-            <div class="release-readiness-score">
-                <div
-                    class="release-readiness-score-ring"
-                    style="--release-score:${readiness.score}%"
-                    aria-label="Préparation ${readiness.score} pour cent"
-                >
-                    <strong>${readiness.score}%</strong>
-                    <span>préparation</span>
-                </div>
-                <div>
-                    <strong>${escapeHtml(status.message)}</strong>
-                    <p>
-                        ${readiness.automaticPassed}/${readiness.automaticTotal}
-                        contrôles automatiques ·
-                        ${readiness.fieldPassed}/${readiness.fieldTotal}
-                        validations terrain.
-                    </p>
-                </div>
-            </div>
-
-            <div class="release-readiness-automatic" aria-label="Contrôles automatiques">
-                ${readiness.automaticChecks.map((check) => `
-                    <span class="${check.passed ? "is-passed" : "is-blocked"}">
-                        <b aria-hidden="true">${check.passed ? "✓" : "×"}</b>
-                        ${escapeHtml(check.label)}
-                    </span>
-                `).join("")}
-            </div>
-
-            <div class="release-readiness-field" aria-label="Validations terrain">
-                ${fieldChecks.map((check) => `
-                    <button
-                        type="button"
-                        class="release-readiness-check ${check.confirmed ? "is-confirmed" : ""}"
-                        data-finalization-check="${escapeHtml(check.id)}"
-                        aria-pressed="${String(check.confirmed)}"
-                    >
-                        <span aria-hidden="true">${check.confirmed ? "✓" : "○"}</span>
-                        <div>
-                            <strong>${escapeHtml(check.label)}</strong>
-                            <small>${escapeHtml(check.description)}</small>
-                            ${check.confirmedAt
-                                ? `<em>Confirmé le ${escapeHtml(new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(check.confirmedAt)))}</em>`
-                                : ""}
-                        </div>
-                    </button>
-                `).join("")}
-            </div>
-
-            <div class="release-readiness-actions">
-                <button id="exportReleaseReadinessButton" type="button">
-                    ⬇ Exporter la préparation v10
-                </button>
-                <button
-                    id="resetFinalizationChecksButton"
-                    type="button"
-                    ${readiness.fieldPassed ? "" : "disabled"}
-                >
-                    Réinitialiser les validations
-                </button>
-            </div>
-
-            <p class="release-readiness-note">
-                La mention « Prête pour v10 » ne remplace pas les essais réels :
-                elle apparaît seulement lorsque les contrôles automatiques passent
-                et que les cinq validations terrain ont été confirmées.
-            </p>
-        </section>
-    `;
+    return renderReleaseReadinessPanelMarkup(
+        getCurrentReleaseReadiness()
+    );
 }
 
 function toggleFinalizationCheck(checkId = "") {
@@ -7208,7 +7007,7 @@ function toggleFinalizationCheck(checkId = "") {
         label: !current
             ? "Validation terrain confirmée"
             : "Validation terrain retirée",
-        detail: definition?.label || "Préparation v10 mise à jour.",
+        detail: definition?.label || "Validation V10 mise à jour.",
         createdAt: Date.now()
     });
     setStatus(
@@ -7223,7 +7022,7 @@ function toggleFinalizationCheck(checkId = "") {
 
 function resetFinalizationChecks() {
     const confirmed = window.confirm(
-        "Réinitialiser toutes les validations terrain de préparation à la v10 ?"
+        "Réinitialiser toutes les validations terrain de la V10 ?"
     );
     if (!confirmed) return;
 
@@ -7242,9 +7041,9 @@ function exportReleaseReadinessReport() {
             getCurrentReleaseReadiness(),
             finalizationState
         ),
-        `shuffleplus-preparation-v10-${date}.json`
+        `shuffleplus-validation-v10-${date}.json`
     );
-    setStatus("Rapport de préparation v10 exporté.");
+    setStatus("Rapport de validation V10 exporté.");
 }
 
 async function exportAppHealthReport() {
@@ -13441,7 +13240,7 @@ function renderAdaptiveTransitionPanel() {
             <div class="adaptive-transition-heading">
                 <div>
                     <span class="adaptive-menu-kicker">
-                        🌊 v5.5 · Transition progressive
+                        🌊 Transition progressive
                     </span>
                     <h4>Changer d’ambiance sans casser la file</h4>
                     <p>
@@ -13679,7 +13478,7 @@ function renderAdaptiveDjSceneStudioPanel() {
         <section class="adaptive-scene-studio">
             <div class="adaptive-scene-studio__header">
                 <div>
-                    <span class="adaptive-menu-kicker">🎛️ Adaptive DJ 2.0</span>
+                    <span class="adaptive-menu-kicker">🎛️ Scènes Adaptive DJ</span>
                     <h4>Scènes musicales</h4>
                     <p>Crée tes scènes personnalisées avec mix, profil, énergie et lien iOS en un clic.</p>
                 </div>
@@ -17731,7 +17530,7 @@ function refreshTargetAppMenuPage(
             renderAdvancedListeningStatisticsPage();
     } else if (normalizedMenu === "dashboard") {
         page.innerHTML = `
-            ${renderV9HomePanel()}
+            ${renderHomePanel()}
             ${isExpertExperience(experienceMode)
                 ? renderMusicalDashboardPage()
                 : ""}
@@ -18144,7 +17943,7 @@ function renderUsageProfilesPage() {
         <section class="usage-profiles-page">
             <header class="usage-profiles-hero">
                 <div>
-                    <span class="usage-profiles-kicker">🎛️ Shuffle+ v6.9</span>
+                    <span class="usage-profiles-kicker">🎛️ Modes d’utilisation</span>
                     <h3>Modes d’utilisation</h3>
                     <p>
                         Choisis une situation et Shuffle+ prépare automatiquement
@@ -20443,7 +20242,7 @@ function renderMusicalAssistantPage() {
         <section class="musical-assistant-page">
             <div class="musical-assistant-hero">
                 <div>
-                    <span class="adaptive-menu-kicker">✨ Shuffle+ v6</span>
+                    <span class="adaptive-menu-kicker">✨ Assistant musical</span>
                     <h3>Assistant musical</h3>
                     <p>
                         Écris naturellement ce que tu veux écouter,
@@ -20456,7 +20255,7 @@ function renderMusicalAssistantPage() {
                         🔒 Analyse locale
                     </span>
                     <span class="musical-assistant-local-badge">
-                        🎙️ Assistant vocal 6.1
+                        🎙️ Assistant vocal
                     </span>
                 </div>
             </div>
@@ -22725,7 +22524,7 @@ function renderIosCommandsPanel() {
                         raccourci(s) configuré(s)
                     </p>
                 </div>
-                <span>v4.0</span>
+                <span>Raccourcis iOS</span>
             </div>
 
 
@@ -25520,7 +25319,7 @@ function renderIosQuickPlayPanel() {
                         toujours la playlist choisie.
                     </p>
                 </div>
-                <span>v3.0</span>
+                <span>Lecture rapide</span>
             </div>
 
             <form
@@ -26381,7 +26180,7 @@ function renderMixSchedulesSection() {
             <div class="schedules-heading">
                 <div>
                     <span class="adaptive-menu-kicker">
-                        🗓️ Planificateur intelligent v5.6
+                        🗓️ Planificateur intelligent
                     </span>
                     <h3>Routines musicales</h3>
                     <p>
@@ -30813,7 +30612,7 @@ function renderMixStudioSection() {
                         Shuffle+ génère ensuite l’ordre complet des morceaux.
                     </p>
                 </div>
-                <span class="mix-studio-version">v5.2</span>
+                <span class="mix-studio-version">Studio</span>
             </div>
 
             <form id="mixStudioForm" class="mix-studio-form">
@@ -34917,7 +34716,7 @@ function renderLastSyncMergeUndo() {
     return `
         <section class="sync-undo-card">
             <div>
-                <span class="sync-eyebrow">Filet de sécurité v4.9</span>
+                <span class="sync-eyebrow">Filet de sécurité</span>
                 <h4>Dernière fusion annulable</h4>
                 <p>
                     État local conservé avant la fusion avec
@@ -35791,7 +35590,7 @@ function renderSelectiveSyncMerge() {
         >
             <div class="sync-selective-heading">
                 <div>
-                    <span class="sync-eyebrow">v4.9 · Comparaison détaillée</span>
+                    <span class="sync-eyebrow">Comparaison détaillée</span>
                     <h4>Vérifier puis choisir catégorie par catégorie</h4>
                     <p>
                         ${detailedCount} différence${detailedCount > 1 ? "s" : ""}
@@ -37693,7 +37492,7 @@ function renderSyncPairingPanel() {
         <section class="sync-pairing-panel" aria-label="Appairage local">
             <div class="sync-pairing-heading">
                 <div>
-                    <span class="sync-eyebrow">v4.7 · Appairage local</span>
+                    <span class="sync-eyebrow">Appairage local</span>
                     <h4>Relier deux installations Shuffle+</h4>
                     <p>
                         L’échange reste manuel et chiffré uniquement par un jeton
@@ -39776,7 +39575,7 @@ function renderSyncPreparationPanel() {
         >
             <div class="sync-panel-heading">
                 <div>
-                    <span class="sync-eyebrow">Shuffle+ 8.1</span>
+                    <span class="sync-eyebrow">Synchronisation</span>
                     <h3>Synchronisation</h3>
                     <p>
                         Retrouve les mêmes mix, raccourcis et réglages sur tes appareils,
@@ -40826,7 +40625,7 @@ function displayPlaylists(playlists) {
                     : ""}"
                 data-app-menu-page="dashboard"
             >
-                ${renderV9HomePanel()}
+                ${renderHomePanel()}
                 ${isExpertExperience(experienceMode)
                     ? renderMusicalDashboardPage()
                     : ""}

@@ -7,8 +7,8 @@ const appSource = await readFile("app.js", "utf8");
 const drivingCore = await readFile("core/driving-advanced.js", "utf8");
 const drivingCss = await readFile("styles/feature-driving.css", "utf8");
 
-test("Shuffle+ 9.9.49 remplace Adaptive DJ par Aléatoire dans le mode conduite", () => {
-    assert.equal(version, "9.9.49");
+test("Shuffle+ 10.0.0 remplace Adaptive DJ par Aléatoire dans le mode conduite", () => {
+    assert.equal(version, "10.0.0");
     assert.match(appSource, /id: "shuffle"/);
     assert.match(appSource, /buttonId: "drivingShuffleButton"/);
     assert.match(appSource, /label: `Aléatoire \$\{shuffleEnabled \? "ON" : "OFF"\}`/);

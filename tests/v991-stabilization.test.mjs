@@ -12,9 +12,9 @@ const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la stabilisation active annonce Shuffle+ 9.9.49", () => {
-    assert.equal(version, "9.9.49");
-    assert.match(appSource, /const APP_VERSION = "9\.9\.49"/);
+test("la stabilisation active annonce Shuffle+ 10.0.0", () => {
+    assert.equal(version, "10.0.0");
+    assert.match(appSource, /const APP_VERSION = "10\.0\.0"/);
 });
 
 test("Réglages affiche directement le guide sans bouton Voir plus", () => {

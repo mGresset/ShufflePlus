@@ -1,5 +1,5 @@
-const APP_VERSION = "9.9.49";
-const CACHE_VERSION = "shuffleplus-v9.9.49";
+const APP_VERSION = "10.0.0";
+const CACHE_VERSION = "shuffleplus-v10.0.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -7,15 +7,15 @@ const MAX_RUNTIME_ENTRIES = 120;
 const CRITICAL_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=9.9.49",
-    "./design-system.css?v=9.9.49",
-    "./bootstrap-9.9.49.js",
-    "./app.js?v=9.9.49&build=9.9.49-pwa-reset-1",
+    "./style.css?v=10.0.0",
+    "./design-system.css?v=10.0.0",
+    "./bootstrap-10.0.0.js",
+    "./app.js?v=10.0.0&build=10.0.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-9.9.49.js",
+    "./startup-recovery-10.0.0.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -24,6 +24,7 @@ const CRITICAL_APP_SHELL = [
     "./core/runtime-state.js",
     "./core/storage-migrations.js",
     "./core/experience-mode.js",
+    "./core/experience-mode-ui.js",
     "./core/server-sync-recovery.js",
     "./core/server-sync-ui.js",
     "./core/pwa-update.js",
@@ -35,6 +36,7 @@ const CRITICAL_APP_SHELL = [
     "./core/performance-budget.js",
     "./core/reliability-center.js",
     "./core/release-readiness.js",
+    "./core/release-readiness-ui.js",
     "./core/platform.js",
     "./core/spotify-app-config.js",
     "./core/html-utils.js",
@@ -73,11 +75,11 @@ const CRITICAL_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=9.9.49",
+    "./styles/feature-home.css?v=10.0.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=9.9.49",
-    "./styles/feature-settings.css?v=9.9.49",
-    "./styles/feature-driving.css?v=9.9.49",
+    "./styles/feature-search.css?v=10.0.0",
+    "./styles/feature-settings.css?v=10.0.0",
+    "./styles/feature-driving.css?v=10.0.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

@@ -1,4 +1,4 @@
-# Shuffle+ v9.9.49
+# Shuffle+ v10.0.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** la branche `9.9.x` est une candidate de finalisation avant la v10. La version actuelle est **9.9.49**.
+> **État du projet :** **Shuffle+ 10.0.0** est la première release V10. Les contrôles automatisés valident le code et le build ; les validations terrain (Spotify Premium, iPhone/PWA, Railway, sauvegarde et conduite) restent visibles dans le centre de fiabilité pour être confirmées sur les appareils réels.
 
 ---
 
@@ -40,6 +40,18 @@ L’application regroupe dans une seule interface :
 ---
 
 ## Fonctions principales
+
+### Principes de la V10
+
+La V10 privilégie la stabilité et la lisibilité plutôt que l’ajout de nouvelles fonctions :
+
+- une interface quotidienne courte en mode **Essentiel** ;
+- les fonctions avancées conservées en mode **Expert** ;
+- une connexion Spotify protégée pendant tout le callback OAuth/PKCE ;
+- une réparation PWA unique et protégée contre les boucles de rechargement ;
+- aucun ancien numéro de sous-version affiché dans l’interface ;
+- des garde-fous automatiques empêchant le retour des principaux reliquats historiques.
+
 
 ### Lancement musical en une action
 
@@ -645,7 +657,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v9.9.49"
+git commit -m "Release Shuffle+ v10.0.0"
 git push origin main
 ```
 
@@ -655,7 +667,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v9.9.49** ;
+3. vérifier que l’en-tête affiche **v10.0.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -672,8 +684,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-9.9.49.js        Chargement versionné et migration du runtime
-startup-recovery-9.9.49.js Réparation avant le chargement principal
+bootstrap-10.0.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.0.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -721,11 +733,12 @@ server/README.md
 
 ## Validation et tests
 
-La v9.9.49 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.0.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
-- 163 fichiers JavaScript contrôlés ;
-- 59 modules reliés à `app.js` ;
-- 74 ressources PWA contrôlées ;
+- **399 tests applicatifs réussis** ;
+- 169 fichiers JavaScript contrôlés ;
+- 61 modules reliés à `app.js` ;
+- 76 ressources PWA contrôlées ;
 - validation CSP ;
 - contrôle de l’architecture CSS ;
 - build GitHub Pages vérifié ;
@@ -761,7 +774,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ### La version affichée n’est pas la bonne
 
-Depuis la v9.9.49, **Réparer Shuffle+** est protégé contre les boucles de rechargement sur Safari/PWA iOS et ne touche jamais à l’état PKCE pendant un retour de connexion Spotify.
+Depuis la V10, **Réparer Shuffle+** est protégé contre les boucles de rechargement sur Safari/PWA iOS et ne touche jamais à l’état PKCE pendant un retour de connexion Spotify.
 
 - fermer entièrement la PWA ;
 - rouvrir avec Internet actif ;

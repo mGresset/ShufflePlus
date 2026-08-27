@@ -1,15 +1,15 @@
 {
   "name": "shuffleplus",
-  "version": "9.9.49",
+  "version": "10.0.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 9.9.49 — sécurisation OAuth Spotify et réparation PWA iPhone anti-boucle.",
+  "description": "Shuffle+ 10.0.0 — version stable centrée sur la fiabilité Spotify, iPhone/PWA et la simplicité d’usage.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-v10-cleanup.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",

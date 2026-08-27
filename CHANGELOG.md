@@ -1,5 +1,21 @@
 # Changelog Shuffle+
 
+## 10.0.0
+
+### Première release V10
+
+- Passage du canal de publication à **stable** et identité de build `10.0.0`.
+- Conservation des correctifs iPhone/OAuth et anti-boucle PWA introduits en 9.9.49.
+- Suppression du panneau d’accueil V8 devenu inutilisé et renommage du rendu d’accueil courant sans numéro historique.
+- Nettoyage des numéros de sous-version visibles dans les objectifs, recommandations, statistiques, assistant, raccourcis iOS, Mix Studio et synchronisation.
+- Mode Essentiel maintenu comme interface quotidienne courte ; les fonctions avancées restent disponibles en mode Expert.
+- Ajout d’un contrôle `check-v10-cleanup.mjs` empêchant la réintroduction des principaux reliquats d’interface historiques.
+- Ajout de tests V10 dédiés à l’identité de release, au mode Essentiel, au mode conduite et à la protection iPhone/PWA.
+- **399 tests applicatifs réussis**, 169 fichiers JavaScript contrôlés, 61 modules reliés et 76 ressources PWA validées.
+- La validation automatisée ne remplace pas les essais terrain Spotify Premium, PWA iPhone, Railway, sauvegarde/restauration et conduite.
+
+---
+
 Ce fichier regroupe l’historique qui était auparavant réparti dans les fichiers `Vx.x.x_NOTES.md`.
 Git conserve en complément l’historique complet de chaque modification.
 

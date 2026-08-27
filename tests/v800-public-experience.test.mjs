@@ -174,14 +174,14 @@ test("la migration v8 protège une configuration serveur corrompue", () => {
     assert.equal(storage.getItem("shuffleplus_saved_mixes_v1"), null);
 });
 
-test("Shuffle+ 8 relie l’expérience publique et la récupération serveur à l’interface", () => {
+test("Shuffle+ V10 relie l’expérience publique et la récupération serveur à l’interface", () => {
     assert.match(appSource, /function renderExperienceModePanel\(/);
-    assert.match(appSource, /function renderV8WelcomePanel\(/);
+    assert.doesNotMatch(appSource, /function renderV8WelcomePanel\(/);
     assert.match(appSource, /recoverServerSyncState\(/);
     assert.match(appSource, /rememberServerSyncState\(/);
     assert.match(appSource, /isExpertExperience\(experienceMode\)/);
-    assert.match(indexSource, /Shuffle\+ 9\.9\.49 · Candidate v10/);
-    assert.match(styleSource, /\.v8-welcome-panel/);
+    assert.match(indexSource, /Shuffle\+ 10\.0\.0 · V10/);
+    assert.doesNotMatch(styleSource, /\.v8-welcome-panel/);
     assert.match(styleSource, /\.experience-mode-options/);
     assert.match(workerSource, /\.\/core\/experience-mode\.js/);
     assert.match(workerSource, /\.\/core\/server-sync-recovery\.js/);
