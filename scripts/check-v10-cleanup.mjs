@@ -13,8 +13,8 @@ function fail(message) {
     failures.push(message);
 }
 
-if (version !== "10.3.0") {
-    fail(`La release V10 doit annoncer 10.3.0, pas ${version}.`);
+if (version !== "10.4.0") {
+    fail(`La release V10 doit annoncer 10.4.0, pas ${version}.`);
 }
 
 if (!index.includes('name="shuffleplus-release-channel" content="stable"')) {
@@ -70,6 +70,15 @@ if (!app.includes("prepareExperienceModeTransition")) {
 
 if (style.includes(".experience-mode-option")) {
     fail("Les styles Essentiel/Expert sont encore dans style.css au lieu du module Réglages.");
+}
+
+
+if (!serviceWorker.includes("ROLLBACK_TO_PREVIOUS") || !serviceWorker.includes("META_CACHE")) {
+    fail("Le Service Worker V10.4 ne conserve pas le mécanisme de rollback PWA.");
+}
+
+if (!index.includes('./update-guard.js')) {
+    fail("Le garde de démarrage PWA V10.4 n’est pas chargé avant le bootstrap.");
 }
 
 const checkScript = String(packageJson.scripts?.check || "");

@@ -14,7 +14,7 @@ La commande exécute les contrôles JavaScript, les tests applicatifs et serveur
 
 ```powershell
 git add -A
-git commit -m "Release Shuffle+ v10.3.0 - Architecture et lisibilite mobile"
+git commit -m "Release Shuffle+ v10.4.0 - PWA update et rollback"
 git push origin main
 ```
 
@@ -22,9 +22,9 @@ git push origin main
 
 1. Fermer complètement Shuffle+ sur l’iPhone.
 2. Rouvrir l’application avec Internet actif.
-3. Vérifier que l’interface affiche **v10.3.0**.
-4. Ouvrir **Réglages > Expérience Shuffle+** et vérifier la lisibilité des cartes Essentiel/Expert sur iPhone.
-5. Ouvrir **Réglages > Centre de fiabilité > Tester Spotify Connect** et vérifier le diagnostic appareil.
+3. Vérifier que l’interface affiche **v10.4.0**.
+4. Vérifier qu’une future bannière de mise à jour affiche **Mettre à jour maintenant** et annonce la sauvegarde automatique.
+5. Vérifier **Réglages > Centre de fiabilité > Tester Spotify Connect** pour confirmer que la détection appareil reste intacte.
 6. Tester au minimum Pause/Lecture, Titre suivant, un raccourci iPhone et le mode conduite.
 
 ## Railway et raccourci iPhone

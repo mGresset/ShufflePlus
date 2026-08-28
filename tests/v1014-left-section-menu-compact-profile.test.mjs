@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs";
 const css = readFileSync(new URL("../style.css", import.meta.url), "utf8");
 const version = readFileSync(new URL("../VERSION", import.meta.url), "utf8").trim();
 
-test("Shuffle+ 10.3.0 aligne les sous-menus à gauche", () => {
-    assert.equal(version, "10.3.0");
+test("Shuffle+ 10.4.0 aligne les sous-menus à gauche", () => {
+    assert.equal(version, "10.4.0");
     assert.match(
         css,
         /\.app-section-menu\s*\{[\s\S]*?justify-content:\s*flex-start;[\s\S]*?flex-wrap:\s*wrap;/

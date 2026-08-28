@@ -1,5 +1,25 @@
 # Changelog Shuffle+
 
+## 10.4.0
+
+### Mise à jour PWA & rollback
+
+- La bannière de mise à jour annonce désormais explicitement la sauvegarde automatique, l’activation et le contrôle de démarrage.
+- Une transaction locale `shuffleplus_pwa_update_transaction_v1` suit l’activation d’une nouvelle version et évite les purges concurrentes pendant le premier démarrage.
+- Nouveau `update-guard.js`, chargé avant le bootstrap, qui surveille `shuffleplus:app-ready`, les erreurs de démarrage et un délai maximal de 18 secondes.
+- Le Service Worker conserve automatiquement **une version précédente complète** du shell/runtime au lieu de supprimer tous les caches historiques dès l’activation.
+- Si la nouvelle version ne démarre pas correctement, le garde peut activer `ROLLBACK_TO_PREVIOUS` et recharger le shell précédent depuis le cache local.
+- Le bootstrap reconnaît une mise à jour PWA intentionnelle et ne détruit plus la copie de rollback en exécutant une seconde migration de cache.
+- Une version corrective plus récente désactive automatiquement un ancien état de rollback et remplace la copie de secours par la version précédente la plus récente.
+- Les mises à jour futures créées depuis 10.4 enregistrent également explicitement les builds source/cible avant `SKIP_WAITING`.
+
+### Compatibilité
+
+- Aucun changement des raccourcis iOS : `RequestId + ResultToken` restent inchangés.
+- Aucun changement Railway : serveur **v5.2.0** conservé.
+- Diagnostic Spotify Connect, mode conduite et modes Essentiel/Expert inchangés fonctionnellement.
+- Validation automatisée : **426/426 tests applicatifs** avant build final.
+
 ## 10.3.0
 
 ### Lisibilité mobile des modes

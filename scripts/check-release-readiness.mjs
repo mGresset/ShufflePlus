@@ -20,6 +20,7 @@ const requiredFiles = [
     `bootstrap-${version}.js`,
     "config.js",
     "service-worker.js",
+    "update-guard.js",
     `startup-recovery-${version}.js`,
     "core/release-readiness.js",
     "core/storage-migrations.js",
@@ -57,6 +58,8 @@ const expectedTexts = [
     ["index.html", index, 'name="shuffleplus-server-tests-validated" content="true"'],
     ["service-worker.js", serviceWorker, `shuffleplus-v${version}`],
     ["service-worker.js", serviceWorker, `./core/release-readiness.js`],
+    ["service-worker.js", serviceWorker, `./update-guard.js`],
+    ["index.html", index, `./update-guard.js`],
     ["app.js", app, `const APP_VERSION = "${version}"`],
     ["server/server.js", server, 'requestUrl.pathname === "/health"'],
     ["server/server.js", server, 'const VERSION = "5.2.0"'],
@@ -91,7 +94,11 @@ if (startupFiles.length !== 1 || startupFiles[0] !== `startup-recovery-${version
 
 const declaredAssets = [...serviceWorker.matchAll(/"\.\/([^"?]+)(?:\?v=[^"]+)?"/g)]
     .map((match) => match[1])
-    .filter((value) => value && value !== "");
+    .filter((value) =>
+        value &&
+        value !== "" &&
+        !value.startsWith("__shuffleplus_")
+    );
 for (const asset of new Set(declaredAssets)) {
     try {
         await access(path.join(root, asset));

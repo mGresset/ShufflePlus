@@ -241,6 +241,7 @@ import {
 
 import {
     PWA_UPDATE_APPLIED_VERSION_KEY,
+    beginPwaUpdateTransaction,
     clearAppliedPwaVersion,
     getPwaVersionFromScriptUrl,
     readAppliedPwaVersion,
@@ -450,7 +451,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.3.0";
+const APP_VERSION = "10.4.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -924,7 +925,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.3.0-shell";
+    "shuffleplus-v10.4.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6420,15 +6421,15 @@ function setPwaUpdateBannerState({
 
     if (pwaUpdateMessageElement) {
         pwaUpdateMessageElement.textContent = applying
-            ? "L’application va se recharger une seule fois."
-            : "Recharge l’application pour l’activer.";
+            ? "Sauvegarde créée · activation puis contrôle automatique du démarrage."
+            : "Une sauvegarde automatique sera créée avant l’activation. En cas d’échec au démarrage, Shuffle+ tentera de revenir à la version précédente.";
     }
 
     if (applyPwaUpdateButton) {
         applyPwaUpdateButton.disabled = applying;
         applyPwaUpdateButton.textContent = applying
             ? "Mise à jour…"
-            : "Mettre à jour";
+            : "Mettre à jour maintenant";
     }
 
     if (dismissPwaUpdateButton) {
@@ -6581,7 +6582,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.3.0",
+                "./service-worker.js?v=10.4.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -44910,6 +44911,18 @@ applyPwaUpdateButton.addEventListener(
                 createdAt: Date.now()
             });
         }
+
+        beginPwaUpdateTransaction(
+            localStorage,
+            {
+                fromVersion: APP_VERSION,
+                toVersion: targetVersion,
+                fromBuild: `${APP_VERSION}-pwa-reset-1`,
+                toBuild: targetVersion
+                    ? `${targetVersion}-pwa-reset-1`
+                    : ""
+            }
+        );
 
         pwaUpdateApplying = true;
         pwaReloadRequested = true;

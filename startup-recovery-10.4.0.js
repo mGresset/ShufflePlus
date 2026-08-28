@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const APP_VERSION = "10.3.0";
+    const APP_VERSION = "10.4.0";
     const BUILD_ID = `${APP_VERSION}-pwa-reset-1`;
     const BUILD_QUERY_KEY = "shuffleplus_build";
     const CACHE_PREFIX = "shuffleplus-";
@@ -246,6 +246,15 @@
     }
 
     async function tryAutomaticRepair(reason) {
+        const updateGuard = window.__SHUFFLEPLUS_UPDATE_GUARD__;
+        if (typeof updateGuard?.rollback === "function") {
+            showPanel(
+                `${reason} La mise à jour PWA est encore en cours de validation ; Shuffle+ tente d’abord un retour à la version précédente sans purger les caches.`
+            );
+            await updateGuard.rollback("startup-recovery");
+            return;
+        }
+
         const navigation = getNavigationState();
         if (navigation.hasOAuthCallback) {
             showPanel(

@@ -1,9 +1,16 @@
-const APP_VERSION = "10.3.0";
-const BUILD_ID = "10.3.0-pwa-reset-1";
+const APP_VERSION = "10.4.0";
+const BUILD_ID = "10.4.0-pwa-reset-1";
 const BUILD_STORAGE_KEY = "shuffleplus_runtime_build_id";
 const BUILD_QUERY_KEY = "shuffleplus_build";
 const POST_UPDATE_DIAGNOSTIC_KEY =
     "shuffleplus_post_update_diagnostic_v1";
+const PREUPDATE_SNAPSHOT_KEY =
+    "shuffleplus_preupdate_snapshot_v1";
+const PWA_UPDATE_TRANSACTION_KEY =
+    "shuffleplus_pwa_update_transaction_v1";
+const PWA_UPDATE_APPLIED_VERSION_KEY =
+    "shuffleplus_pwa_applied_version_v1";
+const INTENTIONAL_UPDATE_MAX_AGE_MS = 15 * 60 * 1000;
 const AUTOMATION_HANDOFF_KEY =
     "shuffleplus_automation_handoff_v1";
 const AUTOMATION_HANDOFF_TTL_MS = 2 * 60 * 1000;
@@ -31,6 +38,104 @@ function captureAutomationHandoff() {
         return true;
     } catch {
         return false;
+    }
+}
+
+function safeParse(value, fallback = null) {
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+}
+
+function isRecentUpdateTimestamp(value) {
+    const timestamp = Number(value || 0);
+    const age = Date.now() - timestamp;
+    return Number.isFinite(timestamp) &&
+        timestamp > 0 &&
+        age >= 0 &&
+        age <= INTENTIONAL_UPDATE_MAX_AGE_MS;
+}
+
+function getIntentionalPwaUpdate() {
+    let transaction = null;
+    let snapshot = null;
+    let appliedVersion = "";
+
+    try {
+        transaction = safeParse(
+            localStorage.getItem(PWA_UPDATE_TRANSACTION_KEY),
+            null
+        );
+        snapshot = safeParse(
+            localStorage.getItem(PREUPDATE_SNAPSHOT_KEY),
+            null
+        );
+        appliedVersion =
+            sessionStorage.getItem(PWA_UPDATE_APPLIED_VERSION_KEY) || "";
+    } catch {
+        return null;
+    }
+
+    if (
+        transaction?.format === "shuffleplus-pwa-update-transaction" &&
+        String(transaction.toVersion || "") === APP_VERSION &&
+        isRecentUpdateTimestamp(transaction.startedAt)
+    ) {
+        return {
+            source: "transaction",
+            fromVersion: String(transaction.fromVersion || ""),
+            startedAt: Number(transaction.startedAt || 0)
+        };
+    }
+
+    if (
+        appliedVersion === APP_VERSION &&
+        snapshot?.format === "shuffleplus-preupdate-snapshot" &&
+        String(snapshot.toVersion || "") === APP_VERSION &&
+        isRecentUpdateTimestamp(snapshot.createdAt)
+    ) {
+        return {
+            source: "snapshot",
+            fromVersion: String(snapshot.fromVersion || ""),
+            startedAt: Number(snapshot.createdAt || 0)
+        };
+    }
+
+    return null;
+}
+
+function markUpdateTransactionVerifying(intentionalUpdate) {
+    if (!intentionalUpdate) return;
+    try {
+        const current = safeParse(
+            localStorage.getItem(PWA_UPDATE_TRANSACTION_KEY),
+            {}
+        ) || {};
+        localStorage.setItem(
+            PWA_UPDATE_TRANSACTION_KEY,
+            JSON.stringify({
+                ...current,
+                format: "shuffleplus-pwa-update-transaction",
+                schemaVersion: 1,
+                status: "verifying",
+                fromVersion:
+                    String(current.fromVersion || intentionalUpdate.fromVersion || ""),
+                toVersion: APP_VERSION,
+                fromBuild:
+                    String(current.fromBuild ||
+                        (intentionalUpdate.fromVersion
+                            ? `${intentionalUpdate.fromVersion}-pwa-reset-1`
+                            : "")),
+                toBuild: BUILD_ID,
+                startedAt:
+                    Number(current.startedAt || intentionalUpdate.startedAt || Date.now()),
+                updatedAt: Date.now()
+            })
+        );
+    } catch {
+        // Le garde de mise à jour peut aussi fonctionner avec le snapshot seul.
     }
 }
 
@@ -89,6 +194,8 @@ async function migrateRuntimeIfNeeded() {
         return false;
     }
 
+    const intentionalUpdate = getIntentionalPwaUpdate();
+
     if (storedBuild) {
         try {
             localStorage.setItem(
@@ -104,6 +211,16 @@ async function migrateRuntimeIfNeeded() {
         } catch {
             // L’autodiagnostic est opportuniste et ne bloque jamais la migration.
         }
+    }
+
+    if (intentionalUpdate) {
+        // Une mise à jour déclenchée depuis la bannière PWA possède déjà un
+        // nouveau Service Worker actif. Purger ici les caches supprimerait la
+        // seule copie de rollback. On conserve donc l’ancien shell jusqu’à la
+        // validation de stabilité par update-guard.js.
+        storeBuild();
+        markUpdateTransactionVerifying(intentionalUpdate);
+        return false;
     }
 
     storeBuild();

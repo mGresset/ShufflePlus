@@ -30,7 +30,8 @@
 - **v10.1.4 — Sous-menus alignés à gauche et sélecteur de profil mobile compact : terminée**
 - **v10.2.0 — Diagnostic Spotify Connect, historique et autodiagnostic PWA : terminée**
 - **v10.3.0 — Architecture, nettoyage et lisibilité mobile : terminée**
-- **v10.4.0 — Mise à jour PWA plus transparente, rollback et poursuite du découpage des contrôleurs : envisagée**
+- **v10.4.0 — Mise à jour PWA transparente, cache précédent conservé et rollback automatique : terminée**
+- **v10.5.0 — Assistant iPhone/raccourcis et parcours de test simplifié : envisagée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -42,3 +43,13 @@
 - garde-fous de non-régression sur l’architecture CSS et le découpage V10 ;
 - diagnostic Spotify Connect V10.2 et Railway v5.2.0 conservés.
 
+## V10.4 — Mise à jour PWA & rollback
+
+- sauvegarde locale avant activation conservée ;
+- transaction de mise à jour dédiée avant `SKIP_WAITING` ;
+- ancien shell PWA conservé comme copie de secours ;
+- `update-guard.js` indépendant du noyau applicatif ;
+- validation de stabilité après `app-ready` ;
+- rollback automatique vers le shell précédent en cas d’échec de démarrage ;
+- suppression des doubles purges bootstrap lors d’une mise à jour intentionnelle ;
+- Railway v5.2.0 et raccourcis iOS inchangés.

@@ -1,4 +1,4 @@
-# Shuffle+ v10.3.0
+# Shuffle+ v10.4.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.3.0** est la version « Architecture & lisibilité mobile » de la branche V10. Elle améliore la présentation Essentiel/Expert sur téléphone, sort sa logique de transition et ses styles du noyau historique, tout en conservant le diagnostic Spotify Connect de la 10.2 et Railway v5.2.0.
+> **État du projet :** **Shuffle+ 10.4.0** est la version « Mise à jour PWA & rollback » de la branche V10. Elle conserve une copie locale du shell précédent pendant l’activation, surveille le premier démarrage de la nouvelle version et peut revenir automatiquement à la version précédente si ce démarrage échoue. Spotify Connect, les raccourcis iPhone et Railway v5.2.0 restent compatibles.
 
 ---
 
@@ -49,6 +49,7 @@ La V10 privilégie la stabilité et la lisibilité plutôt que l’ajout de nouv
 - les fonctions avancées conservées en mode **Expert** ;
 - une connexion Spotify protégée pendant tout le callback OAuth/PKCE ;
 - une réparation PWA unique et protégée contre les boucles de rechargement ;
+- une mise à jour PWA transactionnelle avec copie de secours de la version précédente et rollback de démarrage ;
 - aucun ancien numéro de sous-version affiché dans l’interface ;
 - des garde-fous automatiques empêchant le retour des principaux reliquats historiques ;
 - un diagnostic Spotify Connect qui compare `/me/player/devices`, le lecteur actif et l’appareil préféré sans exposer les identifiants techniques.
@@ -583,6 +584,14 @@ Sans réseau, Shuffle+ peut conserver une partie de son interface et de ses donn
 
 ---
 
+### Mise à jour PWA sécurisée (V10.4)
+
+Lorsqu’une nouvelle version est disponible, Shuffle+ crée d’abord une sauvegarde locale exportable puis active le nouveau Service Worker. La V10.4 conserve en plus le shell/runtime de la version précédente.
+
+Pendant le premier démarrage, `update-guard.js` attend la confirmation `shuffleplus:app-ready`, puis dix secondes de stabilité. Si le bootstrap échoue, qu’un script critique ne charge pas ou que le démarrage dépasse le délai prévu, le Service Worker peut basculer temporairement sur la copie précédente via `ROLLBACK_TO_PREVIOUS`.
+
+Le rollback ne modifie pas les raccourcis iOS, les identifiants Spotify ou le serveur Railway. Une version corrective plus récente efface automatiquement l’ancien état de rollback lorsqu’elle devient active.
+
 ## Données, sauvegarde et synchronisation
 
 ### Données locales
@@ -729,7 +738,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.3.0"
+git commit -m "Release Shuffle+ v10.4.0"
 git push origin main
 ```
 
@@ -739,7 +748,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.3.0** ;
+3. vérifier que l’en-tête affiche **v10.4.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -756,8 +765,9 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-10.3.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.3.0.js Réparation avant le chargement principal
+update-guard.js             Contrôle du premier démarrage et rollback PWA
+bootstrap-10.4.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.4.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -805,12 +815,12 @@ server/README.md
 
 ## Validation et tests
 
-La v10.3.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.4.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
-- **411 tests applicatifs réussis** ;
-- 177 fichiers JavaScript contrôlés ;
-- 64 modules reliés à `app.js` ;
-- 79 ressources PWA contrôlées ;
+- **426 tests applicatifs réussis** ;
+- 184 fichiers JavaScript contrôlés ;
+- 66 modules reliés à `app.js` ;
+- 82 ressources PWA contrôlées ;
 - validation CSP ;
 - contrôle de l’architecture CSS ;
 - build GitHub Pages vérifié ;
@@ -908,7 +918,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.3.0 sera déclarée stable après validation réelle de :
+La v10.4.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

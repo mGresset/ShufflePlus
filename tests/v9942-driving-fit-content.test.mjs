@@ -5,8 +5,8 @@ import test from "node:test";
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const css = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 
-test("Shuffle+ 10.3.0 élimine les contrats de hauteur contradictoires du feature CSS", () => {
-    assert.equal(version, "10.3.0");
+test("Shuffle+ 10.4.0 élimine les contrats de hauteur contradictoires du feature CSS", () => {
+    assert.equal(version, "10.4.0");
     assert.match(css, /v10\.2\.0 — contrat mobile conduite consolidé/);
     const legacyMarkers = css.match(/v9\.9\.(?:30|33|34|39|41|42|45|47) —/g) || [];
     assert.equal(legacyMarkers.length, 0);

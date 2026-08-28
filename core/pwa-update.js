@@ -1,6 +1,85 @@
 export const PWA_UPDATE_APPLIED_VERSION_KEY =
     "shuffleplus_pwa_applied_version_v1";
 
+
+export const PWA_UPDATE_TRANSACTION_KEY =
+    "shuffleplus_pwa_update_transaction_v1";
+
+export function beginPwaUpdateTransaction(
+    storage,
+    {
+        fromVersion = "",
+        toVersion = "",
+        fromBuild = "",
+        toBuild = "",
+        now = Date.now()
+    } = {},
+    key = PWA_UPDATE_TRANSACTION_KEY
+) {
+    const source = normalizePwaVersion(fromVersion);
+    const target = normalizePwaVersion(toVersion);
+    if (!storage || !source || !target || source === target) {
+        return null;
+    }
+
+    const transaction = {
+        format: "shuffleplus-pwa-update-transaction",
+        schemaVersion: 1,
+        status: "activating",
+        fromVersion: source,
+        toVersion: target,
+        fromBuild: String(fromBuild || `${source}-pwa-reset-1`),
+        toBuild: String(toBuild || `${target}-pwa-reset-1`),
+        startedAt: Number(now) || Date.now(),
+        updatedAt: Number(now) || Date.now()
+    };
+
+    try {
+        storage.setItem(key, JSON.stringify(transaction));
+        return transaction;
+    } catch {
+        return null;
+    }
+}
+
+export function readPwaUpdateTransaction(
+    storage,
+    key = PWA_UPDATE_TRANSACTION_KEY
+) {
+    try {
+        const parsed = JSON.parse(storage?.getItem?.(key) || "null");
+        if (
+            !parsed ||
+            parsed.format !== "shuffleplus-pwa-update-transaction" ||
+            !normalizePwaVersion(parsed.fromVersion) ||
+            !normalizePwaVersion(parsed.toVersion)
+        ) {
+            return null;
+        }
+        return {
+            ...parsed,
+            fromVersion: normalizePwaVersion(parsed.fromVersion),
+            toVersion: normalizePwaVersion(parsed.toVersion),
+            startedAt: Math.max(0, Number(parsed.startedAt) || 0),
+            updatedAt: Math.max(0, Number(parsed.updatedAt) || 0)
+        };
+    } catch {
+        return null;
+    }
+}
+
+export function clearPwaUpdateTransaction(
+    storage,
+    key = PWA_UPDATE_TRANSACTION_KEY
+) {
+    try {
+        storage?.removeItem?.(key);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export function normalizePwaVersion(value = "") {
     const version = String(value || "").trim();
     return /^\d+\.\d+\.\d+$/.test(version)
