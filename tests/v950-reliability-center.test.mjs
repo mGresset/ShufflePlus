@@ -47,8 +47,8 @@ function createSnapshot(overrides = {}) {
     };
 }
 
-test("la distribution active annonce Shuffle+ 10.2.0", () => {
-    assert.equal(version, "10.2.0");
+test("la distribution active annonce Shuffle+ 10.3.0", () => {
+    assert.equal(version, "10.3.0");
 });
 
 test("le journal normalise, déduplique et limite les événements", () => {
@@ -77,7 +77,7 @@ test("les statuts importants deviennent des événements génériques et privés
         3_000
     );
     const server = deriveReliabilityEventFromStatus(
-        "Serveur disponible · 10.2.0.",
+        "Serveur disponible · 10.3.0.",
         "success",
         4_000
     );
@@ -92,7 +92,7 @@ test("le centre construit cinq services et un plan de récupération", () => {
     const services = buildReliabilityServices(snapshot, {
         serverHealth: {
             status: "healthy",
-            version: "10.2.0",
+            version: "10.3.0",
             latencyMs: 42
         },
         queueState: {
@@ -156,7 +156,7 @@ test("le plan propose les actions adaptées aux pannes", () => {
 
 test("l’export masque les données sensibles", () => {
     const exported = buildReliabilityExport({
-        snapshot: { appVersion: "10.2.0" },
+        snapshot: { appVersion: "10.3.0" },
         events: [{
             category: "spotify",
             level: "success",

@@ -42,9 +42,14 @@ export function renderExperienceModePanelMarkup(mode = "essential") {
                             data-select-experience-mode="${modeId}"
                             aria-pressed="${String(selected)}"
                         >
-                            <span aria-hidden="true">${item.icon}</span>
-                            <strong>Mode ${escapeHtml(item.label)}</strong>
-                            <small>${escapeHtml(item.description)}</small>
+                            <span
+                                class="experience-mode-option__icon"
+                                aria-hidden="true"
+                            >${item.icon}</span>
+                            <span class="experience-mode-option__content">
+                                <strong>Mode ${escapeHtml(item.label)}</strong>
+                                <small>${escapeHtml(item.description)}</small>
+                            </span>
                         </button>
                     `;
                 }).join("")}

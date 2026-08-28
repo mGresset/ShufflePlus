@@ -8,8 +8,8 @@ const [version, appSource, drivingCss] = await Promise.all([
     readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 10.2.0 ancre la conduite au visual viewport Safari", () => {
-    assert.equal(version, "10.2.0");
+test("Shuffle+ 10.3.0 ancre la conduite au visual viewport Safari", () => {
+    assert.equal(version, "10.3.0");
     assert.match(appSource, /--driving-viewport-offset-top/);
     assert.match(appSource, /visualViewport\?\.offsetTop/);
     assert.match(

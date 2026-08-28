@@ -54,6 +54,7 @@ class MemoryStorage {
 const appSource = await readFile("app.js", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 const styleSource = await readFile("style.css", "utf8");
+const settingsStyleSource = await readFile("styles/feature-settings.css", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 
 test("une nouvelle installation démarre en mode Essentiel", () => {
@@ -175,14 +176,15 @@ test("la migration v8 protège une configuration serveur corrompue", () => {
 });
 
 test("Shuffle+ V10 relie l’expérience publique et la récupération serveur à l’interface", () => {
-    assert.match(appSource, /function renderExperienceModePanel\(/);
+    assert.match(appSource, /renderExperienceModePanelMarkup\(experienceMode\)/);
     assert.doesNotMatch(appSource, /function renderV8WelcomePanel\(/);
     assert.match(appSource, /recoverServerSyncState\(/);
     assert.match(appSource, /rememberServerSyncState\(/);
     assert.match(appSource, /isExpertExperience\(experienceMode\)/);
-    assert.match(indexSource, /Shuffle\+ 10\.2\.0 · V10/);
+    assert.match(indexSource, /Shuffle\+ 10\.3\.0 · V10/);
     assert.doesNotMatch(styleSource, /\.v8-welcome-panel/);
-    assert.match(styleSource, /\.experience-mode-options/);
+    assert.doesNotMatch(styleSource, /\.experience-mode-options/);
+    assert.match(settingsStyleSource, /\.experience-mode-options/);
     assert.match(workerSource, /\.\/core\/experience-mode\.js/);
     assert.match(workerSource, /\.\/core\/server-sync-recovery\.js/);
 });
@@ -206,7 +208,7 @@ test("les boutons des Réglages ne sont plus confondus avec le mode d’expérie
         /event\.target\.closest\(\s*"\[data-experience-mode\]"/
     );
     assert.match(
-        styleSource,
+        settingsStyleSource,
         /html\[data-experience-mode="essential"\]/
     );
 });

@@ -13,8 +13,8 @@ function fail(message) {
     failures.push(message);
 }
 
-if (version !== "10.2.0") {
-    fail(`La release V10 doit annoncer 10.2.0, pas ${version}.`);
+if (version !== "10.3.0") {
+    fail(`La release V10 doit annoncer 10.3.0, pas ${version}.`);
 }
 
 if (!index.includes('name="shuffleplus-release-channel" content="stable"')) {
@@ -52,6 +52,7 @@ if (app.includes("renderV9HomePanel")) {
 
 for (const modulePath of [
     "./core/experience-mode-ui.js",
+    "./core/experience-mode-controller.js",
     "./core/release-readiness-ui.js"
 ]) {
     if (!serviceWorker.includes(modulePath)) {
@@ -61,6 +62,14 @@ for (const modulePath of [
 
 if (!app.includes("function renderHomePanel()")) {
     fail("Le rendu d’accueil V10 neutre est absent.");
+}
+
+if (!app.includes("prepareExperienceModeTransition")) {
+    fail("La transition Essentiel/Expert n’est pas extraite hors du noyau app.js.");
+}
+
+if (style.includes(".experience-mode-option")) {
+    fail("Les styles Essentiel/Expert sont encore dans style.css au lieu du module Réglages.");
 }
 
 const checkScript = String(packageJson.scripts?.check || "");

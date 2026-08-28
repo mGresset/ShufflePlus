@@ -6,8 +6,8 @@ import { UI_ACCENT_PRESETS, getUiThemePalette } from "../core/ui-theme.js";
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const styleSource = await readFile(new URL("../style.css", import.meta.url), "utf8");
 
-test("la distribution corrective active annonce Shuffle+ 10.2.0", () => {
-    assert.equal(version, "10.2.0");
+test("la distribution corrective active annonce Shuffle+ 10.3.0", () => {
+    assert.equal(version, "10.3.0");
 });
 
 test("le thème Corail complète les quatorze couleurs prédéfinies", () => {

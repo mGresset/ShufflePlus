@@ -6,8 +6,8 @@ const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8"))
 const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const design = await readFile(new URL("../design-system.css", import.meta.url), "utf8");
 
-test("Shuffle+ 10.2.0 centre le bandeau connecté sur mobile", () => {
-    assert.equal(version, "10.2.0");
+test("Shuffle+ 10.3.0 centre le bandeau connecté sur mobile", () => {
+    assert.equal(version, "10.3.0");
     assert.match(design, /Shuffle\+ v10\.2\.0 — centrage du bandeau mobile/);
     assert.match(design, /body\.is-connected \.hero[\s\S]*?justify-content:\s*center;/);
     assert.match(design, /body\.is-connected #welcome[\s\S]*?text-align:\s*center;/);

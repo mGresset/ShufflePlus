@@ -1,4 +1,4 @@
-# Shuffle+ v10.2.0
+# Shuffle+ v10.3.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.2.0** est la version « Diagnostic & Spotify Connect » de la branche V10. Elle ajoute un diagnostic appareil sans cache, un journal de fiabilité plus complet, la copie d’un rapport de dépannage et un autodiagnostic après mise à jour, tout en conservant Railway v5.2.0 et les raccourcis `RequestId + ResultToken`.
+> **État du projet :** **Shuffle+ 10.3.0** est la version « Architecture & lisibilité mobile » de la branche V10. Elle améliore la présentation Essentiel/Expert sur téléphone, sort sa logique de transition et ses styles du noyau historique, tout en conservant le diagnostic Spotify Connect de la 10.2 et Railway v5.2.0.
 
 ---
 
@@ -485,6 +485,12 @@ Dans **Réglages > Centre de fiabilité**, le bouton **Tester Spotify Connect** 
 
 Le bouton **Copier le diagnostic** produit un rapport texte destiné au dépannage. Il exclut les jetons OAuth, `ResultToken`, `requestId`, `device_id`, titres et playlists. Le Centre conserve aussi jusqu’à **50 événements** dans son historique local. Après une vraie migration de version PWA, Shuffle+ lance automatiquement ces vérifications lorsque cela ne perturbe pas un raccourci en cours.
 
+#### Architecture et lisibilité mobile V10.3
+
+Dans **Réglages > Expérience Shuffle+**, les cartes Essentiel/Expert utilisent une structure mobile dédiée : l’icône reste dans une colonne fixe et le titre avec sa description occupent toute la largeur restante. Les mots ne sont plus découpés verticalement sur iPhone.
+
+La logique de changement de mode est isolée dans `core/experience-mode-controller.js`. Les styles de cette interface ont quitté `style.css` et sont chargés avec `styles/feature-settings.css` uniquement lorsque les Réglages sont ouverts. Cette extraction réduit les interactions entre le design system global et les cartes de mode.
+
 ### Recherche universelle
 
 La recherche permet d’ouvrir rapidement une rubrique, une fonction ou une action. Elle est accessible depuis le bouton Rechercher et avec :
@@ -723,7 +729,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.2.0"
+git commit -m "Release Shuffle+ v10.3.0"
 git push origin main
 ```
 
@@ -733,7 +739,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.2.0** ;
+3. vérifier que l’en-tête affiche **v10.3.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -750,8 +756,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-10.2.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.2.0.js Réparation avant le chargement principal
+bootstrap-10.3.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.3.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -799,7 +805,7 @@ server/README.md
 
 ## Validation et tests
 
-La v10.2.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.3.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
 - **411 tests applicatifs réussis** ;
 - 177 fichiers JavaScript contrôlés ;
@@ -902,7 +908,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.2.0 sera déclarée stable après validation réelle de :
+La v10.3.0 sera déclarée stable après validation réelle de :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

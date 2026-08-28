@@ -17,7 +17,7 @@ const [
     readFile(new URL("../app.js", import.meta.url), "utf8"),
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../service-worker.js", import.meta.url), "utf8"),
-    readFile(new URL("../startup-recovery-10.2.0.js", import.meta.url), "utf8"),
+    readFile(new URL("../startup-recovery-10.3.0.js", import.meta.url), "utf8"),
     readFile(new URL("../core/experience-mode.js", import.meta.url), "utf8"),
     readFile(new URL("../core/app-menu.js", import.meta.url), "utf8"),
     readFile(new URL("../core/experience-mode-ui.js", import.meta.url), "utf8"),
@@ -25,10 +25,10 @@ const [
 ]);
 
 test("Shuffle+ V10 annonce une release stable cohérente", () => {
-    assert.equal(version, "10.2.0");
+    assert.equal(version, "10.3.0");
     assert.match(indexSource, /shuffleplus-release-channel" content="stable"/);
-    assert.match(indexSource, /bootstrap-10\.2\.0\.js/);
-    assert.match(workerSource, /shuffleplus-v10\.2\.0/);
+    assert.match(indexSource, /bootstrap-10\.3\.0\.js/);
+    assert.match(workerSource, /shuffleplus-v10\.3\.0/);
 });
 
 test("V10 ne présente plus les numéros historiques des sous-fonctions", () => {

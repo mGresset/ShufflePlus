@@ -1,5 +1,27 @@
 # Changelog Shuffle+
 
+## 10.3.0
+
+### Lisibilité mobile des modes
+
+- Les cartes **Mode Essentiel** et **Mode Expert** utilisent désormais une structure `icône + contenu` qui résiste aux règles génériques de boutons des Réglages.
+- Sur iPhone, le titre reste lisible horizontalement et la description occupe toute la largeur utile sans casser les mots.
+- Les cartes deviennent plus compactes sur petits écrans, tout en conservant une zone tactile confortable.
+
+### Architecture & nettoyage
+
+- Nouvelle brique `core/experience-mode-controller.js` pour isoler la transition Essentiel/Expert, le retour depuis un menu avancé et le libellé de confirmation.
+- Suppression du wrapper de rendu inutile `renderExperienceModePanel()` dans `app.js`.
+- Les styles Essentiel/Expert quittent `style.css` et sont désormais chargés avec `styles/feature-settings.css`, uniquement quand les Réglages en ont besoin.
+- Les garde-fous CSS/V10 vérifient automatiquement que cette extraction reste effective.
+
+### Compatibilité
+
+- Aucun changement de raccourci iOS.
+- Aucun changement Railway : serveur **v5.2.0** conservé.
+- Le diagnostic Spotify Connect introduit en 10.2 reste inchangé.
+- Validation finale : **420/420 tests applicatifs**, serveur Railway v5.2.0, build GitHub Pages et smoke test réussis.
+
 ## 10.2.0
 
 ### Diagnostic & Spotify Connect

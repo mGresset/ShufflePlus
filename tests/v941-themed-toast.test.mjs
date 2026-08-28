@@ -4,6 +4,7 @@ import test from "node:test";
 
 const styleSource = await readFile("style.css", "utf8");
 const appSource = await readFile("app.js", "utf8");
+const controllerSource = await readFile("core/experience-mode-controller.js", "utf8");
 
 test("le toast de confirmation utilise la couleur du thème actif", () => {
     const toastBlock = styleSource.match(/\.app-toast\s*\{[\s\S]*?\n\}/)?.[0] || "";
@@ -15,7 +16,7 @@ test("le toast de confirmation utilise la couleur du thème actif", () => {
 
 test("le changement de mode affiche toujours une confirmation", () => {
     assert.match(
-        appSource,
+        controllerSource,
         /Mode \$\{definition\.label\} activé\./
     );
     assert.match(appSource, /showToast\([\s\S]*?"success"/);

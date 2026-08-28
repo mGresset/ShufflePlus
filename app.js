@@ -213,14 +213,16 @@ import {
 
 import {
     ensureExperienceMode,
-    getExperienceModeDefinition,
-    isExpertExperience,
-    saveExperienceMode
+    isExpertExperience
 } from "./core/experience-mode.js";
 
 import {
     renderExperienceModePanelMarkup
 } from "./core/experience-mode-ui.js";
+
+import {
+    prepareExperienceModeTransition
+} from "./core/experience-mode-controller.js";
 
 import {
     clearServerSyncRecovery,
@@ -448,7 +450,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.2.0";
+const APP_VERSION = "10.3.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -922,7 +924,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.2.0-shell";
+    "shuffleplus-v10.3.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -4931,30 +4933,23 @@ function applyExperienceMode(
     mode,
     { announce = true, rerender = true } = {}
 ) {
-    const result = saveExperienceMode(
-        globalThis.localStorage,
-        mode
-    );
+    const transition = prepareExperienceModeTransition({
+        storage: globalThis.localStorage,
+        mode,
+        activeMenu: activeAppMenu,
+        getPrimaryMenu: getPrimaryAppMenu
+    });
 
-    experienceMode = result.mode;
+    experienceMode = transition.mode;
     document.documentElement.dataset.experienceMode = experienceMode;
     appRuntimeState.merge("experience", {
         mode: experienceMode,
-        expert: isExpertExperience(experienceMode),
+        expert: transition.expert,
         updatedAt: Date.now()
     });
 
-    if (
-        !isExpertExperience(experienceMode) &&
-        [
-            "statistics",
-            "goals",
-            "intelligence",
-            "adaptive",
-            "modes"
-        ].includes(activeAppMenu)
-    ) {
-        activeAppMenu = getPrimaryAppMenu(activeAppMenu);
+    if (transition.menuChanged) {
+        activeAppMenu = transition.activeMenu;
         saveActiveAppMenu();
     }
 
@@ -4963,20 +4958,10 @@ function applyExperienceMode(
     }
 
     if (announce) {
-        const definition = getExperienceModeDefinition(
-            experienceMode
-        );
-        showToast(
-            `${definition.icon} Mode ${definition.label} activé.`,
-            "success"
-        );
+        showToast(transition.announcement, "success");
     }
 
-    return result.saved;
-}
-
-function renderExperienceModePanel() {
-    return renderExperienceModePanelMarkup(experienceMode);
+    return transition.saved;
 }
 
 function saveGuidedSetupPreferences(patch = {}) {
@@ -6596,7 +6581,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.2.0",
+                "./service-worker.js?v=10.3.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -41459,7 +41444,7 @@ function displayPlaylists(playlists) {
                 data-app-menu-page="settings"
             >
                 ${renderSpotifyConnectionSettingsPanel()}
-                ${renderExperienceModePanel()}
+                ${renderExperienceModePanelMarkup(experienceMode)}
                 ${renderUiThemeSettingsPanel()}
                 ${renderPwaSettingsPanel()}
                 ${renderBackupPanel()}

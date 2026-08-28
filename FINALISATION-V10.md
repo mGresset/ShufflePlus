@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v10.2.0
+# Validation terrain Shuffle+ v10.3.0
 
 ## Conditions obligatoires
 
@@ -12,4 +12,4 @@
 
 ## Ce que « final » signifie
 
-La v10.0.0 a constitué la première branche V10 stable du code ; la v10.2.0 poursuit sa fiabilisation Spotify/iPhone. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.
+La v10.0.0 a constitué la première branche V10 stable du code ; la v10.3.0 poursuit sa fiabilisation Spotify/iPhone. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.
