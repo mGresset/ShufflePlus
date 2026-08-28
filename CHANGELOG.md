@@ -1,5 +1,19 @@
 # Changelog Shuffle+
 
+## 10.2.0
+
+### Diagnostic & Spotify Connect
+
+- ajoute un diagnostic Spotify Connect dédié qui interroge `GET /me/player/devices` et `GET /me/player` sans réutiliser le cache ;
+- effectue une seconde vérification courte lorsque Spotify n’annonce encore aucun appareil au premier passage ;
+- compare l’appareil préféré, l’appareil actif et le dernier appareil fonctionnel sans exposer de `device_id` dans les rapports ;
+- affiche dans le Centre de fiabilité les contrôles Session Spotify, `/devices`, `/player`, appareil préféré et appareil utilisable ;
+- ajoute un bouton **Tester Spotify Connect** et un bouton **Copier le diagnostic** utilisable pour le dépannage ;
+- conserve jusqu’à 50 événements dans un historique complet local en complément des derniers événements visibles ;
+- ajoute un autodiagnostic après migration de version PWA, sans interrompre un lancement de raccourci en cours ;
+- enrichit l’export de fiabilité avec un résumé Spotify Connect anonymisé ;
+- conserve le serveur Railway **v5.2.0** et le protocole `RequestId + ResultToken` existant.
+
 ## 10.1.4
 
 - rétablit l’alignement à gauche des sous-menus de rubrique sur ordinateur et iPhone ;

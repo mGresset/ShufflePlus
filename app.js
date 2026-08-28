@@ -297,6 +297,13 @@ import {
 } from "./core/reliability-center.js";
 
 import {
+    buildSpotifyConnectDiagnostic,
+    clearPostUpdateDiagnosticMarker,
+    formatSpotifyConnectDiagnosticText,
+    readPostUpdateDiagnosticMarker
+} from "./core/spotify-connect-diagnostic.js";
+
+import {
     FINALIZATION_CHECKS,
     buildReleaseReadiness,
     buildReleaseReadinessExport,
@@ -441,7 +448,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.1.4";
+const APP_VERSION = "10.2.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -915,7 +922,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.1.4-shell";
+    "shuffleplus-v10.2.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1824,6 +1831,9 @@ let reliabilityServerHealth = {
     configured: false
 };
 let reliabilityActionRunning = "";
+let spotifyConnectDiagnostic = null;
+let spotifyConnectDiagnosticRunning = false;
+let postUpdateDiagnosticScheduled = false;
 let offlinePerformanceSettings =
     readOfflinePerformanceSettings();
 let offlineCacheSummary = {
@@ -2037,6 +2047,7 @@ function getReliabilityActiveDevice() {
         quickPlaybackState?.device ||
         null;
     const candidate =
+        spotifyConnectDiagnostic?.resolvedDevice ||
         activePlaybackDevice ||
         lastWorkingSpotifyDevice ||
         preferredSpotifyDevice ||
@@ -2047,6 +2058,233 @@ function getReliabilityActiveDevice() {
         type: String(candidate?.type || ""),
         id: String(candidate?.id || "")
     };
+}
+
+async function runSpotifyConnectDiagnostic({
+    record = true,
+    render = true,
+    notify = false
+} = {}) {
+    if (spotifyConnectDiagnosticRunning) {
+        return spotifyConnectDiagnostic;
+    }
+
+    spotifyConnectDiagnosticRunning = true;
+
+    try {
+        if (!currentUserId || !navigator.onLine) {
+            spotifyConnectDiagnostic = buildSpotifyConnectDiagnostic({
+                connected: Boolean(currentUserId),
+                preferredDevice: preferredSpotifyDevice,
+                lastWorkingDevice: lastWorkingSpotifyDevice
+            });
+            return spotifyConnectDiagnostic;
+        }
+
+        const [devicesResult, playbackResult] = await Promise.allSettled([
+            getAvailableDevices({ fresh: true }),
+            getCurrentPlayback({ fresh: true })
+        ]);
+        let devices = devicesResult.status === "fulfilled"
+            ? devicesResult.value
+            : [];
+        let playback = playbackResult.status === "fulfilled"
+            ? playbackResult.value
+            : null;
+        let devicesError = devicesResult.status === "rejected"
+            ? devicesResult.reason
+            : null;
+        let playbackError = playbackResult.status === "rejected"
+            ? playbackResult.reason
+            : null;
+
+        // Une deuxième lecture courte évite de conclure trop vite à NO_DEVICE
+        // pendant le réveil de Spotify Connect sur iOS.
+        if (!devices.length && !playback?.device?.id) {
+            await wait(850);
+            const retryDevices = await getAvailableDevices({ fresh: true })
+                .catch((error) => {
+                    devicesError ||= error;
+                    return [];
+                });
+            if (retryDevices.length) {
+                devices = retryDevices;
+            }
+            if (!playback?.device?.id) {
+                playback = await getCurrentPlayback({ fresh: true })
+                    .catch((error) => {
+                        playbackError ||= error;
+                        return null;
+                    });
+            }
+        }
+
+        spotifyConnectDiagnostic = buildSpotifyConnectDiagnostic({
+            connected: true,
+            devices,
+            playback,
+            preferredDevice: preferredSpotifyDevice,
+            lastWorkingDevice: lastWorkingSpotifyDevice,
+            devicesError,
+            playbackError
+        });
+
+        // Le diagnostic peut voir l'appareil actif via /me/player avant /devices.
+        // On le rend aussi disponible au reste de l'interface sans exposer son id.
+        const playbackDevice = playback?.device;
+        if (
+            playbackDevice?.id &&
+            !devices.some((device) => device?.id === playbackDevice.id)
+        ) {
+            availableDevices = [playbackDevice, ...devices];
+        } else {
+            availableDevices = devices;
+        }
+
+        if (record) {
+            const deviceLabel = spotifyConnectDiagnostic.resolvedDevice
+                ? `${spotifyConnectDiagnostic.resolvedDevice.type || "appareil"} · ${spotifyConnectDiagnostic.resolvedDevice.source || "source inconnue"}`
+                : "aucun appareil";
+            recordReliabilityEvent({
+                category: "device",
+                level: spotifyConnectDiagnostic.level === "critical"
+                    ? "error"
+                    : spotifyConnectDiagnostic.level === "attention"
+                        ? "warning"
+                        : "success",
+                label: spotifyConnectDiagnostic.label,
+                detail: `/devices : ${spotifyConnectDiagnostic.listedDeviceCount} · /player : ${spotifyConnectDiagnostic.playbackActive ? "actif" : "inactif"} · retenu : ${deviceLabel}.`,
+                createdAt: Date.now()
+            });
+        }
+
+        if (notify) {
+            setStatus(
+                spotifyConnectDiagnostic.level === "healthy"
+                    ? `Spotify Connect prêt · ${spotifyConnectDiagnostic.summary}.`
+                    : spotifyConnectDiagnostic.summary,
+                spotifyConnectDiagnostic.level === "critical"
+                    ? "error"
+                    : spotifyConnectDiagnostic.level === "attention"
+                        ? "warning"
+                        : ""
+            );
+        }
+
+        return spotifyConnectDiagnostic;
+    } finally {
+        spotifyConnectDiagnosticRunning = false;
+        if (render && activeAppMenu === "settings") {
+            displayPlaylists(playlistsCache);
+        }
+    }
+}
+
+function getSpotifyConnectDiagnosticText() {
+    return formatSpotifyConnectDiagnosticText(
+        spotifyConnectDiagnostic ||
+        buildSpotifyConnectDiagnostic({
+            connected: Boolean(currentUserId),
+            devices: availableDevices,
+            preferredDevice: preferredSpotifyDevice,
+            lastWorkingDevice: lastWorkingSpotifyDevice
+        })
+    );
+}
+
+async function copyReliabilityDiagnostic() {
+    if (!spotifyConnectDiagnostic && currentUserId && navigator.onLine) {
+        await runSpotifyConnectDiagnostic({
+            record: false,
+            render: false
+        });
+    }
+
+    const snapshot = appHealthSnapshot || await collectAppHealthSnapshot({
+        render: false
+    });
+    const context = getReliabilityContext(snapshot);
+    const lines = [
+        `Shuffle+ ${APP_VERSION} — diagnostic de fiabilité`,
+        `Réseau : ${navigator.onLine ? "en ligne" : "hors connexion"}`,
+        `Spotify : ${currentUserId ? "connecté" : "déconnecté"}`,
+        `Railway : ${reliabilityServerHealth.status || "non vérifié"}`,
+        `PWA : ${navigator.serviceWorker?.controller ? "active" : "non contrôlée"}`,
+        "",
+        getSpotifyConnectDiagnosticText(),
+        "",
+        "Services :",
+        ...context.services.map((service) =>
+            `${service.level === "healthy" ? "✅" : service.level === "critical" ? "❌" : "⚠️"} ${service.label} — ${service.value}`
+        ),
+        "",
+        "Derniers événements :",
+        ...reliabilityEvents.slice(0, 12).map((event) =>
+            `• ${event.label}${event.detail ? ` — ${event.detail}` : ""}`
+        ),
+        "",
+        "Confidentialité : aucun token OAuth, ResultToken, requestId, device_id, titre ou playlist n’est inclus."
+    ];
+    const text = lines.join("\n");
+
+    try {
+        await navigator.clipboard.writeText(text);
+        setStatus("Diagnostic de fiabilité copié.");
+    } catch {
+        window.prompt("Copie le diagnostic :", text);
+    }
+
+    return text;
+}
+
+function schedulePostUpdateAutoDiagnostic() {
+    if (postUpdateDiagnosticScheduled || pendingAutomationCommand) {
+        return;
+    }
+
+    const marker = readPostUpdateDiagnosticMarker(globalThis.localStorage);
+    if (!marker || marker.toBuild !== `${APP_VERSION}-pwa-reset-1`) {
+        return;
+    }
+
+    postUpdateDiagnosticScheduled = true;
+    window.setTimeout(async () => {
+        try {
+            await checkReliabilityServerHealth({ record: false });
+            await runSpotifyConnectDiagnostic({
+                record: true,
+                render: false
+            });
+            appHealthSnapshot = null;
+            await collectAppHealthSnapshot({
+                render: false
+            });
+            recordReliabilityEvent({
+                category: "pwa",
+                level: spotifyConnectDiagnostic?.level === "critical"
+                    ? "warning"
+                    : "success",
+                label: "Autodiagnostic après mise à jour terminé",
+                detail: spotifyConnectDiagnostic?.summary || "Services principaux vérifiés.",
+                createdAt: Date.now()
+            });
+            clearPostUpdateDiagnosticMarker(globalThis.localStorage);
+            if (activeAppMenu === "settings") {
+                displayPlaylists(playlistsCache);
+            }
+        } catch (error) {
+            console.warn("Autodiagnostic après mise à jour incomplet :", error);
+            recordReliabilityEvent({
+                category: "pwa",
+                level: "warning",
+                label: "Autodiagnostic après mise à jour incomplet",
+                detail: "Ouvre le Centre de fiabilité pour relancer les vérifications.",
+                createdAt: Date.now()
+            });
+        } finally {
+            postUpdateDiagnosticScheduled = false;
+        }
+    }, 1400);
 }
 
 function getReliabilityContext(snapshot = appHealthSnapshot) {
@@ -2065,7 +2303,8 @@ function getReliabilityContext(snapshot = appHealthSnapshot) {
             serverHealth: reliabilityServerHealth,
             queueState,
             activeDevice,
-            shortcutState
+            shortcutState,
+            spotifyConnectDiagnostic
         }
     );
     const recovery = buildReliabilityRecoveryPlan(
@@ -2074,7 +2313,8 @@ function getReliabilityContext(snapshot = appHealthSnapshot) {
             serverHealth: reliabilityServerHealth,
             queueState,
             activeDevice,
-            pendingLaunch: Boolean(pendingAutomationCommand)
+            pendingLaunch: Boolean(pendingAutomationCommand),
+            spotifyConnectDiagnostic
         }
     );
 
@@ -6356,7 +6596,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.1.4",
+                "./service-worker.js?v=10.2.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -6726,6 +6966,15 @@ async function collectAppHealthSnapshot({
                 record: false
             });
 
+        if (currentUserId && navigator.onLine) {
+            await runSpotifyConnectDiagnostic({
+                record: false,
+                render: false
+            }).catch((error) => {
+                console.warn("Diagnostic Spotify Connect incomplet :", error);
+            });
+        }
+
         appHealthSnapshot =
             buildAppHealthSnapshot(
                 facts
@@ -6818,6 +7067,8 @@ function renderAppHealthPanel() {
         recovery
     } = getReliabilityContext(snapshot);
     const timeline = reliabilityEvents.slice(0, 8);
+    const fullTimeline = reliabilityEvents.slice(0, 50);
+    const connectDiagnostic = spotifyConnectDiagnostic;
     const generatedLabel =
         new Intl.DateTimeFormat(
             "fr-FR",
@@ -6862,6 +7113,49 @@ function renderAppHealthPanel() {
                     </article>
                 `).join("")}
             </div>
+
+            <section class="spotify-connect-diagnostic" aria-labelledby="spotifyConnectDiagnosticTitle">
+                <div class="reliability-section-heading">
+                    <div>
+                        <span>Spotify Connect</span>
+                        <h4 id="spotifyConnectDiagnosticTitle">Diagnostic appareil</h4>
+                    </div>
+                    <span class="spotify-connect-diagnostic-status spotify-connect-diagnostic-status--${escapeHtml(connectDiagnostic?.level || "neutral")}">
+                        ${escapeHtml(connectDiagnostic?.label || "Non vérifié")}
+                    </span>
+                </div>
+
+                ${connectDiagnostic
+                    ? `<div class="spotify-connect-diagnostic-grid">
+                        ${connectDiagnostic.checks.map((check) => `
+                            <article class="spotify-connect-diagnostic-check ${check.ok ? "is-ok" : "is-warning"}">
+                                <span aria-hidden="true">${check.ok ? "✓" : "!"}</span>
+                                <div>
+                                    <strong>${escapeHtml(check.label)}</strong>
+                                    <small>${escapeHtml(check.value)}</small>
+                                </div>
+                            </article>
+                        `).join("")}
+                    </div>
+                    <p class="spotify-connect-diagnostic-summary">
+                        ${escapeHtml(connectDiagnostic.summary)}
+                        ${connectDiagnostic.fallbackUsed ? " · fallback /me/player utilisé" : ""}
+                    </p>`
+                    : `<p class="reliability-empty">Lance le test pour interroger Spotify sans cache.</p>`}
+
+                <div class="spotify-connect-diagnostic-actions">
+                    <button
+                        id="runSpotifyConnectDiagnosticButton"
+                        type="button"
+                        ${spotifyConnectDiagnosticRunning || !currentUserId || !navigator.onLine ? "disabled" : ""}
+                    >
+                        ${spotifyConnectDiagnosticRunning ? "Test en cours…" : "📱 Tester Spotify Connect"}
+                    </button>
+                    <button id="copyReliabilityDiagnosticButton" type="button">
+                        📋 Copier le diagnostic
+                    </button>
+                </div>
+            </section>
 
             <div class="app-health-summary">
                 <article>
@@ -6938,6 +7232,24 @@ function renderAppHealthPanel() {
                     </ol>`
                     : `<p class="reliability-empty">Les prochains événements importants apparaîtront ici.</p>`}
             </section>
+
+            <details class="reliability-full-history">
+                <summary>Historique complet · ${fullTimeline.length} événement(s)</summary>
+                ${fullTimeline.length
+                    ? `<ol>
+                        ${fullTimeline.map((event) => `
+                            <li class="reliability-event reliability-event--${escapeHtml(event.level)}">
+                                <span aria-hidden="true"></span>
+                                <div>
+                                    <strong>${escapeHtml(event.label)}</strong>
+                                    <small>${escapeHtml(formatReliabilityAge(event.createdAt))}${event.count > 1 ? ` · ×${event.count}` : ""}</small>
+                                    ${event.detail ? `<p>${escapeHtml(event.detail)}</p>` : ""}
+                                </div>
+                            </li>
+                        `).join("")}
+                    </ol>`
+                    : `<p class="reliability-empty">Aucun événement enregistré.</p>`}
+            </details>
 
             <details class="reliability-technical-details">
                 <summary>Afficher le diagnostic technique détaillé</summary>
@@ -7110,7 +7422,8 @@ async function exportAppHealthReport() {
             recovery: context.recovery,
             serverHealth: reliabilityServerHealth,
             queueState: context.queueState,
-            activeDevice: context.activeDevice
+            activeDevice: context.activeDevice,
+            spotifyConnectDiagnostic
         }),
         `shuffleplus-fiabilite-${date}.json`
     );
@@ -7168,7 +7481,11 @@ async function runReliabilityRecoveryAction(actionId = "") {
         }
 
         if (action === "refresh-devices") {
-            await refreshPreferredSpotifyDevices({ silent: false });
+            await runSpotifyConnectDiagnostic({
+                record: true,
+                render: false,
+                notify: true
+            });
         } else if (action === "refresh-queue") {
             await refreshDrivingQueue({
                 silent: true,
@@ -44497,6 +44814,7 @@ async function initializeApp() {
         }
 
         markRuntimeReady("ready");
+        schedulePostUpdateAutoDiagnostic();
     } catch (error) {
         console.error("Initialisation échouée :", error);
         appRuntimeState.merge("lifecycle", {
@@ -45135,6 +45453,28 @@ contentElement.addEventListener(
             )
         ) {
             clearReliabilityEvents();
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#runSpotifyConnectDiagnosticButton"
+            )
+        ) {
+            await runSpotifyConnectDiagnostic({
+                record: true,
+                render: true,
+                notify: true
+            });
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "#copyReliabilityDiagnosticButton"
+            )
+        ) {
+            await copyReliabilityDiagnostic();
             return;
         }
 

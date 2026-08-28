@@ -28,4 +28,14 @@
 - **v9.9.6 — Convergence Spotify, cache anti-course et confirmation stable : terminée**
 - **v10.1.3 — Fiabilité iPhone et centrage global des sous-menus : terminée**
 - **v10.1.4 — Sous-menus alignés à gauche et sélecteur de profil mobile compact : terminée**
-- **v10.2.0 — Poursuite du découpage des contrôleurs Spotify, conduite et synchronisation : envisagée**
+- **v10.2.0 — Diagnostic Spotify Connect, historique et autodiagnostic PWA : terminée**
+- **v10.3.0 — Poursuite du découpage des contrôleurs Spotify, conduite et synchronisation : envisagée**
+
+
+## V10.2 — Diagnostic & Spotify Connect
+
+- diagnostic sans cache de `/me/player/devices` et `/me/player` ;
+- comparaison de l’appareil préféré et du lecteur actif ;
+- journal local étendu et rapport de dépannage copiable ;
+- autodiagnostic après mise à jour PWA ;
+- aucun changement requis pour Railway v5.2.0 ni pour les raccourcis compatibles V10.

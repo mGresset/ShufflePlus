@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 
-test("Shuffle+ 10.1.4 conserve le viewport stable pendant une commande conduite", () => {
-    assert.equal(version, "10.1.4");
+test("Shuffle+ 10.2.0 conserve le viewport stable pendant une commande conduite", () => {
+    assert.equal(version, "10.2.0");
     assert.match(appSource, /let drivingViewportMetricsReady = false;/);
     assert.match(appSource, /function freezeDrivingViewportForAction\(/);
     assert.match(

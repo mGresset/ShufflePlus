@@ -18629,3 +18629,144 @@ html[data-experience-mode="essential"] .app-section-more {
         width: 100%;
     }
 }
+
+/* Shuffle+ v10.2.0 — diagnostic Spotify Connect */
+.spotify-connect-diagnostic,
+.reliability-full-history {
+    padding: 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 7%),
+            rgb(9 9 21 / 95%)
+        );
+}
+
+.spotify-connect-diagnostic-status {
+    align-self: flex-start;
+    padding: 6px 10px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.spotify-connect-diagnostic-status--healthy {
+    border-color: var(--border-active);
+    color: color-mix(in srgb, var(--accent) 68%, white);
+}
+
+.spotify-connect-diagnostic-status--attention {
+    border-color: rgb(245 190 75 / 45%);
+    color: #ffd98b;
+}
+
+.spotify-connect-diagnostic-status--critical {
+    border-color: rgb(255 105 105 / 52%);
+    color: #ffb0b0;
+}
+
+.spotify-connect-diagnostic-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.spotify-connect-diagnostic-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border-soft);
+    border-radius: 13px;
+    background: rgb(255 255 255 / 2.5%);
+}
+
+.spotify-connect-diagnostic-check > span {
+    display: grid;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(var(--accent-rgb) / 14%);
+    font-weight: 900;
+}
+
+.spotify-connect-diagnostic-check.is-warning > span {
+    background: rgb(245 190 75 / 14%);
+    color: #ffd98b;
+}
+
+.spotify-connect-diagnostic-check > div {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.spotify-connect-diagnostic-check small,
+.spotify-connect-diagnostic-summary {
+    color: var(--text-muted);
+}
+
+.spotify-connect-diagnostic-summary {
+    margin: 12px 0 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.spotify-connect-diagnostic-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    margin-top: 13px;
+}
+
+.spotify-connect-diagnostic-actions button {
+    min-height: 42px;
+    padding: 9px 14px;
+    border: 1px solid var(--border-active);
+    border-radius: 12px;
+    background: rgb(var(--accent-rgb) / 10%);
+    color: var(--text-main);
+    font-weight: 850;
+}
+
+.reliability-full-history > summary {
+    cursor: pointer;
+    color: var(--text-main);
+    font-weight: 850;
+}
+
+.reliability-full-history[open] > summary {
+    margin-bottom: 14px;
+}
+
+.reliability-full-history ol {
+    display: grid;
+    max-height: 520px;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+}
+
+@media (max-width: 700px) {
+    .spotify-connect-diagnostic-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .spotify-connect-diagnostic-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .spotify-connect-diagnostic-actions button {
+        width: 100%;
+    }
+}

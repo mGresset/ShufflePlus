@@ -2423,7 +2423,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
 }
 
 /* =====================================================================
-   Shuffle+ v10.1.4 — centrage du bandeau mobile et cible d’édition iOS
+   Shuffle+ v10.2.0 — centrage du bandeau mobile et cible d’édition iOS
    ===================================================================== */
 @media (max-width: 760px) {
     body.is-connected .hero {

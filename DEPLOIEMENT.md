@@ -14,7 +14,7 @@ La commande exécute les contrôles JavaScript, les tests applicatifs et serveur
 
 ```powershell
 git add -A
-git commit -m "Release Shuffle+ v10.1.4 - sous-menus gauche et profil compact"
+git commit -m "Release Shuffle+ v10.2.0 - Diagnostic et Spotify Connect"
 git push origin main
 ```
 
@@ -22,8 +22,9 @@ git push origin main
 
 1. Fermer complètement Shuffle+ sur l’iPhone.
 2. Rouvrir l’application avec Internet actif.
-3. Vérifier que l’interface affiche **v10.1.4**.
-4. Tester au minimum la connexion Spotify, Pause/Lecture, Titre suivant et le mode conduite.
+3. Vérifier que l’interface affiche **v10.2.0**.
+4. Ouvrir **Réglages > Centre de fiabilité > Tester Spotify Connect** et vérifier le diagnostic appareil.
+5. Tester au minimum Pause/Lecture, Titre suivant, un raccourci iPhone et le mode conduite.
 
 ## Railway et raccourci iPhone
 

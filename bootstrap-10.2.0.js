@@ -1,7 +1,9 @@
-const APP_VERSION = "10.1.4";
-const BUILD_ID = "10.1.4-pwa-reset-1";
+const APP_VERSION = "10.2.0";
+const BUILD_ID = "10.2.0-pwa-reset-1";
 const BUILD_STORAGE_KEY = "shuffleplus_runtime_build_id";
 const BUILD_QUERY_KEY = "shuffleplus_build";
+const POST_UPDATE_DIAGNOSTIC_KEY =
+    "shuffleplus_post_update_diagnostic_v1";
 const AUTOMATION_HANDOFF_KEY =
     "shuffleplus_automation_handoff_v1";
 const AUTOMATION_HANDOFF_TTL_MS = 2 * 60 * 1000;
@@ -85,6 +87,23 @@ async function migrateRuntimeIfNeeded() {
     if (storedBuild === BUILD_ID || queryBuild === BUILD_ID) {
         storeBuild();
         return false;
+    }
+
+    if (storedBuild) {
+        try {
+            localStorage.setItem(
+                POST_UPDATE_DIAGNOSTIC_KEY,
+                JSON.stringify({
+                    format: "shuffleplus-post-update-diagnostic",
+                    schemaVersion: 1,
+                    fromBuild: storedBuild,
+                    toBuild: BUILD_ID,
+                    createdAt: Date.now()
+                })
+            );
+        } catch {
+            // L’autodiagnostic est opportuniste et ne bloque jamais la migration.
+        }
     }
 
     storeBuild();

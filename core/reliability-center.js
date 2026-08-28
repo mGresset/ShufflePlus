@@ -224,7 +224,8 @@ export function buildReliabilityServices(
         serverHealth = {},
         queueState = {},
         activeDevice = {},
-        shortcutState = {}
+        shortcutState = {},
+        spotifyConnectDiagnostic = null
     } = {}
 ) {
     const spotifyApi = snapshot?.runtime?.spotifyApi || {};
@@ -237,7 +238,15 @@ export function buildReliabilityServices(
     const queueAgeMs = Math.max(0, Number(queueState.ageMs) || 0);
     const queueCount = Math.max(0, Number(queueState.count) || 0);
     const queueFresh = queueCount > 0 && queueAgeMs <= 120_000;
-    const deviceName = String(activeDevice.name || "").trim();
+    const diagnosticDevice = spotifyConnectDiagnostic?.resolvedDevice || null;
+    const deviceName = String(
+        diagnosticDevice?.name || activeDevice.name || ""
+    ).trim();
+    const deviceLevel = spotifyConnectDiagnostic?.level || "";
+    const deviceDetail = spotifyConnectDiagnostic
+        ? `/devices : ${spotifyConnectDiagnostic.listedDeviceCount || 0} · /player : ${spotifyConnectDiagnostic.playbackActive ? "actif" : "inactif"}` +
+            `${spotifyConnectDiagnostic.preferredConfigured ? ` · préféré : ${spotifyConnectDiagnostic.preferredMatched ? "détecté" : "absent"}` : ""}`
+        : "";
 
     return [
         serviceState(
@@ -300,19 +309,25 @@ export function buildReliabilityServices(
         ),
         serviceState(
             "device",
-            "Appareil et file",
+            "Spotify Connect",
             "📱",
-            deviceName && queueFresh
-                ? "healthy"
-                : deviceName || queueCount
+            deviceLevel === "critical"
+                ? "critical"
+                : deviceLevel === "attention"
                     ? "attention"
-                    : "neutral",
-            deviceName || (queueCount ? `${queueCount} titre(s)` : "En attente"),
-            queueFresh
+                    : deviceName && queueFresh
+                        ? "healthy"
+                        : deviceName || queueCount
+                            ? "attention"
+                            : "neutral",
+            spotifyConnectDiagnostic?.summary ||
+                deviceName ||
+                (queueCount ? `${queueCount} titre(s)` : "En attente"),
+            deviceDetail || (queueFresh
                 ? `${queueCount} titre(s) visibles dans une file récente.`
                 : deviceName
                     ? "L’appareil est connu, mais la file mérite une actualisation."
-                    : "Lance Spotify sur un appareil pour compléter ce diagnostic."
+                    : "Lance Spotify sur un appareil pour compléter ce diagnostic.")
         ),
         serviceState(
             "shortcuts",
@@ -333,7 +348,8 @@ export function buildReliabilityRecoveryPlan(
         serverHealth = {},
         queueState = {},
         activeDevice = {},
-        pendingLaunch = false
+        pendingLaunch = false,
+        spotifyConnectDiagnostic = null
     } = {}
 ) {
     const actions = [];
@@ -377,12 +393,19 @@ export function buildReliabilityRecoveryPlan(
         });
     }
 
-    if (online && spotifyConnected && !String(activeDevice.name || "").trim()) {
+    if (
+        online &&
+        spotifyConnected &&
+        (
+            !String(activeDevice.name || "").trim() ||
+            ["attention", "critical"].includes(spotifyConnectDiagnostic?.level)
+        )
+    ) {
         actions.push({
             id: "refresh-devices",
-            level: "attention",
-            label: "Rechercher les appareils Spotify",
-            description: "Actualise Spotify Connect et retrouve le dernier appareil disponible.",
+            level: spotifyConnectDiagnostic?.level === "critical" ? "critical" : "attention",
+            label: "Tester Spotify Connect",
+            description: "Interroge /devices et le lecteur actif sans utiliser le cache, puis compare l’appareil préféré.",
             automatic: true
         });
     }
@@ -466,7 +489,8 @@ export function buildReliabilityExport({
     recovery = [],
     serverHealth = {},
     queueState = {},
-    activeDevice = {}
+    activeDevice = {},
+    spotifyConnectDiagnostic = null
 } = {}) {
     return {
         format: "shuffleplus-reliability-center",
@@ -487,9 +511,22 @@ export function buildReliabilityExport({
             ageMs: Math.max(0, Number(queueState.ageMs) || 0)
         },
         device: {
-            available: Boolean(activeDevice?.name),
-            type: String(activeDevice?.type || "")
+            available: Boolean(activeDevice?.name || spotifyConnectDiagnostic?.resolvedDevice?.name),
+            type: String(activeDevice?.type || spotifyConnectDiagnostic?.resolvedDevice?.type || "")
         },
+        spotifyConnect: spotifyConnectDiagnostic
+            ? {
+                level: String(spotifyConnectDiagnostic.level || ""),
+                label: String(spotifyConnectDiagnostic.label || ""),
+                listedDeviceCount: Math.max(0, Number(spotifyConnectDiagnostic.listedDeviceCount) || 0),
+                playbackActive: spotifyConnectDiagnostic.playbackActive === true,
+                preferredConfigured: spotifyConnectDiagnostic.preferredConfigured === true,
+                preferredMatched: spotifyConnectDiagnostic.preferredMatched === true,
+                fallbackUsed: spotifyConnectDiagnostic.fallbackUsed === true,
+                resolvedType: String(spotifyConnectDiagnostic.resolvedDevice?.type || ""),
+                resolvedSource: String(spotifyConnectDiagnostic.resolvedDevice?.source || "")
+            }
+            : null,
         events: normalizeReliabilityEvents(events).map((event) => ({
             category: event.category,
             level: event.level,

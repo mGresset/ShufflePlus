@@ -1,4 +1,4 @@
-# Shuffle+ v10.1.4
+# Shuffle+ v10.2.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.1.4** est une mise à jour corrective de la branche V10. Elle conserve les correctifs iPhone/Railway, rétablit les sous-menus alignés à gauche et corrige la hauteur anormale du sélecteur de profil principal sur iPhone, sans changer le serveur Railway v5.2.0.
+> **État du projet :** **Shuffle+ 10.2.0** est la version « Diagnostic & Spotify Connect » de la branche V10. Elle ajoute un diagnostic appareil sans cache, un journal de fiabilité plus complet, la copie d’un rapport de dépannage et un autodiagnostic après mise à jour, tout en conservant Railway v5.2.0 et les raccourcis `RequestId + ResultToken`.
 
 ---
 
@@ -50,7 +50,8 @@ La V10 privilégie la stabilité et la lisibilité plutôt que l’ajout de nouv
 - une connexion Spotify protégée pendant tout le callback OAuth/PKCE ;
 - une réparation PWA unique et protégée contre les boucles de rechargement ;
 - aucun ancien numéro de sous-version affiché dans l’interface ;
-- des garde-fous automatiques empêchant le retour des principaux reliquats historiques.
+- des garde-fous automatiques empêchant le retour des principaux reliquats historiques ;
+- un diagnostic Spotify Connect qui compare `/me/player/devices`, le lecteur actif et l’appareil préféré sans exposer les identifiants techniques.
 
 
 ### Lancement musical en une action
@@ -475,8 +476,14 @@ Les réglages couvrent notamment :
 - sauvegarde et restauration ;
 - synchronisation entre appareils ;
 - diagnostics et centre de fiabilité ;
-- préparation de la future v10 ;
+- validation terrain et diagnostic de la V10 ;
 - guide intégré.
+
+#### Diagnostic Spotify Connect V10.2
+
+Dans **Réglages > Centre de fiabilité**, le bouton **Tester Spotify Connect** force des lectures fraîches de `/me/player/devices` et `/me/player`. Shuffle+ indique séparément la session Spotify, le nombre d’appareils annoncés, le lecteur actif, la présence de l’appareil préféré et l’appareil finalement utilisable. Si `/devices` est momentanément vide alors que Spotify joue déjà sur l’iPhone, le diagnostic signale explicitement l’utilisation du fallback `/me/player`.
+
+Le bouton **Copier le diagnostic** produit un rapport texte destiné au dépannage. Il exclut les jetons OAuth, `ResultToken`, `requestId`, `device_id`, titres et playlists. Le Centre conserve aussi jusqu’à **50 événements** dans son historique local. Après une vraie migration de version PWA, Shuffle+ lance automatiquement ces vérifications lorsque cela ne perturbe pas un raccourci en cours.
 
 ### Recherche universelle
 
@@ -716,7 +723,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.1.4"
+git commit -m "Release Shuffle+ v10.2.0"
 git push origin main
 ```
 
@@ -726,7 +733,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.1.4** ;
+3. vérifier que l’en-tête affiche **v10.2.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -743,8 +750,8 @@ auth.js                    OAuth Spotify PKCE
 spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
-bootstrap-10.1.4.js        Chargement versionné et migration du runtime
-startup-recovery-10.1.4.js Réparation avant le chargement principal
+bootstrap-10.2.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.2.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -792,7 +799,7 @@ server/README.md
 
 ## Validation et tests
 
-La v10.1.4 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.2.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
 - **411 tests applicatifs réussis** ;
 - 177 fichiers JavaScript contrôlés ;
@@ -843,11 +850,14 @@ Depuis la V10, **Réparer Shuffle+** est protégé contre les boucles de recharg
 
 ### Aucun appareil Spotify n’est détecté
 
-- ouvrir Spotify sur l’appareil ;
-- démarrer brièvement un morceau ;
-- revenir dans Shuffle+ ;
-- actualiser les appareils ;
-- vérifier que le compte est Premium et identique dans les deux applications.
+1. ouvrir Spotify sur l’appareil et démarrer brièvement un morceau ;
+2. revenir dans Shuffle+ ;
+3. ouvrir **Réglages > Centre de fiabilité > Tester Spotify Connect** ;
+4. vérifier séparément les lignes `/me/player/devices` et `/me/player` ;
+5. si le lecteur actif est trouvé uniquement via `/me/player`, Shuffle+ peut utiliser ce fallback automatiquement ;
+6. vérifier enfin que le compte est Premium et identique dans les deux applications.
+
+Utiliser **Copier le diagnostic** si le problème persiste : le rapport est conçu pour être partagé sans inclure les secrets ni le `device_id`.
 
 ### La lecture est refusée
 
@@ -892,7 +902,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.1.4 sera déclarée stable après validation réelle de :
+La v10.2.0 sera déclarée stable après validation réelle de :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;
