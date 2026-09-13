@@ -26,6 +26,8 @@ const requiredFiles = [
     "core/storage-migrations.js",
     "core/reliability-center.js",
     "styles/feature-settings.css",
+    "mobile-ux.css",
+    "core/mobile-ux.js",
     "server/server.js",
     "server/test.js",
     "server/Dockerfile",

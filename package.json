@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "10.5.2",
+  "version": "10.6.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.5.2 — accueil Now Playing prioritaire et métadonnées Spotify mises à jour en direct, avec iPhone, rollback PWA et Spotify Connect conservés.",
+  "description": "Shuffle+ 10.6.0 — UX mobile harmonisée : formulaires iPhone, cibles tactiles, focus clavier et safe-area, sans modifier la logique Spotify stable.",
   "engines": {
     "node": ">=20"
   },

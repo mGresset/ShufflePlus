@@ -30,8 +30,8 @@ function healthySnapshot() {
     };
 }
 
-test("la release V10 active annonce Shuffle+ 10.5.2", () => {
-    assert.equal(version, "10.5.2");
+test("la release V10 active annonce Shuffle+ 10.6.0", () => {
+    assert.equal(version, "10.6.0");
     assert.match(indexSource, /shuffleplus-release-channel" content="stable"/);
 });
 

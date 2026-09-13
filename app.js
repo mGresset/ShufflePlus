@@ -130,6 +130,10 @@ import {
 } from "./core/ui-consistency.js";
 
 import {
+    installMobileViewportUx
+} from "./core/mobile-ux.js";
+
+import {
     normalizePreferredSpotifyDevice,
     findStoredPreferredDevice,
     selectSpotifyDevice
@@ -461,7 +465,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.5.2";
+const APP_VERSION = "10.6.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -935,7 +939,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.5.2-shell";
+    "shuffleplus-v10.6.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6686,7 +6690,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.5.2",
+                "./service-worker.js?v=10.6.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -50077,6 +50081,11 @@ window.addEventListener(
 );
 
 initializeAdaptivePrefetching();
+
+installMobileViewportUx({
+    windowObject: window,
+    documentObject: document
+});
 
 installRuntimePerformanceOptimizations({
     documentObject: document,

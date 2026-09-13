@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 10.6.0 — UX mobile & cohérence d’interface
+
+- Ajoute une couche globale `mobile-ux.css` chargée après le design system, sans toucher aux styles fonctionnels chargés à la demande.
+- Les champs texte, listes et zones de saisie utilisent 16 px sur iPhone afin d’éviter le zoom automatique de Safari au focus.
+- Les sous-menus mobiles passent à des cibles tactiles de 44 px minimum tout en conservant leur alignement à gauche.
+- Les pages et contrôles disposent de marges de focus adaptées à la navigation inférieure et aux safe-areas iOS.
+- Nouveau `core/mobile-ux.js` : il distingue les barres Safari d’un vrai clavier logiciel grâce au Visual Viewport et à l’élément effectivement édité.
+- Quand le clavier iOS est réellement ouvert, la navigation inférieure est temporairement masquée pour ne pas recouvrir le formulaire, puis réapparaît automatiquement.
+- La logique Spotify/Now Playing 10.5.2, Dynamic Lyrics 10.5.1, le rollback PWA V10.4 et Railway v5.2.0 restent inchangés.
+
 ## 10.5.2 — Accueil : Lecture en cours prioritaire et rafraîchissement visuel
 
 - La section **Lecture en cours** est désormais le premier bloc fonctionnel de l’accueil, juste sous l’en-tête et la personnalisation.

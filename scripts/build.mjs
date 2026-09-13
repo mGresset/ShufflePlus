@@ -18,6 +18,7 @@ const staticFiles = new Set([
     "index.html",
     "style.css",
     "design-system.css",
+    "mobile-ux.css",
     "manifest.webmanifest",
     "favicon.ico"
 ]);

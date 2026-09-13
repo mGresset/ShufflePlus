@@ -10,8 +10,8 @@ import {
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 
-test("Shuffle+ 10.5.2 place Lecture en cours en premier sur l’accueil", () => {
-    assert.equal(version, "10.5.2");
+test("Shuffle+ 10.6.0 place Lecture en cours en premier sur l’accueil", () => {
+    assert.equal(version, "10.6.0");
 
     const snapshot = buildDailyHomeSnapshot({
         playback: {

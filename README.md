@@ -1,4 +1,4 @@
-# Shuffle+ v10.5.2
+# Shuffle+ v10.6.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.5.2** consolide l’accueil V10 : **Lecture en cours** apparaît désormais en premier et ses métadonnées visuelles (titre, artiste, album et pochette) suivent le changement de piste Spotify sans reconstruire la page. Le correctif iOS Dynamic Lyrics 10.5.1, le protocole sécurisé `RequestId + ResultToken`, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
+> **État du projet :** **Shuffle+ 10.6.0** harmonise l’expérience mobile sans toucher au moteur Spotify stable : contrôles tactiles plus confortables, formulaires iPhone sans zoom intempestif, focus mieux dégagé au-dessus de la navigation, et navigation inférieure masquée uniquement quand le clavier iOS occupe réellement l’écran. Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
 
 ---
 
@@ -749,7 +749,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.5.2"
+git commit -m "Release Shuffle+ v10.6.0"
 git push origin main
 ```
 
@@ -759,7 +759,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.5.2** ;
+3. vérifier que l’en-tête affiche **v10.6.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -777,8 +777,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-10.5.2.js        Chargement versionné et migration du runtime
-startup-recovery-10.5.2.js Réparation avant le chargement principal
+bootstrap-10.6.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.6.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -826,7 +826,7 @@ server/README.md
 
 ## Validation et tests
 
-La v10.5.2 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.6.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
 - **426 tests applicatifs réussis** ;
 - 184 fichiers JavaScript contrôlés ;
@@ -929,7 +929,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.5.2 reste à valider sur l’installation réelle avec :
+La v10.6.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

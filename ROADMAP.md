@@ -34,6 +34,7 @@
 - **v10.5.0 — Assistant iPhone/raccourcis, parcours de test simplifié et Dynamic Lyrics Auto‑Sync : terminée**
 - **v10.5.1 — correctif iOS Dynamic Lyrics : fin des confirmations Raccourcis répétées, suivi Spotify natif : terminée**
 - **v10.5.2 — accueil : Lecture en cours prioritaire et métadonnées/pochette mises à jour en direct : terminée**
+- **v10.6.0 — UX mobile, formulaires iPhone, focus/clavier et cibles tactiles : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -68,3 +69,14 @@
 - bouton de resynchronisation manuelle ;
 - suspension du polling lorsque la PWA est masquée pour respecter iOS et limiter les appels Spotify ;
 - rollback PWA V10.4, diagnostic Spotify V10.2 et Railway v5.2.0 conservés.
+
+
+## V10.6 — UX mobile & cohérence d’interface
+
+- couche mobile globale séparée du design system historique ;
+- contrôles de formulaire à 16 px sur iPhone pour éviter le zoom Safari ;
+- cibles tactiles harmonisées à 44 px minimum dans les sous-menus ;
+- scroll/focus tenant compte de la navigation inférieure et des safe-areas ;
+- détection du clavier via Visual Viewport uniquement lorsqu’un vrai champ éditable est actif ;
+- navigation inférieure temporairement masquée pendant la saisie lorsque le clavier occupe réellement l’écran ;
+- logique Spotify, Now Playing, Dynamic Lyrics, rollback PWA et Railway inchangés.

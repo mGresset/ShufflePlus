@@ -1,0 +1,106 @@
+/* =====================================================================
+   Shuffle+ v10.6.0 — UX mobile cohérente
+   Cibles tactiles, formulaires iPhone, focus/clavier et safe-area.
+   ===================================================================== */
+
+@media (max-width: 760px) {
+    :root {
+        --mobile-form-control-font-size: 16px;
+        --mobile-focus-top-clearance: max(16px, env(safe-area-inset-top));
+        --mobile-focus-bottom-clearance:
+            calc(
+                var(--mobile-primary-menu-height, 82px) +
+                28px +
+                env(safe-area-inset-bottom)
+            );
+    }
+
+    html {
+        scroll-padding-top: var(--mobile-focus-top-clearance);
+        scroll-padding-bottom: var(--mobile-focus-bottom-clearance);
+    }
+
+    body.is-connected .app-menu-page,
+    body.is-connected .app-menu-page > * {
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    :where(
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+        select,
+        textarea
+    ) {
+        max-width: 100%;
+        box-sizing: border-box;
+        font-size: var(--mobile-form-control-font-size) !important;
+        line-height: 1.35;
+    }
+
+    :where(
+        input,
+        select,
+        textarea,
+        button,
+        summary,
+        [tabindex]:not([tabindex="-1"])
+    ) {
+        scroll-margin-top: var(--mobile-focus-top-clearance);
+        scroll-margin-bottom: var(--mobile-focus-bottom-clearance);
+    }
+
+    :where(
+        button,
+        summary,
+        [role="button"],
+        .app-section-button,
+        .brand-home-link
+    ) {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+    .app-section-button,
+    .app-section-button.is-compact,
+    .app-section-more summary {
+        min-height: 44px;
+        padding-block: 9px;
+        font-size: 13px;
+        line-height: 1.2;
+    }
+
+    .app-section-menu__featured,
+    .app-section-more__items {
+        gap: 8px;
+    }
+
+    html.is-mobile-keyboard-open {
+        scroll-padding-bottom:
+            calc(var(--mobile-viewport-bottom-inset, 0px) + 24px);
+    }
+
+    html.is-mobile-keyboard-open :where(
+        input,
+        select,
+        textarea,
+        [contenteditable="true"]
+    ) {
+        scroll-margin-bottom:
+            calc(var(--mobile-viewport-bottom-inset, 0px) + 24px);
+    }
+
+    /* Quand le clavier iOS est réellement ouvert, la navigation inférieure
+       n’occupe plus la petite zone visible et réapparaît dès la fermeture. */
+    html.is-mobile-keyboard-open .app-menu.app-menu--primary {
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+}
+
+@media (max-width: 390px) {
+    .app-section-button,
+    .app-section-more summary {
+        font-size: 12px;
+    }
+}
