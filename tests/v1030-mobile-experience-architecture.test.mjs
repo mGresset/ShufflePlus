@@ -30,8 +30,8 @@ function memoryStorage() {
     };
 }
 
-test("Shuffle+ 10.5.1 garde les cartes Essentiel/Expert lisibles sur mobile", () => {
-    assert.equal(version, "10.5.1");
+test("Shuffle+ 10.5.2 garde les cartes Essentiel/Expert lisibles sur mobile", () => {
+    assert.equal(version, "10.5.2");
     assert.match(uiSource, /experience-mode-option__icon/);
     assert.match(uiSource, /experience-mode-option__content/);
     assert.match(settingsStyle, /\.experience-mode-option__content\s*\{[\s\S]*?min-width:\s*0;/);
@@ -41,7 +41,7 @@ test("Shuffle+ 10.5.1 garde les cartes Essentiel/Expert lisibles sur mobile", ()
 
 test("les styles Expérience ne vivent plus dans le noyau CSS historique", () => {
     assert.doesNotMatch(baseStyle, /\.experience-mode-option/);
-    assert.match(settingsStyle, /Shuffle\+ v10\.5\.1 — Expérience Essentiel \/ Expert/);
+    assert.match(settingsStyle, /Shuffle\+ v10\.5\.2 — Expérience Essentiel \/ Expert/);
 });
 
 test("la transition Essentiel/Expert est isolée et ramène un menu avancé vers son parent", () => {

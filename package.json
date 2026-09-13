@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "10.5.1",
+  "version": "10.5.2",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.5.1 — assistant iPhone, raccourcis simplifiés et Dynamic Lyrics Auto-Sync, avec rollback PWA et Spotify Connect conservés.",
+  "description": "Shuffle+ 10.5.2 — accueil Now Playing prioritaire et métadonnées Spotify mises à jour en direct, avec iPhone, rollback PWA et Spotify Connect conservés.",
   "engines": {
     "node": ">=20"
   },

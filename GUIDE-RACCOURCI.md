@@ -2,7 +2,7 @@
 
 ## Préparation dans Shuffle+
 
-1. Déploie Shuffle+ **v10.5.1** et le serveur Railway **v5.2.0**.
+1. Déploie Shuffle+ **v10.5.2** et le serveur Railway **v5.2.0**.
 2. Dans **Réglages > Synchronisation serveur**, vérifie que l’adresse Railway est enregistrée.
 3. Dans **Créer > Centre de commandes iOS**, copie l’URL du profil.
 4. Vérifie que l’URL contient `resultServer=`.
@@ -114,6 +114,6 @@ Le protocole ne change pas : `RequestId` et `ResultToken` restent obligatoires p
 
 ## Dynamic Lyrics Auto‑Sync
 
-Si l’intégration Dynamic Lyrics est activée, Shuffle+ 10.5.1 peut surveiller le morceau Spotify. Il ne relance toutefois plus le raccourci compagnon à chaque nouveau titre : iOS affiche une confirmation pour chaque URL `shortcuts://` ouverte automatiquement par une PWA. Dynamic Lyrics doit donc assurer le suivi courant via sa connexion Spotify native. Le bouton **Resynchroniser manuellement** reste disponible si nécessaire.
+Si l’intégration Dynamic Lyrics est activée, Shuffle+ 10.5.2 peut surveiller le morceau Spotify. Il ne relance toutefois plus le raccourci compagnon à chaque nouveau titre : iOS affiche une confirmation pour chaque URL `shortcuts://` ouverte automatiquement par une PWA. Dynamic Lyrics doit donc assurer le suivi courant via sa connexion Spotify native. Le bouton **Resynchroniser manuellement** reste disponible si nécessaire.
 
 Le bouton **Resynchroniser maintenant** permet de forcer une relance du raccourci compagnon pour le morceau courant.

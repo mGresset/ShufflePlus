@@ -315,6 +315,53 @@ function renderHomeQuickAccess(snapshot) {
     `;
 }
 
+
+function renderHomeNowPlaying(snapshot) {
+    const playback = snapshot.playback;
+
+    return `
+        <article
+            class="v9-home-now-playing" ${snapshot.layout.showNowPlaying ? "" : "hidden"}
+            data-home-now-playing
+        >
+            <div class="v9-home-card-heading">
+                <div>
+                    <span>🎧 Lecture en cours</span>
+                    <h3 data-home-now-title-heading>${escapeHtml(playback.title)}</h3>
+                    <p data-home-now-artist>${escapeHtml(playback.artist)}</p>
+                </div>
+                <button id="refreshMusicalDashboardButton" type="button" class="ui-button ui-button--ghost" aria-label="Actualiser Spotify">↻</button>
+            </div>
+
+            <div class="v9-home-track">
+                ${playback.imageUrl
+                    ? `<img data-home-now-cover src="${escapeHtml(playback.imageUrl)}" alt="" loading="eager">`
+                    : '<span class="v9-home-track-placeholder" data-home-now-cover aria-hidden="true">🎵</span>'}
+                <div>
+                    <strong data-home-now-title>${escapeHtml(playback.title)}</strong>
+                    <small data-home-now-album>${escapeHtml(playback.album || playback.deviceName)}</small>
+                </div>
+            </div>
+
+            <div class="v9-home-progress" style="--v9-progress:${playback.progressPercent.toFixed(2)}%" aria-label="Progression du titre">
+                <i></i>
+            </div>
+            <div class="v9-home-progress-labels">
+                <span>${escapeHtml(playback.elapsedLabel)}</span>
+                <span data-home-now-duration>${escapeHtml(playback.durationLabel)}</span>
+            </div>
+
+            <div class="v9-home-player-actions">
+                <button type="button" class="ui-button ui-button--primary" data-dashboard-playback="playpause">
+                    ${playback.isPlaying ? "⏸ Pause" : "▶ Lecture"}
+                </button>
+                <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="next">⏭ Suivant</button>
+                <button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ Liste de lecture</button>
+            </div>
+        </article>
+    `;
+}
+
 export function renderDailyHomeMarkup(snapshot, {
     profileOptions = []
 } = {}) {
@@ -375,6 +422,8 @@ export function renderDailyHomeMarkup(snapshot, {
                 </form>
             </section>
 
+            ${renderHomeNowPlaying(snapshot)}
+
             ${snapshot.contextualSuggestion
                 ? `<section class="v9-home-contextual" aria-label="Suggestion contextuelle">
                     <div class="v9-home-contextual-icon" aria-hidden="true">
@@ -411,7 +460,7 @@ export function renderDailyHomeMarkup(snapshot, {
             <div class="v98-home-blocks">
             ${renderHomeQuickAccess(snapshot)}
 
-            <div class="v9-home-grid ${snapshot.layout.showNowPlaying ? "" : "is-launch-only"}" style="order:${snapshot.layout.order.indexOf("main") + 1}">
+            <div class="v9-home-grid is-launch-only" style="order:${snapshot.layout.order.indexOf("main") + 1}">
                 <article class="v9-home-launch-card">
                     <div class="v9-home-card-heading">
                         <div>
@@ -462,42 +511,6 @@ export function renderDailyHomeMarkup(snapshot, {
                     </form>
                 </article>
 
-                <article class="v9-home-now-playing" ${snapshot.layout.showNowPlaying ? "" : "hidden"}>
-                    <div class="v9-home-card-heading">
-                        <div>
-                            <span>🎧 Lecture en cours</span>
-                            <h3>${escapeHtml(playback.title)}</h3>
-                            <p>${escapeHtml(playback.artist)}</p>
-                        </div>
-                        <button id="refreshMusicalDashboardButton" type="button" class="ui-button ui-button--ghost" aria-label="Actualiser Spotify">↻</button>
-                    </div>
-
-                    <div class="v9-home-track">
-                        ${playback.imageUrl
-                            ? `<img src="${escapeHtml(playback.imageUrl)}" alt="" loading="eager">`
-                            : '<span class="v9-home-track-placeholder" aria-hidden="true">🎵</span>'}
-                        <div>
-                            <strong>${escapeHtml(playback.title)}</strong>
-                            <small>${escapeHtml(playback.album || playback.deviceName)}</small>
-                        </div>
-                    </div>
-
-                    <div class="v9-home-progress" style="--v9-progress:${playback.progressPercent.toFixed(2)}%" aria-label="Progression du titre">
-                        <i></i>
-                    </div>
-                    <div class="v9-home-progress-labels">
-                        <span>${escapeHtml(playback.elapsedLabel)}</span>
-                        <span>${escapeHtml(playback.durationLabel)}</span>
-                    </div>
-
-                    <div class="v9-home-player-actions">
-                        <button type="button" class="ui-button ui-button--primary" data-dashboard-playback="playpause">
-                            ${playback.isPlaying ? "⏸ Pause" : "▶ Lecture"}
-                        </button>
-                        <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="next">⏭ Suivant</button>
-                        <button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ Liste de lecture</button>
-                    </div>
-                </article>
             </div>
 
             <section

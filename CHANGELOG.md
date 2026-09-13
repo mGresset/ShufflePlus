@@ -1,5 +1,13 @@
 # Changelog Shuffle+
 
+## 10.5.2 — Accueil : Lecture en cours prioritaire et rafraîchissement visuel
+
+- La section **Lecture en cours** est désormais le premier bloc fonctionnel de l’accueil, juste sous l’en-tête et la personnalisation.
+- Le changement de piste Spotify met à jour en place le titre, l’artiste, l’album, la durée et la pochette sans reconstruire toute la page.
+- Le rafraîchissement silencieux du dashboard propage maintenant systématiquement le nouvel état Spotify au Now Playing de l’accueil.
+- Les transitions « Suivant » réutilisent le même chemin de rendu afin d’éviter qu’une ancienne pochette ou un ancien titre reste affiché.
+- Dynamic Lyrics V10.5.1, rollback PWA V10.4 et Railway v5.2.0 restent inchangés.
+
 ## 10.5.1 — iOS : suppression des confirmations répétées Dynamic Lyrics
 
 - L’Auto-Sync ne lance plus `shortcuts://run-shortcut` à chaque changement de titre : iOS affichait une confirmation d’ouverture externe à chaque morceau.

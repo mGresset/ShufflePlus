@@ -461,7 +461,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.5.1";
+const APP_VERSION = "10.5.2";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -935,7 +935,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.5.1-shell";
+    "shuffleplus-v10.5.2-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -3470,6 +3470,7 @@ function renderActivePlaybackSurface() {
     }
 
     if (activeAppMenu === "dashboard") {
+        updateHomeNowPlayingDom();
         if (
             shouldRenderMusicalDashboardPlaybackSurface()
         ) {
@@ -3920,6 +3921,88 @@ function updateVisiblePlaybackButtons(isPlaying) {
     });
 }
 
+function getHomeNowPlayingSnapshot() {
+    const deviceLabel =
+        preferredSpotifyDevice?.name ||
+        lastWorkingSpotifyDevice?.name ||
+        "Appareil Spotify actif";
+
+    return buildDailyHomeSnapshot({
+        playback: getEffectivePlaybackState(
+            quickPlaybackState || drivingPlaybackState
+        ),
+        deviceLabel,
+        now: new Date()
+    }).playback;
+}
+
+function updateHomeNowPlayingDom() {
+    const card = document.querySelector(
+        '[data-app-menu-page="dashboard"] [data-home-now-playing]'
+    );
+
+    if (!card) {
+        return false;
+    }
+
+    const playback = getHomeNowPlayingSnapshot();
+    const setText = (selector, value) => {
+        const element = card.querySelector(selector);
+        if (element) {
+            element.textContent = value;
+        }
+    };
+
+    setText("[data-home-now-title-heading]", playback.title);
+    setText("[data-home-now-artist]", playback.artist);
+    setText("[data-home-now-title]", playback.title);
+    setText(
+        "[data-home-now-album]",
+        playback.album || playback.deviceName
+    );
+    setText("[data-home-now-duration]", playback.durationLabel);
+
+    let cover = card.querySelector("[data-home-now-cover]");
+    if (playback.imageUrl) {
+        if (cover?.tagName !== "IMG") {
+            const image = document.createElement("img");
+            image.setAttribute("data-home-now-cover", "");
+            image.setAttribute("alt", "");
+            image.setAttribute("loading", "eager");
+            image.setAttribute("src", playback.imageUrl);
+            cover?.replaceWith(image);
+            cover = image;
+        } else if (cover.getAttribute("src") !== playback.imageUrl) {
+            cover.setAttribute("src", playback.imageUrl);
+        }
+    } else if (cover?.tagName !== "SPAN") {
+        const placeholder = document.createElement("span");
+        placeholder.className = "v9-home-track-placeholder";
+        placeholder.setAttribute("data-home-now-cover", "");
+        placeholder.setAttribute("aria-hidden", "true");
+        placeholder.textContent = "🎵";
+        cover?.replaceWith(placeholder);
+    }
+
+    const progress = card.querySelector(".v9-home-progress");
+    if (progress) {
+        progress.style.setProperty(
+            "--v9-progress",
+            `${playback.progressPercent.toFixed(2)}%`
+        );
+    }
+
+    const elapsed = card.querySelector(
+        ".v9-home-progress-labels span:first-child"
+    );
+    if (elapsed) {
+        elapsed.textContent = playback.elapsedLabel;
+    }
+
+    updateVisiblePlaybackButtons(Boolean(playback.isPlaying));
+    return true;
+}
+
 function renderMusicalDashboardPlaybackBody(playback) {
     if (!playback?.available) {
         return `
@@ -4094,6 +4177,8 @@ async function refreshMusicalDashboardPlayback({
     } finally {
         musicalDashboardRefreshing = false;
     }
+
+    updateHomeNowPlayingDom();
 
     if (
         shouldRenderMusicalDashboardPlaybackSurface()
@@ -6601,7 +6686,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.5.1",
+                "./service-worker.js?v=10.5.2",
                 {
                     scope: "./",
                     updateViaCache: "none"
