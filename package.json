@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "10.4.0",
+  "version": "10.5.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.4.0 — mise à jour PWA sécurisée, copie de secours et rollback de démarrage, avec Spotify/iPhone conservés.",
+  "description": "Shuffle+ 10.5.0 — assistant iPhone, raccourcis simplifiés et Dynamic Lyrics Auto-Sync, avec rollback PWA et Spotify Connect conservés.",
   "engines": {
     "node": ">=20"
   },

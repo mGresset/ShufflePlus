@@ -179,6 +179,11 @@ import {
 } from "./core/dynamic-lyrics.js";
 
 import {
+    buildDynamicLyricsTrackInput,
+    evaluateDynamicLyricsTrackChange
+} from "./core/dynamic-lyrics-sync.js";
+
+import {
     getAppSectionGroup,
     getPrimaryAppMenu,
     getVisibleAppMenuGroups,
@@ -348,6 +353,11 @@ import {
 } from "./core/shortcut-migration.js";
 
 import {
+    buildIosShortcutAssistantGuide,
+    renderIosShortcutAssistantMarkup
+} from "./core/ios-shortcut-assistant.js";
+
+import {
     SHORTCUT_CALLBACK_QUERY_KEYS,
     buildShortcutCallbackUrl,
     normalizeShortcutCallbackConfig,
@@ -451,7 +461,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.4.0";
+const APP_VERSION = "10.5.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -925,7 +935,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.4.0-shell";
+    "shuffleplus-v10.5.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1782,6 +1792,11 @@ let guidedSetupState =
     readGuidedSetupState(localStorage, GUIDED_SETUP_KEY);
 let dynamicLyricsSettings =
     readDynamicLyricsSettings();
+let dynamicLyricsAutoSyncTimer = 0;
+let dynamicLyricsLastTrackKey = "";
+let dynamicLyricsAutoSyncBusy = false;
+let dynamicLyricsLastSyncAt = 0;
+let dynamicLyricsLastSyncMessage = "";
 let activeAppMenu = readActiveAppMenu();
 if (!DRIVING_MODE_AVAILABLE && activeAppMenu === "driving") {
     activeAppMenu = "dashboard";
@@ -4045,6 +4060,10 @@ async function refreshMusicalDashboardPlayback({
             );
         drivingPlaybackState =
             quickPlaybackState;
+        await observeDynamicLyricsPlayback(
+            quickPlaybackState,
+            { source: "dashboard" }
+        );
 
         if (
             quickPlaybackState?.item &&
@@ -6582,7 +6601,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.4.0",
+                "./service-worker.js?v=10.5.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -11870,6 +11889,10 @@ async function refreshDrivingPlayback({
         reconcileDrivingShuffleOverride(
             drivingPlaybackState
         );
+        await observeDynamicLyricsPlayback(
+            drivingPlaybackState,
+            { source: "driving" }
+        );
 
         if (!silent) {
             setDrivingMessage(
@@ -15205,6 +15228,10 @@ async function refreshQuickControlPlayback({
             );
         drivingPlaybackState =
             quickPlaybackState;
+        await observeDynamicLyricsPlayback(
+            quickPlaybackState,
+            { source: "quick-controls" }
+        );
 
         if (!silent) {
             setQuickControlMessage(
@@ -21733,14 +21760,22 @@ function saveDynamicLyricsSettingsFromForm(form) {
                 data.get("shortcutName"),
             launchDelayMs:
                 data.get("launchDelayMs"),
+            autoSyncOnTrackChange:
+                data.get("autoSyncOnTrackChange") === "on",
+            autoSyncIntervalMs:
+                data.get("autoSyncIntervalMs"),
             updatedAt: Date.now()
         });
 
     saveDynamicLyricsSettings();
+    dynamicLyricsLastTrackKey = "";
+    restartDynamicLyricsAutoSyncMonitor();
     displayPlaylists(playlistsCache);
     setStatus(
         dynamicLyricsSettings.enabled
-            ? "Dynamic Lyrics est prêt pour les raccourcis sélectionnés."
+            ? dynamicLyricsSettings.autoSyncOnTrackChange
+                ? "Dynamic Lyrics est prêt · actualisation au changement de titre activée."
+                : "Dynamic Lyrics est prêt pour les raccourcis sélectionnés."
             : "Intégration Dynamic Lyrics désactivée."
     );
 }
@@ -21800,6 +21835,208 @@ function openDynamicLyricsTestShortcut() {
     }
 
     window.location.href = url;
+}
+
+
+function stopDynamicLyricsAutoSyncMonitor() {
+    if (dynamicLyricsAutoSyncTimer) {
+        window.clearInterval(dynamicLyricsAutoSyncTimer);
+        dynamicLyricsAutoSyncTimer = 0;
+    }
+}
+
+async function observeDynamicLyricsPlayback(
+    playback,
+    {
+        source = "playback",
+        force = false,
+        notify = false
+    } = {}
+) {
+    const evaluation = evaluateDynamicLyricsTrackChange({
+        playback,
+        previousTrackKey: dynamicLyricsLastTrackKey,
+        enabled: dynamicLyricsSettings.enabled,
+        autoSyncOnTrackChange:
+            dynamicLyricsSettings.autoSyncOnTrackChange,
+        visible:
+            document.visibilityState === "visible",
+        force
+    });
+
+    if (evaluation.nextTrackKey) {
+        dynamicLyricsLastTrackKey =
+            evaluation.nextTrackKey;
+    }
+
+    if (
+        !evaluation.shouldSync ||
+        dynamicLyricsAutoSyncBusy
+    ) {
+        return false;
+    }
+
+    if (
+        !force &&
+        Date.now() - dynamicLyricsLastSyncAt < 1500
+    ) {
+        return false;
+    }
+
+    const shortcutName =
+        String(
+            dynamicLyricsSettings.shortcutName || ""
+        ).trim();
+    if (!shortcutName) {
+        return false;
+    }
+
+    const url = buildShortcutRunUrl(
+        shortcutName,
+        {
+            inputText:
+                buildDynamicLyricsTrackInput(playback)
+        }
+    );
+    if (!url) {
+        return false;
+    }
+
+    dynamicLyricsAutoSyncBusy = true;
+    dynamicLyricsLastSyncAt = Date.now();
+    dynamicLyricsLastSyncMessage =
+        evaluation.track.title
+            ? `${evaluation.track.title}${evaluation.track.artist ? ` · ${evaluation.track.artist}` : ""}`
+            : "Titre Spotify actuel";
+
+    if (notify || force) {
+        showToast(
+            `🎤 Dynamic Lyrics · ${force ? "resynchronisation" : "nouveau titre"}`,
+            "success"
+        );
+    }
+
+    recordReliabilityEvent({
+        category: "dynamic-lyrics",
+        level: "success",
+        label: force
+            ? "Dynamic Lyrics resynchronisé"
+            : "Nouveau titre détecté",
+        detail:
+            `${dynamicLyricsLastSyncMessage} · source ${source}`,
+        createdAt: Date.now()
+    });
+
+    window.setTimeout(() => {
+        dynamicLyricsAutoSyncBusy = false;
+    }, 1800);
+
+    window.location.href = url;
+    return true;
+}
+
+async function resyncDynamicLyricsNow() {
+    if (!dynamicLyricsSettings.enabled) {
+        setStatus(
+            "Active d’abord l’intégration Dynamic Lyrics.",
+            "error"
+        );
+        return false;
+    }
+
+    try {
+        const playback =
+            await getCurrentPlayback({ fresh: true });
+        if (!playback?.item) {
+            setStatus(
+                "Aucun morceau Spotify actif à synchroniser.",
+                "error"
+            );
+            return false;
+        }
+
+        return await observeDynamicLyricsPlayback(
+            playback,
+            {
+                source: "manual",
+                force: true,
+                notify: true
+            }
+        );
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            getPlaybackErrorMessage(error),
+            "error"
+        );
+        return false;
+    }
+}
+
+function shouldDynamicLyricsUseDedicatedPolling() {
+    return ![
+        "driving",
+        "dashboard"
+    ].includes(activeAppMenu);
+}
+
+async function pollDynamicLyricsTrackChange() {
+    if (
+        !dynamicLyricsSettings.enabled ||
+        !dynamicLyricsSettings.autoSyncOnTrackChange ||
+        document.visibilityState !== "visible" ||
+        dynamicLyricsAutoSyncBusy ||
+        !shouldDynamicLyricsUseDedicatedPolling()
+    ) {
+        return;
+    }
+
+    try {
+        const playback =
+            await getCurrentPlayback({ fresh: true });
+        quickPlaybackState =
+            reconcilePlaybackWithUiOverride(
+                playback,
+                { fresh: true }
+            );
+        drivingPlaybackState =
+            quickPlaybackState;
+        await observeDynamicLyricsPlayback(
+            quickPlaybackState,
+            { source: "auto-monitor" }
+        );
+    } catch (error) {
+        console.warn(
+            "Surveillance Dynamic Lyrics impossible :",
+            error
+        );
+    }
+}
+
+function startDynamicLyricsAutoSyncMonitor() {
+    stopDynamicLyricsAutoSyncMonitor();
+
+    if (
+        !dynamicLyricsSettings.enabled ||
+        !dynamicLyricsSettings.autoSyncOnTrackChange
+    ) {
+        return;
+    }
+
+    dynamicLyricsAutoSyncTimer =
+        window.setInterval(
+            pollDynamicLyricsTrackChange,
+            dynamicLyricsSettings.autoSyncIntervalMs
+        );
+
+    if (document.visibilityState === "visible") {
+        pollDynamicLyricsTrackChange();
+    }
+}
+
+function restartDynamicLyricsAutoSyncMonitor() {
+    stopDynamicLyricsAutoSyncMonitor();
+    startDynamicLyricsAutoSyncMonitor();
 }
 
 function createIosCommandId() {
@@ -22353,8 +22590,95 @@ function getIosShortcutMigrationLaunchUrl() {
         : buildUniversalLaunchUrl();
 }
 
-async function handleIosShortcutMigrationAction(action = "") {
-    const launchUrl = getIosShortcutMigrationLaunchUrl();
+
+function getIosShortcutAssistantContext() {
+    const command =
+        getPrincipalIosCommand() ||
+        iosCommands[0] ||
+        null;
+    const launchUrl = command
+        ? buildIosCommandUrl(command)
+        : "";
+    const resultUrl =
+        buildShortcutResultUrlTemplate(
+            serverSyncState?.serverUrl || ""
+        );
+    const successfulRuns = command
+        ? iosCommandHistory.filter(
+            (entry) =>
+                entry.commandId === command.id &&
+                entry.status === "success"
+        ).length
+        : 0;
+
+    return {
+        command,
+        commandName: command?.name || "",
+        launchUrl,
+        resultUrl,
+        successfulRuns
+    };
+}
+
+async function handleIosShortcutAssistantAction(action = "") {
+    const context = getIosShortcutAssistantContext();
+
+    if (action === "test") {
+        if (!context.command) {
+            setStatus(
+                "Crée d’abord un profil de lancement iOS.",
+                "error"
+            );
+            return false;
+        }
+        await runShortcutProfileById(context.command.id);
+        return true;
+    }
+
+    const value =
+        action === "copy-launch"
+            ? context.launchUrl
+            : action === "copy-result"
+                ? context.resultUrl
+                : action === "copy-guide"
+                    ? buildIosShortcutAssistantGuide(context)
+                    : "";
+
+    if (!value) {
+        setStatus(
+            action === "copy-result"
+                ? "Configure d’abord Railway dans Réglages > Synchronisation serveur."
+                : "Aucune configuration iPhone à copier.",
+            "error"
+        );
+        return false;
+    }
+
+    try {
+        await copyTextToClipboard(value);
+        showToast(
+            action === "copy-guide"
+                ? "✅ Étapes du raccourci copiées."
+                : "✅ URL copiée.",
+            "success"
+        );
+        setStatus(
+            action === "copy-guide"
+                ? "Guide complet du raccourci iPhone copié."
+                : "URL du raccourci copiée."
+        );
+    } catch (error) {
+        console.error(error);
+        window.prompt(
+            "Copie ces informations dans Raccourcis :",
+            value
+        );
+    }
+
+    return true;
+}
+
+async function handleIosShortcutMigrationAction(action = "") {    const launchUrl = getIosShortcutMigrationLaunchUrl();
     const serverUrl = serverSyncState?.serverUrl || "";
 
     if (action === "copy-launch") {
@@ -22968,6 +23292,10 @@ function renderIosCommandsPanel() {
                 </div>
             </section>
 
+            ${renderIosShortcutAssistantMarkup(
+                getIosShortcutAssistantContext()
+            )}
+
             ${renderShortcutMigrationPanelMarkup({
                 launchUrl: getIosShortcutMigrationLaunchUrl(),
                 serverUrl: serverSyncState?.serverUrl || "",
@@ -23110,6 +23438,63 @@ function renderIosCommandsPanel() {
                             `).join("")}
                         </select>
                     </label>
+
+                    <label class="ios-command-check dynamic-lyrics-auto-sync-toggle">
+                        <input
+                            name="autoSyncOnTrackChange"
+                            type="checkbox"
+                            ${dynamicLyricsSettings.autoSyncOnTrackChange ? "checked" : ""}
+                        >
+                        <span>Actualiser Dynamic Lyrics quand le morceau change</span>
+                    </label>
+
+                    <label class="ios-command-field">
+                        <span>Fréquence de détection du nouveau titre</span>
+                        <select name="autoSyncIntervalMs">
+                            ${[
+                                [2000, "2 secondes"],
+                                [3000, "3 secondes"],
+                                [5000, "5 secondes"],
+                                [10000, "10 secondes"]
+                            ].map(([value, label]) => `
+                                <option
+                                    value="${value}"
+                                    ${dynamicLyricsSettings.autoSyncIntervalMs === value ? "selected" : ""}
+                                >
+                                    ${label}
+                                </option>
+                            `).join("")}
+                        </select>
+                    </label>
+
+                    <div class="dynamic-lyrics-sync-status">
+                        <div>
+                            <span>🔄 Synchronisation des paroles</span>
+                            <strong>
+                                ${dynamicLyricsSettings.autoSyncOnTrackChange
+                                    ? "Surveillance active"
+                                    : "Actualisation automatique désactivée"}
+                            </strong>
+                            <small>
+                                ${dynamicLyricsSettings.autoSyncOnTrackChange
+                                    ? `Dernière synchronisation : ${escapeHtml(dynamicLyricsLastSyncMessage || "en attente d’un changement de titre")}.`
+                                    : "Tu peux toujours resynchroniser manuellement."}
+                            </small>
+                        </div>
+                        <button
+                            id="resyncDynamicLyricsButton"
+                            class="ios-command-secondary"
+                            type="button"
+                            ${dynamicLyricsSettings.enabled ? "" : "disabled"}
+                        >
+                            ↻ Resynchroniser maintenant
+                        </button>
+                    </div>
+
+                    <p class="dynamic-lyrics-auto-sync-note">
+                        Sur iPhone, la surveillance automatique fonctionne tant que Shuffle+ reste actif au premier plan.
+                        iOS peut suspendre la PWA lorsqu’une autre app occupe l’écran ; Dynamic Lyrics conserve alors sa propre synchronisation Spotify.
+                    </p>
 
                     <div class="dynamic-lyrics-actions">
                         <button
@@ -44784,6 +45169,7 @@ async function initializeApp() {
         }
 
         startScheduleWatcher();
+        startDynamicLyricsAutoSyncMonitor();
 
         if (blockedDrivingRequest) {
             blockedDrivingRequest = false;
@@ -46656,6 +47042,15 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "#resyncDynamicLyricsButton"
+            )
+        ) {
+            await resyncDynamicLyricsNow();
+            return;
+        }
+
         const openDynamicLyricsButton =
             event.target.closest(
                 "#openDynamicLyricsButton"
@@ -46669,6 +47064,18 @@ contentElement.addEventListener(
             if (shortcutUrl.startsWith("shortcuts://")) {
                 window.location.href = shortcutUrl;
             }
+            return;
+        }
+
+        const iosAssistantButton =
+            event.target.closest(
+                "[data-ios-assistant-action]"
+            );
+
+        if (iosAssistantButton) {
+            await handleIosShortcutAssistantAction(
+                iosAssistantButton.dataset.iosAssistantAction || ""
+            );
             return;
         }
 
@@ -49615,9 +50022,11 @@ document.addEventListener(
         if (document.visibilityState !== "visible") {
             stopDrivingRefreshTimer();
             stopMusicalDashboardRefreshTimer();
+            stopDynamicLyricsAutoSyncMonitor();
             return;
         }
 
+        startDynamicLyricsAutoSyncMonitor();
         runServerAutoSync("visible");
         resumePendingAutomationLaunch("visible");
 

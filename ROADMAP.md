@@ -31,7 +31,7 @@
 - **v10.2.0 — Diagnostic Spotify Connect, historique et autodiagnostic PWA : terminée**
 - **v10.3.0 — Architecture, nettoyage et lisibilité mobile : terminée**
 - **v10.4.0 — Mise à jour PWA transparente, cache précédent conservé et rollback automatique : terminée**
-- **v10.5.0 — Assistant iPhone/raccourcis et parcours de test simplifié : envisagée**
+- **v10.5.0 — Assistant iPhone/raccourcis, parcours de test simplifié et Dynamic Lyrics Auto‑Sync : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -53,3 +53,16 @@
 - rollback automatique vers le shell précédent en cas d’échec de démarrage ;
 - suppression des doubles purges bootstrap lors d’une mise à jour intentionnelle ;
 - Railway v5.2.0 et raccourcis iOS inchangés.
+
+
+## V10.5 — iPhone, Raccourcis & Dynamic Lyrics
+
+- assistant de raccourci iPhone avec copie du guide complet, URL de lancement et URL Railway ;
+- état de validation basé sur les lancements réellement confirmés ;
+- nouveau `core/ios-shortcut-assistant.js` ;
+- nouveau `core/dynamic-lyrics-sync.js` ;
+- détection des changements de piste Spotify par identifiant/URI ;
+- Auto‑Sync Dynamic Lyrics opt-in avec intervalle configurable ;
+- bouton de resynchronisation manuelle ;
+- suspension du polling lorsque la PWA est masquée pour respecter iOS et limiter les appels Spotify ;
+- rollback PWA V10.4, diagnostic Spotify V10.2 et Railway v5.2.0 conservés.

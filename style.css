@@ -18631,3 +18631,145 @@ body.is-driving-mode .driving-queue-current > span:first-child {
         width: 100%;
     }
 }
+
+/* Shuffle+ v10.5.0 — assistant iPhone & Dynamic Lyrics Auto-Sync */
+.ios-shortcut-assistant-panel {
+    display: grid;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 16px;
+    background:
+        linear-gradient(
+            145deg,
+            rgb(var(--accent-rgb) / 10%),
+            var(--surface-2, rgba(255, 255, 255, 0.035))
+        );
+}
+
+.ios-shortcut-assistant-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.ios-shortcut-assistant-heading > div {
+    display: grid;
+    min-width: 0;
+    gap: 4px;
+}
+
+.ios-shortcut-assistant-heading > div > span {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 850;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.ios-shortcut-assistant-heading small,
+.ios-shortcut-assistant-detail {
+    color: var(--text-muted, #aeb6c5);
+    line-height: 1.45;
+}
+
+.ios-shortcut-assistant-detail {
+    margin: 0;
+}
+
+.ios-shortcut-assistant-state {
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.ios-shortcut-assistant-state.is-healthy {
+    border-color: rgb(52 211 153 / 42%);
+    color: #86efac;
+}
+
+.ios-shortcut-assistant-state.is-attention {
+    border-color: rgb(245 190 75 / 44%);
+    color: #ffd98b;
+}
+
+.ios-shortcut-assistant-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ios-shortcut-assistant-actions button {
+    min-height: 44px;
+}
+
+.dynamic-lyrics-auto-sync-toggle,
+.dynamic-lyrics-sync-status,
+.dynamic-lyrics-auto-sync-note {
+    grid-column: 1 / -1;
+}
+
+.dynamic-lyrics-sync-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+    border-radius: 14px;
+    background: rgb(var(--accent-rgb) / 6%);
+}
+
+.dynamic-lyrics-sync-status > div {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.dynamic-lyrics-sync-status > div > span {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.dynamic-lyrics-sync-status small,
+.dynamic-lyrics-auto-sync-note {
+    color: var(--text-muted, #aeb6c5);
+    line-height: 1.45;
+}
+
+.dynamic-lyrics-auto-sync-note {
+    margin: 0;
+    padding: 10px 12px;
+    border-left: 3px solid rgb(var(--accent-rgb) / 48%);
+    border-radius: 0 10px 10px 0;
+    background: rgb(var(--accent-rgb) / 5%);
+    font-size: 0.82rem;
+}
+
+@media (max-width: 700px) {
+    .ios-shortcut-assistant-heading,
+    .dynamic-lyrics-sync-status {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .ios-shortcut-assistant-state {
+        align-self: flex-start;
+    }
+
+    .ios-shortcut-assistant-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .ios-shortcut-assistant-actions button,
+    .dynamic-lyrics-sync-status button {
+        width: 100%;
+        min-height: 46px;
+    }
+}

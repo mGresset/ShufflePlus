@@ -33,6 +33,8 @@ test("les réglages Dynamic Lyrics sont normalisés sans secret Spotify", () => 
             enabled: true,
             shortcutName: "Paroles Shuffle+",
             launchDelayMs: 5000,
+            autoSyncOnTrackChange: false,
+            autoSyncIntervalMs: 3000,
             updatedAt: 42
         }
     );

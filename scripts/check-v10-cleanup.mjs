@@ -13,8 +13,8 @@ function fail(message) {
     failures.push(message);
 }
 
-if (version !== "10.4.0") {
-    fail(`La release V10 doit annoncer 10.4.0, pas ${version}.`);
+if (version !== "10.5.0") {
+    fail(`La release V10 doit annoncer 10.5.0, pas ${version}.`);
 }
 
 if (!index.includes('name="shuffleplus-release-channel" content="stable"')) {
@@ -53,7 +53,9 @@ if (app.includes("renderV9HomePanel")) {
 for (const modulePath of [
     "./core/experience-mode-ui.js",
     "./core/experience-mode-controller.js",
-    "./core/release-readiness-ui.js"
+    "./core/release-readiness-ui.js",
+    "./core/dynamic-lyrics-sync.js",
+    "./core/ios-shortcut-assistant.js"
 ]) {
     if (!serviceWorker.includes(modulePath)) {
         fail(`Module V10 absent du shell PWA : ${modulePath}`);
@@ -72,6 +74,11 @@ if (style.includes(".experience-mode-option")) {
     fail("Les styles Essentiel/Expert sont encore dans style.css au lieu du module Réglages.");
 }
 
+
+
+if (!app.includes("observeDynamicLyricsPlayback") || !app.includes("renderIosShortcutAssistantMarkup")) {
+    fail("Les briques iPhone/Dynamic Lyrics V10.5 ne sont pas reliées à l’application.");
+}
 
 if (!serviceWorker.includes("ROLLBACK_TO_PREVIOUS") || !serviceWorker.includes("META_CACHE")) {
     fail("Le Service Worker V10.4 ne conserve pas le mécanisme de rollback PWA.");

@@ -14,7 +14,7 @@ La commande exécute les contrôles JavaScript, les tests applicatifs et serveur
 
 ```powershell
 git add -A
-git commit -m "Release Shuffle+ v10.4.0 - PWA update et rollback"
+git commit -m "Release Shuffle+ v10.5.0 - iPhone shortcuts et Dynamic Lyrics Auto-Sync"
 git push origin main
 ```
 
@@ -22,10 +22,12 @@ git push origin main
 
 1. Fermer complètement Shuffle+ sur l’iPhone.
 2. Rouvrir l’application avec Internet actif.
-3. Vérifier que l’interface affiche **v10.4.0**.
-4. Vérifier qu’une future bannière de mise à jour affiche **Mettre à jour maintenant** et annonce la sauvegarde automatique.
-5. Vérifier **Réglages > Centre de fiabilité > Tester Spotify Connect** pour confirmer que la détection appareil reste intacte.
-6. Tester au minimum Pause/Lecture, Titre suivant, un raccourci iPhone et le mode conduite.
+3. Vérifier que l’interface affiche **v10.5.0**.
+4. Ouvrir **Créer > Centre de commandes iOS** et vérifier l’**Assistant Raccourcis V10.5**.
+5. Tester un profil iPhone existant avec `RequestId + ResultToken`.
+6. Si Dynamic Lyrics est utilisé, activer l’Auto‑Sync, laisser Shuffle+ visible puis vérifier qu’un changement de morceau déclenche la resynchronisation.
+7. Vérifier **Réglages > Centre de fiabilité > Tester Spotify Connect**.
+8. Tester au minimum Pause/Lecture, Titre suivant et le mode conduite.
 
 ## Railway et raccourci iPhone
 

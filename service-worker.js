@@ -1,5 +1,5 @@
-const APP_VERSION = "10.4.0";
-const CACHE_VERSION = "shuffleplus-v10.4.0";
+const APP_VERSION = "10.5.0";
+const CACHE_VERSION = "shuffleplus-v10.5.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -14,15 +14,15 @@ const VERSION_CACHE_PATTERN =
 const CRITICAL_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=10.4.0",
-    "./design-system.css?v=10.4.0",
-    "./bootstrap-10.4.0.js",
-    "./app.js?v=10.4.0&build=10.4.0-pwa-reset-1",
+    "./style.css?v=10.5.0",
+    "./design-system.css?v=10.5.0",
+    "./bootstrap-10.5.0.js",
+    "./app.js?v=10.5.0&build=10.5.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-10.4.0.js",
+    "./startup-recovery-10.5.0.js",
     "./update-guard.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
@@ -62,9 +62,11 @@ const CRITICAL_APP_SHELL = [
     "./core/driving-ui.js",
     "./core/driving-advanced.js",
     "./core/dynamic-lyrics.js",
+    "./core/dynamic-lyrics-sync.js",
     "./core/session-recovery.js",
     "./core/shortcut-profiles.js",
     "./core/shortcut-migration.js",
+    "./core/ios-shortcut-assistant.js",
     "./core/shortcut-callback.js",
     "./core/shortcut-result-channel.js",
     "./core/launch-reliability.js",
@@ -88,11 +90,11 @@ const CRITICAL_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=10.4.0",
+    "./styles/feature-home.css?v=10.5.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=10.4.0",
-    "./styles/feature-settings.css?v=10.4.0",
-    "./styles/feature-driving.css?v=10.4.0",
+    "./styles/feature-search.css?v=10.5.0",
+    "./styles/feature-settings.css?v=10.5.0",
+    "./styles/feature-driving.css?v=10.5.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

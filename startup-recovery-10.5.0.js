@@ -1,7 +1,7 @@
 (() => {
     "use strict";
 
-    const APP_VERSION = "10.4.0";
+    const APP_VERSION = "10.5.0";
     const BUILD_ID = `${APP_VERSION}-pwa-reset-1`;
     const BUILD_QUERY_KEY = "shuffleplus_build";
     const CACHE_PREFIX = "shuffleplus-";

@@ -2,6 +2,8 @@ export const DEFAULT_DYNAMIC_LYRICS_SETTINGS = Object.freeze({
     enabled: false,
     shortcutName: "Shuffle+ Dynamic Lyrics",
     launchDelayMs: 1200,
+    autoSyncOnTrackChange: false,
+    autoSyncIntervalMs: 3000,
     updatedAt: 0
 });
 
@@ -12,6 +14,7 @@ export function normalizeDynamicLyricsSettings(settings = {}) {
             : "";
 
     const delay = Number(settings.launchDelayMs);
+    const autoSyncInterval = Number(settings.autoSyncIntervalMs);
 
     return {
         enabled: settings.enabled === true,
@@ -21,6 +24,11 @@ export function normalizeDynamicLyricsSettings(settings = {}) {
         launchDelayMs: Number.isFinite(delay)
             ? Math.min(5000, Math.max(0, Math.round(delay)))
             : DEFAULT_DYNAMIC_LYRICS_SETTINGS.launchDelayMs,
+        autoSyncOnTrackChange:
+            settings.autoSyncOnTrackChange === true,
+        autoSyncIntervalMs: Number.isFinite(autoSyncInterval)
+            ? Math.min(15000, Math.max(2000, Math.round(autoSyncInterval)))
+            : DEFAULT_DYNAMIC_LYRICS_SETTINGS.autoSyncIntervalMs,
         updatedAt: Number.isFinite(Number(settings.updatedAt))
             ? Math.max(0, Number(settings.updatedAt))
             : 0

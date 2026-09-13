@@ -2,7 +2,7 @@
 
 ## Préparation dans Shuffle+
 
-1. Déploie Shuffle+ **v10.4.0** et le serveur Railway **v5.2.0**.
+1. Déploie Shuffle+ **v10.5.0** et le serveur Railway **v5.2.0**.
 2. Dans **Réglages > Synchronisation serveur**, vérifie que l’adresse Railway est enregistrée.
 3. Dans **Créer > Centre de commandes iOS**, copie l’URL du profil.
 4. Vérifie que l’URL contient `resultServer=`.
@@ -100,3 +100,20 @@ Shuffle+ n’a pas répondu dans le délai prévu.
 ## Migration depuis l’ancien raccourci
 
 L’ancien raccourci qui n’envoie que `requestId` n’est volontairement plus accepté par Railway v5.2. Ajoute simplement le second UUID `ResultToken` aux deux URL comme indiqué ci-dessus ; le reste du raccourci peut rester identique.
+
+## Assistant V10.5 dans Shuffle+
+
+Dans **Créer > Centre de commandes iOS**, le bloc **Assistant Raccourcis V10.5** permet de :
+
+- copier l’URL Shuffle+ du profil principal ;
+- copier l’URL Railway de résultat ;
+- copier toutes les étapes du raccourci dans un seul texte ;
+- tester le profil directement.
+
+Le protocole ne change pas : `RequestId` et `ResultToken` restent obligatoires pour le canal de résultat sécurisé.
+
+## Dynamic Lyrics Auto‑Sync
+
+Si l’intégration Dynamic Lyrics est activée, Shuffle+ 10.5 peut surveiller le morceau Spotify et relancer le raccourci compagnon lorsqu’un nouvel identifiant de piste apparaît. Cette surveillance est volontairement **opt-in** et ne fonctionne de manière fiable que lorsque Shuffle+ reste visible au premier plan ; iOS peut suspendre une PWA placée en arrière-plan.
+
+Le bouton **Resynchroniser maintenant** permet de forcer une relance du raccourci compagnon pour le morceau courant.

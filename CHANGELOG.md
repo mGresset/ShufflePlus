@@ -1,5 +1,32 @@
 # Changelog Shuffle+
 
+## 10.5.0
+
+### iPhone & Raccourcis
+
+- Ajoute un **Assistant Raccourcis V10.5** dans le Centre de commandes iOS.
+- Permet de copier en un geste le guide complet, l’URL Shuffle+ et l’URL Railway sécurisée.
+- Affiche un état simple : À configurer, Railway requis, Prêt à tester ou Validé sur iPhone.
+- Le protocole `RequestId + ResultToken` et Railway v5.2.0 restent inchangés.
+
+### Dynamic Lyrics Auto‑Sync
+
+- Ajoute une option opt-in pour surveiller le changement de morceau Spotify.
+- Le premier titre observé initialise la référence sans relancer inutilement Dynamic Lyrics.
+- Un nouvel identifiant/URI de piste déclenche le raccourci compagnon Dynamic Lyrics.
+- Intervalle de détection configurable à 2, 3, 5 ou 10 secondes.
+- Réutilise les rafraîchissements du mode conduite et du tableau de bord afin d’éviter des appels Spotify en double.
+- Ajoute **Resynchroniser maintenant** pour forcer une relance sur le titre courant.
+- Le polling est suspendu lorsque Shuffle+ est masqué ; iOS peut suspendre la PWA en arrière-plan.
+- Nouveaux modules `core/dynamic-lyrics-sync.js` et `core/ios-shortcut-assistant.js`.
+
+### Compatibilité
+
+- Rollback PWA V10.4 conservé.
+- Diagnostic Spotify Connect V10.2 conservé.
+- Aucun changement serveur : Railway **v5.2.0**.
+- Validation automatisée : **429/429 tests applicatifs** avant build final.
+
 ## 10.4.0
 
 ### Mise à jour PWA & rollback
