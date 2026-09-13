@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 10.7.0 — Performance & démarrage
+
+- Ajoute `core/startup-performance.js`, une file dédiée aux tâches non critiques exécutées après que l’interface est devenue interactive.
+- Lorsqu’une bibliothèque locale est déjà disponible, l’accueil l’affiche immédiatement puis actualise profil et playlists Spotify en arrière-plan au lieu de bloquer l’ouverture.
+- La découverte des appareils Spotify est différée sur les écrans qui n’en ont pas besoin immédiatement ; elle reste synchrone pour Conduite, Centre de lancement et les lancements iOS en attente.
+- Supprime un second appel redondant à la file Spotify au démarrage du Dashboard : le rafraîchissement Lecture en cours conserve son propre contrôle de fraîcheur de file.
+- Les tâches différées attendent automatiquement le retour au premier plan ou la reconnexion réseau avant de s’exécuter.
+- Le runtime mesure maintenant le temps jusqu’à l’interface interactive et le Centre de fiabilité affiche le nombre de tâches de démarrage différées et leurs éventuelles erreurs.
+- Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, UX mobile 10.6.0, rollback PWA V10.4 et Railway v5.2.0 restent inchangés fonctionnellement.
+
 ## 10.6.0 — UX mobile & cohérence d’interface
 
 - Ajoute une couche globale `mobile-ux.css` chargée après le design system, sans toucher aux styles fonctionnels chargés à la demande.

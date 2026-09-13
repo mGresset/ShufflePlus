@@ -299,6 +299,10 @@ import {
 } from "./core/performance-budget.js";
 
 import {
+    createStartupTaskQueue
+} from "./core/startup-performance.js";
+
+import {
     appendReliabilityEvent,
     buildReliabilityExport,
     buildReliabilityRecoveryPlan,
@@ -465,7 +469,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.6.0";
+const APP_VERSION = "10.7.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -939,7 +943,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.6.0-shell";
+    "shuffleplus-v10.7.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1324,10 +1328,38 @@ const appRuntimeState = createRuntimeState({
         rules: [],
         optionalShellRequested: false
     },
+    startup: {
+        tasks: [],
+        deferredCount: 0,
+        completedCount: 0,
+        errorCount: 0
+    },
     security: getSecurityPolicyDiagnostics(),
     experience: {
         mode: "essential",
         expert: false
+    }
+});
+
+const startupTaskQueue = createStartupTaskQueue({
+    globalObject: window,
+    documentObject: document,
+    navigatorObject: navigator,
+    onChange(tasks) {
+        appRuntimeState.set(
+            "startup",
+            {
+                tasks,
+                deferredCount: tasks.length,
+                completedCount: tasks.filter(
+                    (task) => task.status === "completed"
+                ).length,
+                errorCount: tasks.filter(
+                    (task) => task.status === "error"
+                ).length
+            },
+            { silent: true }
+        );
     }
 });
 
@@ -1972,11 +2004,40 @@ function wait(milliseconds) {
 }
 
 function markRuntimeReady(phase = "ready") {
+    const readyAt = Date.now();
+    const initializationStartedAt = Number(
+        appRuntimeState.get("lifecycle.initializationStartedAt") ||
+        appRuntimeState.get("lifecycle.startedAt") ||
+        readyAt
+    );
+
     appRuntimeState.merge("lifecycle", {
         phase,
         ready: true,
-        readyAt: Date.now()
+        readyAt,
+        interactiveMs: Math.max(0, readyAt - initializationStartedAt)
     });
+}
+
+function scheduleStartupBackgroundTasks(tasks = []) {
+    const normalized = (Array.isArray(tasks) ? tasks : [])
+        .filter((task) => task && typeof task.run === "function");
+
+    for (const task of normalized) {
+        startupTaskQueue.schedule(
+            task.id,
+            task.run,
+            {
+                delayMs: task.delayMs ?? 180,
+                idle: task.idle !== false,
+                idleTimeoutMs: task.idleTimeoutMs ?? 1600,
+                requiresVisible: task.requiresVisible !== false,
+                requiresOnline: task.requiresOnline === true
+            }
+        );
+    }
+
+    return normalized.length;
 }
 
 function readReliabilityEvents() {
@@ -6690,7 +6751,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.6.0",
+                "./service-worker.js?v=10.7.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -45071,6 +45132,11 @@ async function openPlaylist(playlist) {
 }
 
 async function initializeApp() {
+    const deferredStartupTasks = [];
+    const deferStartupTask = (id, run, options = {}) => {
+        deferredStartupTasks.push({ id, run, ...options });
+    };
+
     appRuntimeState.merge("lifecycle", {
         phase: "initializing",
         ready: false,
@@ -45203,20 +45269,61 @@ async function initializeApp() {
             offlineRuntimeState.readOnly = true;
             updateNetworkStatus();
         } else {
-            await refreshLiveLibrary({
-                force: !cachedLibrary,
-                silent: Boolean(cachedLibrary)
-            });
+            const canRefreshLibraryAfterInteractive = Boolean(
+                cachedLibrary &&
+                activeAppMenu !== "music" &&
+                !pendingAutomationCommand
+            );
+
+            if (canRefreshLibraryAfterInteractive) {
+                deferStartupTask(
+                    "live-library-refresh",
+                    () => refreshLiveLibrary({
+                        force: false,
+                        silent: true
+                    }),
+                    {
+                        delayMs: 220,
+                        requiresOnline: true
+                    }
+                );
+            } else {
+                await refreshLiveLibrary({
+                    force: !cachedLibrary,
+                    silent: Boolean(cachedLibrary)
+                });
+            }
 
             if (!offlinePerformanceSettings.dataSaver) {
-                try {
-                    availableDevices = await getAvailableDevices();
-                } catch (deviceError) {
-                    console.warn(
-                        "Appareils Spotify indisponibles au démarrage :",
-                        deviceError
+                const needsDevicesImmediately = Boolean(
+                    pendingAutomationCommand ||
+                    activeAppMenu === "driving" ||
+                    activeAppMenu === "quick"
+                );
+
+                const loadDevices = async () => {
+                    try {
+                        availableDevices = await getAvailableDevices();
+                    } catch (deviceError) {
+                        console.warn(
+                            "Appareils Spotify indisponibles au démarrage :",
+                            deviceError
+                        );
+                        availableDevices = [];
+                    }
+                };
+
+                if (needsDevicesImmediately) {
+                    await loadDevices();
+                } else {
+                    deferStartupTask(
+                        "spotify-devices-refresh",
+                        loadDevices,
+                        {
+                            delayMs: 320,
+                            requiresOnline: true
+                        }
                     );
-                    availableDevices = [];
                 }
             }
         }
@@ -45268,8 +45375,9 @@ async function initializeApp() {
         } else if (activeAppMenu === "quick") {
             await refreshQuickControlPlayback({silent:true});
         } else if (activeAppMenu === "dashboard") {
+            // refreshMusicalDashboardPlayback actualise déjà la file lorsqu’elle
+            // est périmée : ne pas doubler l’appel /me/player/queue au démarrage.
             await refreshMusicalDashboardPlayback({silent:true});
-            await refreshDrivingQueue({silent:true});
         }
 
         startScheduleWatcher();
@@ -45290,6 +45398,12 @@ async function initializeApp() {
         }
 
         markRuntimeReady("ready");
+        const deferredTaskCount = scheduleStartupBackgroundTasks(
+            deferredStartupTasks
+        );
+        appRuntimeState.merge("lifecycle", {
+            deferredStartupTaskCount: deferredTaskCount
+        });
         schedulePostUpdateAutoDiagnostic();
     } catch (error) {
         console.error("Initialisation échouée :", error);

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "10.6.0",
+  "version": "10.7.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.6.0 — UX mobile harmonisée : formulaires iPhone, cibles tactiles, focus clavier et safe-area, sans modifier la logique Spotify stable.",
+  "description": "Shuffle+ 10.7.0 — démarrage plus rapide : cache local prioritaire, tâches Spotify secondaires différées et diagnostics de performance.",
   "engines": {
     "node": ">=20"
   },

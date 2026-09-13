@@ -15,13 +15,13 @@ const [version, indexSource, cssSource, appSource, workerSource] = await Promise
     readFile(new URL("../service-worker.js", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 10.6.0 charge une couche UX mobile globale après le design system", () => {
-    assert.equal(version, "10.6.0");
-    const designIndex = indexSource.indexOf("design-system.css?v=10.6.0");
-    const mobileIndex = indexSource.indexOf("mobile-ux.css?v=10.6.0");
+test("Shuffle+ 10.7.0 charge une couche UX mobile globale après le design system", () => {
+    assert.equal(version, "10.7.0");
+    const designIndex = indexSource.indexOf("design-system.css?v=10.7.0");
+    const mobileIndex = indexSource.indexOf("mobile-ux.css?v=10.7.0");
     assert.ok(designIndex >= 0, "le design system doit rester chargé");
     assert.ok(mobileIndex > designIndex, "mobile-ux.css doit passer après le design system");
-    assert.match(workerSource, /\.\/mobile-ux\.css\?v=10\.6\.0/);
+    assert.match(workerSource, /\.\/mobile-ux\.css\?v=10\.7\.0/);
 });
 
 test("les contrôles iPhone évitent le zoom et gardent des cibles tactiles lisibles", () => {

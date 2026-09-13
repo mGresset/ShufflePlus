@@ -35,6 +35,7 @@
 - **v10.5.1 — correctif iOS Dynamic Lyrics : fin des confirmations Raccourcis répétées, suivi Spotify natif : terminée**
 - **v10.5.2 — accueil : Lecture en cours prioritaire et métadonnées/pochette mises à jour en direct : terminée**
 - **v10.6.0 — UX mobile, formulaires iPhone, focus/clavier et cibles tactiles : terminée**
+- **v10.7.0 — Performance, démarrage cache-first et tâches Spotify secondaires différées : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -80,3 +81,14 @@
 - détection du clavier via Visual Viewport uniquement lorsqu’un vrai champ éditable est actif ;
 - navigation inférieure temporairement masquée pendant la saisie lorsque le clavier occupe réellement l’écran ;
 - logique Spotify, Now Playing, Dynamic Lyrics, rollback PWA et Railway inchangés.
+
+## V10.7 — Performance & démarrage
+
+- bibliothèque locale affichée immédiatement lorsqu’elle est disponible ;
+- rafraîchissement profil/playlists Spotify repoussé après l’ouverture sur les écrans compatibles ;
+- découverte des appareils Spotify différée lorsqu’elle n’est pas requise par le lancement courant ;
+- suppression d’un appel `/me/player/queue` redondant au démarrage de l’accueil ;
+- nouvelle file `core/startup-performance.js` avec attente visibilité/réseau, déduplication et diagnostics ;
+- mesure du temps jusqu’à l’interface interactive dans le Centre de fiabilité ;
+- logique de lecture Spotify, Dynamic Lyrics, UX mobile, rollback PWA et Railway inchangés.
+

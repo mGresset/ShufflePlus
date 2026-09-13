@@ -8,8 +8,8 @@ const [version, appSource, drivingCss] = await Promise.all([
     readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 10.6.0 utilise la hauteur réellement visible de Safari", () => {
-    assert.equal(version, "10.6.0");
+test("Shuffle+ 10.7.0 utilise la hauteur réellement visible de Safari", () => {
+    assert.equal(version, "10.7.0");
     assert.match(appSource, /const visualViewport = window\.visualViewport;/);
     assert.match(appSource, /--driving-viewport-height/);
     assert.match(appSource, /--driving-viewport-offset-top/);

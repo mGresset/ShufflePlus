@@ -181,6 +181,24 @@ export function buildAppHealthSnapshot({
             ? runtimeStateDiagnostics.snapshot
             : {}
     };
+    const startupRuntime = {
+        interactiveMs: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.lifecycle?.interactiveMs)
+        ),
+        deferredCount: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.startup?.deferredCount)
+        ),
+        completedCount: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.startup?.completedCount)
+        ),
+        errorCount: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.startup?.errorCount)
+        )
+    };
 
     const checks = [
         buildCheck({
@@ -289,6 +307,17 @@ export function buildAppHealthSnapshot({
             value: normalizedPerformanceBudget.measurableCount
                 ? `Score ${normalizedPerformanceBudget.score}/100 · profil ${normalizedPerformanceBudget.profileId}`
                 : "Mesure disponible après le chargement complet"
+        }),
+        buildCheck({
+            id: "interactive-startup",
+            label: "Démarrage interactif",
+            description: "Mesure le temps jusqu’à l’interface utilisable et suit les tâches non critiques repoussées après l’ouverture.",
+            category: "performance",
+            available: startupRuntime.errorCount === 0,
+            warningWhenMissing: true,
+            value: startupRuntime.interactiveMs
+                ? `${startupRuntime.interactiveMs} ms · ${startupRuntime.deferredCount} tâche(s) différée(s)`
+                : `${startupRuntime.deferredCount} tâche(s) différée(s)`
         }),
         buildCheck({
             id: "experience-mode",
