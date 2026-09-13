@@ -32,6 +32,7 @@
 - **v10.3.0 — Architecture, nettoyage et lisibilité mobile : terminée**
 - **v10.4.0 — Mise à jour PWA transparente, cache précédent conservé et rollback automatique : terminée**
 - **v10.5.0 — Assistant iPhone/raccourcis, parcours de test simplifié et Dynamic Lyrics Auto‑Sync : terminée**
+- **v10.5.1 — correctif iOS Dynamic Lyrics : fin des confirmations Raccourcis répétées, suivi Spotify natif : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile

@@ -13,9 +13,9 @@ const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8"))
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const indexSource = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const workerSource = await readFile(new URL("../service-worker.js", import.meta.url), "utf8");
-const bootstrapSource = await readFile(new URL("../bootstrap-10.5.0.js", import.meta.url), "utf8");
+const bootstrapSource = await readFile(new URL("../bootstrap-10.5.1.js", import.meta.url), "utf8");
 const guardSource = await readFile(new URL("../update-guard.js", import.meta.url), "utf8");
-const recoverySource = await readFile(new URL("../startup-recovery-10.5.0.js", import.meta.url), "utf8");
+const recoverySource = await readFile(new URL("../startup-recovery-10.5.1.js", import.meta.url), "utf8");
 
 function memoryStorage() {
     const values = new Map();
@@ -26,19 +26,19 @@ function memoryStorage() {
     };
 }
 
-test("Shuffle+ 10.5.0 crée une transaction avant activation PWA", () => {
-    assert.equal(version, "10.5.0");
+test("Shuffle+ 10.5.1 crée une transaction avant activation PWA", () => {
+    assert.equal(version, "10.5.1");
     const storage = memoryStorage();
     const transaction = beginPwaUpdateTransaction(storage, {
         fromVersion: "10.3.0",
-        toVersion: "10.5.0",
+        toVersion: "10.5.1",
         now: 1234
     });
 
     assert.equal(transaction.status, "activating");
     assert.equal(transaction.fromBuild, "10.3.0-pwa-reset-1");
-    assert.equal(transaction.toBuild, "10.5.0-pwa-reset-1");
-    assert.equal(readPwaUpdateTransaction(storage).toVersion, "10.5.0");
+    assert.equal(transaction.toBuild, "10.5.1-pwa-reset-1");
+    assert.equal(readPwaUpdateTransaction(storage).toVersion, "10.5.1");
     assert.ok(storage.getItem(PWA_UPDATE_TRANSACTION_KEY));
     assert.equal(clearPwaUpdateTransaction(storage), true);
     assert.equal(readPwaUpdateTransaction(storage), null);
@@ -67,7 +67,7 @@ test("le Service Worker garde une version précédente et sait l’activer en se
 });
 
 test("update-guard surveille le démarrage et revient au cache précédent si nécessaire", () => {
-    assert.ok(indexSource.indexOf("./update-guard.js") < indexSource.indexOf("./bootstrap-10.5.0.js"));
+    assert.ok(indexSource.indexOf("./update-guard.js") < indexSource.indexOf("./bootstrap-10.5.1.js"));
     assert.match(guardSource, /shuffleplus:app-ready/);
     assert.match(guardSource, /shuffleplus:startup-error/);
     assert.match(guardSource, /ROLLBACK_TO_PREVIOUS/);

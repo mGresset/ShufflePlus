@@ -1,4 +1,4 @@
-# Shuffle+ v10.5.0
+# Shuffle+ v10.5.1
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.5.0** est la version « iPhone, Raccourcis & Dynamic Lyrics Auto‑Sync » de la branche V10. Elle ajoute un assistant de construction de raccourci iPhone, conserve le protocole sécurisé `RequestId + ResultToken` et peut surveiller les changements de morceau Spotify pour relancer le compagnon Dynamic Lyrics lorsque Shuffle+ reste actif au premier plan. Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
+> **État du projet :** **Shuffle+ 10.5.1** est la version « iPhone, Raccourcis & Dynamic Lyrics · suivi Spotify » de la branche V10. Elle ajoute un assistant de construction de raccourci iPhone, conserve le protocole sécurisé `RequestId + ResultToken` et peut surveiller les changements de morceau Spotify pour relancer le compagnon Dynamic Lyrics lorsque Shuffle+ reste actif au premier plan. Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
 
 ---
 
@@ -439,7 +439,7 @@ https://shuffleplus-production.up.railway.app/v1/launch-results/[RequestId]?toke
 Les trois paramètres nécessaires au retour sécurisé sont donc `resultServer`, `requestId` et `resultToken`. Le premier est fourni par Shuffle+ dans l’URL copiée ; les deux autres sont ajoutés par Raccourcis à chaque lancement.
 
 
-#### Dynamic Lyrics Auto‑Sync V10.5
+#### Dynamic Lyrics · suivi Spotify V10.5
 
 Dans **Créer > Centre de commandes iOS > Dynamic Lyrics**, l’option **Actualiser Dynamic Lyrics quand le morceau change** active une surveillance du titre Spotify. Le premier titre observé sert de référence ; Shuffle+ relance ensuite le raccourci compagnon uniquement lorsqu’un nouvel identifiant de morceau est détecté.
 
@@ -749,7 +749,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.5.0"
+git commit -m "Release Shuffle+ v10.5.1"
 git push origin main
 ```
 
@@ -759,7 +759,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.5.0** ;
+3. vérifier que l’en-tête affiche **v10.5.1** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -777,8 +777,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-10.5.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.5.0.js Réparation avant le chargement principal
+bootstrap-10.5.1.js        Chargement versionné et migration du runtime
+startup-recovery-10.5.1.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -826,7 +826,7 @@ server/README.md
 
 ## Validation et tests
 
-La v10.5.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.5.1 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
 - **426 tests applicatifs réussis** ;
 - 184 fichiers JavaScript contrôlés ;
@@ -929,7 +929,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.5.0 reste à valider sur l’installation réelle avec :
+La v10.5.1 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

@@ -461,7 +461,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.5.0";
+const APP_VERSION = "10.5.1";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -935,7 +935,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.5.0-shell";
+    "shuffleplus-v10.5.1-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6601,7 +6601,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.5.0",
+                "./service-worker.js?v=10.5.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -21883,6 +21883,28 @@ async function observeDynamicLyricsPlayback(
         return false;
     }
 
+    dynamicLyricsLastSyncAt = Date.now();
+    dynamicLyricsLastSyncMessage =
+        evaluation.track.title
+            ? `${evaluation.track.title}${evaluation.track.artist ? ` · ${evaluation.track.artist}` : ""}`
+            : "Titre Spotify actuel";
+
+    // iOS affiche une confirmation lorsqu’une PWA tente d’ouvrir
+    // shortcuts:// sans geste utilisateur. En surveillance automatique,
+    // Shuffle+ se contente donc de suivre le titre : Dynamic Lyrics
+    // conserve sa propre synchronisation Spotify native.
+    if (!force) {
+        recordReliabilityEvent({
+            category: "dynamic-lyrics",
+            level: "success",
+            label: "Nouveau titre détecté",
+            detail:
+                `${dynamicLyricsLastSyncMessage} · synchronisation native Spotify · source ${source}`,
+            createdAt: Date.now()
+        });
+        return true;
+    }
+
     const shortcutName =
         String(
             dynamicLyricsSettings.shortcutName || ""
@@ -21903,15 +21925,10 @@ async function observeDynamicLyricsPlayback(
     }
 
     dynamicLyricsAutoSyncBusy = true;
-    dynamicLyricsLastSyncAt = Date.now();
-    dynamicLyricsLastSyncMessage =
-        evaluation.track.title
-            ? `${evaluation.track.title}${evaluation.track.artist ? ` · ${evaluation.track.artist}` : ""}`
-            : "Titre Spotify actuel";
 
     if (notify || force) {
         showToast(
-            `🎤 Dynamic Lyrics · ${force ? "resynchronisation" : "nouveau titre"}`,
+            "🎤 Dynamic Lyrics · resynchronisation manuelle",
             "success"
         );
     }
@@ -21919,9 +21936,7 @@ async function observeDynamicLyricsPlayback(
     recordReliabilityEvent({
         category: "dynamic-lyrics",
         level: "success",
-        label: force
-            ? "Dynamic Lyrics resynchronisé"
-            : "Nouveau titre détecté",
+        label: "Dynamic Lyrics resynchronisé manuellement",
         detail:
             `${dynamicLyricsLastSyncMessage} · source ${source}`,
         createdAt: Date.now()
@@ -23445,7 +23460,7 @@ function renderIosCommandsPanel() {
                             type="checkbox"
                             ${dynamicLyricsSettings.autoSyncOnTrackChange ? "checked" : ""}
                         >
-                        <span>Actualiser Dynamic Lyrics quand le morceau change</span>
+                        <span>Surveiller les changements de titre (sans ouvrir Raccourcis)</span>
                     </label>
 
                     <label class="ios-command-field">
@@ -23472,13 +23487,13 @@ function renderIosCommandsPanel() {
                             <span>🔄 Synchronisation des paroles</span>
                             <strong>
                                 ${dynamicLyricsSettings.autoSyncOnTrackChange
-                                    ? "Surveillance active"
-                                    : "Actualisation automatique désactivée"}
+                                    ? "Surveillance active · synchro Spotify native"
+                                    : "Surveillance désactivée"}
                             </strong>
                             <small>
                                 ${dynamicLyricsSettings.autoSyncOnTrackChange
-                                    ? `Dernière synchronisation : ${escapeHtml(dynamicLyricsLastSyncMessage || "en attente d’un changement de titre")}.`
-                                    : "Tu peux toujours resynchroniser manuellement."}
+                                    ? `Dernier titre détecté : ${escapeHtml(dynamicLyricsLastSyncMessage || "en attente d’un changement de titre")}.`
+                                    : "Dynamic Lyrics peut continuer à suivre Spotify directement."}
                             </small>
                         </div>
                         <button
@@ -23487,13 +23502,13 @@ function renderIosCommandsPanel() {
                             type="button"
                             ${dynamicLyricsSettings.enabled ? "" : "disabled"}
                         >
-                            ↻ Resynchroniser maintenant
+                            ↻ Resynchroniser manuellement
                         </button>
                     </div>
 
                     <p class="dynamic-lyrics-auto-sync-note">
-                        Sur iPhone, la surveillance automatique fonctionne tant que Shuffle+ reste actif au premier plan.
-                        iOS peut suspendre la PWA lorsqu’une autre app occupe l’écran ; Dynamic Lyrics conserve alors sa propre synchronisation Spotify.
+                        Sur iPhone, Shuffle+ ne relance plus Raccourcis automatiquement à chaque titre : iOS demanderait une confirmation à chaque fois.
+                        Dynamic Lyrics suit Spotify nativement après son lancement. La surveillance ci-dessus sert uniquement à confirmer les changements de piste ; le bouton manuel peut toujours ouvrir le raccourci si nécessaire.
                     </p>
 
                     <div class="dynamic-lyrics-actions">

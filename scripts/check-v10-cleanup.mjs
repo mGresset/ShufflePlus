@@ -13,8 +13,8 @@ function fail(message) {
     failures.push(message);
 }
 
-if (version !== "10.5.0") {
-    fail(`La release V10 doit annoncer 10.5.0, pas ${version}.`);
+if (version !== "10.5.1") {
+    fail(`La release V10 doit annoncer 10.5.1, pas ${version}.`);
 }
 
 if (!index.includes('name="shuffleplus-release-channel" content="stable"')) {

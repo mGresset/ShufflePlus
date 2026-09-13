@@ -1,5 +1,13 @@
 # Changelog Shuffle+
 
+## 10.5.1 — iOS : suppression des confirmations répétées Dynamic Lyrics
+
+- L’Auto-Sync ne lance plus `shortcuts://run-shortcut` à chaque changement de titre : iOS affichait une confirmation d’ouverture externe à chaque morceau.
+- Shuffle+ peut continuer à surveiller les changements de piste pour le diagnostic, mais laisse Dynamic Lyrics suivre Spotify via sa synchronisation native.
+- Le raccourci compagnon n’est ouvert qu’au lancement explicite d’un profil configuré pour Dynamic Lyrics ou via le bouton **Resynchroniser manuellement**.
+- L’interface explique désormais clairement cette limitation iOS.
+
+
 ## 10.5.0
 
 ### iPhone & Raccourcis
