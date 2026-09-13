@@ -14,7 +14,7 @@ La commande exécute les contrôles JavaScript, les tests applicatifs et serveur
 
 ```powershell
 git add -A
-git commit -m "Release Shuffle+ v10.8.0 - sauvegardes versionnees"
+git commit -m "Release Shuffle+ v10.9.0 - reprise iPhone et sessions longues"
 git push origin main
 ```
 
@@ -22,7 +22,7 @@ git push origin main
 
 1. Fermer complètement Shuffle+ sur l’iPhone.
 2. Rouvrir l’application avec Internet actif.
-3. Vérifier que l’interface affiche **v10.8.0**.
+3. Vérifier que l’interface affiche **v10.9.0**.
 4. Ouvrir **Créer > Centre de commandes iOS** et vérifier l’**Assistant Raccourcis V10.5**.
 5. Tester un profil iPhone existant avec `RequestId + ResultToken`.
 6. Si Dynamic Lyrics est utilisé, vérifier que la surveillance suit les changements de titre sans ouvrir Raccourcis automatiquement ; utiliser **Resynchroniser manuellement** uniquement si nécessaire.

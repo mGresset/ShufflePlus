@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "10.8.0",
+  "version": "10.9.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.8.0 — sauvegardes locales versionnées, restauration sécurisée et historique avant mise à jour/importation.",
+  "description": "Shuffle+ 10.9.0 — sauvegardes locales versionnées, restauration sécurisée et historique avant mise à jour/importation.",
   "engines": {
     "node": ">=20"
   },

@@ -27,7 +27,7 @@ function backup(id = 1) {
     return {
         format: "shuffleplus-backup",
         schemaVersion: 1,
-        appVersion: "10.8.0",
+        appVersion: "10.9.0",
         exportedAt: new Date(id * 1000).toISOString(),
         data: {
             savedMixes: Array.from({ length: id }, (_, index) => ({ id: `mix-${index}` })),
@@ -39,8 +39,8 @@ function backup(id = 1) {
     };
 }
 
-test("Shuffle+ 10.8.0 ajoute un historique local de sauvegardes versionnées", () => {
-    assert.equal(version, "10.8.0");
+test("Shuffle+ 10.9.0 ajoute un historique local de sauvegardes versionnées", () => {
+    assert.equal(version, "10.9.0");
     assert.match(appSource, /saveBackupHistoryEntry/);
     assert.match(appSource, /createLocalBackupButton/);
     assert.match(appSource, /data-backup-history-restore/);
@@ -87,7 +87,7 @@ test("le panneau Réglages affiche aperçu, restauration, téléchargement et li
         backupHistory: [{
             id: "local-1",
             label: "Sauvegarde manuelle",
-            appVersion: "10.8.0",
+            appVersion: "10.9.0",
             createdAt: Date.now(),
             summary: getBackupContentSummary(backup(2))
         }]

@@ -1,4 +1,4 @@
-# Shuffle+ v10.8.0
+# Shuffle+ v10.9.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.8.0** ajoute un historique local de sauvegardes versionnées. Jusqu’à six états récents peuvent être conservés sur l’appareil, téléchargés ou restaurés ; Shuffle+ crée aussi une copie de sécurité avant une importation, une restauration ou une mise à jour PWA lorsque l’espace local le permet. Les optimisations de démarrage 10.7.0, Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, l’UX mobile 10.6.0, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
+> **État du projet :** **Shuffle+ 10.9.0** renforce la reprise iPhone et les sessions longues. Après une vraie suspension ou une reconnexion, Shuffle+ resynchronise une seule fois l’état Spotify, la file si elle est devenue obsolète et les appareils lorsque nécessaire, sans multiplier les pollings. Les sauvegardes versionnées 10.8.0, les optimisations de démarrage 10.7.0, Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, l’UX mobile 10.6.0, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
 
 ---
 
@@ -753,7 +753,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.8.0"
+git commit -m "Release Shuffle+ v10.9.0"
 git push origin main
 ```
 
@@ -763,7 +763,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.8.0** ;
+3. vérifier que l’en-tête affiche **v10.9.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -781,8 +781,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-10.8.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.8.0.js Réparation avant le chargement principal
+bootstrap-10.9.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.9.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -830,12 +830,12 @@ server/README.md
 
 ## Validation et tests
 
-La v10.8.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.9.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
-- **426 tests applicatifs réussis** ;
-- 184 fichiers JavaScript contrôlés ;
-- 66 modules reliés à `app.js` ;
-- 82 ressources PWA contrôlées ;
+- **454 tests applicatifs réussis** ;
+- 197 fichiers JavaScript contrôlés ;
+- 72 modules reliés à `app.js` ;
+- 88 ressources PWA contrôlées ;
 - validation CSP ;
 - contrôle de l’architecture CSS ;
 - build GitHub Pages vérifié ;
@@ -933,13 +933,14 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.8.0 reste à valider sur l’installation réelle avec :
+La v10.9.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;
 3. la synchronisation entre appareils ;
 4. l’export et la restauration d’une sauvegarde ;
 5. le mode conduite ;
-6. `npm.cmd run validate` sans échec.
+6. le retour au premier plan après au moins 15 secondes en arrière-plan ;
+7. `npm.cmd run validate` sans échec.
 
 Les correctifs de compatibilité, de sécurité et d’ergonomie resteront possibles après la v10.

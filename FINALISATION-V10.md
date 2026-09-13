@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v10.8.0
+# Validation terrain Shuffle+ v10.9.0
 
 ## Conditions obligatoires
 
@@ -12,4 +12,4 @@
 
 ## Ce que « final » signifie
 
-La v10.0.0 a constitué la première branche V10 stable du code ; la v10.8.0 ajoute désormais un historique local de sauvegardes versionnées, des copies de sécurité avant importation/restauration et l’archivage de la sauvegarde précédant une mise à jour PWA. Les optimisations de démarrage 10.7.0 et la logique Spotify stabilisée en 10.5.2 restent inchangées, tout comme l’UX mobile 10.6, le rollback PWA, la fiabilité Spotify Connect et Railway v5.2.0. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.
+La v10.0.0 a constitué la première branche V10 stable du code ; la v10.9.0 renforce désormais la reprise iPhone et les sessions longues avec une resynchronisation Spotify dédupliquée après suspension ou reconnexion. Les sauvegardes versionnées 10.8.0, les optimisations de démarrage 10.7.0 et la logique Spotify stabilisée en 10.5.2 restent inchangées, tout comme l’UX mobile 10.6, le rollback PWA, la fiabilité Spotify Connect et Railway v5.2.0. La validation terrain reste indispensable avant de considérer une installation donnée comme pleinement validée pour l’usage quotidien. Elle restera maintenable : une version finale n’exclut pas de futurs correctifs de sécurité ou de compatibilité imposés par Spotify, iOS, GitHub Pages ou Railway.

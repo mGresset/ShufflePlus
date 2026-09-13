@@ -9,8 +9,8 @@ const searchCss = await readFile(
     "utf8"
 );
 
-test("Shuffle+ 10.8.0 retire entièrement le cadre Rechercher après fermeture", () => {
-    assert.equal(version, "10.8.0");
+test("Shuffle+ 10.9.0 retire entièrement le cadre Rechercher après fermeture", () => {
+    assert.equal(version, "10.9.0");
 
     assert.match(
         appSource,

@@ -30,8 +30,8 @@ function playback(id = "track-a") {
     };
 }
 
-test("Shuffle+ 10.8.0 ajoute l’assistant iPhone simplifié", () => {
-    assert.equal(version, "10.8.0");
+test("Shuffle+ 10.9.0 ajoute l’assistant iPhone simplifié", () => {
+    assert.equal(version, "10.9.0");
     const guide = buildIosShortcutAssistantGuide({
         commandName: "Moto",
         launchUrl: "https://example.test/?action=quickplay",

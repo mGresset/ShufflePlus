@@ -18503,7 +18503,7 @@ body.is-driving-mode .driving-queue-current > span:first-child {
 
 
 
-/* Shuffle+ v10.8.0 — historique local des sauvegardes */
+/* Shuffle+ v10.9.0 — historique local des sauvegardes */
 .backup-history-section {
     display: grid;
     gap: 10px;
@@ -18918,7 +18918,7 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     }
 }
 
-/* Shuffle+ v10.8.0 — structure du panneau sauvegarde dans Réglages */
+/* Shuffle+ v10.9.0 — structure du panneau sauvegarde dans Réglages */
 .app-menu-page[data-app-menu-page="settings"] .backup-panel.settings-panel {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

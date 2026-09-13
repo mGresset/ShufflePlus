@@ -37,6 +37,7 @@
 - **v10.6.0 — UX mobile, formulaires iPhone, focus/clavier et cibles tactiles : terminée**
 - **v10.7.0 — Performance, démarrage cache-first et tâches Spotify secondaires différées : terminée**
 - **v10.8.0 — Sauvegardes locales versionnées, aperçu, restauration sécurisée et archivage avant mise à jour : terminée**
+- **v10.9.0 — Reprise iPhone, sessions longues et resynchronisation Spotify dédupliquée : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -93,3 +94,23 @@
 - mesure du temps jusqu’à l’interface interactive dans le Centre de fiabilité ;
 - logique de lecture Spotify, Dynamic Lyrics, UX mobile, rollback PWA et Railway inchangés.
 
+
+
+## V10.8 — Sauvegardes & restauration
+
+- historique local borné des sauvegardes ;
+- aperçu du contenu avant restauration ;
+- restauration sécurisée avec copie préalable de l’état courant ;
+- archivage de la sauvegarde créée avant mise à jour PWA ;
+- nettoyage automatique selon la limite d’éléments et le budget de stockage.
+
+## V10.9 — Reprise iPhone & sessions longues
+
+- nouveau `core/session-resume.js` pour coordonner les retours au premier plan ;
+- aucune resynchronisation Spotify après une courte bascule d’application ;
+- état de lecture frais après une vraie suspension iOS ou un retour réseau ;
+- déduplication des événements `visibilitychange`, `pageshow` et `online` ;
+- file Spotify actualisée seulement si elle est obsolète ;
+- appareils Spotify redécouverts après longue suspension ou reconnexion ;
+- métriques de reprise visibles dans le Centre de fiabilité ;
+- Lecture en cours, Dynamic Lyrics, sauvegardes 10.8, rollback PWA et Railway inchangés.

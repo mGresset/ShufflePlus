@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 10.9.0 — Reprise iPhone & sessions longues
+
+- Ajoute `core/session-resume.js`, un coordinateur de reprise qui déduplique les retours `visibilitychange`, `pageshow` et reconnexion réseau.
+- Une courte mise en arrière-plan ne provoque aucun appel Spotify supplémentaire ; une vraie suspension déclenche une seule resynchronisation.
+- Après reprise, Shuffle+ force un état de lecture frais afin de remettre à jour titre, artiste, pochette, progression et état Lecture/Pause.
+- La file Spotify est rafraîchie uniquement lorsqu’elle est devenue obsolète, et la découverte des appareils n’est relancée qu’après une longue suspension ou un retour réseau.
+- Les retours depuis le cache de navigation iOS (`pageshow` persistant) utilisent le même chemin de reprise au lieu de créer un polling parallèle.
+- Le Centre de fiabilité expose désormais le nombre de reprises, leur durée et leurs éventuelles erreurs.
+- Le moteur Spotify stabilisé en 10.5.2, Dynamic Lyrics, sauvegardes 10.8, rollback PWA et Railway v5.2.0 restent inchangés fonctionnellement.
+
 ## 10.8.0 — Sauvegardes versionnées & restauration
 
 - Ajoute `core/backup-history.js`, un historique local borné à six sauvegardes et à un budget de stockage total afin de ne pas saturer le stockage iPhone.

@@ -311,6 +311,10 @@ import {
 } from "./core/startup-performance.js";
 
 import {
+    createSessionResumeCoordinator
+} from "./core/session-resume.js";
+
+import {
     appendReliabilityEvent,
     buildReliabilityExport,
     buildReliabilityRecoveryPlan,
@@ -477,7 +481,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.8.0";
+const APP_VERSION = "10.9.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -951,7 +955,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.8.0-shell";
+    "shuffleplus-v10.9.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1342,6 +1346,16 @@ const appRuntimeState = createRuntimeState({
         completedCount: 0,
         errorCount: 0
     },
+    resume: {
+        status: "idle",
+        reason: "",
+        hiddenDurationMs: 0,
+        lastCompletedAt: 0,
+        lastDurationMs: 0,
+        resumeCount: 0,
+        skippedCount: 0,
+        errorCount: 0
+    },
     security: getSecurityPolicyDiagnostics(),
     experience: {
         mode: "essential",
@@ -1366,6 +1380,19 @@ const startupTaskQueue = createStartupTaskQueue({
                     (task) => task.status === "error"
                 ).length
             },
+            { silent: true }
+        );
+    }
+});
+
+const sessionResumeCoordinator = createSessionResumeCoordinator({
+    staleAfterMs: 12000,
+    cooldownMs: 3500,
+    onResume: refreshSessionAfterResume,
+    onChange(snapshot) {
+        appRuntimeState.set(
+            "resume",
+            snapshot,
             { silent: true }
         );
     }
@@ -4229,7 +4256,8 @@ async function refreshMusicalDashboardPlayback({
         ) {
             await refreshDrivingQueue({
                 silent: true,
-                render: false
+                render: false,
+                fresh
             });
         }
 
@@ -6759,7 +6787,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.8.0",
+                "./service-worker.js?v=10.9.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7021,6 +7049,8 @@ function getBasicAppHealthFacts() {
             ),
         runtimeStateDiagnostics:
             appRuntimeState.getDiagnostics(),
+        sessionResume:
+            sessionResumeCoordinator.diagnostics(),
         storageMigration:
             getStorageDiagnostics(),
         experienceMode,
@@ -50144,6 +50174,131 @@ contentElement.addEventListener(
 
 }
 
+async function refreshSessionAfterResume({
+    reason = "resume",
+    hiddenDurationMs = 0
+} = {}) {
+    if (!currentUserId || navigator.onLine === false) {
+        return {
+            refreshed: false,
+            reason: !currentUserId ? "not-connected" : "offline"
+        };
+    }
+
+    let playback = null;
+    let queueRefreshed = false;
+    let devicesRefreshed = false;
+
+    if (activeAppMenu === "driving") {
+        playback = await refreshDrivingPlayback({
+            silent: true,
+            render: true,
+            fresh: true
+        });
+    } else if (activeAppMenu === "dashboard") {
+        playback = await refreshMusicalDashboardPlayback({
+            silent: true,
+            fresh: true
+        });
+    } else if (activeAppMenu === "quick") {
+        playback = await refreshQuickControlPlayback({
+            silent: true,
+            fresh: true
+        });
+    } else {
+        const remotePlayback = await getCurrentPlayback({
+            fresh: true
+        });
+        quickPlaybackState = reconcilePlaybackWithUiOverride(
+            remotePlayback,
+            { fresh: true }
+        );
+        drivingPlaybackState = quickPlaybackState;
+        playback = quickPlaybackState;
+        await observeDynamicLyricsPlayback(
+            quickPlaybackState,
+            { source: "session-resume" }
+        );
+        updateHomeNowPlayingDom();
+    }
+
+    const activeDevice = playback?.device;
+    if (activeDevice?.id) {
+        rememberLastWorkingSpotifyDevice(activeDevice);
+    }
+
+    if (
+        activeAppMenu !== "dashboard" &&
+        playback?.item &&
+        shouldRefreshQueue({
+            updatedAt: drivingQueueState.updatedAt
+        })
+    ) {
+        await refreshDrivingQueue({
+            silent: true,
+            render: false,
+            fresh: true
+        });
+        queueRefreshed = true;
+    }
+
+    const refreshDevices =
+        reason === "online" ||
+        Number(hiddenDurationMs || 0) >= 30000;
+
+    if (refreshDevices) {
+        try {
+            const devices = await getAvailableDevices({ fresh: true });
+            availableDevices = devices;
+            devicesRefreshed = true;
+
+            const matched = findStoredPreferredDevice(
+                devices,
+                preferredSpotifyDevice
+            );
+            if (matched) {
+                rememberPreferredSpotifyDevice(matched);
+            }
+        } catch (error) {
+            console.warn(
+                "Actualisation Spotify Connect après reprise impossible :",
+                error
+            );
+        }
+    }
+
+    if (activeAppMenu === "dashboard") {
+        updateHomeNowPlayingDom();
+    }
+
+    if (
+        Number(hiddenDurationMs || 0) >= 60000 ||
+        reason === "online"
+    ) {
+        recordReliabilityEvent({
+            category: "session",
+            level: "success",
+            label: "Session Spotify resynchronisée",
+            detail: [
+                reason,
+                `${Math.round(Number(hiddenDurationMs || 0) / 1000)} s en arrière-plan`,
+                queueRefreshed ? "file actualisée" : "file conservée",
+                devicesRefreshed ? "appareils actualisés" : "appareils conservés"
+            ].join(" · "),
+            createdAt: Date.now()
+        });
+    }
+
+    return {
+        refreshed: true,
+        reason,
+        hiddenDurationMs: Number(hiddenDurationMs || 0),
+        hasPlayback: Boolean(playback?.item),
+        queueRefreshed,
+        devicesRefreshed
+    };
+}
+
 function prewarmUniversalSearch(event) {
     if (
         event.target?.closest?.(
@@ -50360,12 +50515,23 @@ window.addEventListener(
 
 window.addEventListener(
     "pageshow",
-    () => {
+    (event) => {
         if (activeAppMenu === "driving") {
             requestDrivingWakeLock({
                 notify: false,
                 source: "pageshow"
             });
+        }
+
+        if (event.persisted === true && currentUserId) {
+            sessionResumeCoordinator.requestResume(
+                "pageshow",
+                {
+                    force: true,
+                    visible: document.visibilityState === "visible",
+                    online: navigator.onLine
+                }
+            );
         }
     }
 );
@@ -50418,6 +50584,16 @@ window.addEventListener(
     "online",
     () => {
         runServerAutoSync("online");
+        if (currentUserId) {
+            sessionResumeCoordinator.requestResume(
+                "online",
+                {
+                    force: true,
+                    visible: document.visibilityState === "visible",
+                    online: true
+                }
+            );
+        }
         if (document.body.classList.contains("is-connected")) {
             refreshLiveLibrary({ silent: true }).catch((error) => {
                 console.warn("Actualisation après reconnexion impossible :", error);
@@ -50433,12 +50609,22 @@ document.addEventListener(
     "visibilitychange",
     () => {
         if (document.visibilityState !== "visible") {
+            sessionResumeCoordinator.markHidden();
             stopDrivingRefreshTimer();
             stopMusicalDashboardRefreshTimer();
             stopDynamicLyricsAutoSyncMonitor();
             return;
         }
 
+        if (currentUserId) {
+            sessionResumeCoordinator.requestResume(
+                "visibilitychange",
+                {
+                    visible: true,
+                    online: navigator.onLine
+                }
+            );
+        }
         startDynamicLyricsAutoSyncMonitor();
         runServerAutoSync("visible");
         resumePendingAutomationLaunch("visible");

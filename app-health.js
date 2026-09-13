@@ -199,6 +199,26 @@ export function buildAppHealthSnapshot({
             normalizeNumber(runtimeState.snapshot?.startup?.errorCount)
         )
     };
+    const resumeRuntime = {
+        status: String(runtimeState.snapshot?.resume?.status || "idle"),
+        reason: String(runtimeState.snapshot?.resume?.reason || ""),
+        lastDurationMs: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.resume?.lastDurationMs)
+        ),
+        resumeCount: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.resume?.resumeCount)
+        ),
+        skippedCount: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.resume?.skippedCount)
+        ),
+        errorCount: Math.max(
+            0,
+            normalizeNumber(runtimeState.snapshot?.resume?.errorCount)
+        )
+    };
 
     const checks = [
         buildCheck({
@@ -318,6 +338,17 @@ export function buildAppHealthSnapshot({
             value: startupRuntime.interactiveMs
                 ? `${startupRuntime.interactiveMs} ms · ${startupRuntime.deferredCount} tâche(s) différée(s)`
                 : `${startupRuntime.deferredCount} tâche(s) différée(s)`
+        }),
+        buildCheck({
+            id: "session-resume",
+            label: "Reprise après arrière-plan",
+            description: "Resynchronise Spotify une seule fois après une suspension iPhone ou un retour du réseau, sans multiplier les pollings.",
+            category: "performance",
+            available: resumeRuntime.errorCount === 0,
+            warningWhenMissing: true,
+            value: resumeRuntime.resumeCount
+                ? `${resumeRuntime.resumeCount} reprise(s) · ${resumeRuntime.lastDurationMs} ms · ${resumeRuntime.status}`
+                : "En attente d’une reprise de session"
         }),
         buildCheck({
             id: "experience-mode",
