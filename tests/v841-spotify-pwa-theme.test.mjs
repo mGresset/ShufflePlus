@@ -16,13 +16,13 @@ const v841Design = designSource.split(
 )[1] || "";
 const pwaThemeSource = settingsStyleSource;
 
-test("la distribution active annonce Shuffle+ 10.9.0", () => {
-    assert.equal(versionSource, "10.9.0");
-    assert.match(packageSource, /"version": "10\.9\.0"/);
-    assert.match(indexSource, /shuffleplus-version" content="10\.9\.0/);
-    assert.match(indexSource, /startup-recovery-10\.9\.0\.js/);
-    assert.match(appSource, /const APP_VERSION = "10\.9\.0"/);
-    assert.match(workerSource, /shuffleplus-v10\.9\.0/);
+test("la distribution active annonce Shuffle+ 11.0.0", () => {
+    assert.equal(versionSource, "11.0.0");
+    assert.match(packageSource, /"version": "11\.0\.0"/);
+    assert.match(indexSource, /shuffleplus-version" content="11\.0\.0/);
+    assert.match(indexSource, /startup-recovery-11\.0\.0\.js/);
+    assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
+    assert.match(workerSource, /shuffleplus-v11\.0\.0/);
 });
 
 test("le Client ID Spotify possède un bloc explicatif autonome", () => {

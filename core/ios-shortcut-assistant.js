@@ -79,7 +79,7 @@ export function renderIosShortcutAssistantMarkup({
         <section class="ios-shortcut-assistant-panel">
             <div class="ios-shortcut-assistant-heading">
                 <div>
-                    <span>📱 Assistant Raccourcis V10.5</span>
+                    <span>📱 Assistant Raccourcis</span>
                     <strong>Créer ou vérifier ton raccourci iPhone</strong>
                     <small>
                         Shuffle+ prépare les deux URL et les étapes exactes. Tu gardes la main dans l’app Raccourcis.

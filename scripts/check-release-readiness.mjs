@@ -33,7 +33,8 @@ const requiredFiles = [
     "server/Dockerfile",
     "CHANGELOG.md",
     "DEPLOIEMENT.md",
-    "GUIDE-RACCOURCI.md"
+    "GUIDE-RACCOURCI.md",
+    "RELEASE-CHECKLIST.md"
 ];
 
 for (const relative of requiredFiles) {
@@ -62,7 +63,7 @@ const expectedTexts = [
     ["service-worker.js", serviceWorker, `./core/release-readiness.js`],
     ["service-worker.js", serviceWorker, `./update-guard.js`],
     ["index.html", index, `./update-guard.js`],
-    ["app.js", app, `const APP_VERSION = "${version}"`],
+    ["app.js", app, `const APP_VERSION = CONFIG.version;`],
     ["server/server.js", server, 'requestUrl.pathname === "/health"'],
     ["server/server.js", server, 'const VERSION = "5.2.0"'],
     ["server/server.js", server, "ensureLaunchResultReservation"],

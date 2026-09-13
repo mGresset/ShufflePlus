@@ -38,6 +38,7 @@
 - **v10.7.0 — Performance, démarrage cache-first et tâches Spotify secondaires différées : terminée**
 - **v10.8.0 — Sauvegardes locales versionnées, aperçu, restauration sécurisée et archivage avant mise à jour : terminée**
 - **v10.9.0 — Reprise iPhone, sessions longues et resynchronisation Spotify dédupliquée : terminée**
+- **v11.0.0 — Consolidation stable, contrats de release génériques et nettoyage des reliquats V10 actifs : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -114,3 +115,12 @@
 - appareils Spotify redécouverts après longue suspension ou reconnexion ;
 - métriques de reprise visibles dans le Centre de fiabilité ;
 - Lecture en cours, Dynamic Lyrics, sauvegardes 10.8, rollback PWA et Railway inchangés.
+
+## V11.0 — Consolidation stable
+
+- source de vérité runtime de version centralisée via `CONFIG.version` dans `app.js` ;
+- Centre de validation indépendant d’un numéro de branche figé ;
+- garde-fou `check-release-cleanup.mjs` réutilisable par les futures releases ;
+- checklist de validation terrain pérenne `RELEASE-CHECKLIST.md` ;
+- libellés actifs V10 retirés de l’interface hors migration explicitement historique ;
+- moteur Spotify, reprise iPhone, sauvegardes, Dynamic Lyrics, rollback PWA et Railway inchangés.

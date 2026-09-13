@@ -29,10 +29,10 @@ export function renderReleaseReadinessPanelMarkup(readiness = {}) {
         >
             <div class="panel-heading">
                 <div>
-                    <span class="release-readiness-kicker">🏁 V10 · Validation terrain</span>
+                    <span class="release-readiness-kicker">🏁 Shuffle+ ${escapeHtml(readiness.appVersion || "")} · Validation terrain</span>
                     <h3>Validation terrain</h3>
                     <p>
-                        La V10 renvoie automatiquement le résultat du lancement vers Apple Raccourcis.
+                        Shuffle+ contrôle automatiquement la préparation technique de la version courante.
                         Confirme uniquement les essais réellement effectués sur tes appareils.
                     </p>
                 </div>
@@ -92,7 +92,7 @@ export function renderReleaseReadinessPanelMarkup(readiness = {}) {
 
             <div class="release-readiness-actions">
                 <button id="exportReleaseReadinessButton" type="button">
-                    ⬇ Exporter la validation V10
+                    ⬇ Exporter la validation
                 </button>
                 <button
                     id="resetFinalizationChecksButton"
@@ -104,7 +104,7 @@ export function renderReleaseReadinessPanelMarkup(readiness = {}) {
             </div>
 
             <p class="release-readiness-note">
-                La mention « V10 validée » ne remplace pas les essais réels :
+                La mention « Version validée » ne remplace pas les essais réels :
                 elle apparaît seulement lorsque les contrôles automatiques passent
                 et que les cinq validations terrain ont été confirmées.
             </p>

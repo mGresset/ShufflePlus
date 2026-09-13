@@ -481,7 +481,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.9.0";
+const APP_VERSION = CONFIG.version;
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -955,7 +955,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.9.0-shell";
+    "shuffleplus-v11.0.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -5753,7 +5753,7 @@ function renderUiThemeSettingsPanel() {
             <div class="panel-heading">
                 <div>
                     <span class="ui-theme-kicker">
-                        ✨ Apparence V10
+                        ✨ Apparence
                     </span>
                     <h3>
                         Couleur & lisibilité
@@ -6787,7 +6787,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.9.0",
+                "./service-worker.js?v=11.0.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7540,7 +7540,7 @@ function toggleFinalizationCheck(checkId = "") {
         label: !current
             ? "Validation terrain confirmée"
             : "Validation terrain retirée",
-        detail: definition?.label || "Validation V10 mise à jour.",
+        detail: definition?.label || "Validation terrain mise à jour.",
         createdAt: Date.now()
     });
     setStatus(
@@ -7555,7 +7555,7 @@ function toggleFinalizationCheck(checkId = "") {
 
 function resetFinalizationChecks() {
     const confirmed = window.confirm(
-        "Réinitialiser toutes les validations terrain de la V10 ?"
+        "Réinitialiser toutes les validations terrain de cette version ?"
     );
     if (!confirmed) return;
 
@@ -7574,9 +7574,9 @@ function exportReleaseReadinessReport() {
             getCurrentReleaseReadiness(),
             finalizationState
         ),
-        `shuffleplus-validation-v10-${date}.json`
+        `shuffleplus-validation-${APP_VERSION}-${date}.json`
     );
-    setStatus("Rapport de validation V10 exporté.");
+    setStatus(`Rapport de validation ${APP_VERSION} exporté.`);
 }
 
 async function exportAppHealthReport() {

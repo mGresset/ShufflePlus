@@ -30,8 +30,8 @@ function healthySnapshot() {
     };
 }
 
-test("la release V10 active annonce Shuffle+ 10.9.0", () => {
-    assert.equal(version, "10.9.0");
+test("la release stable active annonce Shuffle+ 11.0.0", () => {
+    assert.equal(version, "11.0.0");
     assert.match(indexSource, /shuffleplus-release-channel" content="stable"/);
 });
 
@@ -118,8 +118,8 @@ test("le rapport de préparation reste privé", () => {
     assert.doesNotMatch(serialized, /client_secret|refresh_token|access_token/i);
 });
 
-test("l’interface, la sauvegarde et le cache intègrent la préparation v10", () => {
-    assert.match(releaseReadinessUiSource, /V10 · Validation terrain/);
+test("l’interface, la sauvegarde et le cache intègrent la préparation de release", () => {
+    assert.match(releaseReadinessUiSource, /Shuffle\+ \$\{escapeHtml\(readiness\.appVersion/);
     assert.match(releaseReadinessUiSource, /data-finalization-check/);
     assert.match(appSource, /payload\.data\.finalizationState/);
     assert.match(settingsStyles, /\.release-readiness-panel/);

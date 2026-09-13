@@ -1,4 +1,4 @@
-# Shuffle+ v10.9.0
+# Shuffle+ v11.0.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.9.0** renforce la reprise iPhone et les sessions longues. Après une vraie suspension ou une reconnexion, Shuffle+ resynchronise une seule fois l’état Spotify, la file si elle est devenue obsolète et les appareils lorsque nécessaire, sans multiplier les pollings. Les sauvegardes versionnées 10.8.0, les optimisations de démarrage 10.7.0, Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, l’UX mobile 10.6.0, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
+> **État du projet :** **Shuffle+ 11.0.0** ouvre une branche de consolidation stable. Les mécanismes éprouvés de la V10 sont conservés, tandis que les contrats de release, la validation terrain et les libellés actifs deviennent indépendants d’un numéro de branche historique. Lecture en cours, reprise iPhone, sauvegardes versionnées, Dynamic Lyrics, rollback PWA et Railway v5.2.0 restent compatibles.
 
 ---
 
@@ -41,17 +41,17 @@ L’application regroupe dans une seule interface :
 
 ## Fonctions principales
 
-### Principes de la V10
+### Principes de la V11
 
-La V10 privilégie la stabilité et la lisibilité plutôt que l’ajout de nouvelles fonctions :
+La V11 consolide la stabilité acquise sans modifier inutilement le moteur Spotify :
 
 - une interface quotidienne courte en mode **Essentiel** ;
 - les fonctions avancées conservées en mode **Expert** ;
 - une connexion Spotify protégée pendant tout le callback OAuth/PKCE ;
 - une réparation PWA unique et protégée contre les boucles de rechargement ;
 - une mise à jour PWA transactionnelle avec copie de secours de la version précédente et rollback de démarrage ;
-- aucun ancien numéro de sous-version affiché dans l’interface ;
-- des garde-fous automatiques empêchant le retour des principaux reliquats historiques ;
+- aucun numéro de branche historique utilisé comme état actif de l’interface ;
+- des garde-fous de release génériques empêchant le retour des principaux reliquats historiques ;
 - un diagnostic Spotify Connect qui compare `/me/player/devices`, le lecteur actif et l’appareil préféré sans exposer les identifiants techniques.
 
 
@@ -753,7 +753,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.9.0"
+git commit -m "Release Shuffle+ v11.0.0"
 git push origin main
 ```
 
@@ -763,7 +763,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.9.0** ;
+3. vérifier que l’en-tête affiche **v11.0.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -781,8 +781,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-10.9.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.9.0.js Réparation avant le chargement principal
+bootstrap-11.0.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.0.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -830,12 +830,12 @@ server/README.md
 
 ## Validation et tests
 
-La v10.9.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
-- tests du serveur réussis ;
-- **454 tests applicatifs réussis** ;
-- 197 fichiers JavaScript contrôlés ;
-- 72 modules reliés à `app.js` ;
-- 88 ressources PWA contrôlées ;
+La v11.0.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+- les tests applicatifs et serveur ;
+- la cohérence de version et du shell PWA ;
+- les imports et l’architecture CSS ;
+- la sécurité CSP et l’absence de secrets ;
+- le nettoyage des reliquats actifs de release ;
 - validation CSP ;
 - contrôle de l’architecture CSS ;
 - build GitHub Pages vérifié ;
@@ -922,7 +922,7 @@ Spotify limite temporairement les appels. Shuffle+ applique automatiquement une 
 - `DEPLOIEMENT.md` : procédure de publication de la version courante ;
 - `DEPLOIEMENT_SERVEUR_V5.md` : déploiement du serveur Railway ;
 - `GUIDE-RACCOURCI.md` : construction du raccourci iPhone ;
-- `FINALISATION-V10.md` : conditions avant la v10 stable ;
+- `RELEASE-CHECKLIST.md` : conditions de validation terrain de la version courante ;
 - `ROADMAP.md` : trajectoire du projet ;
 - `SYNC_API_CONTRACT.md` : protocole de synchronisation ;
 - `server/README.md` : serveur et sécurité.
@@ -931,9 +931,9 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ---
 
-## Statut de la v10
+## Statut de la v11
 
-La v10.9.0 reste à valider sur l’installation réelle avec :
+La v11.0.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;
@@ -943,4 +943,4 @@ La v10.9.0 reste à valider sur l’installation réelle avec :
 6. le retour au premier plan après au moins 15 secondes en arrière-plan ;
 7. `npm.cmd run validate` sans échec.
 
-Les correctifs de compatibilité, de sécurité et d’ergonomie resteront possibles après la v10.
+Les correctifs de compatibilité, de sécurité et d’ergonomie resteront possibles tout au long de la branche v11.

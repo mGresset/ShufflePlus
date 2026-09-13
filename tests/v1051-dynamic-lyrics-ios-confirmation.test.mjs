@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 
-test("Shuffle+ 10.9.0 ne relance plus Raccourcis automatiquement à chaque morceau", () => {
-    assert.equal(version, "10.9.0");
+test("Shuffle+ 11.0.0 ne relance plus Raccourcis automatiquement à chaque morceau", () => {
+    assert.equal(version, "11.0.0");
     const observeStart = appSource.indexOf("async function observeDynamicLyricsPlayback");
     const resyncStart = appSource.indexOf("async function resyncDynamicLyricsNow");
     const observeSource = appSource.slice(observeStart, resyncStart);

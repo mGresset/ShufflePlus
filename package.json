@@ -1,15 +1,15 @@
 {
   "name": "shuffleplus",
-  "version": "10.9.0",
+  "version": "11.0.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 10.9.0 — sauvegardes locales versionnées, restauration sécurisée et historique avant mise à jour/importation.",
+  "description": "Shuffle+ 11.0.0 — consolidation stable, contrats de release génériques et nettoyage des reliquats de version historiques.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-v10-cleanup.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-release-cleanup.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",

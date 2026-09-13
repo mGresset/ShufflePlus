@@ -1,5 +1,16 @@
 # Changelog Shuffle+
 
+## 11.0.0 — Consolidation stable V11
+
+- Ouvre une branche V11 sans modifier le moteur Spotify stabilisé pendant la V10.
+- Remplace les libellés actifs figés sur « V10 » par des libellés de release neutres et liés à la version courante.
+- Le Centre de validation affiche désormais la version active dynamiquement et exporte un rapport nommé avec la version réelle.
+- `app.js` réutilise `CONFIG.version` comme source de vérité runtime au lieu de dupliquer le numéro de version.
+- Renomme `check-v10-cleanup.mjs` en `check-release-cleanup.mjs` et généralise ses garde-fous à toutes les futures releases.
+- Remplace `FINALISATION-V10.md` par `RELEASE-CHECKLIST.md`, un contrat de validation terrain pérenne.
+- Neutralise le libellé « Assistant Raccourcis V10.5 » tout en conservant explicitement la migration V10.1 pour les anciens raccourcis concernés.
+- Conserve Lecture en cours, reprise iPhone, sauvegardes 10.8, Dynamic Lyrics, rollback PWA et Railway v5.2.0 sans changement fonctionnel.
+
 ## 10.9.0 — Reprise iPhone & sessions longues
 
 - Ajoute `core/session-resume.js`, un coordinateur de reprise qui déduplique les retours `visibilitychange`, `pageshow` et reconnexion réseau.

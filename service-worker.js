@@ -1,5 +1,5 @@
-const APP_VERSION = "10.9.0";
-const CACHE_VERSION = "shuffleplus-v10.9.0";
+const APP_VERSION = "11.0.0";
+const CACHE_VERSION = "shuffleplus-v11.0.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -14,16 +14,16 @@ const VERSION_CACHE_PATTERN =
 const CRITICAL_APP_SHELL = [
     "./",
     "./index.html",
-    "./style.css?v=10.9.0",
-    "./design-system.css?v=10.9.0",
-    "./mobile-ux.css?v=10.9.0",
-    "./bootstrap-10.9.0.js",
-    "./app.js?v=10.9.0&build=10.9.0-pwa-reset-1",
+    "./style.css?v=11.0.0",
+    "./design-system.css?v=11.0.0",
+    "./mobile-ux.css?v=11.0.0",
+    "./bootstrap-11.0.0.js",
+    "./app.js?v=11.0.0&build=11.0.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-10.9.0.js",
+    "./startup-recovery-11.0.0.js",
     "./update-guard.js",
     "./shuffle-engine.js",
     "./core/app-menu.js",
@@ -40,6 +40,7 @@ const CRITICAL_APP_SHELL = [
     "./core/pwa-update.js",
     "./core/update-safety.js",
     "./core/backup-ui.js",
+    "./core/backup-history.js",
     "./core/pwa-install-ui.js",
     "./core/spotify-setup-ui.js",
     "./core/security-policy.js",
@@ -94,11 +95,11 @@ const CRITICAL_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=10.9.0",
+    "./styles/feature-home.css?v=11.0.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=10.9.0",
-    "./styles/feature-settings.css?v=10.9.0",
-    "./styles/feature-driving.css?v=10.9.0",
+    "./styles/feature-search.css?v=11.0.0",
+    "./styles/feature-settings.css?v=11.0.0",
+    "./styles/feature-driving.css?v=11.0.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

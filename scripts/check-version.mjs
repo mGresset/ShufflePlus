@@ -7,7 +7,7 @@ const checks = [
     ["package.json", `\"version\": \"${expected}\"`],
     ["config.js", `version: APP_VERSION`],
     ["config.js", `const APP_VERSION = \"${expected}\"`],
-    ["app.js", `const APP_VERSION = \"${expected}\"`],
+    ["app.js", `const APP_VERSION = CONFIG.version;`],
     ["service-worker.js", `shuffleplus-v${expected}`],
     ["service-worker.js", `style.css?v=${expected}`],
     ["service-worker.js", `design-system.css?v=${expected}`],

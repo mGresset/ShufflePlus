@@ -337,7 +337,7 @@ export function buildReliabilityServices(
                 ? shortcutState.level
                 : "neutral",
             String(shortcutState.value || "Non vérifié"),
-            String(shortcutState.detail || "Le Centre de commandes iOS peut vérifier la compatibilité V10.1.")
+            String(shortcutState.detail || "Le Centre de commandes iOS peut vérifier la compatibilité du raccourci actuel.")
         )
     ];
 }

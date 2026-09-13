@@ -32,8 +32,8 @@ function createFakeDocument() {
     };
 }
 
-test("la distribution active annonce Shuffle+ 10.9.0", () => {
-    assert.equal(version, "10.9.0");
+test("la distribution active annonce Shuffle+ 11.0.0", () => {
+    assert.equal(version, "11.0.0");
 });
 
 test("le profil réseau respecte l’économie de données et les réseaux lents", () => {

@@ -172,9 +172,9 @@ export function buildReleaseReadiness({
             }
             : {
                 id: "ready",
-                label: "V10 validée",
+                label: "Version validée",
                 icon: "✅",
-                message: "Tous les contrôles automatiques et terrain de la V10 sont confirmés."
+                message: "Tous les contrôles automatiques et terrain de cette version sont confirmés."
             };
 
     return {

@@ -6,8 +6,8 @@ const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8"))
 const css = await readFile(new URL("../styles/feature-driving.css", import.meta.url), "utf8");
 const app = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
-test("Shuffle+ 10.9.0 compacte le mode conduite sans tronquer les commandes", () => {
-    assert.equal(version, "10.9.0");
+test("Shuffle+ 11.0.0 compacte le mode conduite sans tronquer les commandes", () => {
+    assert.equal(version, "11.0.0");
     assert.match(css, /v10\.2\.0 — contrat mobile conduite consolidé/);
     assert.match(css, /grid-template-rows:\s*repeat\(2, minmax\(68px, 1fr\)\)/);
     assert.match(css, /\.driving-control\s*\{[\s\S]*?min-height:\s*68px/);
