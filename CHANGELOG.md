@@ -1,5 +1,16 @@
 # Changelog Shuffle+
 
+## 10.8.0 — Sauvegardes versionnées & restauration
+
+- Ajoute `core/backup-history.js`, un historique local borné à six sauvegardes et à un budget de stockage total afin de ne pas saturer le stockage iPhone.
+- **Réglages > Sauvegarde et restauration** affiche maintenant les sauvegardes locales avec date, version et aperçu du contenu (mix, favoris, raccourcis, profils).
+- Ajoute **Sauvegarde locale** pour créer un point de restauration sans télécharger immédiatement de fichier.
+- Chaque sauvegarde locale peut être téléchargée, restaurée ou supprimée individuellement.
+- Avant une importation ou une restauration, Shuffle+ tente automatiquement de conserver l’état courant pour permettre un retour arrière.
+- La sauvegarde créée avant une mise à jour PWA est également ajoutée à l’historique versionné lorsque l’espace le permet.
+- Les plus anciennes sauvegardes sont supprimées automatiquement lorsque la limite d’éléments ou le budget local est atteint.
+- Spotify, Lecture en cours, Dynamic Lyrics, performances 10.7 et Railway v5.2.0 restent inchangés fonctionnellement.
+
 ## 10.7.0 — Performance & démarrage
 
 - Ajoute `core/startup-performance.js`, une file dédiée aux tâches non critiques exécutées après que l’interface est devenue interactive.

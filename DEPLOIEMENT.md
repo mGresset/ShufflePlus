@@ -14,7 +14,7 @@ La commande exécute les contrôles JavaScript, les tests applicatifs et serveur
 
 ```powershell
 git add -A
-git commit -m "Release Shuffle+ v10.7.0 - performance et demarrage"
+git commit -m "Release Shuffle+ v10.8.0 - sauvegardes versionnees"
 git push origin main
 ```
 
@@ -22,12 +22,13 @@ git push origin main
 
 1. Fermer complètement Shuffle+ sur l’iPhone.
 2. Rouvrir l’application avec Internet actif.
-3. Vérifier que l’interface affiche **v10.7.0**.
+3. Vérifier que l’interface affiche **v10.8.0**.
 4. Ouvrir **Créer > Centre de commandes iOS** et vérifier l’**Assistant Raccourcis V10.5**.
 5. Tester un profil iPhone existant avec `RequestId + ResultToken`.
 6. Si Dynamic Lyrics est utilisé, vérifier que la surveillance suit les changements de titre sans ouvrir Raccourcis automatiquement ; utiliser **Resynchroniser manuellement** uniquement si nécessaire.
-7. Vérifier **Réglages > Centre de fiabilité > Tester Spotify Connect**.
-8. Tester au minimum Pause/Lecture, Titre suivant et le mode conduite.
+7. Ouvrir **Réglages > Sauvegarde et restauration**, créer une **Sauvegarde locale** et vérifier qu’elle apparaît dans l’historique avec son aperçu.
+8. Vérifier **Réglages > Centre de fiabilité > Tester Spotify Connect**.
+9. Tester au minimum Pause/Lecture, Titre suivant et le mode conduite.
 
 ## Railway et raccourci iPhone
 

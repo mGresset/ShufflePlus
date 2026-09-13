@@ -269,6 +269,14 @@ import {
 } from "./core/backup-ui.js";
 
 import {
+    BACKUP_HISTORY_MAX_ITEMS,
+    getBackupHistoryEntry,
+    readBackupHistory,
+    removeBackupHistoryEntry,
+    saveBackupHistoryEntry
+} from "./core/backup-history.js";
+
+import {
     buildPwaInstallState,
     renderPwaInstallGuideMarkup,
     renderPwaSettingsPanelMarkup
@@ -469,7 +477,7 @@ const openSpotifyDeveloperButton =
 installUiConsistencyObserver();
 applyUiConsistency(document);
 
-const APP_VERSION = "10.7.0";
+const APP_VERSION = "10.8.0";
 const PLAYBACK_OVERRIDE_HARD_TIMEOUT_MS = 30_000;
 const PLAYBACK_OVERRIDE_MIN_HOLD_MS = 6_500;
 const PLAYBACK_OVERRIDE_REQUIRED_MATCHES = 2;
@@ -943,7 +951,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v10.7.0-shell";
+    "shuffleplus-v10.8.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6751,7 +6759,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=10.7.0",
+                "./service-worker.js?v=10.8.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -34863,6 +34871,11 @@ async function importBackupFile(file) {
             return;
         }
 
+        saveCurrentBackupToHistory({
+            reason: "before-import",
+            label: "Avant importation",
+            quiet: true
+        });
         applyValidatedBackupState(imported);
 
         displayPlaylists(playlistsCache);
@@ -40762,11 +40775,137 @@ function renderBackupPanel() {
             timeStyle: "short"
         }).format(new Date(safetySummary.createdAt))
         : "";
+    const backupHistory = readBackupHistory(localStorage);
 
     return renderBackupPanelMarkup({
         safetySummary,
-        safetyDate
+        safetyDate,
+        backupHistory,
+        backupHistoryLimit: BACKUP_HISTORY_MAX_ITEMS
     });
+}
+
+function refreshBackupPanel() {
+    const panel = document.getElementById("backupPanel");
+    if (panel) {
+        panel.outerHTML = renderBackupPanel();
+    }
+}
+
+function saveCurrentBackupToHistory({
+    reason = "manual",
+    label = "",
+    quiet = false
+} = {}) {
+    const result = saveBackupHistoryEntry(
+        localStorage,
+        buildBackupPayload(),
+        { reason, label }
+    );
+
+    refreshBackupPanel();
+
+    if (!quiet) {
+        if (result.saved) {
+            setStatus("Sauvegarde locale créée sur cet appareil.", "success");
+        } else {
+            setStatus(
+                result.reason === "too-large"
+                    ? "La sauvegarde est trop volumineuse pour l’historique local. Utilise Exporter mes données."
+                    : "Impossible de conserver cette sauvegarde dans le stockage local.",
+                "warning"
+            );
+        }
+    }
+
+    return result;
+}
+
+function downloadBackupHistoryEntry(id = "") {
+    const entry = getBackupHistoryEntry(localStorage, id);
+    if (!entry?.backup) {
+        setStatus("Cette sauvegarde locale n’est plus disponible.", "warning");
+        refreshBackupPanel();
+        return false;
+    }
+
+    const date = new Date(entry.createdAt || Date.now());
+    const datePart = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0")
+    ].join("-");
+
+    downloadJsonPayload(
+        entry.backup,
+        `shuffleplus-sauvegarde-locale-${datePart}.json`
+    );
+    setStatus("Sauvegarde locale téléchargée.");
+    return true;
+}
+
+function restoreBackupHistoryEntry(id = "") {
+    const entry = getBackupHistoryEntry(localStorage, id);
+    if (!entry?.backup) {
+        setStatus("Cette sauvegarde locale n’est plus disponible.", "warning");
+        refreshBackupPanel();
+        return false;
+    }
+
+    try {
+        const imported = validateBackupPayload(entry.backup);
+        const confirmed = window.confirm(
+            `Restaurer « ${entry.label || "Sauvegarde locale"} » ?\n\n` +
+            "Shuffle+ créera d’abord une copie de l’état actuel, puis remplacera les données locales."
+        );
+        if (!confirmed) return false;
+
+        saveCurrentBackupToHistory({
+            reason: "before-restore",
+            label: "Avant restauration",
+            quiet: true
+        });
+        applyValidatedBackupState(imported);
+        displayPlaylists(playlistsCache);
+        recordReliabilityEvent({
+            category: "storage",
+            level: "success",
+            label: "Sauvegarde locale restaurée",
+            detail: entry.label || "Historique local",
+            createdAt: Date.now()
+        });
+        refreshBackupPanel();
+        setStatus("Sauvegarde locale restaurée.", "success");
+        return true;
+    } catch (error) {
+        console.error(error);
+        setStatus(
+            error?.message || "Impossible de restaurer cette sauvegarde locale.",
+            "error"
+        );
+        return false;
+    }
+}
+
+function deleteBackupHistoryEntry(id = "") {
+    const entry = getBackupHistoryEntry(localStorage, id);
+    if (!entry) {
+        refreshBackupPanel();
+        return false;
+    }
+
+    const confirmed = window.confirm(
+        `Supprimer « ${entry.label || "Sauvegarde locale"} » de cet appareil ?`
+    );
+    if (!confirmed) return false;
+
+    const removed = removeBackupHistoryEntry(localStorage, id);
+    refreshBackupPanel();
+    setStatus(
+        removed ? "Sauvegarde locale supprimée." : "Impossible de supprimer cette sauvegarde.",
+        removed ? "success" : "warning"
+    );
+    return removed;
 }
 
 function downloadPreUpdateBackup() {
@@ -40799,8 +40938,14 @@ function restorePreUpdateBackup() {
         );
         if (!confirmed) return false;
 
+        saveCurrentBackupToHistory({
+            reason: "before-restore",
+            label: "Avant restauration",
+            quiet: true
+        });
         applyValidatedBackupState(imported);
         displayPlaylists(playlistsCache);
+        refreshBackupPanel();
         recordReliabilityEvent({
             category: "storage",
             level: "success",
@@ -45497,6 +45642,16 @@ applyPwaUpdateButton.addEventListener(
         );
 
         if (updateSafety.saved) {
+            saveBackupHistoryEntry(
+                localStorage,
+                updateSafety.snapshot?.backup || buildBackupPayload(),
+                {
+                    reason: "pre-update",
+                    label: targetVersion
+                        ? `Avant mise à jour ${targetVersion}`
+                        : "Avant mise à jour"
+                }
+            );
             recordReliabilityEvent({
                 category: "storage",
                 level: "success",
@@ -47887,6 +48042,41 @@ contentElement.addEventListener(
             )
         ) {
             await applyPendingSyncPackage("policy");
+            return;
+        }
+
+        if (event.target.closest("#createLocalBackupButton")) {
+            saveCurrentBackupToHistory({
+                reason: "manual",
+                label: "Sauvegarde manuelle"
+            });
+            return;
+        }
+
+        const historyDownloadButton =
+            event.target.closest("[data-backup-history-download]");
+        if (historyDownloadButton) {
+            downloadBackupHistoryEntry(
+                historyDownloadButton.dataset.backupHistoryDownload || ""
+            );
+            return;
+        }
+
+        const historyRestoreButton =
+            event.target.closest("[data-backup-history-restore]");
+        if (historyRestoreButton) {
+            restoreBackupHistoryEntry(
+                historyRestoreButton.dataset.backupHistoryRestore || ""
+            );
+            return;
+        }
+
+        const historyDeleteButton =
+            event.target.closest("[data-backup-history-delete]");
+        if (historyDeleteButton) {
+            deleteBackupHistoryEntry(
+                historyDeleteButton.dataset.backupHistoryDelete || ""
+            );
             return;
         }
 

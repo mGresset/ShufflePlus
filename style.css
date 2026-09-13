@@ -1867,12 +1867,19 @@ button:disabled {
     gap: 10px;
 }
 
+.backup-local-button,
 .backup-export-button,
 .backup-import-button {
     min-height: 43px;
     padding: 9px 16px;
     border-radius: 999px;
     font-weight: 750;
+}
+
+.backup-local-button {
+    border: 1px solid #547486;
+    background: rgb(43 80 99 / 42%);
+    color: #ffffff;
 }
 
 .backup-export-button {
@@ -1887,7 +1894,9 @@ button:disabled {
     color: #ffffff;
 }
 
+.backup-local-button:hover:not(:disabled),
 .backup-export-button:hover:not(:disabled),
+.backup-local-button:hover:not(:disabled),
 .backup-import-button:hover:not(:disabled) {
     transform: translateY(-1px);
 }
@@ -1917,6 +1926,7 @@ button:disabled {
         grid-template-columns: 1fr;
     }
 
+    .backup-local-button,
     .backup-export-button,
     .backup-import-button {
         width: 100%;
@@ -18491,6 +18501,140 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     }
 }
 
+
+
+/* Shuffle+ v10.8.0 — historique local des sauvegardes */
+.backup-history-section {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+}
+
+.backup-history-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.backup-history-heading > div {
+    display: grid;
+    gap: 3px;
+}
+
+.backup-history-heading span {
+    color: var(--text-muted, #aeb6c5);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.backup-history-heading small {
+    flex: 0 0 auto;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted, #aeb6c5);
+    font-weight: 800;
+}
+
+.backup-history-help,
+.backup-history-empty {
+    margin: 0;
+    color: var(--text-muted, #aeb6c5);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.backup-history-list {
+    display: grid;
+    gap: 9px;
+}
+
+.backup-history-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.12));
+    border-radius: 13px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.backup-history-copy {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.backup-history-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.backup-history-title-row strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.backup-history-title-row span {
+    flex: 0 0 auto;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted, #aeb6c5);
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.backup-history-copy small,
+.backup-history-copy p {
+    margin: 0;
+    color: var(--text-muted, #aeb6c5);
+    font-size: 12px;
+}
+
+.backup-history-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+}
+
+.backup-history-actions button {
+    min-height: 40px;
+}
+
+.backup-history-actions button[data-backup-history-delete] {
+    min-width: 40px;
+    padding-inline: 10px;
+}
+
+@media (max-width: 700px) {
+    .backup-history-item {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .backup-history-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+    }
+
+    .backup-history-actions button {
+        min-height: 44px;
+    }
+}
+
 /* Shuffle+ v10.2.0 — diagnostic Spotify Connect */
 .spotify-connect-diagnostic,
 .reliability-full-history {
@@ -18771,5 +18915,28 @@ body.is-driving-mode .driving-queue-current > span:first-child {
     .dynamic-lyrics-sync-status button {
         width: 100%;
         min-height: 46px;
+    }
+}
+
+/* Shuffle+ v10.8.0 — structure du panneau sauvegarde dans Réglages */
+.app-menu-page[data-app-menu-page="settings"] .backup-panel.settings-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 18px;
+}
+
+.app-menu-page[data-app-menu-page="settings"] .backup-panel.settings-panel .preupdate-backup,
+.app-menu-page[data-app-menu-page="settings"] .backup-panel.settings-panel .backup-history-section {
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+    .app-menu-page[data-app-menu-page="settings"] .backup-panel.settings-panel {
+        grid-template-columns: 1fr;
+    }
+
+    .app-menu-page[data-app-menu-page="settings"] .backup-panel.settings-panel > * {
+        grid-column: 1;
     }
 }

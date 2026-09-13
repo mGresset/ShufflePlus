@@ -36,6 +36,7 @@
 - **v10.5.2 — accueil : Lecture en cours prioritaire et métadonnées/pochette mises à jour en direct : terminée**
 - **v10.6.0 — UX mobile, formulaires iPhone, focus/clavier et cibles tactiles : terminée**
 - **v10.7.0 — Performance, démarrage cache-first et tâches Spotify secondaires différées : terminée**
+- **v10.8.0 — Sauvegardes locales versionnées, aperçu, restauration sécurisée et archivage avant mise à jour : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile

@@ -1,4 +1,4 @@
-# Shuffle+ v10.7.0
+# Shuffle+ v10.8.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 10.7.0** accélère surtout le démarrage sur iPhone : lorsqu’une bibliothèque locale existe déjà, l’interface devient utilisable avant les rafraîchissements Spotify secondaires. La découverte des appareils peut être repoussée après l’ouverture lorsqu’elle n’est pas indispensable, et le démarrage de l’accueil ne duplique plus la lecture de la file Spotify. La logique Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, l’UX mobile 10.6.0, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
+> **État du projet :** **Shuffle+ 10.8.0** ajoute un historique local de sauvegardes versionnées. Jusqu’à six états récents peuvent être conservés sur l’appareil, téléchargés ou restaurés ; Shuffle+ crée aussi une copie de sécurité avant une importation, une restauration ou une mise à jour PWA lorsque l’espace local le permet. Les optimisations de démarrage 10.7.0, Lecture en cours 10.5.2, Dynamic Lyrics 10.5.1, l’UX mobile 10.6.0, Railway v5.2.0 et le rollback PWA V10.4 restent compatibles.
 
 ---
 
@@ -615,7 +615,11 @@ Vider les données du site ou désinstaller la PWA peut supprimer ces informatio
 
 Le centre de sauvegarde permet d’exporter puis de restaurer les données Shuffle+. Le paquet n’inclut pas les secrets Spotify.
 
-Depuis la V10.1, Shuffle+ tente aussi de conserver automatiquement une copie locale juste avant l’application d’une mise à jour PWA. Cette copie peut être **téléchargée** ou **restaurée** depuis le même panneau. Elle ne remplace pas une sauvegarde JSON conservée hors de l’iPhone.
+Depuis la V10.1, Shuffle+ tente aussi de conserver automatiquement une copie locale juste avant l’application d’une mise à jour PWA. Cette copie peut être **téléchargée** ou **restaurée** depuis le même panneau.
+
+Depuis la **V10.8**, le panneau conserve aussi un **historique local versionné** pouvant contenir jusqu’à six sauvegardes récentes, dans la limite d’un budget de stockage local. Chaque entrée affiche sa date, la version Shuffle+ et un aperçu du contenu, puis peut être téléchargée, restaurée ou supprimée. Avant une importation ou une restauration, Shuffle+ tente d’abord de sauvegarder l’état courant afin de faciliter un retour arrière. Les plus anciennes entrées sont supprimées automatiquement lorsque la limite locale est atteinte.
+
+Cet historique reste stocké sur l’appareil : une sauvegarde JSON exportée hors de l’iPhone reste recommandée avant une réinstallation ou un changement d’appareil.
 
 Il est recommandé d’exporter une sauvegarde avant :
 
@@ -749,7 +753,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v10.7.0"
+git commit -m "Release Shuffle+ v10.8.0"
 git push origin main
 ```
 
@@ -759,7 +763,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v10.7.0** ;
+3. vérifier que l’en-tête affiche **v10.8.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -777,8 +781,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-10.7.0.js        Chargement versionné et migration du runtime
-startup-recovery-10.7.0.js Réparation avant le chargement principal
+bootstrap-10.8.0.js        Chargement versionné et migration du runtime
+startup-recovery-10.8.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -801,7 +805,7 @@ app-health.js
 
 ### Modules `core/`
 
-Le dossier `core/` contient les briques isolées de navigation, PWA, lecture, appareil Spotify, sécurité, synchronisation, thèmes, sauvegarde et fiabilité. La V10.7 ajoute `core/startup-performance.js`, qui orchestre les tâches non critiques après que l’interface est devenue interactive et attend automatiquement le retour en ligne ou au premier plan lorsque nécessaire.
+Le dossier `core/` contient les briques isolées de navigation, PWA, lecture, appareil Spotify, sécurité, synchronisation, thèmes, sauvegarde et fiabilité. `core/startup-performance.js` orchestre les tâches non critiques après l’interface interactive ; la V10.8 ajoute `core/backup-history.js` pour conserver, borner et restaurer les sauvegardes locales versionnées sans saturer le stockage du navigateur.
 
 ### Styles chargés à la demande
 
@@ -826,7 +830,7 @@ server/README.md
 
 ## Validation et tests
 
-La v10.7.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v10.8.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - tests du serveur réussis ;
 - **426 tests applicatifs réussis** ;
 - 184 fichiers JavaScript contrôlés ;
@@ -929,7 +933,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v10
 
-La v10.7.0 reste à valider sur l’installation réelle avec :
+La v10.8.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;
