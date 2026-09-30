@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 
-test("Shuffle+ 11.0.0 ne relance plus Raccourcis automatiquement à chaque morceau", () => {
-    assert.equal(version, "11.0.0");
+test("Shuffle+ 11.0.1 ne relance plus Raccourcis automatiquement à chaque morceau", () => {
+    assert.equal(version, "11.0.1");
     const observeStart = appSource.indexOf("async function observeDynamicLyricsPlayback");
     const resyncStart = appSource.indexOf("async function resyncDynamicLyricsNow");
     const observeSource = appSource.slice(observeStart, resyncStart);
@@ -20,7 +20,7 @@ test("Shuffle+ 11.0.0 ne relance plus Raccourcis automatiquement à chaque morce
 });
 
 test("l’interface explique la surveillance sans ouverture automatique de Raccourcis", () => {
-    assert.match(appSource, /Surveiller les changements de titre \(sans ouvrir Raccourcis\)/);
-    assert.match(appSource, /iOS demanderait une confirmation à chaque fois/);
+    assert.match(appSource, /Surveiller les changements de titre \(diagnostic uniquement\)/);
+    assert.match(appSource, /iOS demanderait une autorisation d’ouverture externe/);
     assert.match(appSource, /Resynchroniser manuellement/);
 });

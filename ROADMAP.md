@@ -39,6 +39,7 @@
 - **v10.8.0 — Sauvegardes locales versionnées, aperçu, restauration sécurisée et archivage avant mise à jour : terminée**
 - **v10.9.0 — Reprise iPhone, sessions longues et resynchronisation Spotify dédupliquée : terminée**
 - **v11.0.0 — Consolidation stable, contrats de release génériques et nettoyage des reliquats V10 actifs : terminée**
+- **v11.0.1 — Dynamic Lyrics manuel sur iPhone, suppression de tout lancement `shortcuts://` automatique depuis la PWA : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -124,3 +125,12 @@
 - checklist de validation terrain pérenne `RELEASE-CHECKLIST.md` ;
 - libellés actifs V10 retirés de l’interface hors migration explicitement historique ;
 - moteur Spotify, reprise iPhone, sauvegardes, Dynamic Lyrics, rollback PWA et Railway inchangés.
+
+## V11.0.1 — Dynamic Lyrics manuel sur iPhone
+
+- aucun lancement `shortcuts://` automatique depuis Shuffle+ ;
+- les profils peuvent seulement proposer un bouton manuel Dynamic Lyrics après la lecture ;
+- resynchronisation manuelle conservée ;
+- surveillance de piste conservée pour diagnostic uniquement ;
+- recommandation d’une automatisation iOS App/CarPlay pour le lancement automatique côté iPhone ;
+- moteur Spotify et Railway inchangés.

@@ -1,4 +1,4 @@
-# Shuffle+ v11.0.0
+# Shuffle+ v11.0.1
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.0.0** ouvre une branche de consolidation stable. Les mécanismes éprouvés de la V10 sont conservés, tandis que les contrats de release, la validation terrain et les libellés actifs deviennent indépendants d’un numéro de branche historique. Lecture en cours, reprise iPhone, sauvegardes versionnées, Dynamic Lyrics, rollback PWA et Railway v5.2.0 restent compatibles.
+> **État du projet :** **Shuffle+ 11.0.1** corrige le lancement Dynamic Lyrics sur iPhone : aucun raccourci `shortcuts://` n’est désormais ouvert automatiquement par la PWA. Les boutons manuels et la surveillance diagnostique restent disponibles ; Spotify, reprise iPhone, sauvegardes, rollback PWA et Railway v5.2.0 restent inchangés.
 
 ---
 
@@ -441,11 +441,11 @@ Les trois paramètres nécessaires au retour sécurisé sont donc `resultServer`
 
 #### Dynamic Lyrics · suivi Spotify V10.5
 
-Dans **Créer > Centre de commandes iOS > Dynamic Lyrics**, l’option **Actualiser Dynamic Lyrics quand le morceau change** active une surveillance du titre Spotify. Le premier titre observé sert de référence ; Shuffle+ relance ensuite le raccourci compagnon uniquement lorsqu’un nouvel identifiant de morceau est détecté.
+Dans **Créer > Centre de commandes iOS > Dynamic Lyrics**, Shuffle+ peut surveiller le titre Spotify à des fins de diagnostic, mais **n’ouvre jamais automatiquement Raccourcis**. Les ouvertures Dynamic Lyrics depuis Shuffle+ sont exclusivement manuelles afin d’éviter les confirmations iOS répétées.
 
 La fréquence peut être réglée à 2, 3, 5 ou 10 secondes. En mode conduite ou sur le tableau de bord, Shuffle+ réutilise les rafraîchissements Spotify déjà actifs afin d’éviter des appels redondants. Un bouton **Resynchroniser maintenant** permet aussi de forcer une actualisation manuelle.
 
-Sur iPhone, cette surveillance dépend des règles d’iOS : elle fonctionne lorsque Shuffle+ reste actif et visible. Si iOS suspend la PWA parce qu’une autre application occupe l’écran, Shuffle+ ne peut pas exécuter un polling fiable en arrière-plan. Dynamic Lyrics conserve alors sa propre connexion Spotify et ses propres surfaces (app, Lock Screen, CarPlay, widget) ; l’Auto‑Sync Shuffle+ agit comme mécanisme de resynchronisation complémentaire, pas comme service d’arrière-plan permanent.
+Pour un démarrage automatique de Dynamic Lyrics, configure une automatisation personnelle iOS déclenchée par **Spotify** ou **CarPlay** et fais-lui exécuter directement le raccourci Dynamic Lyrics. Cette automatisation s’exécute côté iPhone ; Shuffle+ n’essaie plus de contourner la confirmation d’ouverture externe imposée aux PWA.
 
 #### Planificateur intelligent
 
@@ -753,7 +753,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.0.0"
+git commit -m "Release Shuffle+ v11.0.1"
 git push origin main
 ```
 
@@ -763,7 +763,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.0.0** ;
+3. vérifier que l’en-tête affiche **v11.0.1** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -781,8 +781,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.0.0.js        Chargement versionné et migration du runtime
-startup-recovery-11.0.0.js Réparation avant le chargement principal
+bootstrap-11.0.1.js        Chargement versionné et migration du runtime
+startup-recovery-11.0.1.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -830,7 +830,7 @@ server/README.md
 
 ## Validation et tests
 
-La v11.0.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v11.0.1 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - les tests applicatifs et serveur ;
 - la cohérence de version et du shell PWA ;
 - les imports et l’architecture CSS ;
@@ -933,7 +933,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.0.0 reste à valider sur l’installation réelle avec :
+La v11.0.1 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

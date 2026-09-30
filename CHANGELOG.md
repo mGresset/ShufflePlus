@@ -1,5 +1,14 @@
 # Changelog Shuffle+
 
+## 11.0.1 — Dynamic Lyrics : ouverture manuelle uniquement sur iPhone
+
+- Supprime le lancement automatique du raccourci Dynamic Lyrics après un profil Shuffle+ : une PWA iOS ne peut pas ouvrir silencieusement `shortcuts://` sans confirmation utilisateur.
+- Conserve le bouton **Ouvrir Dynamic Lyrics** après un lancement lorsque le profil le demande, mais ce bouton nécessite désormais un geste volontaire.
+- Le bouton **Resynchroniser manuellement** reste disponible dans le Centre de commandes iOS.
+- La surveillance des changements de titre devient explicitement diagnostique et n’ouvre jamais Raccourcis.
+- L’interface recommande une automatisation iOS **App (Spotify)** ou **CarPlay** pour lancer Dynamic Lyrics directement côté iPhone, sans passer par la PWA.
+- Le moteur Spotify, la reprise iPhone, les sauvegardes et Railway v5.2.0 restent inchangés.
+
 ## 11.0.0 — Consolidation stable V11
 
 - Ouvre une branche V11 sans modifier le moteur Spotify stabilisé pendant la V10.

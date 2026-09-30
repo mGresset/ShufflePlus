@@ -955,7 +955,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.0.0-shell";
+    "shuffleplus-v11.0.1-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6787,7 +6787,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.0.0",
+                "./service-worker.js?v=11.0.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -21946,8 +21946,10 @@ function saveDynamicLyricsSettingsFromForm(form) {
                 data.get("enabled") === "on",
             shortcutName:
                 data.get("shortcutName"),
+            // Conservé pour compatibilité avec les sauvegardes historiques ;
+            // aucun lancement automatique n'utilise plus ce délai.
             launchDelayMs:
-                data.get("launchDelayMs"),
+                dynamicLyricsSettings.launchDelayMs,
             autoSyncOnTrackChange:
                 data.get("autoSyncOnTrackChange") === "on",
             autoSyncIntervalMs:
@@ -21962,8 +21964,8 @@ function saveDynamicLyricsSettingsFromForm(form) {
     setStatus(
         dynamicLyricsSettings.enabled
             ? dynamicLyricsSettings.autoSyncOnTrackChange
-                ? "Dynamic Lyrics est prêt · actualisation au changement de titre activée."
-                : "Dynamic Lyrics est prêt pour les raccourcis sélectionnés."
+                ? "Dynamic Lyrics est prêt · surveillance diagnostique des titres activée."
+                : "Dynamic Lyrics est prêt · ouverture manuelle uniquement."
             : "Intégration Dynamic Lyrics désactivée."
     );
 }
@@ -23591,8 +23593,8 @@ function renderIosCommandsPanel() {
                         <span>🎤 Application compagnon</span>
                         <strong>Dynamic Lyrics</strong>
                         <small>
-                            Shuffle+ lance un raccourci iOS personnel après le démarrage de Spotify.
-                            Aucun Client ID ni jeton Dynamic Lyrics n’est enregistré ici.
+                            Shuffle+ n’ouvre plus automatiquement Raccourcis : iOS demande une confirmation lors d’une ouverture externe depuis la PWA.
+                            Utilise le bouton manuel ci-dessous ou une automatisation iOS App/CarPlay. Aucun secret Dynamic Lyrics n’est enregistré ici.
                         </small>
                     </div>
                     <span class="dynamic-lyrics-state ${dynamicLyricsSettings.enabled ? "is-enabled" : ""}">
@@ -23622,25 +23624,6 @@ function renderIosCommandsPanel() {
                         >
                     </label>
 
-                    <label class="ios-command-field">
-                        <span>Délai après le lancement Spotify</span>
-                        <select name="launchDelayMs">
-                            ${[
-                                [0, "Immédiat"],
-                                [700, "0,7 seconde"],
-                                [1200, "1,2 seconde"],
-                                [2000, "2 secondes"],
-                                [3000, "3 secondes"]
-                            ].map(([value, label]) => `
-                                <option
-                                    value="${value}"
-                                    ${dynamicLyricsSettings.launchDelayMs === value ? "selected" : ""}
-                                >
-                                    ${label}
-                                </option>
-                            `).join("")}
-                        </select>
-                    </label>
 
                     <label class="ios-command-check dynamic-lyrics-auto-sync-toggle">
                         <input
@@ -23648,7 +23631,7 @@ function renderIosCommandsPanel() {
                             type="checkbox"
                             ${dynamicLyricsSettings.autoSyncOnTrackChange ? "checked" : ""}
                         >
-                        <span>Surveiller les changements de titre (sans ouvrir Raccourcis)</span>
+                        <span>Surveiller les changements de titre (diagnostic uniquement)</span>
                     </label>
 
                     <label class="ios-command-field">
@@ -23695,8 +23678,8 @@ function renderIosCommandsPanel() {
                     </div>
 
                     <p class="dynamic-lyrics-auto-sync-note">
-                        Sur iPhone, Shuffle+ ne relance plus Raccourcis automatiquement à chaque titre : iOS demanderait une confirmation à chaque fois.
-                        Dynamic Lyrics suit Spotify nativement après son lancement. La surveillance ci-dessus sert uniquement à confirmer les changements de piste ; le bouton manuel peut toujours ouvrir le raccourci si nécessaire.
+                        Shuffle+ ne lance plus automatiquement le raccourci Dynamic Lyrics, ni au changement de titre ni après un profil : iOS demanderait une autorisation d’ouverture externe.
+                        Dynamic Lyrics suit Spotify nativement après son lancement. Utilise « Resynchroniser manuellement » quand tu veux l’ouvrir depuis Shuffle+, ou configure une automatisation iOS App/CarPlay pour le lancer sans passer par la PWA.
                     </p>
 
                     <div class="dynamic-lyrics-actions">
@@ -23728,12 +23711,13 @@ function renderIosCommandsPanel() {
                     <ol>
                         <li>Dans Raccourcis, crée un raccourci portant exactement le nom indiqué ci-dessus.</li>
                         <li>Ajoute l’action Dynamic Lyrics disponible sur ton iPhone, ou l’action « Ouvrir l’app » vers Dynamic Lyrics.</li>
-                        <li>Reviens ici et utilise le bouton « Tester ».</li>
-                        <li>Active ensuite « Ouvrir Dynamic Lyrics » dans les profils Shuffle+ de ton choix.</li>
+                        <li>Reviens ici et utilise le bouton « Tester » : ce test est volontairement manuel.</li>
+                        <li>Dans un profil Shuffle+, tu peux afficher un bouton Dynamic Lyrics après le lancement ; Shuffle+ ne l’ouvrira jamais tout seul.</li>
+                        <li>Pour un lancement réellement automatique, crée dans Raccourcis une automatisation personnelle « App » (Spotify) ou « CarPlay » qui exécute ton raccourci Dynamic Lyrics directement sur l’iPhone.</li>
                     </ol>
                     <p>
-                        L’intégration passe par le schéma officiel de l’app Raccourcis.
-                        Elle reste facultative et n’ajoute aucune parole au mode conduite.
+                        Les ouvertures depuis Shuffle+ restent manuelles afin d’éviter les confirmations iOS répétées.
+                        L’intégration reste facultative et n’ajoute aucune parole au mode conduite.
                     </p>
                 </details>
             </section>
@@ -23927,7 +23911,7 @@ function renderIosCommandsPanel() {
                         ${dynamicLyricsSettings.enabled ? "" : "disabled"}
                     >
                     <span>
-                        Ouvrir Dynamic Lyrics après le lancement
+                        Afficher un bouton Dynamic Lyrics après le lancement (manuel)
                         ${dynamicLyricsSettings.enabled
                             ? ""
                             : " · active d’abord l’intégration ci-dessus"}
@@ -24969,33 +24953,6 @@ function getDynamicLyricsLaunchContext(
     };
 }
 
-function scheduleDynamicLyricsLaunch(
-    launchContext,
-    { delayMs } = {}
-) {
-    if (!launchContext?.url) {
-        return false;
-    }
-
-    const delay = Number.isFinite(
-        Number(delayMs)
-    )
-        ? Math.max(0, Number(delayMs))
-        : dynamicLyricsSettings.launchDelayMs;
-
-    showToast(
-        `🎤 Ouverture de « ${launchContext.shortcutName} »…`,
-        "success"
-    );
-
-    window.setTimeout(() => {
-        window.location.href =
-            launchContext.url;
-    }, delay);
-
-    return true;
-}
-
 function buildLaunchDiagnosticText({
     command,
     status = "info",
@@ -25463,7 +25420,7 @@ async function runIosQuickPlay(
                 ? "success"
                 : "skipped",
             message: dynamicLyricsLaunch.requested
-                ? `Raccourci « ${dynamicLyricsLaunch.shortcutName} » demandé`
+                ? `Bouton manuel « ${dynamicLyricsLaunch.shortcutName} » disponible`
                 : "Non demandé"
         });
 
@@ -25557,7 +25514,6 @@ async function runIosQuickPlay(
             await enterDrivingMode({ refresh: false });
         }
 
-        scheduleDynamicLyricsLaunch(dynamicLyricsLaunch);
         return {
             status: "success",
             keepPending: false,
@@ -26082,9 +26038,6 @@ async function executeAutomationCommandCore(
             });
         }
 
-        scheduleDynamicLyricsLaunch(
-            dynamicLyricsLaunch
-        );
 
         savePendingAutomationCommand(null);
         clearAutomationQueryString();

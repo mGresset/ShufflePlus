@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.0.0",
+  "version": "11.0.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.0.0 — consolidation stable, contrats de release génériques et nettoyage des reliquats de version historiques.",
+  "description": "Shuffle+ 11.0.1 — correctif iPhone Dynamic Lyrics : ouverture manuelle uniquement depuis la PWA.",
   "engines": {
     "node": ">=20"
   },

@@ -31,8 +31,8 @@ function playback({
     };
 }
 
-test("la protection visuelle active annonce Shuffle+ 11.0.0", () => {
-    assert.equal(version, "11.0.0");
+test("la protection visuelle active annonce Shuffle+ 11.0.1", () => {
+    assert.equal(version, "11.0.1");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 

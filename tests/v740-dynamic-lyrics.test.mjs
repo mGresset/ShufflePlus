@@ -83,7 +83,8 @@ test("Mix & iOS contient la configuration et l’option par profil", () => {
     expectText(appSource, 'id="testDynamicLyricsShortcutButton"');
     expectText(appSource, 'id="copyDynamicLyricsTestUrlButton"');
     expectText(appSource, 'url.searchParams.set(\n            "lyrics",');
-    expectText(appSource, "scheduleDynamicLyricsLaunch(");
+    assert.doesNotMatch(appSource, /scheduleDynamicLyricsLaunch\s*\(/);
+    expectText(appSource, 'id="openDynamicLyricsButton"');
 });
 
 test("l’intégration reste hors du mode conduite et possède une interface mobile", () => {
