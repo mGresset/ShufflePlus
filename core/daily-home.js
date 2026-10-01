@@ -35,6 +35,7 @@ export function buildDailyHomeSnapshot({
     queueUpdatedAt = 0,
     experienceMode = "essential",
     drivingAvailable = false,
+    dynamicLyricsEnabled = false,
     contextualSuggestion = null,
     quickAccess = null,
     homeLayout = null,
@@ -48,6 +49,14 @@ export function buildDailyHomeSnapshot({
         : 0;
     const greeting = getDailyHomeGreeting(now);
     const layout = normalizeHomeLayout(homeLayout || {});
+    const repeatMode = ["track", "context"].includes(playback?.repeat_state)
+        ? playback.repeat_state
+        : "off";
+    const repeatLabel = repeatMode === "track"
+        ? "Titre"
+        : repeatMode === "context"
+            ? "Contexte"
+            : "OFF";
     const nextStep = guidedSetup?.steps?.find?.((step) => !step.ready) || null;
     const safeQueue = (Array.isArray(queue) ? queue : [])
         .filter(Boolean);
@@ -100,7 +109,12 @@ export function buildDailyHomeSnapshot({
             progressPercent,
             elapsedLabel: formatDuration(progressMs),
             durationLabel: formatDuration(durationMs),
-            deviceName: playback?.device?.name || deviceLabel
+            deviceName: playback?.device?.name || deviceLabel,
+            deviceType: playback?.device?.type || "",
+            deviceActive: Boolean(playback?.device?.id || playback?.device?.name),
+            shuffleActive: Boolean(playback?.shuffle_state),
+            repeatMode,
+            repeatLabel
         },
         upcoming,
         queueContinuity,
@@ -110,6 +124,7 @@ export function buildDailyHomeSnapshot({
             nextStep
         },
         drivingAvailable: Boolean(drivingAvailable),
+        dynamicLyricsEnabled: Boolean(dynamicLyricsEnabled),
         layout: {
             ...layout,
             presetId: getHomeLayoutPresetId(layout)
@@ -316,15 +331,53 @@ function renderHomeQuickAccess(snapshot) {
 }
 
 
+function renderHomeNowPlayingUpcoming(snapshot) {
+    const upcoming = Array.isArray(snapshot.upcoming)
+        ? snapshot.upcoming.slice(0, 3)
+        : [];
+
+    if (!upcoming.length) {
+        return `
+            <div class="v111-home-upcoming-empty">
+                <span aria-hidden="true">≡</span>
+                <small>Charge la file Spotify pour afficher les prochains titres.</small>
+            </div>
+        `;
+    }
+
+    return `
+        <div class="v111-home-upcoming-list">
+            ${upcoming.map((item, index) => `
+                <div class="v111-home-upcoming-item">
+                    ${item.imageUrl
+                        ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
+                        : `<span class="v111-home-upcoming-index">${index + 1}</span>`}
+                    <div>
+                        <strong>${escapeHtml(item.name)}</strong>
+                        <small>${escapeHtml(item.artist)}</small>
+                    </div>
+                </div>
+            `).join("")}
+        </div>
+    `;
+}
+
+export function renderHomeNowPlayingUpcomingMarkup(snapshot) {
+    return renderHomeNowPlayingUpcoming(snapshot);
+}
+
 function renderHomeNowPlaying(snapshot) {
     const playback = snapshot.playback;
+    const deviceSummary = playback.deviceType
+        ? `${playback.deviceName} · ${playback.deviceType}`
+        : playback.deviceName;
 
     return `
         <article
-            class="v9-home-now-playing" ${snapshot.layout.showNowPlaying ? "" : "hidden"}
+            class="v9-home-now-playing v111-home-now-playing" ${snapshot.layout.showNowPlaying ? "" : "hidden"}
             data-home-now-playing
         >
-            <div class="v9-home-card-heading">
+            <div class="v9-home-card-heading v111-home-now-heading">
                 <div>
                     <span>🎧 Lecture en cours</span>
                     <h3 data-home-now-title-heading>${escapeHtml(playback.title)}</h3>
@@ -333,14 +386,41 @@ function renderHomeNowPlaying(snapshot) {
                 <button id="refreshMusicalDashboardButton" type="button" class="ui-button ui-button--ghost" aria-label="Actualiser Spotify">↻</button>
             </div>
 
-            <div class="v9-home-track">
-                ${playback.imageUrl
-                    ? `<img data-home-now-cover src="${escapeHtml(playback.imageUrl)}" alt="" loading="eager">`
-                    : '<span class="v9-home-track-placeholder" data-home-now-cover aria-hidden="true">🎵</span>'}
-                <div>
-                    <strong data-home-now-title>${escapeHtml(playback.title)}</strong>
-                    <small data-home-now-album>${escapeHtml(playback.album || playback.deviceName)}</small>
+            <div class="v111-home-now-body">
+                <div class="v9-home-track v111-home-track">
+                    ${playback.imageUrl
+                        ? `<img data-home-now-cover src="${escapeHtml(playback.imageUrl)}" alt="" loading="eager">`
+                        : '<span class="v9-home-track-placeholder" data-home-now-cover aria-hidden="true">🎵</span>'}
+                    <div class="v111-home-track-copy">
+                        <strong data-home-now-title>${escapeHtml(playback.title)}</strong>
+                        <small data-home-now-album>${escapeHtml(playback.album || playback.deviceName)}</small>
+                        <div class="v111-home-device" data-home-now-device>
+                            <span aria-hidden="true">📱</span>
+                            <span data-home-now-device-name>${escapeHtml(deviceSummary || "Appareil Spotify actif")}</span>
+                            <b data-home-now-device-state>${playback.deviceActive ? "Actif" : "Spotify"}</b>
+                        </div>
+                        <div class="v111-home-playback-states" aria-label="État de lecture Spotify">
+                            <span data-home-shuffle-state class="${playback.shuffleActive ? "is-active" : ""}">
+                                🔀 Aléatoire ${playback.shuffleActive ? "ON" : "OFF"}
+                            </span>
+                            <span data-home-repeat-state class="${playback.repeatMode !== "off" ? "is-active" : ""}">
+                                🔁 Répétition ${escapeHtml(playback.repeatLabel)}
+                            </span>
+                        </div>
+                    </div>
                 </div>
+
+                <aside class="v111-home-upcoming" aria-label="Prochains titres">
+                    <div class="v111-home-upcoming-heading">
+                        <span>À suivre</span>
+                        <button type="button" class="ui-button ui-button--ghost" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>
+                            Voir la file
+                        </button>
+                    </div>
+                    <div data-home-upcoming-preview>
+                        ${renderHomeNowPlayingUpcoming(snapshot)}
+                    </div>
+                </aside>
             </div>
 
             <div class="v9-home-progress" style="--v9-progress:${playback.progressPercent.toFixed(2)}%" aria-label="Progression du titre">
@@ -351,12 +431,14 @@ function renderHomeNowPlaying(snapshot) {
                 <span data-home-now-duration>${escapeHtml(playback.durationLabel)}</span>
             </div>
 
-            <div class="v9-home-player-actions">
+            <div class="v9-home-player-actions v111-home-player-actions">
                 <button type="button" class="ui-button ui-button--primary" data-dashboard-playback="playpause">
                     ${playback.isPlaying ? "⏸ Pause" : "▶ Lecture"}
                 </button>
                 <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="next">⏭ Suivant</button>
-                <button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ Liste de lecture</button>
+                ${snapshot.dynamicLyricsEnabled
+                    ? '<button type="button" class="ui-button ui-button--secondary" data-home-open-dynamic-lyrics>🎤 Dynamic Lyrics</button>'
+                    : `<button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ File</button>`}
             </div>
         </article>
     `;
@@ -373,7 +455,7 @@ export function renderDailyHomeMarkup(snapshot, {
         <section class="v9-home ${snapshot.layout.density === "compact" ? "is-compact" : ""}" aria-label="Accueil quotidien Shuffle+">
             <header class="v9-home-header">
                 <div>
-                    <span class="v9-home-kicker">${escapeHtml(snapshot.greeting.icon)} Shuffle+ 9 · ${snapshot.experienceMode === "expert" ? "Expert" : "Essentiel"}</span>
+                    <span class="v9-home-kicker">${escapeHtml(snapshot.greeting.icon)} Shuffle+ · ${snapshot.experienceMode === "expert" ? "Expert" : "Essentiel"}</span>
                     <h2>${escapeHtml(snapshot.greeting.label)}, ta musique est prête.</h2>
                     <p>${escapeHtml(snapshot.dateLabel)} · lance ton profil principal sans chercher dans les menus.</p>
                 </div>
@@ -390,9 +472,9 @@ export function renderDailyHomeMarkup(snapshot, {
             <section class="v98-home-customizer" data-home-customizer hidden aria-label="Personnalisation de l’accueil">
                 <div class="v98-home-customizer__heading">
                     <div>
-                        <span>🎛 Accueil v9.8</span>
-                        <h3>Choisis ce que tu veux voir en premier</h3>
-                        <p>Les changements restent sur cet appareil et sont inclus dans les sauvegardes.</p>
+                        <span>🎛 Accueil V11.1</span>
+                        <h3>Organise ton accueil</h3>
+                        <p>Lecture en cours reste toujours prioritaire. Réorganise les autres sections ou masque celles que tu n’utilises pas.</p>
                     </div>
                     <button type="button" class="ui-button ui-button--ghost" data-toggle-home-customizer>Fermer</button>
                 </div>
@@ -403,6 +485,33 @@ export function renderDailyHomeMarkup(snapshot, {
                             <label><input type="radio" name="preset" value="balanced" ${snapshot.layout.presetId === "balanced" ? "checked" : ""}> Équilibré</label>
                             <label><input type="radio" name="preset" value="launchFirst" ${snapshot.layout.presetId === "launchFirst" ? "checked" : ""}> Lancement d’abord</label>
                             <label><input type="radio" name="preset" value="queueFirst" ${snapshot.layout.presetId === "queueFirst" ? "checked" : ""}> File d’abord</label>
+                            <label><input type="radio" name="preset" value="custom" ${snapshot.layout.presetId === "custom" ? "checked" : ""}> Personnalisé</label>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Ordre personnalisé</legend>
+                        <div class="v111-home-order-pinned">
+                            <span>🎧 Lecture en cours</span>
+                            <small>Toujours en premier</small>
+                        </div>
+                        <div class="v111-home-order-list">
+                            ${snapshot.layout.order.map((blockId, index) => {
+                                const labels = {
+                                    quickAccess: "⚡ Accès immédiat",
+                                    main: "▶ Profil principal",
+                                    queue: "≡ File d’attente",
+                                    shortcuts: "⌘ Raccourcis du bas"
+                                };
+                                return `
+                                    <div class="v111-home-order-item">
+                                        <span>${escapeHtml(labels[blockId] || blockId)}</span>
+                                        <div>
+                                            <button type="button" class="ui-button ui-button--ghost" data-home-move-block="${escapeHtml(blockId)}" data-home-move-direction="up" ${index === 0 ? "disabled" : ""} aria-label="Monter ${escapeHtml(labels[blockId] || blockId)}">↑</button>
+                                            <button type="button" class="ui-button ui-button--ghost" data-home-move-block="${escapeHtml(blockId)}" data-home-move-direction="down" ${index === snapshot.layout.order.length - 1 ? "disabled" : ""} aria-label="Descendre ${escapeHtml(labels[blockId] || blockId)}">↓</button>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join("")}
                         </div>
                     </fieldset>
                     <div class="v98-home-customizer__options">

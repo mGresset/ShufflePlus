@@ -18,8 +18,8 @@ const appSource = await readFile("app.js", "utf8");
 const homeStyles = await readFile("styles/feature-home.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 
-test("la distribution active annonce Shuffle+ 11.0.1", () => {
-    assert.equal(version, "11.0.1");
+test("la distribution active annonce Shuffle+ 11.2.0", () => {
+    assert.equal(version, "11.2.0");
 });
 
 test("la disposition de l’accueil normalise les valeurs importées", () => {
@@ -79,7 +79,7 @@ test("l’accueil applique le mode compact et masque les blocs désactivés", ()
     assert.equal(snapshot.upcoming.length, 2);
     assert.match(html, /v9-home is-compact/);
     assert.match(html, /data-home-customizer/);
-    assert.match(html, /v9-home-now-playing" hidden/);
+    assert.match(html, /v9-home-now-playing[^\"]*" hidden/);
     assert.match(html, /class="v9-home-access"[\s\S]*?hidden/);
     assert.match(html, /class="v9-home-shortcuts"[\s\S]*?hidden/);
 });

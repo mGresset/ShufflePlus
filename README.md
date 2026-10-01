@@ -1,4 +1,4 @@
-# Shuffle+ v11.0.1
+# Shuffle+ v11.2.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.0.1** corrige le lancement Dynamic Lyrics sur iPhone : aucun raccourci `shortcuts://` n’est désormais ouvert automatiquement par la PWA. Les boutons manuels et la surveillance diagnostique restent disponibles ; Spotify, reprise iPhone, sauvegardes, rollback PWA et Railway v5.2.0 restent inchangés.
+> **État du projet :** **Shuffle+ 11.2.0** modernise l’accueil et la carte **Lecture en cours** : pochette agrandie, appareil Spotify actif, états Aléatoire/Répétition, aperçu des trois prochains titres et réorganisation visible des sections. Dynamic Lyrics reste strictement manuel depuis la PWA ; le moteur Spotify, la reprise iPhone, les sauvegardes, le rollback PWA et Railway v5.2.0 restent inchangés.
 
 ---
 
@@ -54,6 +54,17 @@ La V11 consolide la stabilité acquise sans modifier inutilement le moteur Spoti
 - des garde-fous de release génériques empêchant le retour des principaux reliquats historiques ;
 - un diagnostic Spotify Connect qui compare `/me/player/devices`, le lecteur actif et l’appareil préféré sans exposer les identifiants techniques.
 
+
+### Accueil & Lecture en cours V2
+
+La V11.1 met l’écran quotidien au premier plan :
+
+- **Lecture en cours** reste le premier bloc utile de l’accueil ;
+- la pochette, le titre, l’artiste et l’album sont actualisés en place ;
+- l’appareil Spotify actif, l’état **Aléatoire** et le mode **Répétition** sont visibles sans ouvrir un autre menu ;
+- un aperçu compact des **trois prochains titres** est affiché dans la carte principale ;
+- le bouton **Dynamic Lyrics** reste une action manuelle volontaire ;
+- les autres sections de l’accueil peuvent être déplacées avec les boutons ↑ / ↓ ou masquées depuis **Personnaliser**.
 
 ### Lancement musical en une action
 
@@ -753,7 +764,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.0.1"
+git commit -m "Release Shuffle+ v11.2.0"
 git push origin main
 ```
 
@@ -763,7 +774,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.0.1** ;
+3. vérifier que l’en-tête affiche **v11.2.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -781,8 +792,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.0.1.js        Chargement versionné et migration du runtime
-startup-recovery-11.0.1.js Réparation avant le chargement principal
+bootstrap-11.2.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.2.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -830,7 +841,7 @@ server/README.md
 
 ## Validation et tests
 
-La v11.0.1 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v11.2.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - les tests applicatifs et serveur ;
 - la cohérence de version et du shell PWA ;
 - les imports et l’architecture CSS ;
@@ -933,7 +944,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.0.1 reste à valider sur l’installation réelle avec :
+La v11.2.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

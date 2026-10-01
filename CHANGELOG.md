@@ -1,5 +1,24 @@
 # Changelog Shuffle+
 
+## 11.2.0 — Profils & lancements simplifiés
+
+- Profils favoris affichés en premier dans le Centre de lancement.
+- Lancement express en un toucher pour les profils épinglés.
+- Ordre des profils persistant avec contrôles monter/descendre.
+- Aperçu détaillé avant exécution.
+- Dynamic Lyrics reste strictement manuel depuis Shuffle+.
+- Moteur Spotify et Railway v5.2.0 inchangés.
+
+## 11.1.0 — Accueil & Lecture en cours V2
+
+- Agrandit la pochette et renforce la hiérarchie titre/artiste sur la carte **Lecture en cours**.
+- Affiche l’appareil Spotify actif ainsi que les états **Aléatoire** et **Répétition** directement sur l’accueil.
+- Ajoute un aperçu compact des trois prochains titres de la file Spotify dans la carte principale, actualisé avec la file.
+- Ajoute un bouton **Dynamic Lyrics** manuel sur l’accueil lorsque l’intégration est activée, sans réintroduire de lancement automatique `shortcuts://`.
+- Rend l’ordre des sections réellement modifiable avec des commandes ↑ / ↓ et un mode **Personnalisé** ; Lecture en cours reste volontairement prioritaire.
+- Conserve les réglages de masquage, densité et nombre de titres visibles.
+- Le moteur Spotify, la reprise iPhone, les sauvegardes, le rollback PWA et Railway v5.2.0 restent inchangés.
+
 ## 11.0.1 — Dynamic Lyrics : ouverture manuelle uniquement sur iPhone
 
 - Supprime le lancement automatique du raccourci Dynamic Lyrics après un profil Shuffle+ : une PWA iOS ne peut pas ouvrir silencieusement `shortcuts://` sans confirmation utilisateur.

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.0.1",
+  "version": "11.2.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.0.1 — correctif iPhone Dynamic Lyrics : ouverture manuelle uniquement depuis la PWA.",
+  "description": "Shuffle+ 11.2.0 — Profils favoris, lancement express, ordre persistant et aperçu avant exécution.",
   "engines": {
     "node": ">=20"
   },

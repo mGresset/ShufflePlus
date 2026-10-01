@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile("app.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la correction de latence active annonce Shuffle+ 11.0.1", () => {
-    assert.equal(version, "11.0.1");
+test("la correction de latence active annonce Shuffle+ 11.2.0", () => {
+    assert.equal(version, "11.2.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 

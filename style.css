@@ -18940,3 +18940,85 @@ body.is-driving-mode .driving-queue-current > span:first-child {
         grid-column: 1;
     }
 }
+
+
+/* Shuffle+ v11.2.0 — Profils & lancements simplifiés */
+.launch-center-favorites {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--ui-border-subtle, rgba(255,255,255,.12));
+    border-radius: 16px;
+    background: var(--ui-surface-soft, rgba(255,255,255,.04));
+}
+
+.launch-center-favorites > span {
+    font-size: .82rem;
+    font-weight: 800;
+    letter-spacing: .02em;
+}
+
+.launch-center-favorites > div {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.shortcut-profile-card.is-favorite {
+    outline: 2px solid color-mix(in srgb, var(--accent-color, #1ed760) 40%, transparent);
+    outline-offset: -2px;
+}
+
+.shortcut-profile-preview {
+    border-top: 1px solid var(--ui-border-subtle, rgba(255,255,255,.1));
+    padding-top: 10px;
+}
+
+.shortcut-profile-preview summary {
+    cursor: pointer;
+    font-weight: 800;
+}
+
+.shortcut-profile-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.shortcut-profile-preview-grid span {
+    display: grid;
+    gap: 3px;
+    padding: 9px 10px;
+    border-radius: 12px;
+    background: var(--ui-surface-soft, rgba(255,255,255,.05));
+    font-size: .82rem;
+}
+
+.shortcut-profile-preview-grid strong {
+    font-size: .72rem;
+    opacity: .72;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.shortcut-profile-actions button[aria-pressed="true"] {
+    font-weight: 900;
+}
+
+@media (max-width: 720px) {
+    .launch-center-favorites > div {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .launch-center-favorites button {
+        min-height: 44px;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .shortcut-profile-preview-grid {
+        grid-template-columns: 1fr;
+    }
+}

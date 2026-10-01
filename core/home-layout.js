@@ -5,6 +5,14 @@ export const HOME_LAYOUT_BLOCKS = Object.freeze([
     "shortcuts"
 ]);
 
+
+export const HOME_LAYOUT_LABELS = Object.freeze({
+    quickAccess: "Accès immédiat",
+    main: "Profil principal",
+    queue: "File d’attente",
+    shortcuts: "Raccourcis du bas"
+});
+
 export const HOME_LAYOUT_PRESETS = Object.freeze({
     balanced: Object.freeze([
         "quickAccess",
@@ -86,4 +94,29 @@ export function getHomeLayoutPresetId(layout) {
     return Object.entries(HOME_LAYOUT_PRESETS)
         .find(([, order]) => order.join("|") === serialized)?.[0]
         || "custom";
+}
+
+export function moveHomeLayoutBlock(layout, blockId, direction) {
+    const normalized = normalizeHomeLayout(layout);
+    const id = String(blockId || "");
+    const step = direction === "up" ? -1 : direction === "down" ? 1 : 0;
+    const index = normalized.order.indexOf(id);
+
+    if (!step || index < 0) {
+        return normalized;
+    }
+
+    const nextIndex = index + step;
+    if (nextIndex < 0 || nextIndex >= normalized.order.length) {
+        return normalized;
+    }
+
+    const order = [...normalized.order];
+    [order[index], order[nextIndex]] = [order[nextIndex], order[index]];
+
+    return normalizeHomeLayout({
+        ...normalized,
+        order,
+        updatedAt: Date.now()
+    });
 }

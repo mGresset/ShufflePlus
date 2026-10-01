@@ -40,6 +40,8 @@
 - **v10.9.0 — Reprise iPhone, sessions longues et resynchronisation Spotify dédupliquée : terminée**
 - **v11.0.0 — Consolidation stable, contrats de release génériques et nettoyage des reliquats V10 actifs : terminée**
 - **v11.0.1 — Dynamic Lyrics manuel sur iPhone, suppression de tout lancement `shortcuts://` automatique depuis la PWA : terminée**
+- **v11.1.0 — Accueil & Lecture en cours V2, état Spotify enrichi et ordre personnalisable : terminée**
+- **v11.2.0 — Profils favoris, ordre persistant, lancement express et aperçu avant exécution : terminée**
 
 
 ## V10.3 — Architecture & lisibilité mobile
@@ -134,3 +136,25 @@
 - surveillance de piste conservée pour diagnostic uniquement ;
 - recommandation d’une automatisation iOS App/CarPlay pour le lancement automatique côté iPhone ;
 - moteur Spotify et Railway inchangés.
+
+
+## V11.1 — Accueil & Lecture en cours V2
+
+- pochette plus grande et hiérarchie visuelle renforcée ;
+- appareil Spotify actif visible ;
+- états Aléatoire et Répétition affichés en direct ;
+- aperçu des trois prochains titres intégré à la carte principale ;
+- bouton Dynamic Lyrics manuel uniquement ;
+- réorganisation réelle des autres sections via ↑ / ↓ et préréglage Personnalisé ;
+- Lecture en cours reste prioritaire afin de conserver l’usage mobile validé ;
+- moteur Spotify et Railway v5.2.0 inchangés.
+
+
+## V11.2 — Profils & lancements simplifiés
+
+- favoris réellement prioritaires dans le Centre de lancement ;
+- lancement express des profils épinglés ;
+- ordre des profils enregistré localement et modifiable par ↑ / ↓ ;
+- aperçu avant lancement : source, appareil, shuffle, départ, conduite et Dynamic Lyrics manuel ;
+- duplication existante conservée et accessible directement ;
+- moteur Spotify, résultat Railway et protocole iOS inchangés.

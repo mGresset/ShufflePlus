@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 
-test("Shuffle+ 11.0.1 ne lance plus Dynamic Lyrics automatiquement après un profil", () => {
-    assert.equal(version, "11.0.1");
+test("Shuffle+ 11.2.0 ne lance plus Dynamic Lyrics automatiquement après un profil", () => {
+    assert.equal(version, "11.2.0");
     assert.doesNotMatch(appSource, /function scheduleDynamicLyricsLaunch\s*\(/);
     assert.doesNotMatch(appSource, /scheduleDynamicLyricsLaunch\s*\(/);
     assert.match(appSource, /Afficher un bouton Dynamic Lyrics après le lancement \(manuel\)/);

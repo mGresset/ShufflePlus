@@ -182,3 +182,85 @@ export function formatShortcutRunDuration(durationMs = 0) {
     }
     return `${(value / 1000).toFixed(value < 10000 ? 1 : 0).replace(".", ",")} s`;
 }
+
+
+export function normalizeShortcutProfileOrder(order = [], commands = []) {
+    const availableIds = (Array.isArray(commands) ? commands : [])
+        .map((command) => cleanText(command?.id, 120))
+        .filter(Boolean);
+    const availableSet = new Set(availableIds);
+    const result = [];
+    const seen = new Set();
+
+    for (const id of Array.isArray(order) ? order : []) {
+        const cleanId = cleanText(id, 120);
+        if (!cleanId || !availableSet.has(cleanId) || seen.has(cleanId)) continue;
+        seen.add(cleanId);
+        result.push(cleanId);
+    }
+
+    for (const id of availableIds) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        result.push(id);
+    }
+
+    return result;
+}
+
+export function sortShortcutProfiles(commands = [], {
+    order = [],
+    pinnedIds = []
+} = {}) {
+    const list = Array.isArray(commands) ? [...commands] : [];
+    const normalizedOrder = normalizeShortcutProfileOrder(order, list);
+    const orderMap = new Map(normalizedOrder.map((id, index) => [id, index]));
+    const pinnedOrder = (Array.isArray(pinnedIds) ? pinnedIds : [])
+        .map((id) => cleanText(id, 120))
+        .filter(Boolean);
+    const pinnedMap = new Map(pinnedOrder.map((id, index) => [id, index]));
+
+    return list.sort((left, right) => {
+        const leftPinned = pinnedMap.has(left?.id);
+        const rightPinned = pinnedMap.has(right?.id);
+        if (leftPinned !== rightPinned) return leftPinned ? -1 : 1;
+        if (leftPinned && rightPinned) {
+            const delta = pinnedMap.get(left.id) - pinnedMap.get(right.id);
+            if (delta) return delta;
+        }
+        return (orderMap.get(left?.id) ?? Number.MAX_SAFE_INTEGER) -
+            (orderMap.get(right?.id) ?? Number.MAX_SAFE_INTEGER);
+    });
+}
+
+export function moveShortcutProfileOrder(order = [], commands = [], commandId = "", direction = "up") {
+    const normalized = normalizeShortcutProfileOrder(order, commands);
+    const id = cleanText(commandId, 120);
+    const index = normalized.indexOf(id);
+    const delta = direction === "down" ? 1 : -1;
+    const target = index + delta;
+
+    if (index < 0 || target < 0 || target >= normalized.length) {
+        return normalized;
+    }
+
+    const next = [...normalized];
+    [next[index], next[target]] = [next[target], next[index]];
+    return next;
+}
+
+export function buildShortcutProfilePreview(command = {}, {
+    sourceLabel = "Source non définie",
+    deviceLabel = "Appareil Spotify actif"
+} = {}) {
+    return {
+        sourceLabel: cleanText(sourceLabel, 180) || "Source non définie",
+        deviceLabel: cleanText(deviceLabel, 180) || "Appareil Spotify actif",
+        shuffleLabel: command.shuffle === false ? "Ordre normal" : "Aléatoire activé",
+        startLabel: command.startFromBeginning ? "Depuis le début" : "Départ intelligent",
+        drivingLabel: command.openDrivingMode ? "Mode conduite après lancement" : "Mode conduite désactivé",
+        dynamicLyricsLabel: command.openDynamicLyrics
+            ? "Dynamic Lyrics proposé manuellement après lancement"
+            : "Dynamic Lyrics non demandé"
+    };
+}

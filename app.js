@@ -359,9 +359,13 @@ import {
 
 import {
     buildShortcutProfileDiagnostic,
+    buildShortcutProfilePreview,
     claimShortcutLaunch,
     formatShortcutRunDuration,
-    normalizeShortcutHistorySteps
+    moveShortcutProfileOrder,
+    normalizeShortcutHistorySteps,
+    normalizeShortcutProfileOrder,
+    sortShortcutProfiles
 } from "./core/shortcut-profiles.js";
 
 import {
@@ -393,7 +397,8 @@ import {
 
 import {
     buildDailyHomeSnapshot,
-    renderDailyHomeMarkup
+    renderDailyHomeMarkup,
+    renderHomeNowPlayingUpcomingMarkup
 } from "./core/daily-home.js";
 
 import {
@@ -404,6 +409,7 @@ import {
 import {
     DEFAULT_HOME_LAYOUT,
     applyHomeLayoutPreset,
+    moveHomeLayoutBlock,
     normalizeHomeLayout
 } from "./core/home-layout.js";
 
@@ -827,6 +833,8 @@ const DEFAULT_IOS_QUICKPLAY_SETTINGS = {
 };
 const IOS_COMMANDS_KEY =
     "shuffleplus_ios_commands_v1";
+const IOS_COMMAND_ORDER_KEY =
+    "shuffleplus_ios_command_order_v1";
 const IOS_COMMAND_HISTORY_KEY =
     "shuffleplus_ios_command_history_v1";
 const PINNED_SHORTCUT_PROFILES_KEY =
@@ -955,7 +963,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.0.1-shell";
+    "shuffleplus-v11.2.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1681,10 +1689,12 @@ function saveHomeLayoutSettings() {
 function saveHomeLayoutSettingsFromForm(form) {
     const data = new FormData(form);
     const presetId = String(data.get("preset") || "balanced");
-    const withPreset = applyHomeLayoutPreset(
-        homeLayoutSettings,
-        presetId
-    );
+    const withPreset = presetId === "custom"
+        ? homeLayoutSettings
+        : applyHomeLayoutPreset(
+            homeLayoutSettings,
+            presetId
+        );
 
     homeLayoutSettings = normalizeHomeLayout({
         ...withPreset,
@@ -1709,6 +1719,17 @@ function resetHomeLayoutSettings() {
     saveHomeLayoutSettings();
     displayPlaylists(playlistsCache);
     showToast("↻ Disposition de l’accueil réinitialisée.", "success");
+}
+
+function moveHomeLayoutSettings(blockId, direction) {
+    homeLayoutSettings = moveHomeLayoutBlock(
+        homeLayoutSettings,
+        blockId,
+        direction
+    );
+    saveHomeLayoutSettings();
+    displayPlaylists(playlistsCache);
+    showToast("↕ Ordre de l’accueil mis à jour.", "success");
 }
 
 let currentUserId = "";
@@ -1855,6 +1876,7 @@ let lastWorkingSpotifyDevice =
 let iosQuickPlaySettings =
     readIosQuickPlaySettings();
 let iosCommands = readIosCommands();
+let iosCommandOrder = readIosCommandOrder(iosCommands);
 let pinnedShortcutProfileIds =
     readPinnedShortcutProfiles(iosCommands);
 let iosCommandHistory =
@@ -4036,6 +4058,30 @@ function getHomeNowPlayingSnapshot() {
     }).playback;
 }
 
+function updateHomeUpcomingPreviewDom() {
+    const container = document.querySelector(
+        '[data-app-menu-page="dashboard"] [data-home-upcoming-preview]'
+    );
+
+    if (!container) {
+        return false;
+    }
+
+    const snapshot = buildDailyHomeSnapshot({
+        playback: getEffectivePlaybackState(
+            quickPlaybackState || drivingPlaybackState
+        ),
+        queue: drivingQueueState.queue,
+        queueUpdatedAt: drivingQueueState.updatedAt,
+        homeLayout: homeLayoutSettings,
+        now: new Date()
+    });
+
+    container.innerHTML =
+        renderHomeNowPlayingUpcomingMarkup(snapshot);
+    return true;
+}
+
 function updateHomeNowPlayingDom() {
     const card = document.querySelector(
         '[data-app-menu-page="dashboard"] [data-home-now-playing]'
@@ -4061,6 +4107,40 @@ function updateHomeNowPlayingDom() {
         playback.album || playback.deviceName
     );
     setText("[data-home-now-duration]", playback.durationLabel);
+    setText(
+        "[data-home-now-device-name]",
+        playback.deviceType
+            ? `${playback.deviceName} · ${playback.deviceType}`
+            : playback.deviceName
+    );
+    setText(
+        "[data-home-now-device-state]",
+        playback.deviceActive ? "Actif" : "Spotify"
+    );
+
+    const shuffleState = card.querySelector(
+        "[data-home-shuffle-state]"
+    );
+    if (shuffleState) {
+        shuffleState.textContent =
+            `🔀 Aléatoire ${playback.shuffleActive ? "ON" : "OFF"}`;
+        shuffleState.classList.toggle(
+            "is-active",
+            playback.shuffleActive
+        );
+    }
+
+    const repeatState = card.querySelector(
+        "[data-home-repeat-state]"
+    );
+    if (repeatState) {
+        repeatState.textContent =
+            `🔁 Répétition ${playback.repeatLabel}`;
+        repeatState.classList.toggle(
+            "is-active",
+            playback.repeatMode !== "off"
+        );
+    }
 
     let cover = card.querySelector("[data-home-now-cover]");
     if (playback.imageUrl) {
@@ -4100,6 +4180,7 @@ function updateHomeNowPlayingDom() {
     }
 
     updateVisiblePlaybackButtons(Boolean(playback.isPlaying));
+    updateHomeUpcomingPreviewDom();
     return true;
 }
 
@@ -5623,6 +5704,7 @@ function renderHomePanel() {
         queueUpdatedAt: drivingQueueState.updatedAt,
         experienceMode,
         drivingAvailable: DRIVING_MODE_AVAILABLE,
+        dynamicLyricsEnabled: dynamicLyricsSettings.enabled,
         contextualSuggestion: getContextualProfileSuggestion(
             new Date()
         ),
@@ -6787,7 +6869,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.0.1",
+                "./service-worker.js?v=11.2.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -10708,6 +10790,9 @@ async function refreshDrivingQueue({
             payload,
             DRIVING_QUEUE_LIMIT
         );
+        if (activeAppMenu === "dashboard") {
+            updateHomeUpcomingPreviewDom();
+        }
         if (!silent) {
             setDrivingMessage(
                 `${drivingQueueState.queue.length} prochain(s) morceau(x) chargé(s).`,
@@ -14702,6 +14787,9 @@ function renderLaunchCenter() {
     const deviceLabel = command
         ? getShortcutProfileDeviceLabel(command)
         : "Aucun appareil configuré";
+    const favoriteCommands = getOrderedShortcutProfiles()
+        .filter((item) => pinnedShortcutProfileIds.includes(item.id))
+        .slice(0, 4);
 
     return `
         <section class="launch-center" aria-label="Centre de lancement Shuffle+">
@@ -14719,6 +14807,24 @@ function renderLaunchCenter() {
                     ${escapeHtml(diagnostic?.label || "À configurer")}
                 </span>
             </div>
+
+            ${favoriteCommands.length ? `
+                <div class="launch-center-favorites" aria-label="Profils favoris">
+                    <span>⭐ Lancement express</span>
+                    <div>
+                        ${favoriteCommands.map((favorite) => `
+                            <button
+                                type="button"
+                                class="ui-button ui-button--secondary"
+                                data-ios-command-action="run"
+                                data-ios-command-id="${escapeHtml(favorite.id)}"
+                            >
+                                ${escapeHtml(favorite.icon || "▶️")} ${escapeHtml(favorite.name)}
+                            </button>
+                        `).join("")}
+                    </div>
+                </div>
+            ` : ""}
 
             <div class="launch-center-actions">
                 <button
@@ -14826,7 +14932,8 @@ function renderShortcutProfilesDashboard() {
     const mixIds = savedMixes
         .map((mix) => mix?.id)
         .filter(Boolean);
-    const diagnostics = iosCommands.map((command) => ({
+    const orderedCommands = getOrderedShortcutProfiles();
+    const diagnostics = orderedCommands.map((command) => ({
         command,
         diagnostic: buildShortcutProfileDiagnostic(
             command,
@@ -14843,6 +14950,9 @@ function renderShortcutProfilesDashboard() {
     ).length;
     const successCount = diagnostics.filter(
         ({ diagnostic }) => diagnostic.lastRun?.status === "success"
+    ).length;
+    const favoriteCount = orderedCommands.filter(
+        (command) => pinnedShortcutProfileIds.includes(command.id)
     ).length;
 
     return `
@@ -14877,6 +14987,7 @@ function renderShortcutProfilesDashboard() {
             <div class="shortcut-profiles-summary">
                 <span><strong>${iosCommands.length}</strong> profils</span>
                 <span><strong>${readyCount}</strong> prêts</span>
+                <span><strong>${favoriteCount}</strong> favoris</span>
                 <span><strong>${successCount}</strong> déjà testés</span>
                 <span><strong>${iosCommandHistory.length}</strong> lancements mémorisés</span>
             </div>
@@ -14889,8 +15000,18 @@ function renderShortcutProfilesDashboard() {
                             const statusClass = diagnostic.status;
                             const sourceLabel = getShortcutProfileSourceLabel(command);
                             const url = buildIosCommandUrl(command);
+                            const isFavorite = pinnedShortcutProfileIds.includes(command.id);
+                            const preview = buildShortcutProfilePreview(command, {
+                                sourceLabel,
+                                deviceLabel: getShortcutProfileDeviceLabel(command)
+                            });
+                            const displayIndex = orderedCommands.findIndex((item) => item.id === command.id);
+                            const previous = orderedCommands[displayIndex - 1];
+                            const next = orderedCommands[displayIndex + 1];
+                            const canMoveUp = Boolean(previous) && pinnedShortcutProfileIds.includes(previous.id) === isFavorite;
+                            const canMoveDown = Boolean(next) && pinnedShortcutProfileIds.includes(next.id) === isFavorite;
                             return `
-                                <article class="shortcut-profile-card ${escapeHtml(statusClass)}">
+                                <article class="shortcut-profile-card ${escapeHtml(statusClass)} ${isFavorite ? "is-favorite" : ""}">
                                     <header>
                                         <span class="shortcut-profile-icon">${escapeHtml(command.icon || "▶️")}</span>
                                         <div>
@@ -14922,6 +15043,27 @@ function renderShortcutProfilesDashboard() {
                                     <div class="shortcut-profile-actions">
                                         <button
                                             type="button"
+                                            data-ios-command-action="pin"
+                                            data-ios-command-id="${escapeHtml(command.id)}"
+                                            aria-pressed="${isFavorite ? "true" : "false"}"
+                                            title="${isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}"
+                                        >${isFavorite ? "⭐" : "☆"}</button>
+                                        <button
+                                            type="button"
+                                            data-ios-command-action="move-up"
+                                            data-ios-command-id="${escapeHtml(command.id)}"
+                                            title="Monter le profil"
+                                            ${canMoveUp ? "" : "disabled"}
+                                        >↑</button>
+                                        <button
+                                            type="button"
+                                            data-ios-command-action="move-down"
+                                            data-ios-command-id="${escapeHtml(command.id)}"
+                                            title="Descendre le profil"
+                                            ${canMoveDown ? "" : "disabled"}
+                                        >↓</button>
+                                        <button
+                                            type="button"
                                             class="shortcut-profile-run"
                                             data-ios-command-action="run"
                                             data-ios-command-id="${escapeHtml(command.id)}"
@@ -14934,6 +15076,16 @@ function renderShortcutProfilesDashboard() {
                                         <button type="button" data-ios-command-action="duplicate" data-ios-command-id="${escapeHtml(command.id)}">📄 Dupliquer</button>
                                         <button type="button" data-ios-command-action="delete" data-ios-command-id="${escapeHtml(command.id)}">🗑️</button>
                                     </div>
+
+                                    <details class="shortcut-profile-preview">
+                                        <summary>👁 Aperçu avant lancement</summary>
+                                        <div class="shortcut-profile-preview-grid">
+                                            <span><strong>Source</strong>${escapeHtml(preview.sourceLabel)}</span>
+                                            <span><strong>Appareil</strong>${escapeHtml(preview.deviceLabel)}</span>
+                                            <span><strong>Lecture</strong>${escapeHtml(preview.shuffleLabel)} · ${escapeHtml(preview.startLabel)}</span>
+                                            <span><strong>Après lancement</strong>${escapeHtml(preview.drivingLabel)} · ${escapeHtml(preview.dynamicLyricsLabel)}</span>
+                                        </div>
+                                    </details>
 
                                     <details class="shortcut-profile-diagnostic">
                                         <summary>
@@ -22390,6 +22542,71 @@ function saveIosCommands() {
             error
         );
     }
+
+    if (typeof iosCommandOrder !== "undefined") {
+        syncIosCommandOrder();
+    }
+}
+
+function readIosCommandOrder(commands = []) {
+    try {
+        const raw = localStorage.getItem(IOS_COMMAND_ORDER_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return normalizeShortcutProfileOrder(parsed, commands);
+    } catch (error) {
+        console.warn("Ordre des profils iOS illisible :", error);
+        return normalizeShortcutProfileOrder([], commands);
+    }
+}
+
+function saveIosCommandOrder() {
+    try {
+        localStorage.setItem(
+            IOS_COMMAND_ORDER_KEY,
+            JSON.stringify(iosCommandOrder)
+        );
+    } catch (error) {
+        console.warn("Ordre des profils iOS non enregistré :", error);
+    }
+}
+
+function syncIosCommandOrder() {
+    iosCommandOrder = normalizeShortcutProfileOrder(
+        iosCommandOrder,
+        iosCommands
+    );
+    saveIosCommandOrder();
+}
+
+function getOrderedShortcutProfiles() {
+    return sortShortcutProfiles(iosCommands, {
+        order: iosCommandOrder,
+        pinnedIds: pinnedShortcutProfileIds
+    });
+}
+
+function moveIosCommand(commandId = "", direction = "up") {
+    const displayed = getOrderedShortcutProfiles();
+    const current = displayed.findIndex((command) => command?.id === commandId);
+    if (current < 0) return;
+
+    const currentPinned = pinnedShortcutProfileIds.includes(commandId);
+    const delta = direction === "down" ? 1 : -1;
+    const target = current + delta;
+    if (target < 0 || target >= displayed.length) return;
+    const targetId = displayed[target]?.id || "";
+    if (pinnedShortcutProfileIds.includes(targetId) !== currentPinned) return;
+
+    const displayedOrder = displayed.map((command) => command.id);
+    const moved = moveShortcutProfileOrder(
+        displayedOrder,
+        displayed,
+        commandId,
+        direction
+    );
+    iosCommandOrder = normalizeShortcutProfileOrder(moved, iosCommands);
+    saveIosCommandOrder();
+    displayPlaylists(playlistsCache);
 }
 
 function readPinnedShortcutProfiles(commands = []) {
@@ -45869,6 +46086,17 @@ contentElement.addEventListener(
             return;
         }
 
+        const homeMoveBlockButton = event.target.closest(
+            "[data-home-move-block]"
+        );
+        if (homeMoveBlockButton) {
+            moveHomeLayoutSettings(
+                homeMoveBlockButton.dataset.homeMoveBlock || "",
+                homeMoveBlockButton.dataset.homeMoveDirection || ""
+            );
+            return;
+        }
+
         const homeRunProfileButton = event.target.closest(
             "[data-home-run-profile]"
         );
@@ -45894,6 +46122,11 @@ contentElement.addEventListener(
             librarySearchTerm = "";
             saveLibraryPreferences();
             await navigateToAppMenu("music");
+            return;
+        }
+
+        if (event.target.closest("[data-home-open-dynamic-lyrics]")) {
+            openDynamicLyricsTestShortcut();
             return;
         }
 
@@ -47464,6 +47697,10 @@ contentElement.addEventListener(
                 await runShortcutProfileById(commandId);
             } else if (action === "pin") {
                 togglePinnedShortcutProfile(commandId);
+            } else if (action === "move-up") {
+                moveIosCommand(commandId, "up");
+            } else if (action === "move-down") {
+                moveIosCommand(commandId, "down");
             } else if (action === "copy") {
                 await copyIosCommandUrl(
                     commandId

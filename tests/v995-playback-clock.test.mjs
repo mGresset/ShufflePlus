@@ -27,8 +27,8 @@ function playback({
     };
 }
 
-test("la correction active annonce Shuffle+ 11.0.1", () => {
-    assert.equal(version, "11.0.1");
+test("la correction active annonce Shuffle+ 11.2.0", () => {
+    assert.equal(version, "11.2.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 
