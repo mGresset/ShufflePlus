@@ -1,6 +1,6 @@
 {
   "name": "shuffleplus-sync-server",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "private": true,
   "description": "Serveur opaque de synchronisation chiffrée et de résultats asynchrones authentifiés pour Shuffle+",
   "type": "module",

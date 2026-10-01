@@ -1,4 +1,4 @@
-# Serveur Shuffle+ v5.2
+# Serveur Shuffle+ v5.2.1
 
 Serveur Node.js sans dépendance externe. Il transporte les enveloppes de synchronisation déjà chiffrées dans le navigateur et héberge les résultats temporaires des lancements Apple Raccourcis.
 
@@ -33,6 +33,12 @@ Un GET retourne :
 - HTTP 200 avec `status: success`, `error` ou `cancel` lorsque le résultat est final.
 
 L’identifiant doit être un UUID imprévisible généré pour chaque exécution. Il agit comme une capacité d’accès au résultat et ne doit pas être réutilisé.
+
+## Fiabilité v5.2.1
+
+Les opérations d’un même espace sont sérialisées en mémoire pendant le traitement d’une requête. Le contrôle de `baseRevision`, la mise à jour et l’écriture disque sont donc exécutés dans le même verrou logique. Les écritures JSON utilisent un fichier temporaire unique puis un `rename` atomique.
+
+Deux `PUT /state` concurrents basés sur la même révision produisent exactement un succès et un conflit HTTP 409 ; le test serveur couvre ce scénario.
 
 ## Données persistantes
 

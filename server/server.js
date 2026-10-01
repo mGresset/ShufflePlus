@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "5.2.0";
+const VERSION = "5.2.1";
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
 const MAX_BODY_BYTES = Number(
@@ -38,6 +38,7 @@ const RATE_MAX = Number(
     process.env.SHUFFLEPLUS_RATE_LIMIT || 180
 );
 const rateBuckets = new Map();
+const resourceLocks = new Map();
 let nextRateBucketSweepAt = 0;
 const MAX_RATE_BUCKETS = 10_000;
 
@@ -166,15 +167,54 @@ async function readLaunchResult(requestId) {
     }
 }
 
+async function atomicWriteJson(filename, value) {
+    const payload = JSON.stringify(value, null, 2);
+    const temp = `${filename}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    try {
+        await fs.writeFile(
+            temp,
+            payload,
+            { mode: 0o600, flag: "wx" }
+        );
+        await fs.rename(temp, filename);
+    } finally {
+        await fs.unlink(temp).catch(() => {});
+    }
+}
+
+async function withResourceLock(key, task) {
+    const previous = resourceLocks.get(key) || Promise.resolve();
+    let release;
+    const current = new Promise((resolve) => {
+        release = resolve;
+    });
+    resourceLocks.set(key, current);
+
+    await previous.catch(() => {});
+    try {
+        return await task();
+    } finally {
+        release();
+        if (resourceLocks.get(key) === current) {
+            resourceLocks.delete(key);
+        }
+    }
+}
+
+async function withSpaceLock(spaceId, task) {
+    return withResourceLock(`space:${spaceId}`, task);
+}
+
 async function writeLaunchRecord(filename, record, { exclusive = false } = {}) {
-    const payload = JSON.stringify(record, null, 2);
     if (exclusive) {
-        await fs.writeFile(filename, payload, { mode: 0o600, flag: "wx" });
+        await fs.writeFile(
+            filename,
+            JSON.stringify(record, null, 2),
+            { mode: 0o600, flag: "wx" }
+        );
         return;
     }
-    const temp = `${filename}.${process.pid}.${Date.now()}.tmp`;
-    await fs.writeFile(temp, payload, { mode: 0o600 });
-    await fs.rename(temp, filename);
+    await atomicWriteJson(filename, record);
 }
 
 async function ensureLaunchResultReservation(requestId, token) {
@@ -280,14 +320,7 @@ async function readSpace(spaceId) {
 }
 
 async function writeSpace(space) {
-    const filename = spaceFile(space.id);
-    const temp = `${filename}.${process.pid}.${Date.now()}.tmp`;
-    await fs.writeFile(
-        temp,
-        JSON.stringify(space, null, 2),
-        { mode: 0o600 }
-    );
-    await fs.rename(temp, filename);
+    await atomicWriteJson(spaceFile(space.id), space);
 }
 
 function json(res, status, payload) {
@@ -563,44 +596,56 @@ const server = http.createServer(
             ) {
                 const requestId = parts[2];
                 const launchToken = readLaunchToken(req, requestUrl);
+                const body = req.method === "POST"
+                    ? await readJson(req)
+                    : null;
 
-                if (req.method === "GET") {
-                    const record = await ensureLaunchResultReservation(
-                        requestId,
-                        launchToken
-                    );
-                    const status = record.result?.status || "pending";
-                    return json(
-                        res,
-                        ["pending", "running"].includes(status) ? 202 : 200,
-                        {
-                            requestId,
-                            ...record.result,
-                            expiresAt: new Date(record.expiresAt).toISOString(),
-                            retryAfterMs: ["pending", "running"].includes(status) ? 1000 : 0
+                return await withResourceLock(
+                    `launch:${requestId}`,
+                    async () => {
+                        if (req.method === "GET") {
+                            const record = await ensureLaunchResultReservation(
+                                requestId,
+                                launchToken
+                            );
+                            const status = record.result?.status || "pending";
+                            return json(
+                                res,
+                                ["pending", "running"].includes(status) ? 202 : 200,
+                                {
+                                    requestId,
+                                    ...record.result,
+                                    expiresAt: new Date(record.expiresAt).toISOString(),
+                                    retryAfterMs: ["pending", "running"].includes(status) ? 1000 : 0
+                                }
+                            );
                         }
-                    );
-                }
 
-                if (req.method === "POST") {
-                    const body = await readJson(req);
-                    const record = await writeLaunchResult(
-                        requestId,
-                        launchToken,
-                        body
-                    );
-                    cleanupExpiredLaunchResults().catch(() => {});
-                    return json(
-                        res,
-                        record.result.status === "running" ? 202 : 201,
-                        {
-                            accepted: true,
-                            requestId,
-                            status: record.result.status,
-                            expiresAt: new Date(record.expiresAt).toISOString()
+                        if (req.method === "POST") {
+                            const record = await writeLaunchResult(
+                                requestId,
+                                launchToken,
+                                body
+                            );
+                            cleanupExpiredLaunchResults().catch(() => {});
+                            return json(
+                                res,
+                                record.result.status === "running" ? 202 : 201,
+                                {
+                                    accepted: true,
+                                    requestId,
+                                    status: record.result.status,
+                                    expiresAt: new Date(record.expiresAt).toISOString()
+                                }
+                            );
                         }
-                    );
-                }
+
+                        return json(res, 405, {
+                            error: "method_not_allowed",
+                            message: "Méthode non autorisée."
+                        });
+                    }
+                );
             }
 
             if (
@@ -658,35 +703,38 @@ const server = http.createServer(
                 parts[3] === "join" &&
                 req.method === "POST"
             ) {
-                const space = await readSpace(parts[2]);
+                const spaceId = parts[2];
                 const body = await readJson(req);
-                verifyRoot(space, body.rootAuthHash);
-                const installation = normalizeInstallation({
-                    ...body.installation,
-                    appVersion: body.appVersion
-                });
-                const deviceToken = randomToken(32);
-                const now = Date.now();
-                space.devices[installation.id] = {
-                    installationId: installation.id,
-                    label: installation.label,
-                    appVersion: installation.appVersion,
-                    tokenHash: sha256(deviceToken),
-                    createdAt:
-                        space.devices[installation.id]?.createdAt || now,
-                    lastSeenAt: now,
-                    lastPushAt:
-                        space.devices[installation.id]?.lastPushAt || 0,
-                    revokedAt: 0
-                };
-                space.updatedAt = now;
-                await writeSpace(space);
-                return json(res, 200, {
-                    spaceId: space.id,
-                    deviceToken,
-                    revision: space.revision,
-                    hasState: Boolean(space.state),
-                    serverTime: nowIso()
+                return await withSpaceLock(spaceId, async () => {
+                    const space = await readSpace(spaceId);
+                    verifyRoot(space, body.rootAuthHash);
+                    const installation = normalizeInstallation({
+                        ...body.installation,
+                        appVersion: body.appVersion
+                    });
+                    const deviceToken = randomToken(32);
+                    const now = Date.now();
+                    space.devices[installation.id] = {
+                        installationId: installation.id,
+                        label: installation.label,
+                        appVersion: installation.appVersion,
+                        tokenHash: sha256(deviceToken),
+                        createdAt:
+                            space.devices[installation.id]?.createdAt || now,
+                        lastSeenAt: now,
+                        lastPushAt:
+                            space.devices[installation.id]?.lastPushAt || 0,
+                        revokedAt: 0
+                    };
+                    space.updatedAt = now;
+                    await writeSpace(space);
+                    return json(res, 200, {
+                        spaceId: space.id,
+                        deviceToken,
+                        revision: space.revision,
+                        hasState: Boolean(space.state),
+                        serverTime: nowIso()
+                    });
                 });
             }
 
@@ -697,18 +745,20 @@ const server = http.createServer(
                 req.method === "DELETE"
             ) {
                 const spaceId = parts[2];
-                const space = await readSpace(spaceId);
-                authenticate(space, req);
-                verifyRoot(
-                    space,
-                    req.headers[
-                        "x-shuffleplus-root-auth"
-                    ] || ""
-                );
-                await fs.unlink(spaceFile(spaceId));
-                return json(res, 200, {
-                    deleted: true,
-                    spaceId
+                return await withSpaceLock(spaceId, async () => {
+                    const space = await readSpace(spaceId);
+                    authenticate(space, req);
+                    verifyRoot(
+                        space,
+                        req.headers[
+                            "x-shuffleplus-root-auth"
+                        ] || ""
+                    );
+                    await fs.unlink(spaceFile(spaceId));
+                    return json(res, 200, {
+                        deleted: true,
+                        spaceId
+                    });
                 });
             }
 
@@ -719,146 +769,155 @@ const server = http.createServer(
             ) {
                 const spaceId = parts[2];
                 const resource = parts[3];
-                const space = await readSpace(spaceId);
-                const device = authenticate(space, req);
+                const body = resource === "state" && req.method === "PUT"
+                    ? await readJson(req)
+                    : null;
 
-                if (
-                    resource === "state" &&
-                    req.method === "GET"
-                ) {
-                    const afterRevision = Math.max(
-                        0,
-                        Number(
-                            requestUrl.searchParams.get(
-                                "afterRevision"
-                            ) || 0
-                        )
-                    );
-                    await writeSpace(space);
+                return await withSpaceLock(spaceId, async () => {
+                    const space = await readSpace(spaceId);
+                    const device = authenticate(space, req);
+
                     if (
-                        !space.state ||
-                        space.revision <= afterRevision
+                        resource === "state" &&
+                        req.method === "GET"
                     ) {
-                        return empty(res);
-                    }
-                    return json(res, 200, {
-                        revision: space.revision,
-                        envelope: space.state.envelope,
-                        fingerprint: space.state.fingerprint,
-                        dataUpdatedAt: space.state.dataUpdatedAt,
-                        updatedAt: space.state.updatedAt,
-                        sourceInstallation:
-                            space.state.sourceInstallation
-                    });
-                }
-
-                if (
-                    resource === "state" &&
-                    req.method === "PUT"
-                ) {
-                    const body = await readJson(req);
-                    const baseRevision = Math.max(
-                        0,
-                        Number(body.baseRevision || 0)
-                    );
-                    if (baseRevision !== space.revision) {
+                        const afterRevision = Math.max(
+                            0,
+                            Number(
+                                requestUrl.searchParams.get(
+                                    "afterRevision"
+                                ) || 0
+                            )
+                        );
                         await writeSpace(space);
-                        return json(res, 409, {
-                            error: "revision_conflict",
-                            message:
-                                "Une révision plus récente existe sur le serveur.",
+                        if (
+                            !space.state ||
+                            space.revision <= afterRevision
+                        ) {
+                            return empty(res);
+                        }
+                        return json(res, 200, {
                             revision: space.revision,
-                            fingerprint:
-                                space.state?.fingerprint || "",
-                            dataUpdatedAt:
-                                space.state?.dataUpdatedAt || ""
+                            envelope: space.state.envelope,
+                            fingerprint: space.state.fingerprint,
+                            dataUpdatedAt: space.state.dataUpdatedAt,
+                            updatedAt: space.state.updatedAt,
+                            sourceInstallation:
+                                space.state.sourceInstallation
                         });
                     }
-                    const envelope = validateEnvelope(
-                        body.envelope
-                    );
-                    const now = Date.now();
-                    space.revision += 1;
-                    space.updatedAt = now;
-                    space.state = {
-                        envelope,
-                        fingerprint:
-                            String(body.fingerprint || "")
-                                .slice(0, 120),
-                        dataUpdatedAt:
-                            String(body.dataUpdatedAt || "")
-                                .slice(0, 80),
-                        sourceInstallation: {
-                            id: String(
-                                body.sourceInstallation?.id ||
-                                device.installationId
-                            ).slice(0, 120),
-                            label: String(
-                                body.sourceInstallation?.label ||
-                                device.label
-                            ).slice(0, 80)
-                        },
-                        appVersion:
-                            String(body.appVersion || "")
-                                .slice(0, 40),
-                        updatedAt: now
-                    };
-                    device.lastPushAt = now;
-                    await writeSpace(space);
-                    return json(res, 200, {
-                        revision: space.revision,
-                        acceptedFingerprint:
-                            space.state.fingerprint,
-                        serverTime: nowIso()
-                    });
-                }
 
-                if (
-                    resource === "devices" &&
-                    parts.length === 4 &&
-                    req.method === "GET"
-                ) {
-                    await writeSpace(space);
-                    return json(res, 200, {
-                        devices: Object.values(space.devices)
-                            .filter((item) => !item.revokedAt)
-                            .map(publicDevice)
-                            .sort(
-                                (a, b) =>
-                                    b.lastSeenAt - a.lastSeenAt
-                            )
-                    });
-                }
-
-                if (
-                    resource === "devices" &&
-                    parts.length === 5 &&
-                    req.method === "DELETE"
-                ) {
-                    const targetId = parts[4];
-                    const target = space.devices[targetId];
-                    if (!target || target.revokedAt) {
-                        throw Object.assign(
-                            new Error("Appareil introuvable."),
-                            { status: 404 }
+                    if (
+                        resource === "state" &&
+                        req.method === "PUT"
+                    ) {
+                        const baseRevision = Math.max(
+                            0,
+                            Number(body.baseRevision || 0)
                         );
-                    }
-                    if (targetId === device.installationId) {
-                        throw Object.assign(
-                            new Error(
-                                "Un appareil ne peut pas se révoquer lui-même par cette route."
-                            ),
-                            { status: 400 }
+                        if (baseRevision !== space.revision) {
+                            await writeSpace(space);
+                            return json(res, 409, {
+                                error: "revision_conflict",
+                                message:
+                                    "Une révision plus récente existe sur le serveur.",
+                                revision: space.revision,
+                                fingerprint:
+                                    space.state?.fingerprint || "",
+                                dataUpdatedAt:
+                                    space.state?.dataUpdatedAt || ""
+                            });
+                        }
+                        const envelope = validateEnvelope(
+                            body.envelope
                         );
+                        const now = Date.now();
+                        space.revision += 1;
+                        space.updatedAt = now;
+                        space.state = {
+                            envelope,
+                            fingerprint:
+                                String(body.fingerprint || "")
+                                    .slice(0, 120),
+                            dataUpdatedAt:
+                                String(body.dataUpdatedAt || "")
+                                    .slice(0, 80),
+                            sourceInstallation: {
+                                id: String(
+                                    body.sourceInstallation?.id ||
+                                    device.installationId
+                                ).slice(0, 120),
+                                label: String(
+                                    body.sourceInstallation?.label ||
+                                    device.label
+                                ).slice(0, 80)
+                            },
+                            appVersion:
+                                String(body.appVersion || "")
+                                    .slice(0, 40),
+                            updatedAt: now
+                        };
+                        device.lastPushAt = now;
+                        await writeSpace(space);
+                        return json(res, 200, {
+                            revision: space.revision,
+                            acceptedFingerprint:
+                                space.state.fingerprint,
+                            serverTime: nowIso()
+                        });
                     }
-                    target.revokedAt = Date.now();
-                    space.updatedAt = Date.now();
-                    await writeSpace(space);
-                    return json(res, 200, {
-                        revokedInstallationId: targetId
-                    });
-                }
 
+                    if (
+                        resource === "devices" &&
+                        parts.length === 4 &&
+                        req.method === "GET"
+                    ) {
+                        await writeSpace(space);
+                        return json(res, 200, {
+                            devices: Object.values(space.devices)
+                                .filter((item) => !item.revokedAt)
+                                .map(publicDevice)
+                                .sort(
+                                    (a, b) =>
+                                        b.lastSeenAt - a.lastSeenAt
+                                )
+                        });
+                    }
+
+                    if (
+                        resource === "devices" &&
+                        parts.length === 5 &&
+                        req.method === "DELETE"
+                    ) {
+                        const targetId = parts[4];
+                        const target = space.devices[targetId];
+                        if (!target || target.revokedAt) {
+                            throw Object.assign(
+                                new Error("Appareil introuvable."),
+                                { status: 404 }
+                            );
+                        }
+                        if (targetId === device.installationId) {
+                            throw Object.assign(
+                                new Error(
+                                    "Un appareil ne peut pas se révoquer lui-même par cette route."
+                                ),
+                                { status: 400 }
+                            );
+                        }
+                        target.revokedAt = Date.now();
+                        space.updatedAt = Date.now();
+                        await writeSpace(space);
+                        return json(res, 200, {
+                            revokedInstallationId: targetId
+                        });
+                    }
+
+                    return json(res, 404, {
+                        error: "not_found",
+                        message: "Ressource Shuffle+ inconnue."
+                    });
+                });
             }
 
             return json(res, 404, {

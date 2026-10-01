@@ -1,4 +1,4 @@
-# Déploiement du serveur Shuffle+ v5.0
+# Déploiement du serveur Shuffle+ v5.2.1
 
 ## 1. Héberger le dossier `server`
 
@@ -16,7 +16,7 @@ Ouvrir :
 https://VOTRE-SERVEUR/health
 ```
 
-La réponse doit contenir `status: ok` et `version: 5.0.0`.
+La réponse doit contenir `status: ok` et `version: 5.2.1`.
 
 ## 3. Relier Shuffle+
 
@@ -40,6 +40,13 @@ La clé de chiffrement reste dans les navigateurs. Le serveur conserve uniquemen
 Le code SP5 contient la clé : il doit être traité comme un mot de passe principal.
 
 
-## Canal de résultat des raccourcis — v5.2
+## Canal de résultat des raccourcis — v5.2.1
 
-Le serveur exige maintenant un `ResultToken` aléatoire distinct du `requestId`. Aucune nouvelle variable Railway n’est requise. Après le déploiement du serveur v5.2, le raccourci iPhone doit être mis à jour selon `GUIDE-RACCOURCI.md`.
+Le serveur exige maintenant un `ResultToken` aléatoire distinct du `requestId`. Aucune nouvelle variable Railway n’est requise. Après le déploiement du serveur v5.2.1, le raccourci iPhone doit être mis à jour selon `GUIDE-RACCOURCI.md`.
+
+
+## Fiabilité des écritures — v5.2.1
+
+La v5.2.1 sérialise les opérations qui ciblent un même espace de synchronisation. Deux appareils qui poussent simultanément la même `baseRevision` ne peuvent plus être acceptés ensemble : une requête est validée et l’autre reçoit un conflit HTTP 409 avec la révision réellement persistée.
+
+Les fichiers JSON sont maintenant écrits via un fichier temporaire unique basé sur `crypto.randomUUID()`, puis remplacés atomiquement. Aucune nouvelle variable Railway n’est requise.

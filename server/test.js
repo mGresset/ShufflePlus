@@ -204,6 +204,75 @@ try {
         throw new Error("Pull échoué");
     }
 
+    const concurrentFingerprints = [
+        "concurrent-first",
+        "concurrent-second"
+    ];
+    const concurrentPushes = await Promise.all(
+        concurrentFingerprints.map((fingerprint) =>
+            request(
+                `/v1/spaces/${spaceId}/state`,
+                {
+                    method: "PUT",
+                    headers: authA,
+                    body: JSON.stringify({
+                        baseRevision: 1,
+                        envelope,
+                        fingerprint,
+                        dataUpdatedAt: new Date().toISOString(),
+                        sourceInstallation: {
+                            id: "installation-test-a",
+                            label: "Test A"
+                        }
+                    })
+                }
+            )
+        )
+    );
+    const concurrentStatuses = concurrentPushes
+        .map(({ response }) => response.status)
+        .sort((a, b) => a - b);
+    if (
+        concurrentStatuses.length !== 2 ||
+        concurrentStatuses[0] !== 200 ||
+        concurrentStatuses[1] !== 409
+    ) {
+        throw new Error(
+            `Concurrence de révision incorrecte : ${concurrentStatuses.join(",")}`
+        );
+    }
+
+    const acceptedConcurrentPush = concurrentPushes.find(
+        ({ response }) => response.status === 200
+    );
+    const rejectedConcurrentPush = concurrentPushes.find(
+        ({ response }) => response.status === 409
+    );
+    if (
+        acceptedConcurrentPush?.data?.revision !== 2 ||
+        !concurrentFingerprints.includes(
+            acceptedConcurrentPush?.data?.acceptedFingerprint
+        ) ||
+        rejectedConcurrentPush?.data?.revision !== 2
+    ) {
+        throw new Error("Résultat de concurrence incohérent");
+    }
+
+    const pulledAfterConcurrentPush = await request(
+        `/v1/spaces/${spaceId}/state?afterRevision=1`,
+        { headers: authA }
+    );
+    if (
+        pulledAfterConcurrentPush.response.status !== 200 ||
+        pulledAfterConcurrentPush.data.revision !== 2 ||
+        pulledAfterConcurrentPush.data.fingerprint !==
+            acceptedConcurrentPush.data.acceptedFingerprint
+    ) {
+        throw new Error(
+            "Le serveur n’a pas persisté la révision concurrente qu’il a acceptée"
+        );
+    }
+
     const joined = await request(
         `/v1/spaces/${spaceId}/join`,
         {
@@ -271,7 +340,7 @@ try {
         throw new Error("Suppression espace échouée");
     }
 
-    console.log("Tests serveur Shuffle+ v5.2 : OK");
+    console.log("Tests serveur Shuffle+ v5.2.1 : OK");
 } finally {
     child.kill("SIGTERM");
     await fs.rm(dataDir, {

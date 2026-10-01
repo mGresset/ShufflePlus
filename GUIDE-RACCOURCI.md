@@ -2,7 +2,7 @@
 
 ## Préparation dans Shuffle+
 
-1. Déploie Shuffle+ **v11.3.0** et le serveur Railway **v5.2.0**.
+1. Déploie Shuffle+ **v11.3.1** et le serveur Railway **v5.2.1**.
 2. Dans **Réglages > Synchronisation serveur**, vérifie que l’adresse Railway est enregistrée.
 3. Dans **Créer > Centre de commandes iOS**, copie l’URL du profil.
 4. Vérifie que l’URL contient `resultServer=`.
@@ -92,7 +92,7 @@ Shuffle+ n’a pas répondu dans le délai prévu.
 - **401** : `ResultToken` est absent ou mal formé ;
 - **403** : le `ResultToken` ne correspond pas à celui qui a réservé ce `requestId` ;
 - `pending` pendant trente secondes : vérifier que l’URL Shuffle+ contient `requestId`, `resultToken` et `resultServer` ;
-- erreur 404 : vérifier que Railway exécute bien le serveur **v5.2.0** ;
+- erreur 404 : vérifier que Railway exécute bien le serveur **v5.2.1** ;
 - erreur CORS dans Shuffle+ : vérifier `SHUFFLEPLUS_ALLOWED_ORIGINS` ;
 - résultat perdu après un redéploiement : vérifier le volume et `SHUFFLEPLUS_DATA_DIR` ;
 - l’iPhone enregistré est absent : Shuffle+ annule le lancement sans basculer sur un autre appareil.
@@ -114,6 +114,6 @@ Le protocole ne change pas : `RequestId` et `ResultToken` restent obligatoires p
 
 ## Dynamic Lyrics Auto‑Sync
 
-Si l’intégration Dynamic Lyrics est activée, Shuffle+ 11.3.0 peut surveiller le morceau Spotify. Il ne relance toutefois plus le raccourci compagnon à chaque nouveau titre : iOS affiche une confirmation pour chaque URL `shortcuts://` ouverte automatiquement par une PWA. Dynamic Lyrics doit donc assurer le suivi courant via sa connexion Spotify native. Le bouton **Resynchroniser manuellement** reste disponible si nécessaire.
+Si l’intégration Dynamic Lyrics est activée, Shuffle+ 11.3.1 peut surveiller le morceau Spotify. Il ne relance toutefois plus le raccourci compagnon à chaque nouveau titre : iOS affiche une confirmation pour chaque URL `shortcuts://` ouverte automatiquement par une PWA. Dynamic Lyrics doit donc assurer le suivi courant via sa connexion Spotify native. Le bouton **Resynchroniser manuellement** reste disponible si nécessaire.
 
 Le bouton **Resynchroniser maintenant** permet de forcer une relance du raccourci compagnon pour le morceau courant.

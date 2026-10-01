@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v11.3.1 — Fiabilité Railway et écritures atomiques : terminée**
 - **v11.3.0 — Mode Conduite V2 : terminée**
 
 - **v8.0.0 — Version publique simplifiée : terminée**

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.3.0",
+  "version": "11.3.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.3.0 — Profils favoris, lancement express, ordre persistant et aperçu avant exécution.",
+  "description": "Shuffle+ 11.3.1 — Correctif de concurrence Railway et écritures de synchronisation atomiques.",
   "engines": {
     "node": ">=20"
   },

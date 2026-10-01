@@ -1,4 +1,15 @@
 # Changelog Shuffle+
+## 11.3.1 — Fiabilité de synchronisation Railway
+
+- sérialise les opérations concurrentes par espace de synchronisation afin que le contrôle `baseRevision` et l’écriture forment une opération indivisible ;
+- remplace les fichiers temporaires basés sur `Date.now()` par des noms uniques `crypto.randomUUID()` et une écriture JSON atomique ;
+- sérialise également les lectures/écritures d’un même résultat de lancement Apple Raccourcis ;
+- ajoute un test d’intégration qui envoie deux `PUT` simultanés sur la même révision et exige exactement un `200` et un `409` ;
+- garantit que l’empreinte annoncée comme acceptée est bien celle réellement persistée puis relue ;
+- serveur Railway incrémenté en **v5.2.1**, sans nouvelle variable d’environnement ;
+- aucun changement d’interface, de moteur Spotify ou de comportement des profils de lancement.
+
+
 ## 11.3.0 — Mode Conduite V2
 
 - lecture en cours agrandie et appareil Spotify plus visible ;

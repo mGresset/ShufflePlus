@@ -65,7 +65,7 @@ const expectedTexts = [
     ["index.html", index, `./update-guard.js`],
     ["app.js", app, `const APP_VERSION = CONFIG.version;`],
     ["server/server.js", server, 'requestUrl.pathname === "/health"'],
-    ["server/server.js", server, 'const VERSION = "5.2.0"'],
+    ["server/server.js", server, 'const VERSION = "5.2.1"'],
     ["server/server.js", server, "ensureLaunchResultReservation"],
     ["server/server.js", server, "tokenHash: sha256(token)"]
 ];

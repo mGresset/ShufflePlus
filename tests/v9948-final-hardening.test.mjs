@@ -14,8 +14,8 @@ const [
     manifest
 ] = await Promise.all([
     readFile(new URL("../VERSION", import.meta.url), "utf8").then((value) => value.trim()),
-    readFile(new URL("../bootstrap-11.3.0.js", import.meta.url), "utf8"),
-    readFile(new URL("../startup-recovery-11.3.0.js", import.meta.url), "utf8"),
+    readFile(new URL("../bootstrap-11.3.1.js", import.meta.url), "utf8"),
+    readFile(new URL("../startup-recovery-11.3.1.js", import.meta.url), "utf8"),
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../core/security-policy.js", import.meta.url), "utf8"),
     readFile(new URL("../core/shortcut-result-channel.js", import.meta.url), "utf8"),
@@ -24,8 +24,8 @@ const [
     readFile(new URL("../manifest.webmanifest", import.meta.url), "utf8")
 ]);
 
-test("11.3.0 limite la réparation PWA au scope Shuffle+ exact", () => {
-    assert.equal(version, "11.3.0");
+test("11.3.1 limite la réparation PWA au scope Shuffle+ exact", () => {
+    assert.equal(version, "11.3.1");
     for (const source of [bootstrap, recovery]) {
         assert.match(source, /const shufflePlusScope = new URL\("\.\/", window\.location\.href\)\.href;/);
         assert.match(source, /registration\.scope === shufflePlusScope/);
@@ -33,7 +33,7 @@ test("11.3.0 limite la réparation PWA au scope Shuffle+ exact", () => {
     }
 });
 
-test("11.3.0 borne connect-src aux services réellement utilisés", () => {
+test("11.3.1 borne connect-src aux services réellement utilisés", () => {
     assert.match(index, /connect-src 'self' https:\/\/accounts\.spotify\.com https:\/\/api\.spotify\.com https:\/\/\*\.up\.railway\.app;/);
     assert.doesNotMatch(index, /connect-src 'self' https:;/);
     assert.match(securityPolicy, /https:\/\/\*\.up\.railway\.app/);
@@ -46,7 +46,7 @@ test("le canal de résultat exige un ResultToken distinct", () => {
 });
 
 test("Railway 5.2 réserve le canal avec une empreinte du jeton", () => {
-    assert.match(server, /const VERSION = "5\.2\.0";/);
+    assert.match(server, /const VERSION = "5\.2\.1";/);
     assert.match(server, /tokenHash: sha256\(token\)/);
     assert.match(server, /ensureLaunchResultReservation/);
     assert.match(server, /flag: "wx"/);

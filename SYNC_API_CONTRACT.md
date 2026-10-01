@@ -149,3 +149,10 @@ Le sous-dossier `server/` implémente réellement :
 - `GET /health`
 
 Le serveur utilise un jeton révocable par installation. Le secret racine n’est jamais envoyé ; seule son empreinte SHA-256 sert à autoriser l’ajout d’un nouvel appareil. Les enveloppes de données sont chiffrées par le navigateur avec la clé contenue dans le code SP5.
+
+
+## Garantie de concurrence v5.2.1
+
+Pour `PUT /v1/spaces/{spaceId}/state`, le serveur sérialise désormais toutes les opérations visant un même `spaceId`. La lecture de la révision courante, la comparaison de `baseRevision`, l’incrément et l’écriture disque sont traités comme une section critique unique.
+
+Si deux clients envoient simultanément la même `baseRevision`, un seul push peut être accepté. Le second reçoit HTTP 409 avec la révision et l’empreinte déjà persistées. Les écritures JSON passent par un fichier temporaire unique puis un renommage atomique afin d’éviter toute collision de nom temporaire.

@@ -32,6 +32,6 @@ git push origin main
 
 ## Railway et raccourci iPhone
 
-Shuffle+ 11.2.0 conserve le serveur Railway **v5.2.0**. Vérifier qu’il est déployé avant de valider le raccourci. Aucune nouvelle variable Railway n’est nécessaire.
+Shuffle+ 11.3.1 utilise le serveur Railway **v5.2.1**. Vérifier qu’il est déployé avant de valider le raccourci. Aucune nouvelle variable Railway n’est nécessaire.
 
 Les anciens raccourcis iPhone sans `ResultToken` peuvent être migrés sans être recréés. Utiliser **Créer > Centre de commandes iOS > Migration V10.1**, ou suivre `GUIDE-RACCOURCI.md`.
