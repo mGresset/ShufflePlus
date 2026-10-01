@@ -963,7 +963,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.2.0-shell";
+    "shuffleplus-v11.3.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6869,7 +6869,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.2.0",
+                "./service-worker.js?v=11.3.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -10612,7 +10612,7 @@ function renderDrivingPlaybackProgress(playback = {}) {
 function renderDrivingQueuePreview() {
     const upcoming = buildDrivingQueuePreview(
         drivingQueueState.queue,
-        3
+        2
     );
     const freshness = getDrivingQueueFreshness(
         drivingQueueState.updatedAt
@@ -10654,7 +10654,6 @@ function renderDrivingQueuePreview() {
                             : "Charger la liste"}
                 </button>
             </header>
-            ${renderQueueContinuityBadges(continuity)}
             ${upcoming.length
                 ? `
                     <ol>
@@ -11766,7 +11765,6 @@ function renderDrivingModePage() {
             </section>
 
             ${renderDrivingPlaybackProgress(effectivePlayback)}
-            ${renderDrivingQueuePreview()}
 
             <div class="driving-main-controls ${drivingControlsLocked ? "is-locked" : ""}">
                 ${renderDrivingMainControls({
@@ -11776,6 +11774,7 @@ function renderDrivingModePage() {
                 })}
             </div>
 
+            ${renderDrivingQueuePreview()}
             ${renderDrivingQueuePanel()}
 
             ${drivingModeSettings.showFeedback ? `
@@ -11801,6 +11800,11 @@ function renderDrivingModePage() {
             ` : ""}
 
             <div class="driving-secondary-controls">
+                ${dynamicLyricsSettings.enabled ? `
+                    <button id="drivingDynamicLyricsButton" class="driving-dynamic-lyrics-button" type="button" aria-label="Ouvrir Dynamic Lyrics manuellement">
+                        <span aria-hidden="true">🎤</span><small>Paroles</small>
+                    </button>
+                ` : ""}
                 <button
                     id="drivingRefreshButton"
                     type="button"
@@ -47190,6 +47194,11 @@ contentElement.addEventListener(
             )
         ) {
             await refreshDrivingQueue();
+            return;
+        }
+
+        if (event.target.closest("#drivingDynamicLyricsButton")) {
+            await resyncDynamicLyricsNow();
             return;
         }
 

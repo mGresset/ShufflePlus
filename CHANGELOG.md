@@ -1,4 +1,13 @@
 # Changelog Shuffle+
+## 11.3.0 — Mode Conduite V2
+
+- lecture en cours agrandie et appareil Spotify plus visible ;
+- commandes essentielles placées avant la file ;
+- aperçu limité aux deux prochains titres ;
+- bouton Dynamic Lyrics manuel dans le mode conduite ;
+- cibles tactiles renforcées sur iPhone ;
+- moteur Spotify et Railway v5.2.0 inchangés.
+
 
 ## 11.2.0 — Profils & lancements simplifiés
 

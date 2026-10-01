@@ -1,5 +1,7 @@
 # Feuille de route Shuffle+
 
+- **v11.3.0 — Mode Conduite V2 : terminée**
+
 - **v8.0.0 — Version publique simplifiée : terminée**
 - **v8.1.0 — Synchronisation serveur simplifiée : terminée**
 - **v8.2.0 — Lancement principal et installation guidée : terminée**

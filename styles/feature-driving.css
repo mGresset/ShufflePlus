@@ -1406,3 +1406,31 @@ body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle
         min-height: 56px;
     }
 }
+
+/* Shuffle+ v11.3.0 — Mode Conduite V2 */
+.driving-dynamic-lyrics-button{border-color:color-mix(in srgb,var(--accent) 34%,var(--ui-control-border))!important;background:rgb(var(--accent-rgb) / 10%)!important}
+@media(max-width:700px){
+body.is-driving-mode .driving-context-card{display:none}
+body.is-driving-mode .driving-now-playing{min-height:100px;grid-template-columns:88px minmax(0,1fr);gap:11px;padding:8px 10px;border-radius:17px}
+body.is-driving-mode :is(.driving-cover-frame,.driving-now-playing img,.driving-cover-placeholder){width:88px;height:88px;border-radius:14px}
+body.is-driving-mode .driving-now-playing h3{font-size:clamp(20px,5.8vw,27px);line-height:1.04}
+body.is-driving-mode .driving-now-playing p{font-size:12px}
+body.is-driving-mode .driving-now-playing small[data-driving-device-name]{display:block;font-size:11px;font-weight:760;color:color-mix(in srgb,var(--accent) 58%,white)}
+body.is-driving-mode .driving-main-controls{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:minmax(92px,auto) minmax(52px,auto);gap:7px}
+body.is-driving-mode .driving-control{min-height:92px;padding:8px 5px;border-radius:16px}
+body.is-driving-mode .driving-control span{font-size:clamp(30px,8vw,38px)}
+body.is-driving-mode .driving-control strong,body.is-driving-mode .driving-control[data-driving-control="shuffle"] strong{font-size:clamp(12px,3.4vw,15px);line-height:1.1}
+body.is-driving-mode .driving-control[data-driving-control="voice"]{min-height:52px;grid-column:1/-1;grid-template-columns:auto auto;place-content:center;gap:8px;padding:6px 12px}
+body.is-driving-mode .driving-control[data-driving-control="voice"] span{font-size:22px}
+body.is-driving-mode .driving-control[data-driving-control="voice"] strong{font-size:12px}
+body.is-driving-mode .driving-queue-preview{max-height:112px;flex:0 0 auto;padding:6px 7px}
+body.is-driving-mode .queue-continuity-badges{display:none}
+body.is-driving-mode .driving-queue-preview ol{grid-template-columns:repeat(2,minmax(0,1fr))}
+body.is-driving-mode .driving-queue-preview li{grid-template-columns:30px minmax(0,1fr);min-height:42px;padding:5px}
+body.is-driving-mode .driving-queue-preview li img,body.is-driving-mode .driving-queue-preview-index{width:30px;height:30px}
+body.is-driving-mode .driving-feedback-controls button{min-height:44px}
+body.is-driving-mode .driving-secondary-controls{grid-template-columns:repeat(auto-fit,minmax(74px,1fr))}
+body.is-driving-mode .driving-secondary-controls :is(button,label){min-height:46px}
+body.is-driving-mode .driving-preferences-panel>summary{min-height:44px}
+}
+@media(max-width:390px),(max-height:720px){body.is-driving-mode .driving-now-playing{min-height:84px;grid-template-columns:72px minmax(0,1fr)}body.is-driving-mode :is(.driving-cover-frame,.driving-now-playing img,.driving-cover-placeholder){width:72px;height:72px}body.is-driving-mode .driving-main-controls{grid-template-rows:minmax(78px,auto) minmax(48px,auto)}body.is-driving-mode .driving-control{min-height:78px}body.is-driving-mode .driving-queue-preview{max-height:96px}}
