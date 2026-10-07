@@ -49,6 +49,7 @@ test("le Service Worker précharge les nouveaux modules et borne son cache", () 
     assert.match(serviceWorkerSource, /\.\/core\/app-menu\.js/);
     assert.match(serviceWorkerSource, /\.\/core\/html-utils\.js/);
     assert.match(serviceWorkerSource, /MAX_RUNTIME_ENTRIES = 120/);
-    assert.match(serviceWorkerSource, /cache\.addAll\(CRITICAL_APP_SHELL\)/);
+    assert.match(serviceWorkerSource, /cacheShellGroup\(cache,\s*CRITICAL_APP_SHELL/);
+    assert.match(serviceWorkerSource, /const RUNTIME_APP_SHELL/);
     assert.match(serviceWorkerSource, /trimRuntimeCache/);
 });

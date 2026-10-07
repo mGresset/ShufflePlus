@@ -1,4 +1,4 @@
-# Shuffle+ v11.3.1
+# Shuffle+ v11.4.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.3.1** est une release corrective de fiabilité. L’interface et le moteur Spotify restent identiques à la 11.3.0 ; le serveur Railway passe en **v5.2.1** avec verrouillage par espace, écritures JSON atomiques et test de concurrence afin d’éviter qu’un push simultané puisse écraser silencieusement une révision acceptée.
+> **État du projet :** **Shuffle+ 11.4.0** est une release d’architecture et de performances PWA. Le lot réellement bloquant à l’installation passe de 79 à **13 ressources**, les 65 dépendances runtime sont préchauffées avec retry avant la prise de contrôle, et le Centre de fiabilité peut vérifier l’état réel du shell hors ligne. Le moteur Spotify et le serveur Railway restent inchangés en **v5.2.1**.
 
 ---
 
@@ -764,7 +764,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.3.1"
+git commit -m "Release Shuffle+ v11.4.0"
 git push origin main
 ```
 
@@ -774,7 +774,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.3.1** ;
+3. vérifier que l’en-tête affiche **v11.4.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -792,8 +792,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.3.1.js        Chargement versionné et migration du runtime
-startup-recovery-11.3.1.js Réparation avant le chargement principal
+bootstrap-11.4.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.4.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -802,7 +802,6 @@ style.css                  Styles historiques et composants
 
 ```text
 adaptive-dj.js
-adaptive-dashboard.js
 musical-assistant.js
 voice-assistant.js
 personalized-recommendations.js
@@ -841,12 +840,12 @@ server/README.md
 
 ## Validation et tests
 
-La v11.3.1 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v11.4.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - les tests applicatifs et serveur ;
-- la cohérence de version et du shell PWA ;
+- la cohérence de version et du shell PWA, y compris le graphe réel des imports statiques ;
 - les imports et l’architecture CSS ;
 - la sécurité CSP et l’absence de secrets ;
-- le nettoyage des reliquats actifs de release ;
+- le nettoyage des reliquats actifs de release et des anciens modules Adaptive inutilisés ;
 - validation CSP ;
 - contrôle de l’architecture CSS ;
 - build GitHub Pages vérifié ;
@@ -944,7 +943,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.3.1 reste à valider sur l’installation réelle avec :
+La v11.4.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

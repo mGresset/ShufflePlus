@@ -963,7 +963,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.3.1-shell";
+    "shuffleplus-v11.4.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6681,6 +6681,51 @@ async function requestPwaWorkerVersion(
     });
 }
 
+
+async function requestPwaShellStatus(
+    worker,
+    timeoutMs = 1600
+) {
+    if (!worker || typeof MessageChannel !== "function") {
+        return null;
+    }
+
+    return await new Promise((resolve) => {
+        const channel = new MessageChannel();
+        let settled = false;
+
+        const finish = (value = null) => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            window.clearTimeout(timer);
+            channel.port1.onmessage = null;
+            channel.port1.close?.();
+            channel.port2.close?.();
+            resolve(value);
+        };
+
+        const timer = window.setTimeout(
+            () => finish(null),
+            timeoutMs
+        );
+
+        channel.port1.onmessage = (event) => {
+            finish(event.data?.ok ? event.data : null);
+        };
+
+        try {
+            worker.postMessage(
+                { type: "GET_SHELL_STATUS" },
+                [channel.port2]
+            );
+        } catch {
+            finish(null);
+        }
+    });
+}
+
 function setPwaUpdateBannerState({
     applying = false,
     version = ""
@@ -6869,7 +6914,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.3.1",
+                "./service-worker.js?v=11.4.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -7096,6 +7141,7 @@ function getBasicAppHealthFacts() {
             navigator.serviceWorker
                 ?.controller
                 ?.state || "",
+        serviceWorkerShellStatus: null,
         cacheSupported:
             "caches" in window,
         cacheCount: 0,
@@ -7201,6 +7247,12 @@ async function collectAppHealthSnapshot({
                     registration?.waiting?.state ||
                     registration?.installing?.state ||
                     facts.serviceWorkerState;
+                facts.serviceWorkerShellStatus =
+                    await requestPwaShellStatus(
+                        navigator.serviceWorker.controller ||
+                        registration?.active ||
+                        null
+                    );
             } catch (error) {
                 console.warn(
                     "Diagnostic Service Worker incomplet :",

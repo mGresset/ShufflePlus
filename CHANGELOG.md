@@ -1,4 +1,16 @@
 # Changelog Shuffle+
+## 11.4.0 — Architecture PWA et performances
+
+- réduit le lot d’installation PWA réellement bloquant de 79 à **13 ressources** ;
+- sépare **65 dépendances runtime** nécessaires au mode hors ligne et les préchauffe avec retry avant la prise de contrôle du nouveau Service Worker ;
+- remplace le préchargement monolithique `cache.addAll()` par des groupes de cache contrôlés, avec retry renforcé pour le noyau ;
+- conserve 11 ressources optionnelles en préchauffage non bloquant ;
+- ajoute le diagnostic Service Worker `GET_SHELL_STATUS` et l’affiche dans le Centre de fiabilité via **Shell PWA essentiel** ;
+- ajoute `scripts/check-pwa-shell.mjs`, qui vérifie automatiquement que le graphe réel des imports statiques est bien couvert par le cache hors ligne ;
+- supprime les anciens modules racine `adaptive-config.js` et `adaptive-dashboard.js`, non référencés par le runtime ;
+- porte la suite applicative à **474 tests** sans modifier le moteur Spotify ni le protocole Railway v5.2.1.
+
+
 ## 11.3.1 — Fiabilité de synchronisation Railway
 
 - sérialise les opérations concurrentes par espace de synchronisation afin que le contrôle `baseRevision` et l’écriture forment une opération indivisible ;

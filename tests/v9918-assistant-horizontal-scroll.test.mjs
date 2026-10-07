@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 
-test("Shuffle+ 11.3.1 conserve le défilement horizontal de l’assistant", () => {
-    assert.equal(version, "11.3.1");
+test("Shuffle+ 11.4.0 conserve le défilement horizontal de l’assistant", () => {
+    assert.equal(version, "11.4.0");
     assert.match(
         appSource,
         /let musicalAssistantExamplesScrollLeft = 0;/

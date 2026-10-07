@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v11.4.0 — Architecture PWA, shell minimal, préchauffage résilient et diagnostic hors ligne : terminée**
 - **v11.3.1 — Fiabilité Railway et écritures atomiques : terminée**
 - **v11.3.0 — Mode Conduite V2 : terminée**
 
@@ -161,3 +162,22 @@
 - aperçu avant lancement : source, appareil, shuffle, départ, conduite et Dynamic Lyrics manuel ;
 - duplication existante conservée et accessible directement ;
 - moteur Spotify, résultat Railway et protocole iOS inchangés.
+
+
+## V11.3.1 — Fiabilité Railway
+
+- verrou asynchrone par espace de synchronisation ;
+- écritures JSON atomiques avec fichier temporaire unique ;
+- concurrence contrôlée par révision : un push accepté, le concurrent reçoit 409 ;
+- serveur Railway v5.2.1.
+
+## V11.4 — Architecture PWA & performances
+
+- shell d’installation réellement bloquant réduit de 79 à 13 ressources ;
+- 65 dépendances statiques déplacées dans un groupe runtime préchauffé avant `clients.claim()` ;
+- retry explicite des ressources du shell au lieu d’un unique `cache.addAll()` tout-ou-rien ;
+- ressources optionnelles conservées en préchauffage non bloquant ;
+- diagnostic `GET_SHELL_STATUS` relié au Centre de fiabilité ;
+- nouveau garde-fou `check-pwa-shell.mjs` qui compare le cache PWA au graphe réel des imports statiques ;
+- suppression de `adaptive-config.js` et `adaptive-dashboard.js`, anciens modules non utilisés ;
+- moteur Spotify et serveur Railway v5.2.1 inchangés.

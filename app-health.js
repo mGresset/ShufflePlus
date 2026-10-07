@@ -66,6 +66,7 @@ export function buildAppHealthSnapshot({
     serviceWorkerSupported = false,
     serviceWorkerControlled = false,
     serviceWorkerState = "",
+    serviceWorkerShellStatus = null,
     cacheSupported = false,
     cacheCount = 0,
     staleCacheCount = 0,
@@ -219,6 +220,39 @@ export function buildAppHealthSnapshot({
             normalizeNumber(runtimeState.snapshot?.resume?.errorCount)
         )
     };
+    const shellStatus = serviceWorkerShellStatus &&
+        typeof serviceWorkerShellStatus === "object"
+        ? serviceWorkerShellStatus
+        : null;
+    const shellCriticalTotal = Math.max(
+        0,
+        normalizeNumber(shellStatus?.critical?.total)
+    );
+    const shellCriticalCached = Math.max(
+        0,
+        normalizeNumber(shellStatus?.critical?.cached)
+    );
+    const shellRuntimeTotal = Math.max(
+        0,
+        normalizeNumber(shellStatus?.runtime?.total)
+    );
+    const shellRuntimeCached = Math.max(
+        0,
+        normalizeNumber(shellStatus?.runtime?.cached)
+    );
+    const shellOptionalTotal = Math.max(
+        0,
+        normalizeNumber(shellStatus?.optional?.total)
+    );
+    const shellOptionalCached = Math.max(
+        0,
+        normalizeNumber(shellStatus?.optional?.cached)
+    );
+    const shellRequiredTotal = shellCriticalTotal + shellRuntimeTotal;
+    const shellRequiredCached = shellCriticalCached + shellRuntimeCached;
+    const shellRequiredComplete = shellRequiredTotal === 0 ||
+        shellRequiredCached >= shellRequiredTotal;
+
 
     const checks = [
         buildCheck({
@@ -257,6 +291,17 @@ export function buildAppHealthSnapshot({
                 : serviceWorkerSupported
                     ? "Supporté mais non actif"
                     : "Non supporté"
+        }),
+        buildCheck({
+            id: "pwa-shell",
+            label: "Shell PWA essentiel",
+            description: "Vérifie que le noyau et les modules runtime nécessaires au mode hors connexion sont entièrement en cache.",
+            category: "pwa",
+            available: shellRequiredComplete,
+            warningWhenMissing: shellRequiredTotal > 0,
+            value: shellRequiredTotal
+                ? `${shellRequiredCached}/${shellRequiredTotal} essentiel(s) · ${shellOptionalCached}/${shellOptionalTotal} optionnel(s)`
+                : "Diagnostic disponible après activation du Service Worker"
         }),
         buildCheck({
             id: "cache",

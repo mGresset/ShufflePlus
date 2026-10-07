@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v11.2.0
+# Validation terrain Shuffle+ v11.4.0
 
 ## Conditions obligatoires
 
@@ -8,8 +8,9 @@
 4. Exporter puis restaurer une sauvegarde JSON, puis vérifier l’historique local.
 5. Tester le mode conduite : verrouillage, file, commandes et maintien d’écran.
 6. Mettre Shuffle+ en arrière-plan plus de 15 secondes puis revenir et vérifier la resynchronisation unique.
-7. Exécuter `npm.cmd run validate` sans échec.
-8. Vérifier que `check-release-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique actif.
+7. Dans **Réglages > Centre de fiabilité**, vérifier que **Shell PWA essentiel** indique toutes les ressources essentielles en cache.
+8. Exécuter `npm.cmd run validate` sans échec.
+9. Vérifier que `check-release-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique actif.
 
 ## Ce que signifie la branche V11
 

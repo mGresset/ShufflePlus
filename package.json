@@ -1,15 +1,15 @@
 {
   "name": "shuffleplus",
-  "version": "11.3.1",
+  "version": "11.4.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.3.1 — Correctif de concurrence Railway et écritures de synchronisation atomiques.",
+  "description": "Shuffle+ 11.4.0 — Architecture PWA allégée, préchauffage résilient et diagnostics du shell.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-release-cleanup.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-pwa-shell.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-release-cleanup.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",

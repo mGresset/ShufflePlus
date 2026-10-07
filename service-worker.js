@@ -1,5 +1,5 @@
-const APP_VERSION = "11.3.1";
-const CACHE_VERSION = "shuffleplus-v11.3.1";
+const APP_VERSION = "11.4.0";
+const CACHE_VERSION = "shuffleplus-v11.4.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -12,19 +12,27 @@ const VERSION_CACHE_PATTERN =
     /^shuffleplus-v(\d+\.\d+\.\d+)-(shell|runtime)$/;
 
 const CRITICAL_APP_SHELL = [
-    "./",
     "./index.html",
-    "./style.css?v=11.3.1",
-    "./design-system.css?v=11.3.1",
-    "./mobile-ux.css?v=11.3.1",
-    "./bootstrap-11.3.1.js",
-    "./app.js?v=11.3.1&build=11.3.1-pwa-reset-1",
+    "./style.css?v=11.4.0",
+    "./design-system.css?v=11.4.0",
+    "./mobile-ux.css?v=11.4.0",
+    "./bootstrap-11.4.0.js",
+    "./app.js?v=11.4.0&build=11.4.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-11.3.1.js",
+    "./startup-recovery-11.4.0.js",
     "./update-guard.js",
+    "./manifest.webmanifest"
+];
+
+// Modules importés statiquement par app.js. Ils restent nécessaires au mode
+// hors ligne, mais ne font plus partie du lot d'installation minimal. Ils sont
+// préchauffés avec retry avant que le nouveau Service Worker ne prenne le
+// contrôle, ce qui évite qu'un incident ponctuel sur un fichier secondaire ne
+// rende toute l'installation impossible.
+const RUNTIME_APP_SHELL = [
     "./shuffle-engine.js",
     "./core/app-menu.js",
     "./core/feature-loader.js",
@@ -89,17 +97,16 @@ const CRITICAL_APP_SHELL = [
     "./musical-goals.js",
     "./contextual-help.js",
     "./usage-profiles.js",
-    "./offline-performance.js",
-    "./manifest.webmanifest"
+    "./offline-performance.js"
 ];
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=11.3.1",
+    "./styles/feature-home.css?v=11.4.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=11.3.1",
-    "./styles/feature-settings.css?v=11.3.1",
-    "./styles/feature-driving.css?v=11.3.1",
+    "./styles/feature-search.css?v=11.4.0",
+    "./styles/feature-settings.css?v=11.4.0",
+    "./styles/feature-driving.css?v=11.4.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",
@@ -107,33 +114,127 @@ const OPTIONAL_APP_SHELL = [
     "./icons/apple-touch-icon-180.png"
 ];
 
-async function cacheOptionalShell(cache) {
-    await Promise.allSettled(
-        OPTIONAL_APP_SHELL.map(async (url) => {
+async function fetchShellAsset(url, { retries = 1 } = {}) {
+    let lastError = null;
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
             const response = await fetch(url, { cache: "reload" });
-            if (response.ok) {
-                await cache.put(url, response);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
             }
+            return response;
+        } catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError || new Error(`Ressource indisponible : ${url}`);
+}
+
+async function cacheShellGroup(
+    cache,
+    urls,
+    {
+        retries = 1,
+        strict = false,
+        skipCached = true
+    } = {}
+) {
+    const results = await Promise.allSettled(
+        urls.map(async (url) => {
+            if (skipCached && await cache.match(url)) {
+                return { url, cached: true };
+            }
+            const response = await fetchShellAsset(url, { retries });
+            await cache.put(url, response);
+            return { url, cached: false };
         })
     );
+
+    const failures = results
+        .map((result, index) => ({ result, url: urls[index] }))
+        .filter(({ result }) => result.status === "rejected")
+        .map(({ result, url }) => ({
+            url,
+            error: String(result.reason?.message || result.reason || "Erreur réseau")
+        }));
+
+    if (strict && failures.length) {
+        throw new Error(
+            `Shell PWA incomplet (${failures.length}/${urls.length}) : ` +
+            failures.map((item) => item.url).join(", ")
+        );
+    }
+
+    return {
+        total: urls.length,
+        succeeded: urls.length - failures.length,
+        failed: failures.length,
+        failures
+    };
 }
 
 async function warmCriticalShell() {
     const cache = await caches.open(SHELL_CACHE);
+    return cacheShellGroup(cache, CRITICAL_APP_SHELL, {
+        retries: 2,
+        strict: true
+    });
+}
 
-    // Seuls les fichiers nécessaires au premier écran bloquent l’installation.
-    // Les outils secondaires sont préchauffés plus tard selon le réseau.
-    await cache.addAll(CRITICAL_APP_SHELL);
+async function warmRuntimeShell() {
+    const cache = await caches.open(SHELL_CACHE);
+    return cacheShellGroup(cache, RUNTIME_APP_SHELL, {
+        retries: 1,
+        strict: true
+    });
 }
 
 async function warmOptionalShell() {
     const cache = await caches.open(SHELL_CACHE);
-    await cacheOptionalShell(cache);
+    return cacheShellGroup(cache, OPTIONAL_APP_SHELL, {
+        retries: 1,
+        strict: false
+    });
 }
 
 async function warmShell() {
-    await warmCriticalShell();
-    await warmOptionalShell();
+    const critical = await warmCriticalShell();
+    const runtime = await warmRuntimeShell();
+    const optional = await warmOptionalShell();
+    return { critical, runtime, optional };
+}
+
+async function getShellGroupStatus(cache, urls) {
+    const cached = [];
+    const missing = [];
+    for (const url of urls) {
+        if (await cache.match(url)) {
+            cached.push(url);
+        } else {
+            missing.push(url);
+        }
+    }
+    return {
+        total: urls.length,
+        cached: cached.length,
+        missing
+    };
+}
+
+async function getShellStatus() {
+    const cache = await caches.open(SHELL_CACHE);
+    const [critical, runtime, optional] = await Promise.all([
+        getShellGroupStatus(cache, CRITICAL_APP_SHELL),
+        getShellGroupStatus(cache, RUNTIME_APP_SHELL),
+        getShellGroupStatus(cache, OPTIONAL_APP_SHELL)
+    ]);
+    return {
+        version: APP_VERSION,
+        cache: SHELL_CACHE,
+        critical,
+        runtime,
+        optional
+    };
 }
 
 async function trimRuntimeCache(cache) {
@@ -296,6 +397,9 @@ self.addEventListener("activate", (event) => {
         if (rollback && rollback.failedVersion !== APP_VERSION) {
             await clearRollbackState();
         }
+        // Le noyau installé est volontairement minimal. Les dépendances
+        // statiques d’app.js sont sécurisées avant la prise de contrôle.
+        await warmRuntimeShell();
         await cleanupVersionCaches();
         await self.clients.claim();
     })());
@@ -307,6 +411,12 @@ self.addEventListener("message", (event) => {
             version: APP_VERSION,
             runtimeVersion: APP_VERSION
         });
+    }
+    if (event.data?.type === "GET_SHELL_STATUS") {
+        event.waitUntil((async () => {
+            const status = await getShellStatus();
+            replyToMessage(event, { ok: true, ...status });
+        })());
     }
     if (event.data?.type === "SKIP_WAITING") {
         self.skipWaiting();

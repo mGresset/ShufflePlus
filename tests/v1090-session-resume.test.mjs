@@ -11,8 +11,8 @@ const [version, appSource, workerSource] = await Promise.all([
     readFile(new URL("../service-worker.js", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 11.3.1 ajoute une reprise de session iPhone dédiée", () => {
-    assert.equal(version, "11.3.1");
+test("Shuffle+ 11.4.0 ajoute une reprise de session iPhone dédiée", () => {
+    assert.equal(version, "11.4.0");
     assert.match(appSource, /createSessionResumeCoordinator/);
     assert.match(appSource, /sessionResumeCoordinator\.markHidden\(\)/);
     assert.match(appSource, /sessionResumeCoordinator\.requestResume\([\s\S]*?"visibilitychange"/);
