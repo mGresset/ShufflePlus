@@ -26,13 +26,13 @@ const v860Design = settingsStyleSource.split(
 
 const LEGACY_GREEN_PATTERN = /#1ed760|#1d5d36|#9cf0b8|#315d40|#101913|#2f4938|#3c7350|#173923|#d9f7e3|#3d8055|#d8f7e2/i;
 
-test("la distribution active annonce Shuffle+ 11.6.0", () => {
-    assert.equal(versionSource, "11.6.0");
-    assert.match(packageSource, /"version": "11\.6\.0"/);
-    assert.match(indexSource, /shuffleplus-version" content="11\.6\.0/);
-    assert.match(indexSource, /startup-recovery-11\.6\.0\.js/);
+test("la distribution active annonce Shuffle+ 11.7.0", () => {
+    assert.equal(versionSource, "11.7.0");
+    assert.match(packageSource, /"version": "11\.7\.0"/);
+    assert.match(indexSource, /shuffleplus-version" content="11\.7\.0/);
+    assert.match(indexSource, /startup-recovery-11\.7\.0\.js/);
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
-    assert.match(workerSource, /shuffleplus-v11\.6\.0/);
+    assert.match(workerSource, /shuffleplus-v11\.7\.0/);
 });
 
 test("la règle historique PWA ne cible plus tous les span imbriqués", () => {

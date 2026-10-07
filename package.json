@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.6.0",
+  "version": "11.7.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.6.0 — Recherche Spotify intégrée : titres, albums, artistes, lecture, file et priorités de profil.",
+  "description": "Shuffle+ 11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné.",
   "engines": {
     "node": ">=20"
   },

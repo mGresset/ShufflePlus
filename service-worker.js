@@ -1,5 +1,5 @@
-const APP_VERSION = "11.6.0";
-const CACHE_VERSION = "shuffleplus-v11.6.0";
+const APP_VERSION = "11.7.0";
+const CACHE_VERSION = "shuffleplus-v11.7.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -13,16 +13,16 @@ const VERSION_CACHE_PATTERN =
 
 const CRITICAL_APP_SHELL = [
     "./index.html",
-    "./style.css?v=11.6.0",
-    "./design-system.css?v=11.6.0",
-    "./mobile-ux.css?v=11.6.0",
-    "./bootstrap-11.6.0.js",
-    "./app.js?v=11.6.0&build=11.6.0-pwa-reset-1",
+    "./style.css?v=11.7.0",
+    "./design-system.css?v=11.7.0",
+    "./mobile-ux.css?v=11.7.0",
+    "./bootstrap-11.7.0.js",
+    "./app.js?v=11.7.0&build=11.7.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-11.6.0.js",
+    "./startup-recovery-11.7.0.js",
     "./update-guard.js",
     "./manifest.webmanifest"
 ];
@@ -72,6 +72,7 @@ const RUNTIME_APP_SHELL = [
     "./core/playback-queue.js",
     "./core/playback-clock.js",
     "./core/player-plus.js",
+    "./core/profile-share.js",
     "./core/queue-continuity.js",
     "./core/driving-ui.js",
     "./core/driving-advanced.js",
@@ -103,11 +104,11 @@ const RUNTIME_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=11.6.0",
+    "./styles/feature-home.css?v=11.7.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=11.6.0",
-    "./styles/feature-settings.css?v=11.6.0",
-    "./styles/feature-driving.css?v=11.6.0",
+    "./styles/feature-search.css?v=11.7.0",
+    "./styles/feature-settings.css?v=11.7.0",
+    "./styles/feature-driving.css?v=11.7.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné : terminée**
 - **v11.6.0 — Recherche Spotify intégrée : titres, albums, artistes, lecture, file et priorités de profil : terminée**
 - **v11.5.0 — Player+ : précédent, seek, répétition, volume et Lire ensuite : terminée**
 - **v11.4.0 — Architecture PWA, shell minimal, préchauffage résilient et diagnostic hors ligne : terminée**

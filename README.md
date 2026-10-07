@@ -1,4 +1,4 @@
-# Shuffle+ v11.6.0
+# Shuffle+ v11.7.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.6.0** étend la recherche globale au **catalogue Spotify** : titres, albums et artistes peuvent être recherchés directement dans Shuffle+, puis lus immédiatement, ajoutés à la file ou enregistrés comme priorité d’un profil. Aucun nouveau scope OAuth n’est requis. Le serveur Railway reste inchangé en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.7.0** ajoute les **profils partageables** : un profil de mix peut être partagé depuis l’iPhone ou exporté en fichier JSON, puis importé sur un autre appareil avec validation stricte et nouvel identifiant local. Le format n’embarque aucun token Spotify/Railway, aucune sauvegarde et aucune donnée de session. Le serveur Railway reste inchangé en **v5.2.1**.
 
 ---
 
@@ -78,6 +78,17 @@ La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
 - synchronisation du nouvel état dans la carte d’accueil sans reconstruire toute la page.
 
 Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
+
+### Profils partageables — v11.7.0
+
+Dans **Créer → Profils de mix intelligents** :
+
+- **📤 Partager / exporter** ouvre la feuille de partage native lorsque l’appareil accepte les fichiers ; sinon Shuffle+ télécharge automatiquement un fichier `.profile.json` ;
+- **📥 Importer un profil** accepte le format versionné `shuffleplus.mix-profile` ;
+- seuls le nom, l’icône, la description et les réglages du profil sont exportés ;
+- les identifiants internes, tokens Spotify/Railway, appareils, sauvegardes et données de session ne sont jamais inclus ;
+- chaque import reçoit un nouvel identifiant local et les doublons de nom sont renommés automatiquement ;
+- les JSON invalides, formats inconnus, versions non prises en charge ou fichiers de plus de 128 Kio sont refusés.
 
 ### Recherche Spotify — v11.6.0
 
@@ -792,7 +803,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.6.0"
+git commit -m "Release Shuffle+ v11.7.0"
 git push origin main
 ```
 
@@ -802,7 +813,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.6.0** ;
+3. vérifier que l’en-tête affiche **v11.7.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -820,8 +831,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.6.0.js        Chargement versionné et migration du runtime
-startup-recovery-11.6.0.js Réparation avant le chargement principal
+bootstrap-11.7.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.7.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -868,7 +879,7 @@ server/README.md
 
 ## Validation et tests
 
-La v11.6.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v11.7.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - les tests applicatifs et serveur ;
 - la cohérence de version et du shell PWA, y compris le graphe réel des imports statiques ;
 - les imports et l’architecture CSS ;
@@ -971,7 +982,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.6.0 reste à valider sur l’installation réelle avec :
+La v11.7.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

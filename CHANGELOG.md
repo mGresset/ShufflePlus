@@ -1,4 +1,17 @@
 # Changelog Shuffle+
+## 11.7.0 — Profils partageables
+
+- ajoute **📤 Partager / exporter** sur chaque profil de mix intelligent ;
+- utilise la feuille de partage native iOS lorsque le navigateur accepte le partage de fichiers, avec téléchargement JSON en solution de repli ;
+- ajoute **📥 Importer un profil** depuis un fichier `.profile.json` ;
+- introduit un format versionné `shuffleplus.mix-profile` v1 limité aux réglages du profil et excluant explicitement identifiants internes, tokens Spotify/Railway et données de sauvegarde ;
+- recrée systématiquement un identifiant local lors de l’import et désactive tout statut de profil par défaut provenant du fichier ;
+- renomme automatiquement les profils importés portant déjà le même nom ;
+- refuse les documents inconnus, versions incompatibles, JSON invalides ou fichiers supérieurs à 128 Kio ;
+- ajoute `core/profile-share.js`, sa couverture hors ligne PWA et 5 tests de non-régression dédiés ;
+- porte la suite applicative à **489 tests** et conserve Railway en **v5.2.1**.
+
+
 ## 11.6.0 — Recherche Spotify intégrée
 
 - étend la recherche globale avec le catalogue Spotify pour les **titres, albums et artistes** ;

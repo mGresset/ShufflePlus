@@ -175,6 +175,13 @@ import {
 } from "./core/player-plus.js";
 
 import {
+    buildMixProfileShareDocument,
+    parseMixProfileShareDocument,
+    getMixProfileShareFilename,
+    MAX_SHARED_PROFILE_BYTES
+} from "./core/profile-share.js";
+
+import {
     buildDrivingQueuePreview,
     getDrivingPlaybackProgress,
     getDrivingQueueFreshness
@@ -979,7 +986,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.6.0-shell";
+    "shuffleplus-v11.7.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6978,7 +6985,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.6.0",
+                "./service-worker.js?v=11.7.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -30986,6 +30993,129 @@ function saveMixProfiles() {
     }
 }
 
+function getUniqueImportedProfileName(name = "Profil importé") {
+    const base = String(name || "Profil importé").trim().slice(0, 60) || "Profil importé";
+    const names = new Set(
+        mixProfiles.map((profile) => String(profile.name || "").trim().toLocaleLowerCase("fr"))
+    );
+
+    if (!names.has(base.toLocaleLowerCase("fr"))) {
+        return base;
+    }
+
+    for (let index = 2; index <= 99; index += 1) {
+        const suffix = ` (${index})`;
+        const candidate = `${base.slice(0, Math.max(1, 60 - suffix.length))}${suffix}`;
+        if (!names.has(candidate.toLocaleLowerCase("fr"))) {
+            return candidate;
+        }
+    }
+
+    return `${base.slice(0, 48)}-${Date.now().toString(36)}`.slice(0, 60);
+}
+
+function getShareableMixProfile(profileId = "") {
+    const profile = getProfileById(profileId);
+    if (!profile) {
+        throw new Error("Profil introuvable.");
+    }
+
+    return buildMixProfileShareDocument(profile, {
+        appVersion: APP_VERSION
+    });
+}
+
+function downloadMixProfile(profileId = "") {
+    const profile = getProfileById(profileId);
+    if (!profile) {
+        setStatus("Profil introuvable.", "error");
+        return;
+    }
+
+    const payload = getShareableMixProfile(profileId);
+    downloadJsonPayload(payload, getMixProfileShareFilename(profile.name));
+    setStatus(`Profil « ${profile.name} » exporté.`);
+}
+
+async function shareMixProfile(profileId = "") {
+    const profile = getProfileById(profileId);
+    if (!profile) {
+        setStatus("Profil introuvable.", "error");
+        return;
+    }
+
+    const payload = getShareableMixProfile(profileId);
+    const filename = getMixProfileShareFilename(profile.name);
+    const content = JSON.stringify(payload, null, 2);
+
+    try {
+        if (typeof File === "function" && navigator.share) {
+            const file = new File([content], filename, {
+                type: "application/json"
+            });
+            const shareData = {
+                title: `Profil Shuffle+ · ${profile.name}`,
+                text: `Profil Shuffle+ « ${profile.name} »`,
+                files: [file]
+            };
+
+            if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+                await navigator.share(shareData);
+                setStatus(`Profil « ${profile.name} » partagé.`);
+                return;
+            }
+        }
+    } catch (error) {
+        if (error?.name === "AbortError") {
+            return;
+        }
+        console.warn("Partage natif du profil indisponible :", error);
+    }
+
+    downloadJsonPayload(payload, filename);
+    setStatus(`Partage direct indisponible : profil « ${profile.name} » téléchargé.`);
+}
+
+async function importMixProfileFile(file) {
+    if (!file) {
+        return null;
+    }
+
+    if (mixProfiles.length >= MAX_MIX_PROFILES) {
+        throw new Error(`Tu peux enregistrer jusqu’à ${MAX_MIX_PROFILES} profils.`);
+    }
+
+    if (Number(file.size || 0) > MAX_SHARED_PROFILE_BYTES) {
+        throw new Error("Ce fichier de profil est trop volumineux.");
+    }
+
+    const text = await file.text();
+    if (new TextEncoder().encode(text).length > MAX_SHARED_PROFILE_BYTES) {
+        throw new Error("Ce fichier de profil est trop volumineux.");
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(text);
+    } catch {
+        throw new Error("Le fichier sélectionné n’est pas un JSON valide.");
+    }
+
+    const shared = parseMixProfileShareDocument(parsed);
+    const imported = normalizeMixProfile({
+        ...shared.profile,
+        id: createSavedMixId(),
+        name: getUniqueImportedProfileName(shared.profile.name),
+        isDefault: false
+    });
+
+    mixProfiles = [imported, ...mixProfiles].slice(0, MAX_MIX_PROFILES);
+    saveMixProfiles();
+    displayPlaylists(playlistsCache);
+    setStatus(`Profil « ${imported.name} » importé.`);
+    return imported;
+}
+
 function readActiveProfileId() {
     try {
         return localStorage.getItem(ACTIVE_PROFILE_KEY) || "";
@@ -31362,6 +31492,17 @@ function renderMixProfilesSection() {
                     📄
                 </button>
 
+                <button
+                    class="mix-profile-secondary"
+                    type="button"
+                    data-profile-action="share"
+                    data-profile-id="${escapeHtml(profile.id)}"
+                    title="Partager ou exporter"
+                    aria-label="Partager ou exporter ${escapeHtml(profile.name)}"
+                >
+                    📤
+                </button>
+
                 ${profile.isDefault ? "" : `
                     <button
                         class="mix-profile-secondary"
@@ -31408,6 +31549,22 @@ function renderMixProfilesSection() {
                     >
                         + Créer depuis les réglages actuels
                     </button>
+
+                    <button
+                        id="importMixProfileButton"
+                        class="mix-profile-restore"
+                        type="button"
+                    >
+                        📥 Importer un profil
+                    </button>
+
+                    <input
+                        id="importMixProfileInput"
+                        class="mix-profile-import-input"
+                        type="file"
+                        accept=".json,.profile.json,application/json"
+                        hidden
+                    >
 
                     <button
                         id="restoreDefaultProfilesButton"
@@ -48740,12 +48897,20 @@ contentElement.addEventListener(
                 applyMixProfile(profileId);
             } else if (action === "duplicate") {
                 duplicateMixProfile(profileId);
+            } else if (action === "share") {
+                await shareMixProfile(profileId);
             } else if (action === "rename") {
                 renameMixProfile(profileId);
             } else if (action === "delete") {
                 deleteMixProfile(profileId);
             }
 
+            return;
+        }
+
+        if (event.target.closest("#importMixProfileButton")) {
+            const input = contentElement.querySelector("#importMixProfileInput");
+            input?.click();
             return;
         }
 
@@ -49868,7 +50033,21 @@ contentElement.addEventListener(
 
 contentElement.addEventListener(
     "change",
-    (event) => {
+    async (event) => {
+        if (event.target.id === "importMixProfileInput") {
+            const input = event.target;
+            const file = input.files?.[0] || null;
+            try {
+                await importMixProfileFile(file);
+            } catch (error) {
+                console.error(error);
+                setStatus(error?.message || "Impossible d’importer ce profil.", "error");
+            } finally {
+                input.value = "";
+            }
+            return;
+        }
+
         if (event.target.name === "autoSync" &&
             event.target.closest("#serverSyncSimpleOptionsForm")) {
             saveSimpleServerSyncOptions(event.target.form);

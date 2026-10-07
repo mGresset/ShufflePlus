@@ -19,8 +19,8 @@ const commands = [
     { id: "c", name: "C" }
 ];
 
-test("Shuffle+ 11.6.0 conserve un ordre de profils complet et sans doublon", () => {
-    assert.equal(version, "11.6.0");
+test("Shuffle+ 11.7.0 conserve un ordre de profils complet et sans doublon", () => {
+    assert.equal(version, "11.7.0");
     assert.deepEqual(
         normalizeShortcutProfileOrder(["c", "c", "inconnu"], commands),
         ["c", "a", "b"]
@@ -66,5 +66,5 @@ test("le Centre de lancement expose favoris, ordre et aperçu avant lancement", 
     assert.match(appSource, /data-ios-command-action="move-down"/);
     assert.match(appSource, /Aperçu avant lancement/);
     assert.match(appSource, /getOrderedShortcutProfiles/);
-    assert.match(styles, /Shuffle\+ v11\.6\.0 — Profils & lancements simplifiés/);
+    assert.match(styles, /Shuffle\+ v11\.7\.0 — Profils & lancements simplifiés/);
 });
