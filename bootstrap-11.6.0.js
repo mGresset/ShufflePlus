@@ -1,5 +1,5 @@
-const APP_VERSION = "11.5.0";
-const BUILD_ID = "11.5.0-pwa-reset-1";
+const APP_VERSION = "11.6.0";
+const BUILD_ID = "11.6.0-pwa-reset-1";
 const BUILD_STORAGE_KEY = "shuffleplus_runtime_build_id";
 const BUILD_QUERY_KEY = "shuffleplus_build";
 const POST_UPDATE_DIAGNOSTIC_KEY =

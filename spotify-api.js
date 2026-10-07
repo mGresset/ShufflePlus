@@ -17,6 +17,7 @@ function getSpotifyCacheTtl(endpoint, method = "GET") {
         return 60 * 1000;
     }
     if (endpoint.startsWith("/me/tracks")) return 30 * 1000;
+    if (endpoint.startsWith("/search?")) return 2 * 60 * 1000;
     if (/^\/playlists\/[^/]+\/items/.test(endpoint)) {
         return 20 * 1000;
     }
@@ -402,6 +403,72 @@ export async function startPlayback(trackUris, deviceId = "") {
             body: JSON.stringify({ uris })
         }
     );
+}
+
+export async function startPlaybackContext(contextUri, deviceId = "") {
+    const normalizedUri = String(contextUri || "").trim();
+
+    if (
+        !normalizedUri.startsWith("spotify:album:") &&
+        !normalizedUri.startsWith("spotify:artist:") &&
+        !normalizedUri.startsWith("spotify:playlist:")
+    ) {
+        throw new Error("Contexte Spotify non pris en charge.");
+    }
+
+    const parameters = new URLSearchParams();
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+    const query = parameters.toString();
+
+    await spotifyFetch(
+        `/me/player/play${query ? `?${query}` : ""}`,
+        {
+            method: "PUT",
+            body: JSON.stringify({ context_uri: normalizedUri })
+        }
+    );
+}
+
+export async function searchSpotifyCatalog(
+    query,
+    {
+        types = ["track", "album", "artist"],
+        limit = 6
+    } = {}
+) {
+    const normalizedQuery = String(query || "").trim().slice(0, 100);
+    if (normalizedQuery.length < 2) {
+        return { tracks: null, albums: null, artists: null };
+    }
+
+    const allowedTypes = new Set([
+        "track",
+        "album",
+        "artist",
+        "playlist",
+        "show",
+        "episode",
+        "audiobook"
+    ]);
+    const normalizedTypes = [...new Set(
+        (Array.isArray(types) ? types : [types])
+            .map((value) => String(value || "").trim().toLowerCase())
+            .filter((value) => allowedTypes.has(value))
+    )];
+
+    if (!normalizedTypes.length) {
+        throw new Error("Aucun type de recherche Spotify valide.");
+    }
+
+    const parameters = new URLSearchParams({
+        q: normalizedQuery,
+        type: normalizedTypes.join(","),
+        limit: String(Math.min(10, Math.max(1, Math.round(Number(limit) || 6))))
+    });
+
+    return spotifyFetch(`/search?${parameters.toString()}`);
 }
 
 

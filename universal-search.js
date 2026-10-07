@@ -263,3 +263,138 @@ export function getUniversalSearchTypeLabel(type = "") {
 
     return labels[type] || "Résultat";
 }
+
+function cleanSpotifyCatalogText(value = "", maxLength = 180) {
+    return typeof value === "string"
+        ? value.trim().slice(0, maxLength)
+        : "";
+}
+
+function getSpotifyCatalogImage(item = {}) {
+    const images = Array.isArray(item?.images)
+        ? item.images
+        : Array.isArray(item?.album?.images)
+            ? item.album.images
+            : [];
+
+    return cleanSpotifyCatalogText(
+        images.find((image) => image?.url)?.url || "",
+        600
+    );
+}
+
+function getSpotifyArtistNames(item = {}) {
+    return (Array.isArray(item?.artists) ? item.artists : [])
+        .map((artist) => cleanSpotifyCatalogText(artist?.name, 120))
+        .filter(Boolean);
+}
+
+function normalizeSpotifyTrack(item = {}) {
+    const id = cleanSpotifyCatalogText(item?.id, 120);
+    const uri = cleanSpotifyCatalogText(item?.uri, 180);
+    if (!id || !uri.startsWith("spotify:track:")) return null;
+
+    const artists = getSpotifyArtistNames(item);
+    const album = cleanSpotifyCatalogText(item?.album?.name, 160);
+
+    return {
+        key: `track:${id}`,
+        id,
+        type: "track",
+        uri,
+        title: cleanSpotifyCatalogText(item?.name, 180) || "Titre Spotify",
+        subtitle: artists.join(", ") || "Artiste inconnu",
+        description: album || "Titre Spotify",
+        imageUrl: getSpotifyCatalogImage(item),
+        externalUrl: cleanSpotifyCatalogText(item?.external_urls?.spotify, 600),
+        artists,
+        album,
+        durationMs: Math.max(0, Number(item?.duration_ms) || 0),
+        playable: item?.is_playable !== false,
+        explicit: Boolean(item?.explicit)
+    };
+}
+
+function normalizeSpotifyAlbum(item = {}) {
+    const id = cleanSpotifyCatalogText(item?.id, 120);
+    const uri = cleanSpotifyCatalogText(item?.uri, 180);
+    if (!id || !uri.startsWith("spotify:album:")) return null;
+
+    const artists = getSpotifyArtistNames(item);
+    const releaseYear = cleanSpotifyCatalogText(item?.release_date, 20).slice(0, 4);
+    const totalTracks = Math.max(0, Number(item?.total_tracks) || 0);
+
+    return {
+        key: `album:${id}`,
+        id,
+        type: "album",
+        uri,
+        title: cleanSpotifyCatalogText(item?.name, 180) || "Album Spotify",
+        subtitle: artists.join(", ") || "Artiste inconnu",
+        description: [
+            releaseYear,
+            totalTracks ? `${totalTracks} titre${totalTracks > 1 ? "s" : ""}` : ""
+        ].filter(Boolean).join(" · ") || "Album Spotify",
+        imageUrl: getSpotifyCatalogImage(item),
+        externalUrl: cleanSpotifyCatalogText(item?.external_urls?.spotify, 600),
+        artists,
+        album: cleanSpotifyCatalogText(item?.name, 180),
+        playable: true,
+        explicit: false
+    };
+}
+
+function normalizeSpotifyArtist(item = {}) {
+    const id = cleanSpotifyCatalogText(item?.id, 120);
+    const uri = cleanSpotifyCatalogText(item?.uri, 180);
+    if (!id || !uri.startsWith("spotify:artist:")) return null;
+
+    const genres = (Array.isArray(item?.genres) ? item.genres : [])
+        .map((genre) => cleanSpotifyCatalogText(genre, 80))
+        .filter(Boolean)
+        .slice(0, 2);
+
+    return {
+        key: `artist:${id}`,
+        id,
+        type: "artist",
+        uri,
+        title: cleanSpotifyCatalogText(item?.name, 180) || "Artiste Spotify",
+        subtitle: "Artiste",
+        description: genres.join(" · ") || "Catalogue Spotify",
+        imageUrl: getSpotifyCatalogImage(item),
+        externalUrl: cleanSpotifyCatalogText(item?.external_urls?.spotify, 600),
+        artists: [cleanSpotifyCatalogText(item?.name, 180)].filter(Boolean),
+        album: "",
+        playable: true,
+        explicit: false
+    };
+}
+
+export function normalizeSpotifyCatalogResults(
+    payload = {},
+    {
+        trackLimit = 6,
+        albumLimit = 3,
+        artistLimit = 3
+    } = {}
+) {
+    const take = (items, limit, normalizer) =>
+        (Array.isArray(items) ? items : [])
+            .map(normalizer)
+            .filter(Boolean)
+            .slice(0, Math.max(0, Number(limit) || 0));
+
+    return [
+        ...take(payload?.tracks?.items, trackLimit, normalizeSpotifyTrack),
+        ...take(payload?.albums?.items, albumLimit, normalizeSpotifyAlbum),
+        ...take(payload?.artists?.items, artistLimit, normalizeSpotifyArtist)
+    ];
+}
+
+export function getSpotifyCatalogTypeLabel(type = "") {
+    if (type === "track") return "Titre";
+    if (type === "album") return "Album";
+    if (type === "artist") return "Artiste";
+    return "Spotify";
+}

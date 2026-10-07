@@ -1,4 +1,4 @@
-# Shuffle+ v11.5.0
+# Shuffle+ v11.6.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.5.0** introduit **Player+** sur l’accueil : titre précédent, barre de position manipulable, cycle de répétition, volume Spotify et action **Lire ensuite** depuis l’ordre généré. Ces commandes utilisent le scope Spotify déjà autorisé `user-modify-playback-state`. Le serveur Railway reste inchangé en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.6.0** étend la recherche globale au **catalogue Spotify** : titres, albums et artistes peuvent être recherchés directement dans Shuffle+, puis lus immédiatement, ajoutés à la file ou enregistrés comme priorité d’un profil. Aucun nouveau scope OAuth n’est requis. Le serveur Railway reste inchangé en **v5.2.1**.
 
 ---
 
@@ -78,6 +78,21 @@ La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
 - synchronisation du nouvel état dans la carte d’accueil sans reconstruire toute la page.
 
 Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
+
+### Recherche Spotify — v11.6.0
+
+La palette de recherche combine maintenant deux sources sans sacrifier le mode hors ligne :
+
+- les résultats **Shuffle+ locaux** restent instantanés (rubriques, playlists, mix, profils, scènes et routines) ;
+- à partir de **2 caractères**, une recherche différée de 320 ms interroge le catalogue Spotify ;
+- les résultats Spotify couvrent **titres, albums et artistes** avec pochette et métadonnées ;
+- **▶ Lire** lance un titre ou le contexte d’un album/artiste sur l’appareil Spotify actif ou préféré ;
+- **➕ Ensuite** ajoute un titre à la file Spotify ;
+- **⭐ Profil** ajoute le résultat aux priorités intelligentes d’un profil personnalisé : URI du titre, nom de l’artiste ou nom de l’album ;
+- les réponses de recherche devenues obsolètes sont ignorées afin d’éviter qu’une requête lente remplace une saisie plus récente ;
+- hors connexion ou en cas de limitation Spotify, la recherche interne Shuffle+ reste disponible.
+
+La recherche catalogue ne demande aucun scope supplémentaire ; les actions de lecture et de file réutilisent `user-modify-playback-state`.
 
 ### Lancement musical en une action
 
@@ -777,7 +792,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.5.0"
+git commit -m "Release Shuffle+ v11.6.0"
 git push origin main
 ```
 
@@ -787,7 +802,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.5.0** ;
+3. vérifier que l’en-tête affiche **v11.6.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -805,8 +820,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.5.0.js        Chargement versionné et migration du runtime
-startup-recovery-11.5.0.js Réparation avant le chargement principal
+bootstrap-11.6.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.6.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -853,7 +868,7 @@ server/README.md
 
 ## Validation et tests
 
-La v11.5.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v11.6.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - les tests applicatifs et serveur ;
 - la cohérence de version et du shell PWA, y compris le graphe réel des imports statiques ;
 - les imports et l’architecture CSS ;
@@ -956,7 +971,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.5.0 reste à valider sur l’installation réelle avec :
+La v11.6.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

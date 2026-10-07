@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v11.5.0
+# Validation terrain Shuffle+ v11.6.0
 
 ## Conditions obligatoires
 
@@ -11,6 +11,7 @@
 7. Dans **Réglages > Centre de fiabilité**, vérifier que **Shell PWA essentiel** indique toutes les ressources essentielles en cache.
 8. Exécuter `npm.cmd run validate` sans échec.
 9. Vérifier que `check-release-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique actif.
+10. Dans la recherche globale, chercher un titre Spotify et vérifier **Lire**, **Lire ensuite** et l’ajout aux priorités d’un profil personnalisé.
 
 ## Ce que signifie la branche V11
 

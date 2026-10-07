@@ -52,8 +52,8 @@ const nextQueueItem = {
     durationMs: 210_000
 };
 
-test("la synchronisation rapide annonce Shuffle+ 11.5.0", () => {
-    assert.equal(version, "11.5.0");
+test("la synchronisation rapide annonce Shuffle+ 11.6.0", () => {
+    assert.equal(version, "11.6.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 

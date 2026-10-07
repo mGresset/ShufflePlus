@@ -28,6 +28,8 @@ import {
     transferPlayback,
     setPlaybackShuffle,
     startPlayback,
+    startPlaybackContext,
+    searchSpotifyCatalog,
     resumePlayback,
     pausePlayback,
     skipToNext,
@@ -539,6 +541,8 @@ const OFFLINE_PERFORMANCE_SETTINGS_KEY =
     "shuffleplus_offline_performance_settings_v1";
 const MAX_UNIVERSAL_SEARCH_HISTORY = 8;
 const MAX_UNIVERSAL_SEARCH_RESULTS = 14;
+const SPOTIFY_CATALOG_SEARCH_MIN_QUERY = 2;
+const SPOTIFY_CATALOG_SEARCH_DEBOUNCE_MS = 320;
 const MAX_DIRECT_PLAYBACK_TRACKS = 100;
 const MAX_MIX_SOURCES = 12;
 const MODIFICATION_CACHE_KEY =
@@ -975,7 +979,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.5.0-shell";
+    "shuffleplus-v11.6.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1980,6 +1984,16 @@ let universalSearchQuery = "";
 let universalSearchResults = [];
 let universalSearchSelectedIndex = 0;
 let universalSearchHistory = readUniversalSearchHistory();
+let spotifyCatalogSearchTimer = 0;
+let spotifyCatalogSearchRequestId = 0;
+let spotifyCatalogProfileTargetKey = "";
+let spotifyCatalogSearchState = {
+    query: "",
+    status: "idle",
+    items: [],
+    error: "",
+    busyKey: ""
+};
 let contextualHelpDialogOpen = false;
 let contextualOnboardingOpen =
     contextualHelpState.tourEnabled &&
@@ -6964,7 +6978,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.5.0",
+                "./service-worker.js?v=11.6.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -19208,6 +19222,569 @@ function getUniversalSearchIndex() {
     });
 }
 
+function getSpotifyCatalogSearchQuery() {
+    return String(universalSearchQuery || "")
+        .trim()
+        .slice(0, 100);
+}
+
+function resetSpotifyCatalogSearch({
+    keepQuery = false
+} = {}) {
+    if (spotifyCatalogSearchTimer) {
+        window.clearTimeout(spotifyCatalogSearchTimer);
+        spotifyCatalogSearchTimer = 0;
+    }
+
+    spotifyCatalogSearchRequestId += 1;
+    spotifyCatalogProfileTargetKey = "";
+    spotifyCatalogSearchState = {
+        query: keepQuery
+            ? getSpotifyCatalogSearchQuery()
+            : "",
+        status: "idle",
+        items: [],
+        error: "",
+        busyKey: ""
+    };
+}
+
+function getSpotifyCatalogSearchErrorMessage(error) {
+    if (error?.status === 429) {
+        return error?.reason === "QUOTA_EXCEEDED"
+            ? "Quota Spotify temporairement atteint. Réessaie un peu plus tard."
+            : "Spotify limite momentanément les recherches. Réessaie dans quelques secondes.";
+    }
+
+    if (error?.status === 401) {
+        return "La session Spotify doit être renouvelée avant de rechercher dans le catalogue.";
+    }
+
+    if (error?.status === 403) {
+        return "Spotify refuse momentanément cette recherche avec ce compte.";
+    }
+
+    return String(
+        error?.spotifyMessage ||
+        error?.message ||
+        "Recherche Spotify indisponible."
+    ).slice(0, 220);
+}
+
+function scheduleSpotifyCatalogSearch({
+    immediate = false
+} = {}) {
+    const query = getSpotifyCatalogSearchQuery();
+
+    if (spotifyCatalogSearchTimer) {
+        window.clearTimeout(spotifyCatalogSearchTimer);
+        spotifyCatalogSearchTimer = 0;
+    }
+
+    const requestId = ++spotifyCatalogSearchRequestId;
+    spotifyCatalogProfileTargetKey = "";
+
+    if (query.length < SPOTIFY_CATALOG_SEARCH_MIN_QUERY) {
+        spotifyCatalogSearchState = {
+            query,
+            status: "idle",
+            items: [],
+            error: "",
+            busyKey: ""
+        };
+        return;
+    }
+
+    if (
+        typeof navigator !== "undefined" &&
+        navigator.onLine === false
+    ) {
+        spotifyCatalogSearchState = {
+            query,
+            status: "offline",
+            items: [],
+            error: "Le catalogue Spotify nécessite une connexion Internet.",
+            busyKey: ""
+        };
+        return;
+    }
+
+    spotifyCatalogSearchState = {
+        query,
+        status: "loading",
+        items: [],
+        error: "",
+        busyKey: ""
+    };
+
+    const run = async () => {
+        try {
+            const payload = await searchSpotifyCatalog(query, {
+                types: ["track", "album", "artist"],
+                limit: 6
+            });
+
+            if (
+                requestId !== spotifyCatalogSearchRequestId ||
+                query !== getSpotifyCatalogSearchQuery()
+            ) {
+                return;
+            }
+
+            spotifyCatalogSearchState = {
+                query,
+                status: "ready",
+                items:
+                    getLoadedUniversalSearchFeature()
+                        .normalizeSpotifyCatalogResults(payload, {
+                            trackLimit: 6,
+                            albumLimit: 3,
+                            artistLimit: 3
+                        }),
+                error: "",
+                busyKey: ""
+            };
+        } catch (error) {
+            if (requestId !== spotifyCatalogSearchRequestId) {
+                return;
+            }
+
+            spotifyCatalogSearchState = {
+                query,
+                status: "error",
+                items: [],
+                error: getSpotifyCatalogSearchErrorMessage(error),
+                busyKey: ""
+            };
+        }
+
+        if (
+            universalSearchOpen &&
+            query === getSpotifyCatalogSearchQuery()
+        ) {
+            refreshUniversalSearchResultsDom();
+        }
+    };
+
+    if (immediate) {
+        void run();
+        return;
+    }
+
+    spotifyCatalogSearchTimer = window.setTimeout(() => {
+        spotifyCatalogSearchTimer = 0;
+        void run();
+    }, SPOTIFY_CATALOG_SEARCH_DEBOUNCE_MS);
+}
+
+function getSpotifyCatalogSearchItem(key = "") {
+    return spotifyCatalogSearchState.items.find(
+        (item) => item.key === key
+    ) || null;
+}
+
+function getEditableSpotifyCatalogProfiles() {
+    return mixProfiles.filter(
+        (profile) => !profile.isDefault
+    );
+}
+
+function renderSpotifyCatalogProfileChooser(item) {
+    if (spotifyCatalogProfileTargetKey !== item.key) {
+        return "";
+    }
+
+    const profiles = getEditableSpotifyCatalogProfiles();
+    if (!profiles.length) {
+        return `
+            <div class="spotify-catalog-profile-chooser is-empty">
+                <span>
+                    Crée d’abord un profil personnalisé pour y enregistrer cette priorité.
+                </span>
+                <button
+                    type="button"
+                    data-spotify-catalog-open-profiles
+                >
+                    Ouvrir les profils
+                </button>
+            </div>
+        `;
+    }
+
+    const preferredProfileId = profiles.some(
+        (profile) => profile.id === activeProfileId
+    )
+        ? activeProfileId
+        : profiles[0].id;
+
+    return `
+        <div class="spotify-catalog-profile-chooser">
+            <label>
+                <span>Ajouter comme priorité à</span>
+                <select data-spotify-catalog-profile-select>
+                    ${profiles.map((profile) => `
+                        <option
+                            value="${escapeHtml(profile.id)}"
+                            ${profile.id === preferredProfileId ? "selected" : ""}
+                        >
+                            ${escapeHtml(profile.icon || "🎛️")} ${escapeHtml(profile.name)}
+                        </option>
+                    `).join("")}
+                </select>
+            </label>
+            <button
+                type="button"
+                data-spotify-catalog-add-profile="${escapeHtml(item.key)}"
+            >
+                ⭐ Ajouter
+            </button>
+        </div>
+    `;
+}
+
+function renderSpotifyCatalogSearchResults() {
+    const query = getSpotifyCatalogSearchQuery();
+
+    if (query.length < SPOTIFY_CATALOG_SEARCH_MIN_QUERY) {
+        return "";
+    }
+
+    const state = spotifyCatalogSearchState;
+    const matchingQuery = state.query === query;
+    const status = matchingQuery ? state.status : "loading";
+    const items = matchingQuery ? state.items : [];
+    const error = matchingQuery ? state.error : "";
+
+    if (status === "loading") {
+        return `
+            <section class="spotify-catalog-search is-loading" aria-busy="true">
+                <header>
+                    <div>
+                        <span>Spotify</span>
+                        <strong>Recherche dans le catalogue…</strong>
+                    </div>
+                    <span class="spotify-catalog-search__spinner" aria-hidden="true"></span>
+                </header>
+            </section>
+        `;
+    }
+
+    if (status === "error" || status === "offline") {
+        return `
+            <section class="spotify-catalog-search is-error">
+                <header>
+                    <div>
+                        <span>Spotify</span>
+                        <strong>Catalogue indisponible</strong>
+                    </div>
+                    <button
+                        type="button"
+                        data-retry-spotify-catalog-search
+                        ${status === "offline" ? "disabled" : ""}
+                    >
+                        Réessayer
+                    </button>
+                </header>
+                <p>${escapeHtml(error)}</p>
+            </section>
+        `;
+    }
+
+    if (status !== "ready") {
+        return "";
+    }
+
+    if (!items.length) {
+        return `
+            <section class="spotify-catalog-search is-empty">
+                <header>
+                    <div>
+                        <span>Spotify</span>
+                        <strong>Aucun titre, album ou artiste trouvé</strong>
+                    </div>
+                </header>
+            </section>
+        `;
+    }
+
+    return `
+        <section class="spotify-catalog-search" aria-label="Résultats du catalogue Spotify">
+            <header>
+                <div>
+                    <span>Spotify</span>
+                    <strong>Catalogue</strong>
+                </div>
+                <small>${items.length} résultat${items.length > 1 ? "s" : ""}</small>
+            </header>
+            <div class="spotify-catalog-search__list">
+                ${items.map((item) => {
+                    const busy = state.busyKey === item.key;
+                    const typeLabel =
+                        getLoadedUniversalSearchFeature()
+                            .getSpotifyCatalogTypeLabel(item.type);
+                    const profileOpen = spotifyCatalogProfileTargetKey === item.key;
+
+                    return `
+                        <article
+                            class="spotify-catalog-result ${profileOpen ? "is-profile-open" : ""}"
+                            data-spotify-catalog-result="${escapeHtml(item.key)}"
+                        >
+                            <div class="spotify-catalog-result__main">
+                                <span class="spotify-catalog-result__cover" aria-hidden="true">
+                                    ${item.imageUrl
+                                        ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
+                                        : item.type === "artist"
+                                            ? "🎤"
+                                            : item.type === "album"
+                                                ? "💿"
+                                                : "🎵"}
+                                </span>
+                                <div class="spotify-catalog-result__copy">
+                                    <span>
+                                        <strong>${escapeHtml(item.title)}</strong>
+                                        <small>${escapeHtml(typeLabel)}</small>
+                                    </span>
+                                    <em>${escapeHtml(item.subtitle)}</em>
+                                    <span>${escapeHtml(item.description)}</span>
+                                </div>
+                            </div>
+                            <div class="spotify-catalog-result__actions">
+                                <button
+                                    type="button"
+                                    data-spotify-catalog-action="play"
+                                    data-spotify-catalog-key="${escapeHtml(item.key)}"
+                                    ${busy || item.playable === false ? "disabled" : ""}
+                                >
+                                    ${busy ? "…" : "▶"} Lire
+                                </button>
+                                ${item.type === "track" ? `
+                                    <button
+                                        type="button"
+                                        data-spotify-catalog-action="queue"
+                                        data-spotify-catalog-key="${escapeHtml(item.key)}"
+                                        ${busy || item.playable === false ? "disabled" : ""}
+                                    >
+                                        ➕ Ensuite
+                                    </button>
+                                ` : ""}
+                                <button
+                                    type="button"
+                                    data-spotify-catalog-action="profile"
+                                    data-spotify-catalog-key="${escapeHtml(item.key)}"
+                                    ${busy ? "disabled" : ""}
+                                >
+                                    ⭐ Profil
+                                </button>
+                                ${item.externalUrl ? `
+                                    <a
+                                        href="${escapeHtml(item.externalUrl)}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        Spotify ↗
+                                    </a>
+                                ` : ""}
+                            </div>
+                            ${renderSpotifyCatalogProfileChooser(item)}
+                        </article>
+                    `;
+                }).join("")}
+            </div>
+        </section>
+    `;
+}
+
+async function resolveSpotifyCatalogPlaybackDeviceId() {
+    const playback = await getPlayerPlusPlaybackState().catch(
+        () => null
+    );
+    if (playback?.device?.id) {
+        return playback.device.id;
+    }
+
+    const devices = await getAvailableDevices({ fresh: true });
+    const device = selectSpotifyDevice(devices, {
+        mode: "preferred",
+        preferredDevice: preferredSpotifyDevice
+    });
+
+    if (!device?.id) {
+        throw new Error(
+            "Aucun appareil Spotify disponible. Ouvre Spotify sur l’appareil voulu puis réessaie."
+        );
+    }
+
+    return device.id;
+}
+
+function addSpotifyCatalogItemToProfile(item, profileId = "") {
+    if (!item?.type) {
+        throw new Error("Résultat Spotify introuvable.");
+    }
+
+    const profile = getProfileById(profileId);
+    if (!profile || profile.isDefault) {
+        throw new Error("Choisis un profil personnalisé valide.");
+    }
+
+    const existingRules = normalizePriorityRules(
+        profile.priorityRules
+    );
+    const appendUnique = (values, value) => {
+        const normalizedValue = String(value || "").trim();
+        if (!normalizedValue) return values;
+        const alreadyPresent = values.some(
+            (entry) =>
+                entry.toLocaleLowerCase("fr") ===
+                normalizedValue.toLocaleLowerCase("fr")
+        );
+        return alreadyPresent
+            ? values
+            : [...values, normalizedValue];
+    };
+
+    const nextRules = normalizePriorityRules({
+        ...existingRules,
+        favoredTrackUris:
+            item.type === "track"
+                ? appendUnique(existingRules.favoredTrackUris, item.uri)
+                : existingRules.favoredTrackUris,
+        favoredArtists:
+            item.type === "artist"
+                ? appendUnique(existingRules.favoredArtists, item.title)
+                : existingRules.favoredArtists,
+        favoredAlbums:
+            item.type === "album"
+                ? appendUnique(existingRules.favoredAlbums, item.title)
+                : existingRules.favoredAlbums
+    });
+
+    mixProfiles = mixProfiles.map((candidate) =>
+        candidate.id === profile.id
+            ? normalizeMixProfile({
+                ...candidate,
+                priorityRules: nextRules
+            })
+            : candidate
+    );
+    saveMixProfiles();
+
+    if (activeProfileId === profile.id) {
+        currentPriorityRules = normalizePriorityRules(nextRules);
+        savePriorityRules();
+    }
+
+    return getProfileById(profile.id);
+}
+
+async function runSpotifyCatalogSearchAction(
+    action = "",
+    key = ""
+) {
+    const item = getSpotifyCatalogSearchItem(key);
+    if (!item) {
+        return;
+    }
+
+    if (action === "profile") {
+        spotifyCatalogProfileTargetKey =
+            spotifyCatalogProfileTargetKey === item.key
+                ? ""
+                : item.key;
+        refreshUniversalSearchResultsDom();
+        return;
+    }
+
+    if (spotifyCatalogSearchState.busyKey) {
+        return;
+    }
+
+    spotifyCatalogSearchState = {
+        ...spotifyCatalogSearchState,
+        busyKey: item.key
+    };
+    refreshUniversalSearchResultsDom();
+
+    try {
+        if (action === "play") {
+            if (isKnownNonPremiumAccount()) {
+                throw new Error(
+                    "La lecture à distance nécessite Spotify Premium."
+                );
+            }
+
+            const deviceId = await resolveSpotifyCatalogPlaybackDeviceId();
+            if (item.type === "track") {
+                await startPlayback([item.uri], deviceId);
+            } else {
+                await startPlaybackContext(item.uri, deviceId);
+            }
+
+            if (getSpotifyCatalogSearchQuery()) {
+                addUniversalSearchHistory(
+                    getSpotifyCatalogSearchQuery()
+                );
+            }
+
+            showToast(
+                `▶ ${item.type === "track" ? "Lecture" : "Contexte"} « ${item.title} » lancé dans Spotify.`,
+                "success"
+            );
+            window.setTimeout(() => {
+                refreshQuickControlPlayback({
+                    silent: true,
+                    fresh: true
+                }).catch(() => null);
+            }, 650);
+        } else if (action === "queue") {
+            if (item.type !== "track") {
+                throw new Error(
+                    "Seuls les titres peuvent être ajoutés à la file Spotify."
+                );
+            }
+            if (isKnownNonPremiumAccount()) {
+                throw new Error(
+                    "La file Spotify à distance nécessite Spotify Premium."
+                );
+            }
+
+            const deviceId = await resolveSpotifyCatalogPlaybackDeviceId();
+            await addToPlaybackQueue(item.uri, deviceId);
+            if (getSpotifyCatalogSearchQuery()) {
+                addUniversalSearchHistory(
+                    getSpotifyCatalogSearchQuery()
+                );
+            }
+            showToast(
+                `➕ « ${item.title} » ajouté à la file Spotify.`,
+                "success"
+            );
+            await refreshDrivingQueue({
+                silent: true,
+                fresh: true
+            }).catch(() => null);
+            updateHomeUpcomingPreviewDom();
+        }
+    } catch (error) {
+        setStatus(
+            getPlaybackErrorMessage(error),
+            "error"
+        );
+        showToast(
+            getPlaybackErrorMessage(error),
+            "error"
+        );
+    } finally {
+        spotifyCatalogSearchState = {
+            ...spotifyCatalogSearchState,
+            busyKey: ""
+        };
+        if (universalSearchOpen) {
+            refreshUniversalSearchResultsDom();
+        }
+    }
+}
+
 function updateUniversalSearchResults() {
     universalSearchResults =
         getLoadedUniversalSearchFeature().searchUniversalIndex(
@@ -19267,92 +19844,103 @@ function renderUniversalSearchResults() {
             `
             : "";
 
-    if (!universalSearchResults.length) {
-        return `
-            ${recent}
-            <div
-                class="universal-search-empty"
-            >
-                <span aria-hidden="true">🔎</span>
-                <h4>Aucun résultat</h4>
-                <p>
-                    Essaie un nom de rubrique, de playlist,
-                    de mix, de scène ou un mot comme
-                    « sauvegarde ».
-                </p>
-            </div>
-        `;
-    }
+    const localResults = universalSearchResults.length
+        ? (() => {
+            const groups =
+                getLoadedUniversalSearchFeature()
+                    .groupUniversalSearchResults(
+                        universalSearchResults
+                    );
 
-    const groups = getLoadedUniversalSearchFeature().groupUniversalSearchResults(
-        universalSearchResults
-    );
+            return `
+                <div
+                    class="universal-search-result-groups"
+                    role="listbox"
+                    aria-label="Résultats Shuffle+"
+                >
+                    ${groups.map((group) => `
+                        <section
+                            class="universal-search-result-group"
+                            aria-label="${escapeHtml(group.label)}"
+                        >
+                            <h4>
+                                <span>${escapeHtml(group.label)}</span>
+                                <small>${group.items.length}</small>
+                            </h4>
+                            <div class="universal-search-result-list">
+                                ${group.items.map((item) => {
+                                    const index = item.resultIndex;
+                                    return `
+                                        <button
+                                            type="button"
+                                            class="universal-search-result
+                                            ${index === universalSearchSelectedIndex
+                                                ? "is-selected"
+                                                : ""}"
+                                            data-universal-search-result-index="${index}"
+                                            role="option"
+                                            aria-selected="${index === universalSearchSelectedIndex
+                                                ? "true"
+                                                : "false"}"
+                                        >
+                                            <span
+                                                class="universal-search-result__icon"
+                                                aria-hidden="true"
+                                            >
+                                                ${escapeHtml(item.icon)}
+                                            </span>
+                                            <span
+                                                class="universal-search-result__copy"
+                                            >
+                                                <span>
+                                                    <strong>${escapeHtml(item.title)}</strong>
+                                                    <small>${escapeHtml(
+                                                        getLoadedUniversalSearchFeature()
+                                                            .getUniversalSearchTypeLabel(
+                                                                item.type
+                                                            )
+                                                    )}</small>
+                                                </span>
+                                                <em>${escapeHtml(item.subtitle)}</em>
+                                                <span>${escapeHtml(item.description)}</span>
+                                            </span>
+                                            <span
+                                                class="universal-search-result__arrow"
+                                                aria-hidden="true"
+                                            >
+                                                ›
+                                            </span>
+                                        </button>
+                                    `;
+                                }).join("")}
+                            </div>
+                        </section>
+                    `).join("")}
+                </div>
+            `;
+        })()
+        : universalSearchQuery
+            ? `
+                <div class="universal-search-local-empty">
+                    Aucun résultat interne Shuffle+ pour cette recherche.
+                </div>
+            `
+            : `
+                <div class="universal-search-empty">
+                    <span aria-hidden="true">🔎</span>
+                    <h4>Que veux-tu écouter ?</h4>
+                    <p>
+                        Recherche une rubrique Shuffle+ ou saisis au moins
+                        deux caractères pour chercher aussi un titre,
+                        un album ou un artiste sur Spotify.
+                    </p>
+                </div>
+            `;
 
     return `
         ${recent}
-        <div
-            class="universal-search-result-groups"
-            role="listbox"
-            aria-label="Résultats de recherche"
-        >
-            ${groups.map((group) => `
-                <section
-                    class="universal-search-result-group"
-                    aria-label="${escapeHtml(group.label)}"
-                >
-                    <h4>
-                        <span>${escapeHtml(group.label)}</span>
-                        <small>${group.items.length}</small>
-                    </h4>
-                    <div class="universal-search-result-list">
-                        ${group.items.map((item) => {
-                            const index = item.resultIndex;
-                            return `
-                                <button
-                                    type="button"
-                                    class="universal-search-result
-                                    ${index === universalSearchSelectedIndex
-                                        ? "is-selected"
-                                        : ""}"
-                                    data-universal-search-result-index="${index}"
-                                    role="option"
-                                    aria-selected="${index === universalSearchSelectedIndex
-                                        ? "true"
-                                        : "false"}"
-                                >
-                                    <span
-                                        class="universal-search-result__icon"
-                                        aria-hidden="true"
-                                    >
-                                        ${escapeHtml(item.icon)}
-                                    </span>
-                                    <span
-                                        class="universal-search-result__copy"
-                                    >
-                                        <span>
-                                            <strong>${escapeHtml(item.title)}</strong>
-                                            <small>${escapeHtml(
-                                                getLoadedUniversalSearchFeature().getUniversalSearchTypeLabel(
-                                                    item.type
-                                                )
-                                            )}</small>
-                                        </span>
-                                        <em>${escapeHtml(item.subtitle)}</em>
-                                        <span>${escapeHtml(item.description)}</span>
-                                    </span>
-                                    <span
-                                        class="universal-search-result__arrow"
-                                        aria-hidden="true"
-                                    >
-                                        ›
-                                    </span>
-                                </button>
-                            `;
-                        }).join("")}
-                    </div>
-                </section>
-            `).join("")}
-        </div>
+        ${localResults}
+        ${renderSpotifyCatalogSearchResults()}
     `;
 }
 
@@ -19399,7 +19987,7 @@ function renderUniversalSearchDialog() {
                         id="universalSearchInput"
                         type="search"
                         value="${escapeHtml(universalSearchQuery)}"
-                        placeholder="Ex. Conduite, Chill, sauvegarde…"
+                        placeholder="Titre, artiste, album, rubrique…"
                         autocomplete="off"
                         autocapitalize="none"
                         enterkeyhint="go"
@@ -19604,6 +20192,9 @@ async function openUniversalSearch({
         universalSearchQuery =
             String(query || "").slice(0, 100);
         universalSearchSelectedIndex = 0;
+        scheduleSpotifyCatalogSearch({
+            immediate: Boolean(universalSearchQuery.trim())
+        });
         refreshUniversalSearchLayer({
             focus: true
         });
@@ -19624,6 +20215,7 @@ function closeUniversalSearch() {
     universalSearchQuery = "";
     universalSearchResults = [];
     universalSearchSelectedIndex = 0;
+    resetSpotifyCatalogSearch();
     refreshUniversalSearchLayer();
     syncUniversalSearchLauncherState();
 
@@ -19649,6 +20241,7 @@ function setUniversalSearchQuery(query = "") {
         input.value = universalSearchQuery;
     }
 
+    scheduleSpotifyCatalogSearch();
     refreshUniversalSearchResultsDom();
     input?.focus();
 }
@@ -46803,6 +47396,87 @@ contentElement.addEventListener(
             return;
         }
 
+        if (
+            event.target.closest(
+                "[data-retry-spotify-catalog-search]"
+            )
+        ) {
+            scheduleSpotifyCatalogSearch({
+                immediate: true
+            });
+            refreshUniversalSearchResultsDom();
+            return;
+        }
+
+        const spotifyCatalogActionButton =
+            event.target.closest(
+                "[data-spotify-catalog-action]"
+            );
+        if (spotifyCatalogActionButton) {
+            await runSpotifyCatalogSearchAction(
+                spotifyCatalogActionButton.dataset
+                    .spotifyCatalogAction || "",
+                spotifyCatalogActionButton.dataset
+                    .spotifyCatalogKey || ""
+            );
+            return;
+        }
+
+        const spotifyCatalogAddProfileButton =
+            event.target.closest(
+                "[data-spotify-catalog-add-profile]"
+            );
+        if (spotifyCatalogAddProfileButton) {
+            const key =
+                spotifyCatalogAddProfileButton.dataset
+                    .spotifyCatalogAddProfile || "";
+            const item = getSpotifyCatalogSearchItem(key);
+            const article =
+                spotifyCatalogAddProfileButton.closest(
+                    "[data-spotify-catalog-result]"
+                );
+            const profileId =
+                article?.querySelector(
+                    "[data-spotify-catalog-profile-select]"
+                )?.value || "";
+
+            try {
+                const profile =
+                    addSpotifyCatalogItemToProfile(
+                        item,
+                        profileId
+                    );
+                spotifyCatalogProfileTargetKey = "";
+                if (getSpotifyCatalogSearchQuery()) {
+                    addUniversalSearchHistory(
+                        getSpotifyCatalogSearchQuery()
+                    );
+                }
+                showToast(
+                    `⭐ « ${item?.title || "Résultat Spotify"} » ajouté aux priorités de « ${profile?.name || "Profil"} ».`,
+                    "success"
+                );
+                refreshUniversalSearchResultsDom();
+            } catch (error) {
+                showToast(
+                    error?.message ||
+                    "Impossible d’ajouter ce résultat au profil.",
+                    "error"
+                );
+            }
+            return;
+        }
+
+        if (
+            event.target.closest(
+                "[data-spotify-catalog-open-profiles]"
+            )
+        ) {
+            closeUniversalSearch();
+            await navigateToAppMenu("settings");
+            return;
+        }
+
         const universalSearchResultButton =
             event.target.closest(
                 "[data-universal-search-result-index]"
@@ -50360,6 +51034,7 @@ contentElement.addEventListener(
             universalSearchQuery =
                 event.target.value.slice(0, 100);
             universalSearchSelectedIndex = 0;
+            scheduleSpotifyCatalogSearch();
             refreshUniversalSearchResultsDom();
             return;
         }

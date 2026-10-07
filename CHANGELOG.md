@@ -1,4 +1,17 @@
 # Changelog Shuffle+
+## 11.6.0 — Recherche Spotify intégrée
+
+- étend la recherche globale avec le catalogue Spotify pour les **titres, albums et artistes** ;
+- déclenche les recherches distantes à partir de 2 caractères avec un debounce de 320 ms et ignore les réponses réseau devenues obsolètes ;
+- ajoute **▶ Lire maintenant** sur titres, albums et artistes ;
+- ajoute **➕ Lire ensuite** sur les titres via la file Spotify active ;
+- ajoute **⭐ Profil** pour enregistrer un titre, un artiste ou un album dans les priorités intelligentes d’un profil Shuffle+ personnalisé ;
+- ajoute un accès direct **Spotify ↗** à chaque résultat du catalogue ;
+- conserve la recherche interne Shuffle+ et son fonctionnement hors ligne, avec un état séparé lorsque le catalogue Spotify est indisponible ;
+- ajoute les wrappers `searchSpotifyCatalog()` et `startPlaybackContext()` sans nouveau scope OAuth ;
+- porte la suite applicative à **484 tests** et conserve Railway en **v5.2.1**.
+
+
 ## 11.5.0 — Player+
 
 - ajoute **⏮ Précédent** à la carte Lecture en cours ;
