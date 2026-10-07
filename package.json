@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.4.0",
+  "version": "11.5.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.4.0 — Architecture PWA allégée, préchauffage résilient et diagnostics du shell.",
+  "description": "Shuffle+ 11.5.0 — Player+ : précédent, seek, répétition, volume et Lire ensuite.",
   "engines": {
     "node": ">=20"
   },

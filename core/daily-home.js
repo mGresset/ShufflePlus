@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html-utils.js";
 import { analyzeQueueContinuity } from "./queue-continuity.js";
+import { getPlayerRepeatLabel, normalizePlayerVolume } from "./player-plus.js";
 import {
     getHomeLayoutPresetId,
     normalizeHomeLayout
@@ -52,11 +53,7 @@ export function buildDailyHomeSnapshot({
     const repeatMode = ["track", "context"].includes(playback?.repeat_state)
         ? playback.repeat_state
         : "off";
-    const repeatLabel = repeatMode === "track"
-        ? "Titre"
-        : repeatMode === "context"
-            ? "Contexte"
-            : "OFF";
+    const repeatLabel = getPlayerRepeatLabel(repeatMode);
     const nextStep = guidedSetup?.steps?.find?.((step) => !step.ready) || null;
     const safeQueue = (Array.isArray(queue) ? queue : [])
         .filter(Boolean);
@@ -106,12 +103,20 @@ export function buildDailyHomeSnapshot({
             album: track?.album?.name || "",
             imageUrl: track?.album?.images?.[0]?.url || "",
             isPlaying: Boolean(playback?.is_playing),
+            progressMs,
+            durationMs,
             progressPercent,
             elapsedLabel: formatDuration(progressMs),
             durationLabel: formatDuration(durationMs),
             deviceName: playback?.device?.name || deviceLabel,
             deviceType: playback?.device?.type || "",
             deviceActive: Boolean(playback?.device?.id || playback?.device?.name),
+            volumePercent:
+                playback?.device?.volume_percent !== null &&
+                playback?.device?.volume_percent !== undefined &&
+                Number.isFinite(Number(playback.device.volume_percent))
+                    ? normalizePlayerVolume(playback.device.volume_percent)
+                    : null,
             shuffleActive: Boolean(playback?.shuffle_state),
             repeatMode,
             repeatLabel
@@ -423,19 +428,48 @@ function renderHomeNowPlaying(snapshot) {
                 </aside>
             </div>
 
-            <div class="v9-home-progress" style="--v9-progress:${playback.progressPercent.toFixed(2)}%" aria-label="Progression du titre">
-                <i></i>
+            <div class="v115-home-seek" aria-label="Position de lecture">
+                <input
+                    type="range"
+                    min="0"
+                    max="${Math.max(1, playback.durationMs)}"
+                    step="1000"
+                    value="${Math.min(playback.progressMs, Math.max(1, playback.durationMs))}"
+                    data-home-seek
+                    aria-label="Avancer ou reculer dans le titre"
+                    ${playback.available && playback.durationMs > 0 ? "" : "disabled"}
+                >
             </div>
             <div class="v9-home-progress-labels">
-                <span>${escapeHtml(playback.elapsedLabel)}</span>
+                <span data-home-now-elapsed>${escapeHtml(playback.elapsedLabel)}</span>
                 <span data-home-now-duration>${escapeHtml(playback.durationLabel)}</span>
             </div>
 
-            <div class="v9-home-player-actions v111-home-player-actions">
-                <button type="button" class="ui-button ui-button--primary" data-dashboard-playback="playpause">
-                    ${playback.isPlaying ? "⏸ Pause" : "▶ Lecture"}
-                </button>
-                <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="next">⏭ Suivant</button>
+            <div class="v115-home-player-plus">
+                <div class="v9-home-player-actions v111-home-player-actions">
+                    <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="previous" aria-label="Titre précédent">⏮ Précédent</button>
+                    <button type="button" class="ui-button ui-button--primary" data-dashboard-playback="playpause">
+                        ${playback.isPlaying ? "⏸ Pause" : "▶ Lecture"}
+                    </button>
+                    <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="next">⏭ Suivant</button>
+                    <button type="button" class="ui-button ui-button--secondary" data-dashboard-playback="repeat" data-home-repeat-button>🔁 ${escapeHtml(playback.repeatLabel)}</button>
+                </div>
+                <label class="v115-home-volume">
+                    <span>🔊 Volume <b data-home-volume-label>${playback.volumePercent === null ? "—" : `${playback.volumePercent}%`}</b></span>
+                    <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="1"
+                        value="${playback.volumePercent ?? 50}"
+                        data-home-volume
+                        aria-label="Volume Spotify"
+                        ${playback.deviceActive ? "" : "disabled"}
+                    >
+                </label>
+            </div>
+
+            <div class="v9-home-player-actions v111-home-player-actions v115-home-secondary-actions">
                 ${snapshot.dynamicLyricsEnabled
                     ? '<button type="button" class="ui-button ui-button--secondary" data-home-open-dynamic-lyrics>🎤 Dynamic Lyrics</button>'
                     : `<button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ File</button>`}

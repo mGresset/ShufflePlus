@@ -31,6 +31,11 @@ import {
     resumePlayback,
     pausePlayback,
     skipToNext,
+    skipToPrevious,
+    seekPlayback,
+    setPlaybackRepeat,
+    setPlaybackVolume,
+    addToPlaybackQueue,
     createPrivatePlaylist,
     addItemsToPlaylist,
     getPlaylistLastAddedAt,
@@ -159,6 +164,13 @@ import {
     analyzeQueueContinuity,
     shouldRefreshQueue
 } from "./core/queue-continuity.js";
+
+import {
+    getNextPlayerRepeatState,
+    getPlayerRepeatLabel,
+    normalizePlayerSeekPosition,
+    normalizePlayerVolume
+} from "./core/player-plus.js";
 
 import {
     buildDrivingQueuePreview,
@@ -963,7 +975,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.4.0-shell";
+    "shuffleplus-v11.5.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1819,6 +1831,7 @@ let drivingMessage = {
 };
 let quickPlaybackState = null;
 let quickControlBusy = false;
+let playerPlusControlBusy = false;
 let quickVoiceRecognition = null;
 let quickVoiceListening = false;
 let quickControlMessage = {
@@ -4173,10 +4186,47 @@ function updateHomeNowPlayingDom() {
     }
 
     const elapsed = card.querySelector(
-        ".v9-home-progress-labels span:first-child"
+        "[data-home-now-elapsed]"
     );
     if (elapsed) {
         elapsed.textContent = playback.elapsedLabel;
+    }
+
+    const seekInput = card.querySelector("[data-home-seek]");
+    if (seekInput) {
+        seekInput.max = String(Math.max(1, playback.durationMs));
+        if (document.activeElement !== seekInput) {
+            seekInput.value = String(
+                Math.min(playback.progressMs, Math.max(1, playback.durationMs))
+            );
+        }
+        seekInput.disabled = !(playback.available && playback.durationMs > 0);
+    }
+
+    const repeatButton = card.querySelector("[data-home-repeat-button]");
+    if (repeatButton) {
+        repeatButton.textContent = `🔁 ${playback.repeatLabel}`;
+        repeatButton.setAttribute(
+            "aria-label",
+            `Répétition Spotify : ${playback.repeatLabel}`
+        );
+    }
+
+    const volumeInput = card.querySelector("[data-home-volume]");
+    const volumeLabel = card.querySelector("[data-home-volume-label]");
+    if (volumeInput) {
+        if (
+            playback.volumePercent !== null &&
+            document.activeElement !== volumeInput
+        ) {
+            volumeInput.value = String(playback.volumePercent);
+        }
+        volumeInput.disabled = !playback.deviceActive;
+    }
+    if (volumeLabel) {
+        volumeLabel.textContent = playback.volumePercent === null
+            ? "—"
+            : `${playback.volumePercent}%`;
     }
 
     updateVisiblePlaybackButtons(Boolean(playback.isPlaying));
@@ -6914,7 +6964,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.4.0",
+                "./service-worker.js?v=11.5.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -15740,7 +15790,9 @@ async function runQuickControlAction(
                 "playpause",
                 "pause",
                 "resume",
+                "previous",
                 "next",
+                "repeat",
                 "like-current",
                 "not-now-current",
                 "repetitive-current"
@@ -15762,7 +15814,7 @@ async function runQuickControlAction(
                     : null;
 
             if (
-                ["playpause", "pause", "resume", "next"]
+                ["playpause", "pause", "resume", "previous", "next", "repeat"]
                     .includes(normalizedAction) &&
                 !deviceId
             ) {
@@ -15857,6 +15909,30 @@ async function runQuickControlAction(
                 await resumePlayback(deviceId);
                 setQuickControlMessage(
                     "Lecture reprise.",
+                    "success"
+                );
+            } else if (normalizedAction === "previous") {
+                await skipToPrevious(deviceId);
+                setQuickControlMessage(
+                    "Titre précédent demandé.",
+                    "success"
+                );
+                await new Promise((resolve) =>
+                    window.setTimeout(resolve, 260)
+                );
+            } else if (normalizedAction === "repeat") {
+                const nextRepeatState = getNextPlayerRepeatState(
+                    state?.repeat_state || "off"
+                );
+                await setPlaybackRepeat(nextRepeatState, deviceId);
+                quickPlaybackState = {
+                    ...(quickPlaybackState || state),
+                    repeat_state: nextRepeatState
+                };
+                drivingPlaybackState = quickPlaybackState;
+                renderActivePlaybackSurface();
+                setQuickControlMessage(
+                    `Répétition : ${getPlayerRepeatLabel(nextRepeatState)}.`,
                     "success"
                 );
             } else if (normalizedAction === "next") {
@@ -43402,6 +43478,17 @@ function createTrackRow(track, index) {
                             `
                             : ""}
                         <span class="track-smart-menu-label">
+                            Player+
+                        </span>
+                        <button
+                            type="button"
+                            data-track-action="queue-next"
+                            data-track-index="${index}"
+                            ${track?.uri ? "" : "disabled"}
+                        >
+                            ➕ Lire ensuite
+                        </button>
+                        <span class="track-smart-menu-label">
                             Smart Queue
                         </span>
                         <button
@@ -45064,6 +45151,94 @@ async function playSelectedOrder() {
         playbackMessage.textContent = getPlaybackErrorMessage(error);
         playbackMessage.className = "playback-message error";
         updatePlaybackQueueUI();
+    }
+}
+
+async function getPlayerPlusPlaybackState() {
+    return getEffectivePlaybackState(
+        quickPlaybackState || drivingPlaybackState
+    ) || await getCurrentPlayback({ fresh: true });
+}
+
+async function runPlayerPlusSeek(positionMs) {
+    if (playerPlusControlBusy) return;
+    playerPlusControlBusy = true;
+    try {
+        const state = await getPlayerPlusPlaybackState();
+        const deviceId = state?.device?.id || "";
+        const durationMs = Number(state?.item?.duration_ms) || 0;
+        if (!deviceId || !state?.item) {
+            throw new Error("Aucune lecture Spotify active.");
+        }
+        const nextPosition = normalizePlayerSeekPosition(
+            positionMs,
+            durationMs
+        );
+        await seekPlayback(nextPosition, deviceId);
+        quickPlaybackState = stampPlaybackClock({
+            ...(state || {}),
+            progress_ms: nextPosition
+        });
+        drivingPlaybackState = quickPlaybackState;
+        updateHomeNowPlayingDom();
+        showToast(`⏱ Position : ${formatDuration(nextPosition)}.`, "success");
+    } catch (error) {
+        setStatus(getPlaybackErrorMessage(error), "error");
+    } finally {
+        playerPlusControlBusy = false;
+    }
+}
+
+async function runPlayerPlusVolume(volumePercent) {
+    if (playerPlusControlBusy) return;
+    playerPlusControlBusy = true;
+    try {
+        const state = await getPlayerPlusPlaybackState();
+        const deviceId = state?.device?.id || "";
+        if (!deviceId) {
+            throw new Error("Aucun appareil Spotify actif.");
+        }
+        const nextVolume = normalizePlayerVolume(volumePercent);
+        await setPlaybackVolume(nextVolume, deviceId);
+        quickPlaybackState = {
+            ...(state || {}),
+            device: {
+                ...(state?.device || {}),
+                volume_percent: nextVolume
+            }
+        };
+        drivingPlaybackState = quickPlaybackState;
+        updateHomeNowPlayingDom();
+        showToast(`🔊 Volume Spotify : ${nextVolume}%.`, "success");
+    } catch (error) {
+        setStatus(getPlaybackErrorMessage(error), "error");
+    } finally {
+        playerPlusControlBusy = false;
+    }
+}
+
+async function queueTrackNextAt(index) {
+    const track = selectedTracks[index];
+    if (!track?.uri) {
+        setStatus("Ce morceau ne peut pas être ajouté à la file Spotify.", "error");
+        return;
+    }
+
+    try {
+        const state = await getPlayerPlusPlaybackState();
+        const deviceId = state?.device?.id || "";
+        if (!deviceId) {
+            throw new Error("Aucun appareil Spotify actif.");
+        }
+        await addToPlaybackQueue(track.uri, deviceId);
+        showToast(
+            `➕ « ${track.name || "Titre"} » ajouté à la file Spotify.`,
+            "success"
+        );
+        await refreshDrivingQueue({ silent: true, fresh: true }).catch(() => null);
+        updateHomeUpcomingPreviewDom();
+    } catch (error) {
+        setStatus(getPlaybackErrorMessage(error), "error");
     }
 }
 
@@ -48434,6 +48609,8 @@ contentElement.addEventListener(
                 excludeTrackAt(index);
             } else if (action === "favorite") {
                 toggleFavoredTrackAt(index);
+            } else if (action === "queue-next") {
+                await queueTrackNextAt(index);
             } else if (action === "replace") {
                 replaceSmartQueueTrackAt(index);
             } else if (action === "avoid-artist") {
@@ -48950,6 +49127,28 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
+        if (event.target.matches("[data-home-seek]")) {
+            const card = event.target.closest("[data-home-now-playing]");
+            const value = Math.max(0, Number(event.target.value) || 0);
+            const maximum = Math.max(1, Number(event.target.max) || 1);
+            card?.style?.setProperty(
+                "--v115-seek-progress",
+                `${Math.min(100, (value / maximum) * 100).toFixed(2)}%`
+            );
+            const elapsed = card?.querySelector("[data-home-now-elapsed]");
+            if (elapsed) elapsed.textContent = formatDuration(value);
+            return;
+        }
+
+        if (event.target.matches("[data-home-volume]")) {
+            const label = event.target.closest(".v115-home-volume")
+                ?.querySelector("[data-home-volume-label]");
+            if (label) {
+                label.textContent = `${normalizePlayerVolume(event.target.value)}%`;
+            }
+            return;
+        }
+
         if (
             event.target.id ===
             "uiThemeCustomColorInput"
@@ -49877,6 +50076,16 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "change",
     async (event) => {
+        if (event.target.matches("[data-home-seek]")) {
+            await runPlayerPlusSeek(event.target.value);
+            return;
+        }
+
+        if (event.target.matches("[data-home-volume]")) {
+            await runPlayerPlusVolume(event.target.value);
+            return;
+        }
+
         if (
             event.target.closest(
                 "#adaptiveTransitionForm"

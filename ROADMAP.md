@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v11.5.0 — Player+ : précédent, seek, répétition, volume et Lire ensuite : terminée**
 - **v11.4.0 — Architecture PWA, shell minimal, préchauffage résilient et diagnostic hors ligne : terminée**
 - **v11.3.1 — Fiabilité Railway et écritures atomiques : terminée**
 - **v11.3.0 — Mode Conduite V2 : terminée**

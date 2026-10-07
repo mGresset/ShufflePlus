@@ -453,6 +453,78 @@ export async function skipToNext(deviceId = "") {
     );
 }
 
+export async function skipToPrevious(deviceId = "") {
+    await spotifyFetch(
+        `/me/player/previous${buildPlaybackDeviceQuery(deviceId)}`,
+        { method: "POST" }
+    );
+}
+
+export async function seekPlayback(positionMs, deviceId = "") {
+    const parameters = new URLSearchParams();
+    parameters.set(
+        "position_ms",
+        String(Math.max(0, Math.round(Number(positionMs) || 0)))
+    );
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    await spotifyFetch(
+        `/me/player/seek?${parameters.toString()}`,
+        { method: "PUT" }
+    );
+}
+
+export async function setPlaybackRepeat(state = "off", deviceId = "") {
+    const normalizedState = ["track", "context"].includes(state)
+        ? state
+        : "off";
+    const parameters = new URLSearchParams();
+    parameters.set("state", normalizedState);
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    await spotifyFetch(
+        `/me/player/repeat?${parameters.toString()}`,
+        { method: "PUT" }
+    );
+}
+
+export async function setPlaybackVolume(volumePercent, deviceId = "") {
+    const parameters = new URLSearchParams();
+    parameters.set(
+        "volume_percent",
+        String(Math.min(100, Math.max(0, Math.round(Number(volumePercent) || 0))))
+    );
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    await spotifyFetch(
+        `/me/player/volume?${parameters.toString()}`,
+        { method: "PUT" }
+    );
+}
+
+export async function addToPlaybackQueue(uri, deviceId = "") {
+    if (!uri) {
+        throw new Error("Aucun élément Spotify à ajouter à la file.");
+    }
+
+    const parameters = new URLSearchParams();
+    parameters.set("uri", uri);
+    if (deviceId) {
+        parameters.set("device_id", deviceId);
+    }
+
+    await spotifyFetch(
+        `/me/player/queue?${parameters.toString()}`,
+        { method: "POST" }
+    );
+}
+
 function wait(milliseconds) {
     return new Promise((resolve) => {
         window.setTimeout(resolve, milliseconds);

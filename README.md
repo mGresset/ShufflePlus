@@ -1,4 +1,4 @@
-# Shuffle+ v11.4.0
+# Shuffle+ v11.5.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.4.0** est une release d’architecture et de performances PWA. Le lot réellement bloquant à l’installation passe de 79 à **13 ressources**, les 65 dépendances runtime sont préchauffées avec retry avant la prise de contrôle, et le Centre de fiabilité peut vérifier l’état réel du shell hors ligne. Le moteur Spotify et le serveur Railway restent inchangés en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.5.0** introduit **Player+** sur l’accueil : titre précédent, barre de position manipulable, cycle de répétition, volume Spotify et action **Lire ensuite** depuis l’ordre généré. Ces commandes utilisent le scope Spotify déjà autorisé `user-modify-playback-state`. Le serveur Railway reste inchangé en **v5.2.1**.
 
 ---
 
@@ -65,6 +65,19 @@ La V11.1 met l’écran quotidien au premier plan :
 - un aperçu compact des **trois prochains titres** est affiché dans la carte principale ;
 - le bouton **Dynamic Lyrics** reste une action manuelle volontaire ;
 - les autres sections de l’accueil peuvent être déplacées avec les boutons ↑ / ↓ ou masquées depuis **Personnaliser**.
+
+### Player+ — v11.5.0
+
+La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
+
+- **⏮ Précédent**, Lecture/Pause et **⏭ Suivant** ;
+- barre de progression manipulable pour avancer ou revenir dans le titre ;
+- cycle **Répétition OFF → Contexte → Titre** ;
+- réglage du volume Spotify Connect de 0 à 100 % ;
+- action **➕ Lire ensuite** dans le menu Player+ de chaque morceau de l’ordre Shuffle+ ;
+- synchronisation du nouvel état dans la carte d’accueil sans reconstruire toute la page.
+
+Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
 
 ### Lancement musical en une action
 
@@ -764,7 +777,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.4.0"
+git commit -m "Release Shuffle+ v11.5.0"
 git push origin main
 ```
 
@@ -774,7 +787,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.4.0** ;
+3. vérifier que l’en-tête affiche **v11.5.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -792,8 +805,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.4.0.js        Chargement versionné et migration du runtime
-startup-recovery-11.4.0.js Réparation avant le chargement principal
+bootstrap-11.5.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.5.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -840,7 +853,7 @@ server/README.md
 
 ## Validation et tests
 
-La v11.4.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
+La v11.5.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
 - les tests applicatifs et serveur ;
 - la cohérence de version et du shell PWA, y compris le graphe réel des imports statiques ;
 - les imports et l’architecture CSS ;
@@ -943,7 +956,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.4.0 reste à valider sur l’installation réelle avec :
+La v11.5.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;

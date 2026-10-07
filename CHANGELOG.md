@@ -1,4 +1,16 @@
 # Changelog Shuffle+
+## 11.5.0 — Player+
+
+- ajoute **⏮ Précédent** à la carte Lecture en cours ;
+- remplace la progression passive par une barre **seek** manipulable pour avancer/reculer dans le titre ;
+- ajoute le cycle de répétition **OFF → Contexte → Titre** ;
+- ajoute un réglage de **volume Spotify Connect** 0–100 % ;
+- ajoute **➕ Lire ensuite** dans le menu Player+ de chaque morceau de l’ordre généré ;
+- ajoute les wrappers Spotify officiels `previous`, `seek`, `repeat`, `volume` et `queue` sans nouveau scope OAuth ;
+- ajoute `core/player-plus.js` pour normaliser volume, position et états de répétition ;
+- ajoute les tests Player+ et conserve Railway en **v5.2.1**.
+
+
 ## 11.4.0 — Architecture PWA et performances
 
 - réduit le lot d’installation PWA réellement bloquant de 79 à **13 ressources** ;
