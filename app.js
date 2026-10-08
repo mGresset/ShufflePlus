@@ -168,10 +168,12 @@ import {
 } from "./core/queue-continuity.js";
 
 import {
+    createPlayerPlusRuntime,
     getNextPlayerRepeatState,
     getPlayerRepeatLabel,
-    normalizePlayerSeekPosition,
-    normalizePlayerVolume
+    updatePlayerPlusInputPreview,
+    updatePlayerPlusNowPlayingCard,
+    updatePlayerPlusPlaybackButtons
 } from "./core/player-plus.js";
 
 import {
@@ -993,7 +995,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.10.0-shell";
+    "shuffleplus-v11.11.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1849,7 +1851,6 @@ let drivingMessage = {
 };
 let quickPlaybackState = null;
 let quickControlBusy = false;
-let playerPlusControlBusy = false;
 let quickVoiceRecognition = null;
 let quickVoiceListening = false;
 let quickControlMessage = {
@@ -3735,7 +3736,7 @@ function updatePlaybackProgressDom() {
 
     quickPlaybackState = snapshot;
     drivingPlaybackState = snapshot;
-    updateVisiblePlaybackButtons(
+    updatePlayerPlusPlaybackButtons(
         Boolean(snapshot.is_playing)
     );
 
@@ -3926,7 +3927,7 @@ function beginPlaybackUiOverride(expectedPlaying) {
         playbackUiOverride.anchorPlayback,
         now
     );
-    updateVisiblePlaybackButtons(
+    updatePlayerPlusPlaybackButtons(
         playbackUiOverride.expectedPlaying
     );
 
@@ -4036,26 +4037,6 @@ function schedulePlaybackConfirmationChecks(token) {
         });
 }
 
-function updateVisiblePlaybackButtons(isPlaying) {
-    document.querySelectorAll(
-        '[data-dashboard-playback="playpause"]'
-    ).forEach((button) => {
-        button.textContent = isPlaying
-            ? "⏸ Pause"
-            : "▶ Lecture";
-        button.setAttribute(
-            "aria-label",
-            isPlaying
-                ? "Mettre la lecture en pause"
-                : "Reprendre la lecture"
-        );
-        button.setAttribute(
-            "aria-pressed",
-            String(Boolean(isPlaying))
-        );
-    });
-}
-
 function getHomeNowPlayingSnapshot() {
     const deviceLabel =
         preferredSpotifyDevice?.name ||
@@ -4104,134 +4085,14 @@ function updateHomeNowPlayingDom() {
         return false;
     }
 
-    const playback = getHomeNowPlayingSnapshot();
-    const setText = (selector, value) => {
-        const element = card.querySelector(selector);
-        if (element) {
-            element.textContent = value;
+    return updatePlayerPlusNowPlayingCard(
+        card,
+        getHomeNowPlayingSnapshot(),
+        {
+            updateVisiblePlaybackButtons: updatePlayerPlusPlaybackButtons,
+            updateUpcomingPreview: updateHomeUpcomingPreviewDom
         }
-    };
-
-    setText("[data-home-now-title-heading]", playback.title);
-    setText("[data-home-now-artist]", playback.artist);
-    setText("[data-home-now-title]", playback.title);
-    setText(
-        "[data-home-now-album]",
-        playback.album || playback.deviceName
     );
-    setText("[data-home-now-duration]", playback.durationLabel);
-    setText(
-        "[data-home-now-device-name]",
-        playback.deviceType
-            ? `${playback.deviceName} · ${playback.deviceType}`
-            : playback.deviceName
-    );
-    setText(
-        "[data-home-now-device-state]",
-        playback.deviceActive ? "Actif" : "Spotify"
-    );
-
-    const shuffleState = card.querySelector(
-        "[data-home-shuffle-state]"
-    );
-    if (shuffleState) {
-        shuffleState.textContent =
-            `🔀 Aléatoire ${playback.shuffleActive ? "ON" : "OFF"}`;
-        shuffleState.classList.toggle(
-            "is-active",
-            playback.shuffleActive
-        );
-    }
-
-    const repeatState = card.querySelector(
-        "[data-home-repeat-state]"
-    );
-    if (repeatState) {
-        repeatState.textContent =
-            `🔁 Répétition ${playback.repeatLabel}`;
-        repeatState.classList.toggle(
-            "is-active",
-            playback.repeatMode !== "off"
-        );
-    }
-
-    let cover = card.querySelector("[data-home-now-cover]");
-    if (playback.imageUrl) {
-        if (cover?.tagName !== "IMG") {
-            const image = document.createElement("img");
-            image.setAttribute("data-home-now-cover", "");
-            image.setAttribute("alt", "");
-            image.setAttribute("loading", "eager");
-            image.setAttribute("src", playback.imageUrl);
-            cover?.replaceWith(image);
-            cover = image;
-        } else if (cover.getAttribute("src") !== playback.imageUrl) {
-            cover.setAttribute("src", playback.imageUrl);
-        }
-    } else if (cover?.tagName !== "SPAN") {
-        const placeholder = document.createElement("span");
-        placeholder.className = "v9-home-track-placeholder";
-        placeholder.setAttribute("data-home-now-cover", "");
-        placeholder.setAttribute("aria-hidden", "true");
-        placeholder.textContent = "🎵";
-        cover?.replaceWith(placeholder);
-    }
-
-    const progress = card.querySelector(".v9-home-progress");
-    if (progress) {
-        progress.style.setProperty(
-            "--v9-progress",
-            `${playback.progressPercent.toFixed(2)}%`
-        );
-    }
-
-    const elapsed = card.querySelector(
-        "[data-home-now-elapsed]"
-    );
-    if (elapsed) {
-        elapsed.textContent = playback.elapsedLabel;
-    }
-
-    const seekInput = card.querySelector("[data-home-seek]");
-    if (seekInput) {
-        seekInput.max = String(Math.max(1, playback.durationMs));
-        if (document.activeElement !== seekInput) {
-            seekInput.value = String(
-                Math.min(playback.progressMs, Math.max(1, playback.durationMs))
-            );
-        }
-        seekInput.disabled = !(playback.available && playback.durationMs > 0);
-    }
-
-    const repeatButton = card.querySelector("[data-home-repeat-button]");
-    if (repeatButton) {
-        repeatButton.textContent = `🔁 ${playback.repeatLabel}`;
-        repeatButton.setAttribute(
-            "aria-label",
-            `Répétition Spotify : ${playback.repeatLabel}`
-        );
-    }
-
-    const volumeInput = card.querySelector("[data-home-volume]");
-    const volumeLabel = card.querySelector("[data-home-volume-label]");
-    if (volumeInput) {
-        if (
-            playback.volumePercent !== null &&
-            document.activeElement !== volumeInput
-        ) {
-            volumeInput.value = String(playback.volumePercent);
-        }
-        volumeInput.disabled = !playback.deviceActive;
-    }
-    if (volumeLabel) {
-        volumeLabel.textContent = playback.volumePercent === null
-            ? "—"
-            : `${playback.volumePercent}%`;
-    }
-
-    updateVisiblePlaybackButtons(Boolean(playback.isPlaying));
-    updateHomeUpcomingPreviewDom();
-    return true;
 }
 
 function renderMusicalDashboardPlaybackBody(playback) {
@@ -4339,7 +4200,7 @@ function updateMusicalDashboardPlaybackDom() {
         if (total) total.textContent = playback.totalLabel;
     }
 
-    updateVisiblePlaybackButtons(
+    updatePlayerPlusPlaybackButtons(
         Boolean(playback.isPlaying)
     );
     updatePlaybackProgressDom();
@@ -6964,7 +6825,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.10.0",
+                "./service-worker.js?v=11.11.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -11735,7 +11596,7 @@ function updateDrivingPlaybackDom() {
         );
     });
 
-    updateVisiblePlaybackButtons(isPlaying);
+    updatePlayerPlusPlaybackButtons(isPlaying);
     updatePlaybackProgressDom();
     return true;
 }
@@ -12607,7 +12468,7 @@ async function toggleDrivingPlayback() {
                     );
                 quickPlaybackState =
                     drivingPlaybackState;
-                updateVisiblePlaybackButtons(
+                updatePlayerPlusPlaybackButtons(
                     expectedPlayingState
                 );
                 schedulePlaybackConfirmationChecks(
@@ -16071,7 +15932,7 @@ async function runQuickControlAction(
                     );
                 drivingPlaybackState =
                     quickPlaybackState;
-                updateVisiblePlaybackButtons(
+                updatePlayerPlusPlaybackButtons(
                     playbackCommandExpectedState
                 );
                 schedulePlaybackConfirmationChecks(
@@ -16094,7 +15955,7 @@ async function runQuickControlAction(
                 );
             drivingPlaybackState =
                 quickPlaybackState;
-            updateVisiblePlaybackButtons(
+            updatePlayerPlusPlaybackButtons(
                 Boolean(
                     playbackRollbackState.is_playing
                 )
@@ -19151,7 +19012,7 @@ function getEditableSpotifyCatalogProfiles() {
 }
 
 async function resolveSpotifyCatalogPlaybackDeviceId() {
-    const playback = await getPlayerPlusPlaybackState().catch(
+    const playback = await getPlayerPlusRuntime().getPlaybackState().catch(
         () => null
     );
     if (playback?.device?.id) {
@@ -45460,92 +45321,36 @@ async function playSelectedOrder() {
     }
 }
 
-async function getPlayerPlusPlaybackState() {
-    return getEffectivePlaybackState(
-        quickPlaybackState || drivingPlaybackState
-    ) || await getCurrentPlayback({ fresh: true });
-}
+let playerPlusRuntime = null;
 
-async function runPlayerPlusSeek(positionMs) {
-    if (playerPlusControlBusy) return;
-    playerPlusControlBusy = true;
-    try {
-        const state = await getPlayerPlusPlaybackState();
-        const deviceId = state?.device?.id || "";
-        const durationMs = Number(state?.item?.duration_ms) || 0;
-        if (!deviceId || !state?.item) {
-            throw new Error("Aucune lecture Spotify active.");
-        }
-        const nextPosition = normalizePlayerSeekPosition(
-            positionMs,
-            durationMs
-        );
-        await seekPlayback(nextPosition, deviceId);
-        quickPlaybackState = stampPlaybackClock({
-            ...(state || {}),
-            progress_ms: nextPosition
+function getPlayerPlusRuntime() {
+    if (!playerPlusRuntime) {
+        playerPlusRuntime = createPlayerPlusRuntime({
+            getPlaybackState: async () =>
+                getEffectivePlaybackState(
+                    quickPlaybackState || drivingPlaybackState
+                ) || await getCurrentPlayback({ fresh: true }),
+            seekPlayback,
+            setPlaybackVolume,
+            addToPlaybackQueue,
+            stampPlaybackClock,
+            updatePlaybackState: (state) => {
+                quickPlaybackState = state;
+                drivingPlaybackState = state;
+            },
+            updateNowPlaying: updateHomeNowPlayingDom,
+            updateUpcomingPreview: updateHomeUpcomingPreviewDom,
+            refreshQueue: () =>
+                refreshDrivingQueue({ silent: true, fresh: true }),
+            getTrackAt: (index) => selectedTracks[index],
+            showToast,
+            setStatus,
+            getPlaybackErrorMessage,
+            formatDuration
         });
-        drivingPlaybackState = quickPlaybackState;
-        updateHomeNowPlayingDom();
-        showToast(`⏱ Position : ${formatDuration(nextPosition)}.`, "success");
-    } catch (error) {
-        setStatus(getPlaybackErrorMessage(error), "error");
-    } finally {
-        playerPlusControlBusy = false;
-    }
-}
-
-async function runPlayerPlusVolume(volumePercent) {
-    if (playerPlusControlBusy) return;
-    playerPlusControlBusy = true;
-    try {
-        const state = await getPlayerPlusPlaybackState();
-        const deviceId = state?.device?.id || "";
-        if (!deviceId) {
-            throw new Error("Aucun appareil Spotify actif.");
-        }
-        const nextVolume = normalizePlayerVolume(volumePercent);
-        await setPlaybackVolume(nextVolume, deviceId);
-        quickPlaybackState = {
-            ...(state || {}),
-            device: {
-                ...(state?.device || {}),
-                volume_percent: nextVolume
-            }
-        };
-        drivingPlaybackState = quickPlaybackState;
-        updateHomeNowPlayingDom();
-        showToast(`🔊 Volume Spotify : ${nextVolume}%.`, "success");
-    } catch (error) {
-        setStatus(getPlaybackErrorMessage(error), "error");
-    } finally {
-        playerPlusControlBusy = false;
-    }
-}
-
-async function queueTrackNextAt(index) {
-    const track = selectedTracks[index];
-    if (!track?.uri) {
-        setStatus("Ce morceau ne peut pas être ajouté à la file Spotify.", "error");
-        return;
     }
 
-    try {
-        const state = await getPlayerPlusPlaybackState();
-        const deviceId = state?.device?.id || "";
-        if (!deviceId) {
-            throw new Error("Aucun appareil Spotify actif.");
-        }
-        await addToPlaybackQueue(track.uri, deviceId);
-        showToast(
-            `➕ « ${track.name || "Titre"} » ajouté à la file Spotify.`,
-            "success"
-        );
-        await refreshDrivingQueue({ silent: true, fresh: true }).catch(() => null);
-        updateHomeUpcomingPreviewDom();
-    } catch (error) {
-        setStatus(getPlaybackErrorMessage(error), "error");
-    }
+    return playerPlusRuntime;
 }
 
 function deduplicateTracks(tracks) {
@@ -47346,7 +47151,7 @@ contentElement.addEventListener(
                     previousPlayingState !== null
                 ) {
                     clearPlaybackUiOverride();
-                    updateVisiblePlaybackButtons(
+                    updatePlayerPlusPlaybackButtons(
                         previousPlayingState
                     );
                     quickPlaybackState =
@@ -49005,7 +48810,7 @@ contentElement.addEventListener(
             } else if (action === "favorite") {
                 toggleFavoredTrackAt(index);
             } else if (action === "queue-next") {
-                await queueTrackNextAt(index);
+                await getPlayerPlusRuntime().queueTrackNextAt(index);
             } else if (action === "replace") {
                 replaceSmartQueueTrackAt(index);
             } else if (action === "avoid-artist") {
@@ -49522,25 +49327,9 @@ contentElement.addEventListener(
 contentElement.addEventListener(
     "input",
     (event) => {
-        if (event.target.matches("[data-home-seek]")) {
-            const card = event.target.closest("[data-home-now-playing]");
-            const value = Math.max(0, Number(event.target.value) || 0);
-            const maximum = Math.max(1, Number(event.target.max) || 1);
-            card?.style?.setProperty(
-                "--v115-seek-progress",
-                `${Math.min(100, (value / maximum) * 100).toFixed(2)}%`
-            );
-            const elapsed = card?.querySelector("[data-home-now-elapsed]");
-            if (elapsed) elapsed.textContent = formatDuration(value);
-            return;
-        }
-
-        if (event.target.matches("[data-home-volume]")) {
-            const label = event.target.closest(".v115-home-volume")
-                ?.querySelector("[data-home-volume-label]");
-            if (label) {
-                label.textContent = `${normalizePlayerVolume(event.target.value)}%`;
-            }
+        if (
+            updatePlayerPlusInputPreview(event.target, { formatDuration })
+        ) {
             return;
         }
 
@@ -50486,12 +50275,12 @@ contentElement.addEventListener(
     "change",
     async (event) => {
         if (event.target.matches("[data-home-seek]")) {
-            await runPlayerPlusSeek(event.target.value);
+            await getPlayerPlusRuntime().seek(event.target.value);
             return;
         }
 
         if (event.target.matches("[data-home-volume]")) {
-            await runPlayerPlusVolume(event.target.value);
+            await getPlayerPlusRuntime().volume(event.target.value);
             return;
         }
 

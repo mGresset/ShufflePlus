@@ -5,8 +5,8 @@ import { readFile } from "node:fs/promises";
 const appSource = await readFile("app.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la correction de confirmation active annonce Shuffle+ 11.10.0", () => {
-    assert.equal(version, "11.10.0");
+test("la correction de confirmation active annonce Shuffle+ 11.11.0", () => {
+    assert.equal(version, "11.11.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 
@@ -38,6 +38,6 @@ test("les vérifications Spotify sont répétées sans bloquer l'interface", () 
 test("une erreur de commande annule le verrou et restaure le bouton", () => {
     assert.match(
         appSource,
-        /clearPlaybackUiOverride\(\);[\s\S]*updateVisiblePlaybackButtons\([\s\S]*previousPlayingState/
+        /clearPlaybackUiOverride\(\);[\s\S]*updatePlayerPlusPlaybackButtons\([\s\S]*previousPlayingState/
     );
 });

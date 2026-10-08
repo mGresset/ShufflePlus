@@ -52,7 +52,7 @@ test("le Service Worker actif annonce la même version que l’application", asy
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     await expect(page.locator('meta[name="shuffleplus-version"]'))
-        .toHaveAttribute("content", "11.10.0");
+        .toHaveAttribute("content", "11.11.0");
 
     await expect.poll(
         () => readActiveServiceWorkerVersion(page),
@@ -60,7 +60,7 @@ test("le Service Worker actif annonce la même version que l’application", asy
             timeout: 30_000,
             intervals: [200, 300, 500, 750, 1_000]
         }
-    ).toBe("11.10.0");
+    ).toBe("11.11.0");
 
     await expect.poll(
         () => readCacheNames(page),
@@ -68,5 +68,5 @@ test("le Service Worker actif annonce la même version que l’application", asy
             timeout: 15_000,
             intervals: [200, 300, 500, 750]
         }
-    ).toContain("shuffleplus-v11.10.0-shell");
+    ).toContain("shuffleplus-v11.11.0-shell");
 });

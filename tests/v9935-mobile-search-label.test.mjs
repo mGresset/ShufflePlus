@@ -9,8 +9,8 @@ const searchCss = await readFile(
 );
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
-test("Shuffle+ 11.10.0 conserve le libellé Rechercher après le chargement différé", () => {
-    assert.equal(version, "11.10.0");
+test("Shuffle+ 11.11.0 conserve le libellé Rechercher après le chargement différé", () => {
+    assert.equal(version, "11.11.0");
     assert.match(appSource, /class="app-menu-search-button__label"[\s\S]*?Rechercher/);
     assert.match(
         searchCss,

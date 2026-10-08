@@ -12,8 +12,8 @@ const player = await readFile(new URL("../e2e/player-plus.spec.mjs", import.meta
 const pwa = await readFile(new URL("../e2e/pwa.spec.mjs", import.meta.url), "utf8");
 const helpers = await readFile(new URL("../e2e/helpers.mjs", import.meta.url), "utf8");
 
-test("Shuffle+ 11.10.0 verrouille Playwright stable", () => {
-    assert.equal(version, "11.10.0");
+test("Shuffle+ 11.11.0 verrouille Playwright stable", () => {
+    assert.equal(version, "11.11.0");
     assert.equal(packageJson.devDependencies?.["@playwright/test"], "1.63.0");
 });
 
@@ -30,7 +30,7 @@ test("un projet séparé valide le vrai Service Worker PWA", () => {
     assert.match(pwa, /GET_VERSION/);
     assert.match(pwa, /expect\.poll/);
     assert.match(pwa, /Execution context was destroyed/);
-    assert.match(pwa, /shuffleplus-v11\.10\.0-shell/);
+    assert.match(pwa, /shuffleplus-v11\.11\.0-shell/);
 });
 
 test("les parcours navigateur couvrent onboarding, recherche et Player+", () => {

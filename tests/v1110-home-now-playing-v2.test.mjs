@@ -15,6 +15,7 @@ import {
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const homeStyles = await readFile("styles/feature-home.css", "utf8");
+const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 
 function makePlayback() {
     return {
@@ -41,8 +42,8 @@ function makePlayback() {
     };
 }
 
-test("Shuffle+ 11.10.0 enrichit la lecture en cours avec l’état Spotify", () => {
-    assert.equal(version, "11.10.0");
+test("Shuffle+ 11.11.0 enrichit la lecture en cours avec l’état Spotify", () => {
+    assert.equal(version, "11.11.0");
     const snapshot = buildDailyHomeSnapshot({
         playback: makePlayback(),
         guidedSetup: { complete: true, progress: 100, steps: [] }
@@ -125,15 +126,12 @@ test("le personnalisateur propose des contrôles monter/descendre et garde Lectu
     assert.match(appSource, /function moveHomeLayoutSettings\(/);
 });
 
-test("les métadonnées V11.1 se mettent à jour en place sans reconstruire l’accueil", () => {
-    const start = appSource.indexOf("function updateHomeNowPlayingDom()");
-    const end = appSource.indexOf("function renderMusicalDashboardPlaybackBody", start);
-    const updater = appSource.slice(start, end);
-
-    assert.match(updater, /data-home-now-device-name/);
-    assert.match(updater, /data-home-shuffle-state/);
-    assert.match(updater, /data-home-repeat-state/);
-    assert.match(updater, /updateHomeUpcomingPreviewDom\(\)/);
+test("les métadonnées V11.1 se mettent à jour en place via le module Player+", () => {
+    assert.match(appSource, /updatePlayerPlusNowPlayingCard\(/);
+    assert.match(playerPlusSource, /data-home-now-device-name/);
+    assert.match(playerPlusSource, /data-home-shuffle-state/);
+    assert.match(playerPlusSource, /data-home-repeat-state/);
+    assert.match(appSource, /updateUpcomingPreview: updateHomeUpcomingPreviewDom/);
     assert.match(appSource, /data-home-open-dynamic-lyrics/);
-    assert.match(homeStyles, /Shuffle\+ v11\.10\.0 — Accueil & Lecture en cours V2/);
+    assert.match(homeStyles, /Shuffle\+ v11\.11\.0 — Accueil & Lecture en cours V2/);
 });

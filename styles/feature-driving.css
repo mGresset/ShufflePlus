@@ -1407,7 +1407,7 @@ body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle
     }
 }
 
-/* Shuffle+ v11.10.0 — Mode Conduite V2 */
+/* Shuffle+ v11.11.0 — Mode Conduite V2 */
 .driving-dynamic-lyrics-button{border-color:color-mix(in srgb,var(--accent) 34%,var(--ui-control-border))!important;background:rgb(var(--accent-rgb) / 10%)!important}
 @media(max-width:700px){
 body.is-driving-mode .driving-context-card{display:none}

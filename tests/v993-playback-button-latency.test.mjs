@@ -3,16 +3,17 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const appSource = await readFile("app.js", "utf8");
+const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la correction de latence active annonce Shuffle+ 11.10.0", () => {
-    assert.equal(version, "11.10.0");
+test("la correction de latence active annonce Shuffle+ 11.11.0", () => {
+    assert.equal(version, "11.11.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 
 test("le bouton Pause Lecture est modifié avant l’appel Spotify", () => {
     const updateIndex = appSource.indexOf(
-        "updateVisiblePlaybackButtons("
+        "updatePlayerPlusPlaybackButtons("
     );
     const runIndex = appSource.indexOf(
         "await runQuickControlAction("
@@ -22,7 +23,7 @@ test("le bouton Pause Lecture est modifié avant l’appel Spotify", () => {
     assert.ok(runIndex >= 0);
     assert.ok(updateIndex < runIndex);
     assert.match(
-        appSource,
+        playerPlusSource,
         /button\.textContent = isPlaying[\s\S]*"⏸ Pause"[\s\S]*"▶ Lecture"/
     );
 });

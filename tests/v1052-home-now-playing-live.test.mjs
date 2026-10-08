@@ -9,9 +9,10 @@ import {
 
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
+const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 
-test("Shuffle+ 11.10.0 place Lecture en cours en premier sur l’accueil", () => {
-    assert.equal(version, "11.10.0");
+test("Shuffle+ 11.11.0 place Lecture en cours en premier sur l’accueil", () => {
+    assert.equal(version, "11.11.0");
 
     const snapshot = buildDailyHomeSnapshot({
         playback: {
@@ -53,18 +54,15 @@ test("Shuffle+ 11.10.0 place Lecture en cours en premier sur l’accueil", () =>
 });
 
 test("le Now Playing de l’accueil actualise titre, pochette et métadonnées sans reconstruire la page", () => {
-    const updaterStart = appSource.indexOf("function updateHomeNowPlayingDom()");
-    const updaterEnd = appSource.indexOf("function renderMusicalDashboardPlaybackBody", updaterStart);
-    const updater = appSource.slice(updaterStart, updaterEnd);
-
-    assert.ok(updaterStart >= 0, "le rafraîchissement DOM de l’accueil doit exister");
-    assert.match(updater, /data-home-now-title-heading/);
-    assert.match(updater, /data-home-now-artist/);
-    assert.match(updater, /data-home-now-title/);
-    assert.match(updater, /data-home-now-album/);
-    assert.match(updater, /data-home-now-cover/);
-    assert.match(updater, /cover\.setAttribute\(\s*"src",\s*playback\.imageUrl/);
-    assert.match(updater, /playback\.durationLabel/);
+    assert.match(appSource, /function updateHomeNowPlayingDom\(\)/);
+    assert.match(appSource, /updatePlayerPlusNowPlayingCard\(/);
+    assert.match(playerPlusSource, /data-home-now-title-heading/);
+    assert.match(playerPlusSource, /data-home-now-artist/);
+    assert.match(playerPlusSource, /data-home-now-title/);
+    assert.match(playerPlusSource, /data-home-now-album/);
+    assert.match(playerPlusSource, /data-home-now-cover/);
+    assert.match(playerPlusSource, /cover\.setAttribute\("src", playback\.imageUrl\)/);
+    assert.match(playerPlusSource, /playback\.durationLabel/);
 });
 
 test("chaque rafraîchissement Spotify du dashboard propage le nouveau morceau à l’accueil", () => {

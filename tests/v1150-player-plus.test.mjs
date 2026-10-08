@@ -16,6 +16,7 @@ import {
 const version = (await readFile("VERSION", "utf8")).trim();
 const apiSource = await readFile("spotify-api.js", "utf8");
 const appSource = await readFile("app.js", "utf8");
+const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 const homeStyles = await readFile("styles/feature-home.css", "utf8");
 
 function makePlayback() {
@@ -91,15 +92,16 @@ test("Spotify API contient les cinq commandes Player+ officielles", () => {
 test("l’app relie les nouvelles commandes au runtime et à Lire ensuite", () => {
     assert.match(appSource, /normalizedAction === "previous"/);
     assert.match(appSource, /normalizedAction === "repeat"/);
-    assert.match(appSource, /async function runPlayerPlusSeek/);
-    assert.match(appSource, /async function runPlayerPlusVolume/);
-    assert.match(appSource, /async function queueTrackNextAt/);
+    assert.match(appSource, /createPlayerPlusRuntime\(/);
+    assert.match(appSource, /getPlayerPlusRuntime\(\)\.seek/);
+    assert.match(appSource, /getPlayerPlusRuntime\(\)\.volume/);
+    assert.match(appSource, /getPlayerPlusRuntime\(\)\.queueTrackNextAt/);
     assert.match(appSource, /data-track-action="queue-next"/);
-    assert.match(appSource, /await addToPlaybackQueue\(track\.uri, deviceId\)/);
+    assert.match(playerPlusSource, /await addToPlaybackQueue\(track\.uri, deviceId\)/);
 });
 
 test("les styles Player+ restent responsifs sur mobile", () => {
-    assert.match(homeStyles, /Shuffle\+ v11\.10\.0 — Player\+/);
+    assert.match(homeStyles, /Shuffle\+ v11\.11\.0 — Player\+/);
     assert.match(homeStyles, /\.v115-home-player-plus/);
     assert.match(homeStyles, /\.v115-home-volume/);
     assert.match(homeStyles, /@media \(max-width: 620px\)/);

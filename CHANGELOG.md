@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 11.11.0 — Architecture : Player+ réellement modulaire
+
+- extrait le rendu live de la carte Lecture en cours hors de `app.js` vers `core/player-plus.js` ;
+- extrait les previews interactives Seek/Volume hors du noyau principal ;
+- extrait les actions Seek, Volume et « Lire ensuite » dans un runtime Player+ injecté et testable ;
+- conserve Lecture/Pause/Suivant/Précédent/Répétition dans le contrôleur partagé utilisé par les autres surfaces Spotify ;
+- réduit `app.js` de 51 623 à environ 51 412 lignes ;
+- resserre le budget CI pour empêcher le noyau de regonfler ;
+- aucun changement d’API Spotify ni du serveur Railway (toujours 5.2.1).
+
 ## 11.10.0 — Architecture : recherche réellement modulaire
 
 - extraction des rubriques statiques de recherche hors de `app.js` vers `universal-search.js` ;

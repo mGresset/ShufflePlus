@@ -2,8 +2,8 @@ import { readFile, stat } from "node:fs/promises";
 import process from "node:process";
 
 const BUDGETS = Object.freeze({
-    appLines: 51650,
-    appBytes: 1_575_000,
+    appLines: 51430,
+    appBytes: 1_565_000,
     globalCssLines: 18550,
     globalCssBytes: 390_000,
     appStaticImports: 70
