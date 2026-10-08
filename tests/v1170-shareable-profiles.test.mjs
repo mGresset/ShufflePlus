@@ -12,6 +12,7 @@ import {
 } from "../core/profile-share.js";
 
 const appSource = await readFile("app.js", "utf8");
+const mixProfilesSource = await readFile("core/mix-profiles.js", "utf8");
 
 const sampleProfile = {
     id: "local-secret-id",
@@ -32,13 +33,13 @@ const sampleProfile = {
 
 test("le document partagé ne contient que les champs de profil autorisés", () => {
     const payload = buildMixProfileShareDocument(sampleProfile, {
-        appVersion: "11.11.0",
+        appVersion: "11.12.0",
         exportedAt: "2026-10-07T20:00:00.000Z"
     });
 
     assert.equal(payload.schema, MIX_PROFILE_SHARE_SCHEMA);
     assert.equal(payload.version, MIX_PROFILE_SHARE_VERSION);
-    assert.equal(payload.appVersion, "11.11.0");
+    assert.equal(payload.appVersion, "11.12.0");
     assert.equal(payload.profile.name, "Sport intense");
     assert.equal(payload.profile.isDefault, undefined);
     assert.equal(payload.profile.id, undefined);
@@ -84,9 +85,9 @@ test("le nom de fichier de partage est stable et portable", () => {
 });
 
 test("l’interface expose partage, import et garde-fous d’import", () => {
-    assert.match(appSource, /data-profile-action="share"/);
-    assert.match(appSource, /id="importMixProfileButton"/);
-    assert.match(appSource, /id="importMixProfileInput"/);
+    assert.match(mixProfilesSource, /data-profile-action="share"/);
+    assert.match(mixProfilesSource, /id="importMixProfileButton"/);
+    assert.match(mixProfilesSource, /id="importMixProfileInput"/);
     assert.match(appSource, /navigator\.share/);
     assert.match(appSource, /MAX_SHARED_PROFILE_BYTES/);
     assert.match(appSource, /id: createSavedMixId\(\)/);

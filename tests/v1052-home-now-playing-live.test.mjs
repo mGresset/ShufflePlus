@@ -11,8 +11,8 @@ const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 
-test("Shuffle+ 11.11.0 place Lecture en cours en premier sur l’accueil", () => {
-    assert.equal(version, "11.11.0");
+test("Shuffle+ 11.12.0 place Lecture en cours en premier sur l’accueil", () => {
+    assert.equal(version, "11.12.0");
 
     const snapshot = buildDailyHomeSnapshot({
         playback: {

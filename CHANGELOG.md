@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 11.12.0 — Profils / Mix intelligents modulaires
+
+- extraction du modèle des profils de mix vers `core/mix-profiles.js` ;
+- stockage, normalisation, recherche par ID, duplication et restauration des profils sortent de `app.js` ;
+- rendu de la liste des profils centralisé dans le module dédié sans changement d’interface ;
+- shell PWA enrichi pour conserver le nouveau module hors ligne ;
+- budget architectural abaissé à 51 240 lignes pour `app.js` ;
+- tests unitaires dédiés aux profils modulaires et adaptation des tests de partage.
+
+
 ## 11.11.0 — Architecture : Player+ réellement modulaire
 
 - extrait le rendu live de la carte Lecture en cours hors de `app.js` vers `core/player-plus.js` ;

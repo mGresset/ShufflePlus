@@ -39,8 +39,8 @@ function createGlobalTarget() {
     };
 }
 
-test("Shuffle+ 11.11.0 introduit une file de tâches de démarrage non critiques", () => {
-    assert.equal(version, "11.11.0");
+test("Shuffle+ 11.12.0 introduit une file de tâches de démarrage non critiques", () => {
+    assert.equal(version, "11.12.0");
     assert.match(appSource, /createStartupTaskQueue/);
     assert.match(workerSource, /\.\/core\/startup-performance\.js/);
 });

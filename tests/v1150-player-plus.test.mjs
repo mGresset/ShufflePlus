@@ -101,7 +101,7 @@ test("l’app relie les nouvelles commandes au runtime et à Lire ensuite", () =
 });
 
 test("les styles Player+ restent responsifs sur mobile", () => {
-    assert.match(homeStyles, /Shuffle\+ v11\.11\.0 — Player\+/);
+    assert.match(homeStyles, /Shuffle\+ v11\.12\.0 — Player\+/);
     assert.match(homeStyles, /\.v115-home-player-plus/);
     assert.match(homeStyles, /\.v115-home-volume/);
     assert.match(homeStyles, /@media \(max-width: 620px\)/);

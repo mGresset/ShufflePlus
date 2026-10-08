@@ -7,8 +7,8 @@ const appSource = await readFile("app.js", "utf8");
 const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 const budgetSource = await readFile("scripts/check-architecture-budget.mjs", "utf8");
 
-test("Shuffle+ 11.11.0 extrait Player+ hors du monolithe", () => {
-    assert.equal(version, "11.11.0");
+test("Shuffle+ 11.12.0 extrait Player+ hors du monolithe", () => {
+    assert.equal(version, "11.12.0");
     assert.match(appSource, /createPlayerPlusRuntime\(/);
     assert.match(appSource, /updatePlayerPlusNowPlayingCard\(/);
     assert.match(appSource, /updatePlayerPlusInputPreview\(/);
@@ -28,6 +28,6 @@ test("le module Player+ possède le rendu et les mutations Spotify dédiées", (
 });
 
 test("le budget CI verrouille le nouveau niveau de app.js", () => {
-    assert.match(budgetSource, /appLines:\s*51430/);
-    assert.match(budgetSource, /appBytes:\s*1_565_000/);
+    assert.match(budgetSource, /appLines:\s*51240/);
+    assert.match(budgetSource, /appBytes:\s*1_560_000/);
 });

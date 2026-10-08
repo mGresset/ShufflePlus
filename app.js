@@ -184,6 +184,17 @@ import {
 } from "./core/profile-share.js";
 
 import {
+    normalizeMixProfileRecord,
+    readMixProfileRecords,
+    saveMixProfileRecords,
+    getUniqueMixProfileName,
+    findMixProfileById,
+    duplicateMixProfileRecord,
+    restoreDefaultMixProfileRecords,
+    renderMixProfilesPanel
+} from "./core/mix-profiles.js";
+
+import {
     buildDrivingQueuePreview,
     getDrivingPlaybackProgress,
     getDrivingQueueFreshness
@@ -995,7 +1006,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.11.0-shell";
+    "shuffleplus-v11.12.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6825,7 +6836,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.11.0",
+                "./service-worker.js?v=11.12.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -30335,100 +30346,37 @@ function toggleFavoredTrackAt(index) {
 }
 
 function normalizeMixProfile(profile = {}) {
-    return {
-        id:
-            typeof profile.id === "string" && profile.id.trim()
-                ? profile.id.trim().slice(0, 120)
-                : createSavedMixId(),
-        name:
-            typeof profile.name === "string" && profile.name.trim()
-                ? profile.name.trim().slice(0, 60)
-                : "Profil personnalisé",
-        icon:
-            typeof profile.icon === "string" && profile.icon.trim()
-                ? profile.icon.trim().slice(0, 8)
-                : "🎛️",
-        description:
-            typeof profile.description === "string"
-                ? profile.description.trim().slice(0, 180)
-                : "",
-        isDefault: Boolean(profile.isDefault),
-        shuffleSettings: normalizeShuffleSettings(
-            profile.shuffleSettings
-        ),
-        exclusionRules: normalizeExclusionRules(
-            profile.exclusionRules
-        ),
-        priorityRules: normalizePriorityRules(
-            profile.priorityRules
-        ),
-        coherenceSettings: normalizeCoherenceSettings(
-            profile.coherenceSettings
-        ),
-        intensitySettings: normalizeIntensitySettings(
-            profile.intensitySettings
-        ),
-        cleanupSettings: normalizeCleanupSettings(
-            profile.cleanupSettings
-        )
-    };
+    return normalizeMixProfileRecord(profile, {
+        createId: createSavedMixId,
+        normalizeShuffleSettings,
+        normalizeExclusionRules,
+        normalizePriorityRules,
+        normalizeCoherenceSettings,
+        normalizeIntensitySettings,
+        normalizeCleanupSettings
+    });
 }
 
 function readMixProfiles() {
-    try {
-        const raw = localStorage.getItem(MIX_PROFILES_KEY);
-        const parsed = raw ? JSON.parse(raw) : null;
-
-        if (!Array.isArray(parsed) || !parsed.length) {
-            return DEFAULT_MIX_PROFILES.map(
-                (profile) => normalizeMixProfile(profile)
-            );
-        }
-
-        return parsed
-            .map((profile) => normalizeMixProfile(profile))
-            .slice(0, MAX_MIX_PROFILES);
-    } catch (error) {
-        console.warn("Profils de mix illisibles :", error);
-        return DEFAULT_MIX_PROFILES.map(
-            (profile) => normalizeMixProfile(profile)
-        );
-    }
+    return readMixProfileRecords({
+        storage: localStorage,
+        key: MIX_PROFILES_KEY,
+        defaults: DEFAULT_MIX_PROFILES,
+        maxProfiles: MAX_MIX_PROFILES,
+        normalizeProfile: normalizeMixProfile
+    });
 }
 
 function saveMixProfiles() {
-    try {
-        localStorage.setItem(
-            MIX_PROFILES_KEY,
-            JSON.stringify(mixProfiles)
-        );
-    } catch (error) {
-        console.warn(
-            "Impossible d’enregistrer les profils :",
-            error
-        );
-    }
+    return saveMixProfileRecords({
+        storage: localStorage,
+        key: MIX_PROFILES_KEY,
+        profiles: mixProfiles
+    });
 }
 
 function getUniqueImportedProfileName(name = "Profil importé") {
-    const base = String(name || "Profil importé").trim().slice(0, 60) || "Profil importé";
-    const names = new Set(
-        mixProfiles.map((profile) => String(profile.name || "").trim().toLocaleLowerCase("fr"))
-    );
-
-    if (!names.has(base.toLocaleLowerCase("fr"))) {
-        return base;
-    }
-
-    for (let index = 2; index <= 99; index += 1) {
-        const suffix = ` (${index})`;
-        const candidate = `${base.slice(0, Math.max(1, 60 - suffix.length))}${suffix}`;
-        if (!names.has(candidate.toLocaleLowerCase("fr"))) {
-            return candidate;
-        }
-    }
-
-    return `${base.slice(0, 48)}-${Date.now().toString(36)}`.slice(0, 60);
+    return getUniqueMixProfileName(mixProfiles, name);
 }
 
 function getShareableMixProfile(profileId = "") {
@@ -30566,9 +30514,7 @@ function getActiveProfile() {
 }
 
 function getProfileById(profileId) {
-    return mixProfiles.find(
-        (profile) => profile.id === profileId
-    ) || null;
+    return findMixProfileById(mixProfiles, profileId);
 }
 
 function applyMixProfile(profileId, {
@@ -30701,13 +30647,13 @@ function createProfileFromCurrentSettings() {
 }
 
 function duplicateMixProfile(profileId) {
-    const source = getProfileById(profileId);
+    const result = duplicateMixProfileRecord(mixProfiles, profileId, {
+        normalizeProfile: normalizeMixProfile,
+        createId: createSavedMixId,
+        maxProfiles: MAX_MIX_PROFILES
+    });
 
-    if (!source) {
-        return;
-    }
-
-    if (mixProfiles.length >= MAX_MIX_PROFILES) {
+    if (result.reason === "limit") {
         setStatus(
             `Tu peux enregistrer jusqu’à ${MAX_MIX_PROFILES} profils.`,
             "error"
@@ -30715,17 +30661,14 @@ function duplicateMixProfile(profileId) {
         return;
     }
 
-    const duplicate = normalizeMixProfile({
-        ...source,
-        id: createSavedMixId(),
-        name: `${source.name} copie`,
-        isDefault: false
-    });
+    if (!result.duplicate || !result.source) {
+        return;
+    }
 
-    mixProfiles = [duplicate, ...mixProfiles];
+    mixProfiles = result.profiles;
     saveMixProfiles();
     displayPlaylists(playlistsCache);
-    setStatus(`Profil « ${source.name} » dupliqué.`);
+    setStatus(`Profil « ${result.source.name} » dupliqué.`);
 }
 
 function renameMixProfile(profileId) {
@@ -30797,16 +30740,11 @@ function deleteMixProfile(profileId) {
 }
 
 function restoreDefaultMixProfiles() {
-    const customProfiles = mixProfiles.filter(
-        (profile) => !profile.isDefault
-    );
-
-    mixProfiles = [
-        ...DEFAULT_MIX_PROFILES.map(
-            (profile) => normalizeMixProfile(profile)
-        ),
-        ...customProfiles
-    ].slice(0, MAX_MIX_PROFILES);
+    mixProfiles = restoreDefaultMixProfileRecords(mixProfiles, {
+        defaults: DEFAULT_MIX_PROFILES,
+        normalizeProfile: normalizeMixProfile,
+        maxProfiles: MAX_MIX_PROFILES
+    });
 
     saveMixProfiles();
     displayPlaylists(playlistsCache);
@@ -30873,141 +30811,13 @@ function getMixProfileSummary(profile) {
 }
 
 function renderMixProfilesSection() {
-    const activeProfile = getActiveProfile();
-
-    const cards = mixProfiles.map((profile) => `
-        <article
-            class="mix-profile-card ${profile.id === activeProfileId ? "is-active" : ""}"
-            data-mix-profile-card-id="${escapeHtml(profile.id)}"
-        >
-            <div class="mix-profile-card-main">
-                <span class="mix-profile-icon">${escapeHtml(profile.icon)}</span>
-                <div>
-                    <h4>${escapeHtml(profile.name)}</h4>
-                    <p>${escapeHtml(profile.description || "Profil Shuffle+")}</p>
-                    <small>${escapeHtml(getMixProfileSummary(profile))}</small>
-                </div>
-            </div>
-
-            <div class="mix-profile-actions">
-                <button
-                    class="mix-profile-apply"
-                    type="button"
-                    data-profile-action="apply"
-                    data-profile-id="${escapeHtml(profile.id)}"
-                >
-                    ${profile.id === activeProfileId ? "✓ Actif" : "Appliquer"}
-                </button>
-
-                <button
-                    class="mix-profile-secondary"
-                    type="button"
-                    data-profile-action="duplicate"
-                    data-profile-id="${escapeHtml(profile.id)}"
-                    title="Dupliquer"
-                >
-                    📄
-                </button>
-
-                <button
-                    class="mix-profile-secondary"
-                    type="button"
-                    data-profile-action="share"
-                    data-profile-id="${escapeHtml(profile.id)}"
-                    title="Partager ou exporter"
-                    aria-label="Partager ou exporter ${escapeHtml(profile.name)}"
-                >
-                    📤
-                </button>
-
-                ${profile.isDefault ? "" : `
-                    <button
-                        class="mix-profile-secondary"
-                        type="button"
-                        data-profile-action="rename"
-                        data-profile-id="${escapeHtml(profile.id)}"
-                        title="Renommer"
-                    >
-                        ✏️
-                    </button>
-
-                    <button
-                        class="mix-profile-secondary mix-profile-delete"
-                        type="button"
-                        data-profile-action="delete"
-                        data-profile-id="${escapeHtml(profile.id)}"
-                        title="Supprimer"
-                    >
-                        🗑️
-                    </button>
-                `}
-            </div>
-        </article>
-    `).join("");
-
-    return `
-        <section class="mix-profiles-panel">
-            <div class="mix-profiles-heading">
-                <div>
-                    <h3>Profils de mix intelligents</h3>
-                    <p>
-                        ${activeProfile
-                            ? `Profil actif : ${escapeHtml(activeProfile.name)}`
-                            : "Aucun profil actif"}
-                        · ${mixProfiles.length}/${MAX_MIX_PROFILES}
-                    </p>
-                </div>
-
-                <div class="mix-profiles-heading-actions">
-                    <button
-                        id="createProfileFromCurrentButton"
-                        class="mix-profile-create"
-                        type="button"
-                    >
-                        + Créer depuis les réglages actuels
-                    </button>
-
-                    <button
-                        id="importMixProfileButton"
-                        class="mix-profile-restore"
-                        type="button"
-                    >
-                        📥 Importer un profil
-                    </button>
-
-                    <input
-                        id="importMixProfileInput"
-                        class="mix-profile-import-input"
-                        type="file"
-                        accept=".json,.profile.json,application/json"
-                        hidden
-                    >
-
-                    <button
-                        id="restoreDefaultProfilesButton"
-                        class="mix-profile-restore"
-                        type="button"
-                    >
-                        Restaurer les profils par défaut
-                    </button>
-
-                    ${activeProfile ? `
-                        <button
-                            id="clearActiveProfileButton"
-                            class="mix-profile-restore"
-                            type="button"
-                        >
-                            Désactiver
-                        </button>
-                    ` : ""}
-                </div>
-            </div>
-
-            <div class="mix-profiles-list">
-                ${cards}
-            </div>
-        </section>
-    `;
+    return renderMixProfilesPanel({
+        profiles: mixProfiles,
+        activeProfileId,
+        maxProfiles: MAX_MIX_PROFILES,
+        escapeHtml,
+        getSummary: getMixProfileSummary
+    });
 }
 
 function normalizeTextList(values) {

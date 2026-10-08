@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.11.0",
+  "version": "11.12.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.11.0 — Player+ modulaire et noyau app.js allégé.",
+  "description": "Shuffle+ 11.12.0 — Profils de mix modulaires et noyau app.js allégé.",
   "engines": {
     "node": ">=20"
   },
