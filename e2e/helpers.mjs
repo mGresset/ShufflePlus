@@ -18,6 +18,22 @@ export async function seedConnectedSpotify(page) {
         localStorage.setItem("shuffleplus_access_token", "shuffleplus-e2e-token");
         localStorage.setItem("shuffleplus_expires_at", String(now + 3_600_000));
         localStorage.setItem("shuffleplus_authorized_at", String(now));
+        // Les parcours connectés ne testent pas la visite guidée : elle doit
+        // être considérée comme déjà terminée afin de ne jamais masquer les
+        // contrôles que Playwright doit réellement exercer. Le scénario
+        // onboarding.spec.mjs reste vierge et continue de valider le premier
+        // démarrage indépendamment.
+        localStorage.setItem(
+            "shuffleplus_contextual_help_state_v1",
+            JSON.stringify({
+                tourEnabled: true,
+                tourCompleted: true,
+                hintsEnabled: true,
+                currentStep: 0,
+                seenSections: [],
+                updatedAt: now
+            })
+        );
     }, { clientId: E2E_CLIENT_ID });
 }
 

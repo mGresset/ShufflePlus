@@ -12,8 +12,8 @@ const player = await readFile(new URL("../e2e/player-plus.spec.mjs", import.meta
 const pwa = await readFile(new URL("../e2e/pwa.spec.mjs", import.meta.url), "utf8");
 const helpers = await readFile(new URL("../e2e/helpers.mjs", import.meta.url), "utf8");
 
-test("Shuffle+ 11.9.0 verrouille Playwright stable", () => {
-    assert.equal(version, "11.9.0");
+test("Shuffle+ 11.9.1 verrouille Playwright stable", () => {
+    assert.equal(version, "11.9.1");
     assert.equal(packageJson.devDependencies?.["@playwright/test"], "1.63.0");
 });
 
@@ -28,7 +28,9 @@ test("un projet séparé valide le vrai Service Worker PWA", () => {
     assert.match(config, /name: "pwa-chromium"/);
     assert.match(config, /serviceWorkers: "allow"/);
     assert.match(pwa, /GET_VERSION/);
-    assert.match(pwa, /shuffleplus-v11\.9\.0-shell/);
+    assert.match(pwa, /expect\.poll/);
+    assert.match(pwa, /Execution context was destroyed/);
+    assert.match(pwa, /shuffleplus-v11\.9\.1-shell/);
 });
 
 test("les parcours navigateur couvrent onboarding, recherche et Player+", () => {
@@ -42,6 +44,8 @@ test("les parcours navigateur couvrent onboarding, recherche et Player+", () => 
 test("Spotify est simulé sans compte réel", () => {
     assert.match(helpers, /page\.route\("https:\/\/api\.spotify\.com\/v1\/\*\*"/);
     assert.match(helpers, /shuffleplus-e2e-token/);
+    assert.match(helpers, /shuffleplus_contextual_help_state_v1/);
+    assert.match(helpers, /tourCompleted:\s*true/);
     assert.doesNotMatch(helpers, /client_secret/i);
     assert.doesNotMatch(helpers, /refresh_token/i);
 });

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.9.0",
+  "version": "11.9.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.9.0 — Architecture progressive : CSS différé, runtime fiabilité extrait et budgets CI.",
+  "description": "Shuffle+ 11.9.1 — Architecture progressive : CSS différé, runtime fiabilité extrait et budgets CI.",
   "engines": {
     "node": ">=20"
   },

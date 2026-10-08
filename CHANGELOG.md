@@ -1,5 +1,14 @@
 # Changelog Shuffle+
 
+
+## 11.9.1 — 8 octobre 2026
+
+### Correctif CI Playwright
+
+- Les scénarios E2E d’une session Spotify déjà connectée marquent désormais la visite guidée contextuelle comme terminée avant le chargement. L’overlay d’onboarding ne peut plus intercepter les clics sur Réglages ou Player+.
+- Le test PWA ne conserve plus une longue `page.evaluate()` pendant l’activation du Service Worker. Il sonde désormais de façon résiliente le worker actif et les caches, y compris si l’activation provoque un remplacement transitoire du contexte de page.
+- Aucun changement fonctionnel pour l’utilisateur et aucun changement du serveur Railway (toujours 5.2.1).
+
 ## 11.9.0 — Architecture progressive et budgets CI
 
 - extrait le Centre de fiabilité et le diagnostic Spotify Connect du `style.css` global vers `styles/feature-reliability.css`, chargé à la demande avec Réglages ;

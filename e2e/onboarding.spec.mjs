@@ -5,7 +5,7 @@ test("première configuration : Client ID local puis bouton de connexion", async
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     await expect(page).toHaveTitle("Shuffle+");
-    await expect(page.locator('meta[name="shuffleplus-version"]')).toHaveAttribute("content", "11.9.0");
+    await expect(page.locator('meta[name="shuffleplus-version"]')).toHaveAttribute("content", "11.9.1");
     await expect(page.locator("#spotifySetupPanel")).toBeVisible();
     await expect(page.locator("#loginButton")).toBeHidden();
 
