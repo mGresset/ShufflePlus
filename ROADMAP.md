@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v11.9.0 — Architecture progressive, CSS fiabilité différé et budgets CI : terminée**
 - **v11.8.0 — Tests navigateur réels : Playwright Chromium + WebKit/iPhone, mocks Spotify et validation PWA : terminée**
 - **v11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné : terminée**
 - **v11.6.0 — Recherche Spotify intégrée : titres, albums, artistes, lecture, file et priorités de profil : terminée**

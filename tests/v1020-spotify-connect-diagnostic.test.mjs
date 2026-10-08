@@ -14,8 +14,8 @@ import {
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 const workerSource = await readFile(new URL("../service-worker.js", import.meta.url), "utf8");
-const bootstrapSource = await readFile(new URL("../bootstrap-11.8.0.js", import.meta.url), "utf8");
-const styleSource = await readFile(new URL("../style.css", import.meta.url), "utf8");
+const bootstrapSource = await readFile(new URL("../bootstrap-11.9.0.js", import.meta.url), "utf8");
+const reliabilityStyleSource = await readFile(new URL("../styles/feature-reliability.css", import.meta.url), "utf8");
 
 function memoryStorage() {
     const values = new Map();
@@ -26,8 +26,8 @@ function memoryStorage() {
     };
 }
 
-test("Shuffle+ 11.8.0 diagnostique le device actif même si /devices est vide", () => {
-    assert.equal(version, "11.8.0");
+test("Shuffle+ 11.9.0 diagnostique le device actif même si /devices est vide", () => {
+    assert.equal(version, "11.9.0");
     const diagnostic = buildSpotifyConnectDiagnostic({
         connected: true,
         devices: [],
@@ -74,12 +74,12 @@ test("le marqueur d'autodiagnostic post-mise-à-jour est relisible et effaçable
     const storage = memoryStorage();
     const marker = buildPostUpdateDiagnosticMarker({
         fromBuild: "10.1.4-pwa-reset-1",
-        toBuild: "11.8.0-pwa-reset-1",
+        toBuild: "11.9.0-pwa-reset-1",
         createdAt: 1234
     });
     storage.setItem(POST_UPDATE_DIAGNOSTIC_KEY, JSON.stringify(marker));
 
-    assert.equal(readPostUpdateDiagnosticMarker(storage).toBuild, "11.8.0-pwa-reset-1");
+    assert.equal(readPostUpdateDiagnosticMarker(storage).toBuild, "11.9.0-pwa-reset-1");
     assert.equal(clearPostUpdateDiagnosticMarker(storage), true);
     assert.equal(readPostUpdateDiagnosticMarker(storage), null);
 });
@@ -91,7 +91,7 @@ test("l'interface V10.2 expose le diagnostic Connect, le rapport copiable et l'h
     assert.match(appSource, /getAvailableDevices\(\{ fresh: true \}\)/);
     assert.match(appSource, /getCurrentPlayback\(\{ fresh: true \}\)/);
     assert.match(appSource, /schedulePostUpdateAutoDiagnostic\(\)/);
-    assert.match(styleSource, /\.spotify-connect-diagnostic/);
+    assert.match(reliabilityStyleSource, /\.spotify-connect-diagnostic/);
     assert.match(workerSource, /core\/spotify-connect-diagnostic\.js/);
     assert.match(bootstrapSource, /shuffleplus_post_update_diagnostic_v1/);
 });

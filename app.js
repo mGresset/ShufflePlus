@@ -341,9 +341,16 @@ import {
     buildReliabilityRecoveryPlan,
     buildReliabilityServices,
     deriveReliabilityEventFromStatus,
-    formatReliabilityAge,
-    normalizeReliabilityEvents
+    formatReliabilityAge
 } from "./core/reliability-center.js";
+
+import {
+    buildReliabilityDiagnosticText,
+    buildReliabilityQueueState,
+    readReliabilityEventJournal,
+    selectReliabilityActiveDevice,
+    writeReliabilityEventJournal
+} from "./core/reliability-runtime.js";
 
 import {
     buildSpotifyConnectDiagnostic,
@@ -986,7 +993,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.8.0-shell";
+    "shuffleplus-v11.9.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -2132,26 +2139,28 @@ function scheduleStartupBackgroundTasks(tasks = []) {
 }
 
 function readReliabilityEvents() {
-    try {
-        const parsed = JSON.parse(
-            localStorage.getItem(RELIABILITY_EVENTS_KEY) || "[]"
-        );
-        return normalizeReliabilityEvents(parsed);
-    } catch (error) {
-        console.warn("Journal de fiabilité illisible :", error);
-        return [];
-    }
+    return readReliabilityEventJournal(
+        globalThis.localStorage,
+        RELIABILITY_EVENTS_KEY,
+        {
+            onError(error) {
+                console.warn("Journal de fiabilité illisible :", error);
+            }
+        }
+    );
 }
 
 function saveReliabilityEvents() {
-    try {
-        localStorage.setItem(
-            RELIABILITY_EVENTS_KEY,
-            JSON.stringify(reliabilityEvents)
-        );
-    } catch (error) {
-        console.warn("Journal de fiabilité non enregistré :", error);
-    }
+    return writeReliabilityEventJournal(
+        globalThis.localStorage,
+        RELIABILITY_EVENTS_KEY,
+        reliabilityEvents,
+        {
+            onError(error) {
+                console.warn("Journal de fiabilité non enregistré :", error);
+            }
+        }
+    );
 }
 
 function readFinalizationState() {
@@ -2198,40 +2207,22 @@ function captureReliabilityStatus(message = "", type = "") {
 }
 
 function getReliabilityQueueState() {
-    const queue = Array.isArray(drivingQueueState?.queue)
-        ? drivingQueueState.queue
-        : [];
-    const updatedAt = Math.max(
-        0,
-        Number(drivingQueueState?.updatedAt) || 0
+    return buildReliabilityQueueState(
+        drivingQueueState,
+        Date.now()
     );
-
-    return {
-        count: queue.length,
-        updatedAt,
-        ageMs: updatedAt
-            ? Math.max(0, Date.now() - updatedAt)
-            : Number.POSITIVE_INFINITY
-    };
 }
 
 function getReliabilityActiveDevice() {
-    const activePlaybackDevice =
-        drivingPlaybackState?.device ||
-        quickPlaybackState?.device ||
-        null;
-    const candidate =
-        spotifyConnectDiagnostic?.resolvedDevice ||
-        activePlaybackDevice ||
-        lastWorkingSpotifyDevice ||
-        preferredSpotifyDevice ||
-        {};
-
-    return {
-        name: String(candidate?.name || ""),
-        type: String(candidate?.type || ""),
-        id: String(candidate?.id || "")
-    };
+    return selectReliabilityActiveDevice({
+        spotifyConnectDiagnostic,
+        activePlaybackDevice:
+            drivingPlaybackState?.device ||
+            quickPlaybackState?.device ||
+            null,
+        lastWorkingSpotifyDevice,
+        preferredSpotifyDevice
+    });
 }
 
 async function runSpotifyConnectDiagnostic({
@@ -2378,28 +2369,16 @@ async function copyReliabilityDiagnostic() {
         render: false
     });
     const context = getReliabilityContext(snapshot);
-    const lines = [
-        `Shuffle+ ${APP_VERSION} — diagnostic de fiabilité`,
-        `Réseau : ${navigator.onLine ? "en ligne" : "hors connexion"}`,
-        `Spotify : ${currentUserId ? "connecté" : "déconnecté"}`,
-        `Railway : ${reliabilityServerHealth.status || "non vérifié"}`,
-        `PWA : ${navigator.serviceWorker?.controller ? "active" : "non contrôlée"}`,
-        "",
-        getSpotifyConnectDiagnosticText(),
-        "",
-        "Services :",
-        ...context.services.map((service) =>
-            `${service.level === "healthy" ? "✅" : service.level === "critical" ? "❌" : "⚠️"} ${service.label} — ${service.value}`
-        ),
-        "",
-        "Derniers événements :",
-        ...reliabilityEvents.slice(0, 12).map((event) =>
-            `• ${event.label}${event.detail ? ` — ${event.detail}` : ""}`
-        ),
-        "",
-        "Confidentialité : aucun token OAuth, ResultToken, requestId, device_id, titre ou playlist n’est inclus."
-    ];
-    const text = lines.join("\n");
+    const text = buildReliabilityDiagnosticText({
+        appVersion: APP_VERSION,
+        online: navigator.onLine,
+        spotifyConnected: Boolean(currentUserId),
+        serverStatus: reliabilityServerHealth.status,
+        pwaControlled: Boolean(navigator.serviceWorker?.controller),
+        spotifyDiagnosticText: getSpotifyConnectDiagnosticText(),
+        services: context.services,
+        events: reliabilityEvents
+    });
 
     try {
         await navigator.clipboard.writeText(text);
@@ -6985,7 +6964,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.8.0",
+                "./service-worker.js?v=11.9.0",
                 {
                     scope: "./",
                     updateViaCache: "none"

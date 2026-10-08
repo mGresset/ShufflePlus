@@ -1,4 +1,4 @@
-# Shuffle+ v11.8.0
+# Shuffle+ v11.9.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.8.0** ajoute une vraie couche de **tests navigateur Playwright**. Les parcours critiques sont exécutés sur **Chromium desktop** et **WebKit avec profil iPhone**, tandis qu’un scénario séparé vérifie l’installation du Service Worker et la version du cache PWA. Les appels Spotify sont simulés : aucun compte ni token réel n’est utilisé en CI. Le serveur Railway reste inchangé en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.9.0** poursuit la modularisation sans changer le moteur Spotify : le Centre de fiabilité et le diagnostic Spotify Connect quittent le CSS global, la fiabilité du lancement rejoint le module Accueil, une partie du runtime de fiabilité sort de `app.js`, et des **budgets d’architecture CI** empêchent le noyau et le CSS global de regonfler. Les tests navigateur Playwright de la 11.8 restent actifs. Le serveur Railway reste inchangé en **v5.2.1**.
 
 ---
 
@@ -78,6 +78,16 @@ La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
 - synchronisation du nouvel état dans la carte d’accueil sans reconstruire toute la page.
 
 Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
+
+### Architecture progressive — v11.9.0
+
+La 11.9 réduit la dette structurelle sans modifier l’expérience Spotify :
+
+- le **Centre de fiabilité** et le diagnostic Spotify Connect sont isolés dans `styles/feature-reliability.css`, chargé uniquement avec Réglages ;
+- l’indicateur de fiabilité du lancement principal est déplacé dans `styles/feature-home.css` ;
+- `core/reliability-runtime.js` prend en charge la persistance du journal et la génération du diagnostic texte ;
+- `scripts/check-architecture-budget.mjs` fixe des plafonds sur `app.js`, `style.css` et les imports statiques afin d’obliger les prochaines fonctions à poursuivre le découpage plutôt qu’à grossir le monolithe ;
+- le shell PWA connaît les nouveaux modules/styles et conserve le fonctionnement hors ligne.
 
 ### Tests navigateur réels — v11.8.0
 

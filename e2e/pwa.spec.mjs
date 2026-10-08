@@ -28,8 +28,8 @@ test("le Service Worker actif annonce la même version que l’application", asy
     });
 
     expect(result.supported).toBe(true);
-    expect(result.version).toBe("11.8.0");
+    expect(result.version).toBe("11.9.0");
 
     const cacheNames = await page.evaluate(() => caches.keys());
-    expect(cacheNames.some((name) => name.includes("shuffleplus-v11.8.0-shell"))).toBe(true);
+    expect(cacheNames.some((name) => name.includes("shuffleplus-v11.9.0-shell"))).toBe(true);
 });

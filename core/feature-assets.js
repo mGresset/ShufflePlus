@@ -1,13 +1,14 @@
 export const FEATURE_STYLE_ASSETS = Object.freeze({
     home: "./styles/feature-home.css",
     settings: "./styles/feature-settings.css",
+    reliability: "./styles/feature-reliability.css",
     driving: "./styles/feature-driving.css",
     search: "./styles/feature-search.css"
 });
 
 const MENU_STYLE_MAP = Object.freeze({
     dashboard: ["home"],
-    settings: ["settings"],
+    settings: ["settings", "reliability"],
     driving: ["driving"]
 });
 

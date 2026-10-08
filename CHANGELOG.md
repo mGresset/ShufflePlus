@@ -1,5 +1,14 @@
 # Changelog Shuffle+
 
+## 11.9.0 — Architecture progressive et budgets CI
+
+- extrait le Centre de fiabilité et le diagnostic Spotify Connect du `style.css` global vers `styles/feature-reliability.css`, chargé à la demande avec Réglages ;
+- déplace l’indicateur de fiabilité du lancement principal vers `styles/feature-home.css` ;
+- ajoute `core/reliability-runtime.js` pour isoler persistance du journal, contexte file/appareil et génération du diagnostic texte ;
+- ajoute `scripts/check-architecture-budget.mjs` avec des plafonds sur la taille de `app.js`, le CSS global et les imports statiques ;
+- ajoute des tests de non-régression pour la confidentialité du diagnostic et le découpage CSS ;
+- conserve les E2E Chromium/WebKit/PWA de la 11.8 et Railway en **v5.2.1**.
+
 ## 11.8.0 — Tests navigateur réels
 
 - Ajoute Playwright 1.63.0 pour des tests E2E sur Chromium et WebKit avec profil iPhone.

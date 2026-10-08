@@ -1012,7 +1012,7 @@
 }
 
 /* =====================================================================
-   Shuffle+ v11.8.0 — Accueil & Lecture en cours V2
+   Shuffle+ v11.9.0 — Accueil & Lecture en cours V2
    ===================================================================== */
 .v111-home-now-playing {
     position: relative;
@@ -1303,7 +1303,7 @@
 }
 
 /* =========================================================
-   Shuffle+ v11.8.0 — Player+
+   Shuffle+ v11.9.0 — Player+
    ========================================================= */
 .v115-home-seek {
     display: grid;
@@ -1364,5 +1364,72 @@
 @media (max-width: 620px) {
     .v115-home-player-plus .v111-home-player-actions {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* =====================================================================
+   Shuffle+ v11.9.0 — fiabilité du lancement, chargée avec l’accueil
+   ===================================================================== */
+/* Shuffle+ v9.1.0 — état de fiabilité du lancement principal */
+.primary-launch-reliability {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 11px 13px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 3%);
+}
+
+.primary-launch-reliability > span {
+    display: grid;
+    width: 30px;
+    height: 30px;
+    place-items: center;
+    border-radius: 50%;
+    background: rgb(var(--accent-rgb) / 16%);
+    color: var(--accent);
+    font-weight: 900;
+}
+
+.primary-launch-reliability > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.primary-launch-reliability small,
+.primary-launch-reliability em {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.primary-launch-reliability em {
+    max-width: 170px;
+    overflow: hidden;
+    font-style: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.primary-launch-reliability.is-healthy,
+.primary-launch-reliability.is-stable {
+    border-color: color-mix(in srgb, #2ddf82 42%, var(--border-soft));
+}
+
+.primary-launch-reliability.is-warning,
+.primary-launch-reliability.is-attention {
+    border-color: color-mix(in srgb, #ffb44a 48%, var(--border-soft));
+}
+
+@media (max-width: 560px) {
+    .primary-launch-reliability {
+        grid-template-columns: 30px minmax(0, 1fr);
+    }
+
+    .primary-launch-reliability em {
+        grid-column: 2;
     }
 }

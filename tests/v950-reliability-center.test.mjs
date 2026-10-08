@@ -14,7 +14,7 @@ import {
 
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
-const styleSource = await readFile("style.css", "utf8");
+const reliabilityStyleSource = await readFile("styles/feature-reliability.css", "utf8");
 const serviceWorkerSource = await readFile("service-worker.js", "utf8");
 
 function createSnapshot(overrides = {}) {
@@ -47,8 +47,8 @@ function createSnapshot(overrides = {}) {
     };
 }
 
-test("la distribution active annonce Shuffle+ 11.8.0", () => {
-    assert.equal(version, "11.8.0");
+test("la distribution active annonce Shuffle+ 11.9.0", () => {
+    assert.equal(version, "11.9.0");
 });
 
 test("le journal normalise, déduplique et limite les événements", () => {
@@ -77,7 +77,7 @@ test("les statuts importants deviennent des événements génériques et privés
         3_000
     );
     const server = deriveReliabilityEventFromStatus(
-        "Serveur disponible · 11.8.0.",
+        "Serveur disponible · 11.9.0.",
         "success",
         4_000
     );
@@ -92,7 +92,7 @@ test("le centre construit cinq services et un plan de récupération", () => {
     const services = buildReliabilityServices(snapshot, {
         serverHealth: {
             status: "healthy",
-            version: "11.8.0",
+            version: "11.9.0",
             latencyMs: 42
         },
         queueState: {
@@ -156,7 +156,7 @@ test("le plan propose les actions adaptées aux pannes", () => {
 
 test("l’export masque les données sensibles", () => {
     const exported = buildReliabilityExport({
-        snapshot: { appVersion: "11.8.0" },
+        snapshot: { appVersion: "11.9.0" },
         events: [{
             category: "spotify",
             level: "success",
@@ -182,8 +182,8 @@ test("le rendu et le cache PWA intègrent le Centre de fiabilité", () => {
     assert.match(appSource, /Centre de fiabilité/);
     assert.match(appSource, /data-reliability-action/);
     assert.match(appSource, /buildReliabilityExport/);
-    assert.match(styleSource, /\.reliability-services/);
-    assert.match(styleSource, /var\(--accent-rgb\)/);
+    assert.match(reliabilityStyleSource, /\.reliability-services/);
+    assert.match(reliabilityStyleSource, /var\(--accent-rgb\)/);
     assert.match(serviceWorkerSource, /core\/reliability-center\.js/);
     assert.equal(formatReliabilityAge(1_000, 61_000), "il y a 1 min");
 });

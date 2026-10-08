@@ -13,8 +13,8 @@ const spotifyApiSource = await readFile(
 );
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la convergence Pause/Lecture active annonce Shuffle+ 11.8.0", () => {
-    assert.equal(version, "11.8.0");
+test("la convergence Pause/Lecture active annonce Shuffle+ 11.9.0", () => {
+    assert.equal(version, "11.9.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 
