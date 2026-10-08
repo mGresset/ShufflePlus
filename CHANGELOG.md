@@ -1,6 +1,15 @@
 # Changelog Shuffle+
 
 
+## 11.9.2 — 8 octobre 2026
+
+### Hotfix CI Player+ Chromium
+
+- Corrige le dernier scénario E2E instable : le test Player+ respecte désormais la fenêtre de synchronisation de la commande « Précédent » avant d’enchaîner Seek puis Répétition.
+- Le test attend 650 ms après la confirmation réseau de « Précédent », ce qui couvre les 260 ms de stabilisation + 140 ms de rafraîchissement utilisés par le runtime Shuffle+.
+- Conserve les correctifs 11.9.1 pour l’onboarding contextuel et l’activation du Service Worker.
+- Aucun changement du serveur Railway (toujours 5.2.1).
+
 ## 11.9.1 — 8 octobre 2026
 
 ### Correctif CI Playwright

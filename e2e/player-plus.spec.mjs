@@ -12,6 +12,14 @@ test("Player+ envoie précédent, seek, répétition et volume à Spotify", asyn
     await card.getByRole("button", { name: "Titre précédent" }).click();
     await waitForSpotifyCall(calls, (call) => call.method === "POST" && call.path === "/me/player/previous");
 
+    // runQuickControlAction conserve volontairement le verrou de commande
+    // pendant 260 ms, puis attend encore 140 ms avant le rafraîchissement
+    // Spotify. Chromium est assez rapide pour enchaîner le clic suivant avant
+    // la libération du verrou ; on respecte donc ici la fenêtre réelle du
+    // runtime afin de tester les commandes séquentiellement comme l'UI les
+    // accepte.
+    await page.waitForTimeout(650);
+
     const seek = card.locator("[data-home-seek]");
     await seek.fill("60000");
     await seek.dispatchEvent("change");

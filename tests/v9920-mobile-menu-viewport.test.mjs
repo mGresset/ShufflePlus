@@ -6,8 +6,8 @@ const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const styleSource = await readFile("style.css", "utf8");
 
-test("Shuffle+ 11.9.1 ancre le menu mobile au Visual Viewport", () => {
-    assert.equal(version, "11.9.1");
+test("Shuffle+ 11.9.2 ancre le menu mobile au Visual Viewport", () => {
+    assert.equal(version, "11.9.2");
     assert.match(
         appSource,
         /function syncMobilePrimaryNavigationViewport\(\)/

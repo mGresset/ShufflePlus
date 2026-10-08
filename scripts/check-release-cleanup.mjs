@@ -15,8 +15,8 @@ function fail(message) {
     failures.push(message);
 }
 
-if (version !== "11.9.1") {
-    fail(`La release V11 doit annoncer 11.9.1, pas ${version}.`);
+if (version !== "11.9.2") {
+    fail(`La release V11 doit annoncer 11.9.2, pas ${version}.`);
 }
 
 if (!index.includes('name="shuffleplus-release-channel" content="stable"')) {

@@ -1,4 +1,4 @@
-# Shuffle+ v11.9.1
+# Shuffle+ v11.9.2
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.9.1** poursuit la modularisation sans changer le moteur Spotify : le Centre de fiabilité et le diagnostic Spotify Connect quittent le CSS global, la fiabilité du lancement rejoint le module Accueil, une partie du runtime de fiabilité sort de `app.js`, et des **budgets d’architecture CI** empêchent le noyau et le CSS global de regonfler. Les tests navigateur Playwright de la 11.8 restent actifs. Le serveur Railway reste inchangé en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.9.2** poursuit la modularisation sans changer le moteur Spotify : le Centre de fiabilité et le diagnostic Spotify Connect quittent le CSS global, la fiabilité du lancement rejoint le module Accueil, une partie du runtime de fiabilité sort de `app.js`, et des **budgets d’architecture CI** empêchent le noyau et le CSS global de regonfler. Les tests navigateur Playwright de la 11.8 restent actifs. Le serveur Railway reste inchangé en **v5.2.1**.
 
 ---
 
@@ -79,7 +79,7 @@ La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
 
 Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
 
-### Architecture progressive — v11.9.1
+### Architecture progressive — v11.9.2
 
 La 11.9 réduit la dette structurelle sans modifier l’expérience Spotify :
 

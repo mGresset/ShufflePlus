@@ -1012,7 +1012,7 @@
 }
 
 /* =====================================================================
-   Shuffle+ v11.9.1 — Accueil & Lecture en cours V2
+   Shuffle+ v11.9.2 — Accueil & Lecture en cours V2
    ===================================================================== */
 .v111-home-now-playing {
     position: relative;
@@ -1303,7 +1303,7 @@
 }
 
 /* =========================================================
-   Shuffle+ v11.9.1 — Player+
+   Shuffle+ v11.9.2 — Player+
    ========================================================= */
 .v115-home-seek {
     display: grid;
@@ -1368,7 +1368,7 @@
 }
 
 /* =====================================================================
-   Shuffle+ v11.9.1 — fiabilité du lancement, chargée avec l’accueil
+   Shuffle+ v11.9.2 — fiabilité du lancement, chargée avec l’accueil
    ===================================================================== */
 /* Shuffle+ v9.1.0 — état de fiabilité du lancement principal */
 .primary-launch-reliability {

@@ -14,8 +14,8 @@ const [
     manifest
 ] = await Promise.all([
     readFile(new URL("../VERSION", import.meta.url), "utf8").then((value) => value.trim()),
-    readFile(new URL("../bootstrap-11.9.1.js", import.meta.url), "utf8"),
-    readFile(new URL("../startup-recovery-11.9.1.js", import.meta.url), "utf8"),
+    readFile(new URL("../bootstrap-11.9.2.js", import.meta.url), "utf8"),
+    readFile(new URL("../startup-recovery-11.9.2.js", import.meta.url), "utf8"),
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../core/security-policy.js", import.meta.url), "utf8"),
     readFile(new URL("../core/shortcut-result-channel.js", import.meta.url), "utf8"),
@@ -24,8 +24,8 @@ const [
     readFile(new URL("../manifest.webmanifest", import.meta.url), "utf8")
 ]);
 
-test("11.9.1 limite la réparation PWA au scope Shuffle+ exact", () => {
-    assert.equal(version, "11.9.1");
+test("11.9.2 limite la réparation PWA au scope Shuffle+ exact", () => {
+    assert.equal(version, "11.9.2");
     for (const source of [bootstrap, recovery]) {
         assert.match(source, /const shufflePlusScope = new URL\("\.\/", window\.location\.href\)\.href;/);
         assert.match(source, /registration\.scope === shufflePlusScope/);
@@ -33,7 +33,7 @@ test("11.9.1 limite la réparation PWA au scope Shuffle+ exact", () => {
     }
 });
 
-test("11.9.1 borne connect-src aux services réellement utilisés", () => {
+test("11.9.2 borne connect-src aux services réellement utilisés", () => {
     assert.match(index, /connect-src 'self' https:\/\/accounts\.spotify\.com https:\/\/api\.spotify\.com https:\/\/\*\.up\.railway\.app;/);
     assert.doesNotMatch(index, /connect-src 'self' https:;/);
     assert.match(securityPolicy, /https:\/\/\*\.up\.railway\.app/);

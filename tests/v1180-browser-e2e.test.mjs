@@ -12,8 +12,8 @@ const player = await readFile(new URL("../e2e/player-plus.spec.mjs", import.meta
 const pwa = await readFile(new URL("../e2e/pwa.spec.mjs", import.meta.url), "utf8");
 const helpers = await readFile(new URL("../e2e/helpers.mjs", import.meta.url), "utf8");
 
-test("Shuffle+ 11.9.1 verrouille Playwright stable", () => {
-    assert.equal(version, "11.9.1");
+test("Shuffle+ 11.9.2 verrouille Playwright stable", () => {
+    assert.equal(version, "11.9.2");
     assert.equal(packageJson.devDependencies?.["@playwright/test"], "1.63.0");
 });
 
@@ -30,7 +30,7 @@ test("un projet séparé valide le vrai Service Worker PWA", () => {
     assert.match(pwa, /GET_VERSION/);
     assert.match(pwa, /expect\.poll/);
     assert.match(pwa, /Execution context was destroyed/);
-    assert.match(pwa, /shuffleplus-v11\.9\.1-shell/);
+    assert.match(pwa, /shuffleplus-v11\.9\.2-shell/);
 });
 
 test("les parcours navigateur couvrent onboarding, recherche et Player+", () => {
@@ -39,6 +39,13 @@ test("les parcours navigateur couvrent onboarding, recherche et Player+", () => 
     assert.match(navigation, /Yellow Test/);
     assert.match(player, /data-home-seek/);
     assert.match(player, /volume_percent=63/);
+});
+
+
+test("Player+ attend la fin du verrou anti-double-commande avant Répétition", () => {
+    assert.match(player, /waitForTimeout\(650\)/);
+    assert.match(player, /player\/previous/);
+    assert.match(player, /player\/repeat/);
 });
 
 test("Spotify est simulé sans compte réel", () => {

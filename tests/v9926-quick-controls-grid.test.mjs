@@ -6,8 +6,8 @@ const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("Shuffle+ 11.9.1 complète la grille de commandes rapides", () => {
-    assert.equal(version, "11.9.1");
+test("Shuffle+ 11.9.2 complète la grille de commandes rapides", () => {
+    assert.equal(version, "11.9.2");
     assert.match(appSource, /id: "refresh"/);
     assert.match(appSource, /label: "Actualiser Spotify"/);
     assert.match(appSource, /action\.id === "refresh"/);

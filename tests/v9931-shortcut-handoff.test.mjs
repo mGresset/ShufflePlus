@@ -4,12 +4,12 @@ import { readFile } from "node:fs/promises";
 
 const [version, bootstrapSource, appSource] = await Promise.all([
     readFile(new URL("../VERSION", import.meta.url), "utf8").then((value) => value.trim()),
-    readFile(new URL("../bootstrap-11.9.1.js", import.meta.url), "utf8"),
+    readFile(new URL("../bootstrap-11.9.2.js", import.meta.url), "utf8"),
     readFile(new URL("../app.js", import.meta.url), "utf8")
 ]);
 
-test("Shuffle+ 11.9.1 conserve une commande de raccourci avant la recharge PWA", () => {
-    assert.equal(version, "11.9.1");
+test("Shuffle+ 11.9.2 conserve une commande de raccourci avant la recharge PWA", () => {
+    assert.equal(version, "11.9.2");
     assert.match(bootstrapSource, /const AUTOMATION_HANDOFF_KEY/);
     assert.match(bootstrapSource, /url\.searchParams\.get\("action"\)/);
     assert.match(bootstrapSource, /sessionStorage\.setItem\(\s*AUTOMATION_HANDOFF_KEY/);
