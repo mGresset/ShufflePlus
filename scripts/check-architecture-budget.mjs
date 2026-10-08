@@ -6,7 +6,7 @@ const BUDGETS = Object.freeze({
     appBytes: 1_560_000,
     globalCssLines: 18550,
     globalCssBytes: 390_000,
-    appStaticImports: 70
+    appStaticImports: 68
 });
 
 const [app, globalCss] = await Promise.all([

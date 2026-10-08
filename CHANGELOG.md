@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 11.13.0 — Chargement paresseux renforcé
+
+- l’Assistant musical (`musical-assistant.js`) quitte le graphe statique de `app.js` et n’est chargé qu’à l’ouverture ou à la première commande associée ;
+- le module de partage/import de profils (`core/profile-share.js`) est chargé uniquement au moment d’exporter, partager ou importer un profil ;
+- ces modules restent disponibles hors ligne via le shell PWA optionnel sans être parsés au démarrage ;
+- le graphe statique du noyau passe de 74 à 72 modules et économise environ 19 Kio de JavaScript brut au premier chargement ;
+- le budget CI des imports statiques est resserré à 68 ;
+- ajout de tests de non-régression dédiés au lazy loading et à la couverture PWA optionnelle.
+
+
 ## 11.12.0 — Profils / Mix intelligents modulaires
 
 - extraction du modèle des profils de mix vers `core/mix-profiles.js` ;

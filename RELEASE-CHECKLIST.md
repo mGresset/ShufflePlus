@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v11.12.0
+# Validation terrain Shuffle+ v11.13.0
 
 ## Conditions obligatoires
 
@@ -14,6 +14,7 @@
 10. Vérifier que `check-release-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique actif.
 11. Dans la recherche globale, chercher un titre Spotify et vérifier **Lire**, **Lire ensuite** et l’ajout aux priorités d’un profil personnalisé.
 12. Sur GitHub Actions, confirmer que Chromium desktop, WebKit/iPhone et le scénario Service Worker PWA sont verts.
+13. Vérifier que l’Assistant musical et le partage/import de profils se chargent au premier usage sans erreur et restent disponibles hors ligne après préchauffage PWA.
 
 ## Ce que signifie la branche V11
 

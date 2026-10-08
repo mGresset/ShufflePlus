@@ -6,8 +6,8 @@ const appSource = await readFile("app.js", "utf8");
 const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("la correction de latence active annonce Shuffle+ 11.12.0", () => {
-    assert.equal(version, "11.12.0");
+test("la correction de latence active annonce Shuffle+ 11.13.0", () => {
+    assert.equal(version, "11.13.0");
     assert.match(appSource, /const APP_VERSION = CONFIG\.version;/);
 });
 

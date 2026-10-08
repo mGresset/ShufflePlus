@@ -140,7 +140,9 @@ for (const required of [
 
 for (const optionalOnly of [
     "app-health.js",
-    "universal-search.js"
+    "universal-search.js",
+    "musical-assistant.js",
+    "core/profile-share.js"
 ]) {
     if (!optional.map(normalizeShellPath).includes(optionalOnly)) {
         fail(`Module différé absent du shell optionnel : ${optionalOnly}`);

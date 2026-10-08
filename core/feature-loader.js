@@ -175,3 +175,30 @@ export function scheduleIdleFeaturePrefetch(
     const id = globalObject.setTimeout?.(run, Math.min(timeout, 600));
     return () => globalObject.clearTimeout?.(id);
 }
+
+export function createLazyFeatureAccessor(featureLoader, name) {
+    let loadedModule = null;
+    let pendingPromise = null;
+
+    async function load() {
+        if (loadedModule) return loadedModule;
+        if (!pendingPromise) {
+            pendingPromise = featureLoader.load(name)
+                .then((module) => {
+                    loadedModule = module;
+                    return module;
+                })
+                .finally(() => {
+                    pendingPromise = null;
+                });
+        }
+        return pendingPromise;
+    }
+
+    return {
+        load,
+        get: () => loadedModule,
+        isLoaded: () => Boolean(loadedModule),
+        isLoading: () => Boolean(pendingPromise)
+    };
+}

@@ -33,13 +33,13 @@ const sampleProfile = {
 
 test("le document partagé ne contient que les champs de profil autorisés", () => {
     const payload = buildMixProfileShareDocument(sampleProfile, {
-        appVersion: "11.12.0",
+        appVersion: "11.13.0",
         exportedAt: "2026-10-07T20:00:00.000Z"
     });
 
     assert.equal(payload.schema, MIX_PROFILE_SHARE_SCHEMA);
     assert.equal(payload.version, MIX_PROFILE_SHARE_VERSION);
-    assert.equal(payload.appVersion, "11.12.0");
+    assert.equal(payload.appVersion, "11.13.0");
     assert.equal(payload.profile.name, "Sport intense");
     assert.equal(payload.profile.isDefault, undefined);
     assert.equal(payload.profile.id, undefined);

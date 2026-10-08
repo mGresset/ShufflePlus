@@ -6,15 +6,15 @@ const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const designSource = await readFile("design-system.css", "utf8");
 
-test("Shuffle+ 11.12.0 utilise un état dédié pour l’exemple actif", () => {
-    assert.equal(version, "11.12.0");
+test("Shuffle+ 11.13.0 utilise un état dédié pour l’exemple actif", () => {
+    assert.equal(version, "11.13.0");
     assert.match(
         appSource,
         /let musicalAssistantSelectedExample = "";/
     );
     assert.match(
         appSource,
-        /function setMusicalAssistantExampleSelection\([\s\S]*MUSICAL_ASSISTANT_EXAMPLES\.includes\(candidate\)/
+        /function setMusicalAssistantExampleSelection\([\s\S]*getMusicalAssistantExamples\(\)\.includes\(candidate\)/
     );
     assert.match(
         appSource,

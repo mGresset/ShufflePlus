@@ -18462,7 +18462,7 @@ body.is-driving-mode .driving-queue-current > span:first-child {
 }
 
 
-/* Shuffle+ v11.12.0 — Profils & lancements simplifiés */
+/* Shuffle+ v11.13.0 — Profils & lancements simplifiés */
 .launch-center-favorites {
     display: grid;
     gap: 10px;

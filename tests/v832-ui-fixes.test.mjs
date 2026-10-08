@@ -6,8 +6,8 @@ const designSource = await readFile("design-system.css", "utf8");
 const indexSource = await readFile("index.html", "utf8");
 const versionSource = (await readFile("VERSION", "utf8")).trim();
 
-test("la v11.12.0 garantit que les éléments hidden restent invisibles", () => {
-    assert.equal(versionSource, "11.12.0");
+test("la v11.13.0 garantit que les éléments hidden restent invisibles", () => {
+    assert.equal(versionSource, "11.13.0");
     assert.match(designSource, /\[hidden\]\s*\{\s*display:\s*none\s*!important/);
 });
 
@@ -46,5 +46,5 @@ test("la navigation sticky desktop ne laisse plus d’interstice", () => {
         designSource,
         /\.app-menu\.app-menu--primary[\s\S]*top:\s*0/
     );
-    assert.match(indexSource, /design-system\.css\?v=11\.12\.0/);
+    assert.match(indexSource, /design-system\.css\?v=11\.13\.0/);
 });

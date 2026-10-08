@@ -51,11 +51,6 @@ import {
 } from "./adaptive-dj.js";
 
 import {
-    MUSICAL_ASSISTANT_EXAMPLES,
-    parseMusicalAssistantRequest
-} from "./musical-assistant.js";
-
-import {
     DEFAULT_VOICE_ASSISTANT_SETTINGS,
     normalizeVoiceAssistantSettings,
     getVoiceRecognitionErrorMessage,
@@ -177,13 +172,6 @@ import {
 } from "./core/player-plus.js";
 
 import {
-    buildMixProfileShareDocument,
-    parseMixProfileShareDocument,
-    getMixProfileShareFilename,
-    MAX_SHARED_PROFILE_BYTES
-} from "./core/profile-share.js";
-
-import {
     normalizeMixProfileRecord,
     readMixProfileRecords,
     saveMixProfileRecords,
@@ -232,9 +220,7 @@ import {
     writeStoredAppMenu
 } from "./core/app-menu.js";
 
-import {
-    createFeatureLoader
-} from "./core/feature-loader.js";
+import { createFeatureLoader, createLazyFeatureAccessor } from "./core/feature-loader.js";
 
 import {
     createStylesheetLoader
@@ -1006,7 +992,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.12.0-shell";
+    "shuffleplus-v11.13.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1452,7 +1438,9 @@ const sessionResumeCoordinator = createSessionResumeCoordinator({
 const featureLoader = createFeatureLoader(
     {
         appHealth: () => import("./app-health.js"),
-        universalSearch: () => import("./universal-search.js")
+        universalSearch: () => import("./universal-search.js"),
+        musicalAssistant: () => import("./musical-assistant.js"),
+        profileShare: () => import("./core/profile-share.js")
     },
     {
         onChange(modules) {
@@ -1536,6 +1524,16 @@ function getLoadedUniversalSearchFeature() {
         throw new Error("La recherche globale n’est pas encore chargée.");
     }
     return universalSearchFeature;
+}
+
+const musicalAssistantFeature = createLazyFeatureAccessor(featureLoader, "musicalAssistant");
+const profileShareFeature = createLazyFeatureAccessor(featureLoader, "profileShare");
+
+const ensureMusicalAssistantFeature = () => musicalAssistantFeature.load();
+const ensureProfileShareFeature = () => profileShareFeature.load();
+
+function getMusicalAssistantExamples() {
+    return musicalAssistantFeature.get()?.MUSICAL_ASSISTANT_EXAMPLES || [];
 }
 
 let adaptivePrefetcher = null;
@@ -6836,7 +6834,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.12.0",
+                "./service-worker.js?v=11.13.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -18270,6 +18268,10 @@ async function navigateToAppMenu(
 
     await ensureMenuFeatureStyles(normalizedMenu);
 
+    if (normalizedMenu === "assistant") {
+        await ensureMusicalAssistantFeature();
+    }
+
     if (normalizedMenu === "driving") {
         if (!DRIVING_MODE_AVAILABLE) {
             activeAppMenu = "dashboard";
@@ -20056,10 +20058,12 @@ async function handleVoiceAssistantTranscript(
         return;
     }
 
+    const musicalAssistantModule =
+        await ensureMusicalAssistantFeature();
     setMusicalAssistantExampleSelection("");
     musicalAssistantDraft = cleanTranscript;
     musicalAssistantPlan =
-        parseMusicalAssistantRequest(
+        musicalAssistantModule.parseMusicalAssistantRequest(
             musicalAssistantDraft,
             getMusicalAssistantContext()
         );
@@ -20525,7 +20529,7 @@ function setMusicalAssistantExampleSelection(
 ) {
     const candidate = String(example || "").trim();
     musicalAssistantSelectedExample =
-        MUSICAL_ASSISTANT_EXAMPLES.includes(candidate)
+        getMusicalAssistantExamples().includes(candidate)
             ? candidate
             : "";
 
@@ -20558,14 +20562,16 @@ function setMusicalAssistantExampleSelection(
         });
 }
 
-function analyzeMusicalAssistantRequest(
+async function analyzeMusicalAssistantRequest(
     request = "",
     { selectedExample = "" } = {}
 ) {
+    const musicalAssistantModule =
+        await ensureMusicalAssistantFeature();
     setMusicalAssistantExampleSelection(selectedExample);
     musicalAssistantDraft = String(request || "").trim();
     musicalAssistantPlan =
-        parseMusicalAssistantRequest(
+        musicalAssistantModule.parseMusicalAssistantRequest(
             musicalAssistantDraft,
             getMusicalAssistantContext()
         );
@@ -21073,6 +21079,12 @@ function renderMusicalAssistantPlan(plan) {
 }
 
 function renderMusicalAssistantPage() {
+    if (!musicalAssistantFeature.isLoaded() && !musicalAssistantFeature.isLoading()) {
+        ensureMusicalAssistantFeature()
+            .then(() => activeAppMenu === "assistant" && displayPlaylists(playlistsCache))
+            .catch((error) => console.warn("Assistant musical différé indisponible :", error));
+    }
+
     const history = musicalAssistantHistory
         .slice(0, 12)
         .map((item) => `
@@ -21158,7 +21170,7 @@ function renderMusicalAssistantPage() {
             ${renderVoiceAssistantSettingsPanel()}
 
             <div class="musical-assistant-examples" aria-label="Exemples de commandes">
-                ${MUSICAL_ASSISTANT_EXAMPLES.map((example) => {
+                ${getMusicalAssistantExamples().map((example) => {
                     const selected =
                         musicalAssistantSelectedExample === example;
                     return `
@@ -30379,26 +30391,28 @@ function getUniqueImportedProfileName(name = "Profil importé") {
     return getUniqueMixProfileName(mixProfiles, name);
 }
 
-function getShareableMixProfile(profileId = "") {
+async function getShareableMixProfile(profileId = "") {
     const profile = getProfileById(profileId);
     if (!profile) {
         throw new Error("Profil introuvable.");
     }
 
-    return buildMixProfileShareDocument(profile, {
+    const module = await ensureProfileShareFeature();
+    return module.buildMixProfileShareDocument(profile, {
         appVersion: APP_VERSION
     });
 }
 
-function downloadMixProfile(profileId = "") {
+async function downloadMixProfile(profileId = "") {
     const profile = getProfileById(profileId);
     if (!profile) {
         setStatus("Profil introuvable.", "error");
         return;
     }
 
-    const payload = getShareableMixProfile(profileId);
-    downloadJsonPayload(payload, getMixProfileShareFilename(profile.name));
+    const module = await ensureProfileShareFeature();
+    const payload = await getShareableMixProfile(profileId);
+    downloadJsonPayload(payload, module.getMixProfileShareFilename(profile.name));
     setStatus(`Profil « ${profile.name} » exporté.`);
 }
 
@@ -30409,8 +30423,9 @@ async function shareMixProfile(profileId = "") {
         return;
     }
 
-    const payload = getShareableMixProfile(profileId);
-    const filename = getMixProfileShareFilename(profile.name);
+    const module = await ensureProfileShareFeature();
+    const payload = await getShareableMixProfile(profileId);
+    const filename = module.getMixProfileShareFilename(profile.name);
     const content = JSON.stringify(payload, null, 2);
 
     try {
@@ -30450,12 +30465,13 @@ async function importMixProfileFile(file) {
         throw new Error(`Tu peux enregistrer jusqu’à ${MAX_MIX_PROFILES} profils.`);
     }
 
-    if (Number(file.size || 0) > MAX_SHARED_PROFILE_BYTES) {
+    const module = await ensureProfileShareFeature();
+    if (Number(file.size || 0) > module.MAX_SHARED_PROFILE_BYTES) {
         throw new Error("Ce fichier de profil est trop volumineux.");
     }
 
     const text = await file.text();
-    if (new TextEncoder().encode(text).length > MAX_SHARED_PROFILE_BYTES) {
+    if (new TextEncoder().encode(text).length > module.MAX_SHARED_PROFILE_BYTES) {
         throw new Error("Ce fichier de profil est trop volumineux.");
     }
 
@@ -30466,7 +30482,7 @@ async function importMixProfileFile(file) {
         throw new Error("Le fichier sélectionné n’est pas un JSON valide.");
     }
 
-    const shared = parseMixProfileShareDocument(parsed);
+    const shared = module.parseMixProfileShareDocument(parsed);
     const imported = normalizeMixProfile({
         ...shared.profile,
         id: createSavedMixId(),
@@ -47046,7 +47062,7 @@ contentElement.addEventListener(
                 assistantExampleButton.dataset
                     .musicalAssistantExample || "";
             assistantExampleButton.blur();
-            analyzeMusicalAssistantRequest(
+            await analyzeMusicalAssistantRequest(
                 selectedExample,
                 { selectedExample }
             );
@@ -49792,7 +49808,7 @@ contentElement.addEventListener(
         ) {
             event.preventDefault();
             const data = new FormData(event.target);
-            analyzeMusicalAssistantRequest(
+            await analyzeMusicalAssistantRequest(
                 String(data.get("request") || "")
             );
             return;

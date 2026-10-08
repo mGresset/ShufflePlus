@@ -1,6 +1,6 @@
 # Feuille de route Shuffle+
 
-- **v11.12.0 — Recherche universelle réellement modulaire, rendu Spotify extrait de app.js et budget CI resserré : terminée**
+- **v11.13.0 — Chargement paresseux renforcé : Assistant musical et partage/import de profils chargés uniquement au premier usage : terminée**
 - **v11.8.0 — Tests navigateur réels : Playwright Chromium + WebKit/iPhone, mocks Spotify et validation PWA : terminée**
 - **v11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné : terminée**
 - **v11.6.0 — Recherche Spotify intégrée : titres, albums, artistes, lecture, file et priorités de profil : terminée**

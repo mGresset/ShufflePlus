@@ -15,15 +15,18 @@ function readArray(name) {
     return [...match[1].matchAll(/"([^"\\]+)"/g)].map((item) => item[1]);
 }
 
-test("Shuffle+ 11.12.0 réduit le lot PWA réellement bloquant", () => {
-    assert.equal(version, "11.12.0");
+test("Shuffle+ 11.13.0 réduit le lot PWA réellement bloquant", () => {
+    assert.equal(version, "11.13.0");
     const critical = readArray("CRITICAL_APP_SHELL");
     const runtime = readArray("RUNTIME_APP_SHELL");
+    const optional = readArray("OPTIONAL_APP_SHELL");
     assert.ok(critical.length <= 16);
     assert.ok(runtime.length >= 40);
-    assert.ok(critical.includes("./app.js?v=11.12.0&build=11.12.0-pwa-reset-1"));
+    assert.ok(critical.includes("./app.js?v=11.13.0&build=11.13.0-pwa-reset-1"));
     assert.ok(runtime.includes("./core/playback-clock.js"));
-    assert.ok(runtime.includes("./musical-assistant.js"));
+    assert.ok(!runtime.includes("./musical-assistant.js"));
+    assert.ok(optional.includes("./musical-assistant.js"));
+    assert.ok(optional.includes("./core/profile-share.js"));
 });
 
 test("la prise de contrôle attend le runtime hors ligne et expose son diagnostic", () => {

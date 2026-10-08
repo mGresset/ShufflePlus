@@ -27,8 +27,8 @@ const normalizeProfile = (profile = {}) => normalizeMixProfileRecord(profile, {
     normalizeCleanupSettings: identity
 });
 
-test("Shuffle+ 11.12.0 extrait le modèle et le rendu des profils hors de app.js", () => {
-    assert.equal(version, "11.12.0");
+test("Shuffle+ 11.13.0 extrait le modèle et le rendu des profils hors de app.js", () => {
+    assert.equal(version, "11.13.0");
     assert.match(appSource, /from "\.\/core\/mix-profiles\.js"/);
     assert.match(appSource, /normalizeMixProfileRecord\(/);
     assert.match(appSource, /renderMixProfilesPanel\(/);

@@ -111,7 +111,7 @@ test("l’interface propose Lire, Lire ensuite et ajout aux priorités d’un pr
 test("la recherche distante est temporisée et possède un rendu mobile dédié", () => {
     assert.match(appSource, /SPOTIFY_CATALOG_SEARCH_DEBOUNCE_MS = 320/);
     assert.match(appSource, /requestId !== spotifyCatalogSearchRequestId/);
-    assert.match(searchStyles, /Shuffle\+ v11\.12\.0 — Recherche catalogue Spotify/);
+    assert.match(searchStyles, /Shuffle\+ v11\.13\.0 — Recherche catalogue Spotify/);
     assert.match(searchStyles, /\.spotify-catalog-result__actions/);
     assert.match(searchStyles, /@media \(max-width: 640px\)/);
 });
