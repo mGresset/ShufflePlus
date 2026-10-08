@@ -1,5 +1,14 @@
 # Changelog Shuffle+
 
+## 11.10.0 — Architecture : recherche réellement modulaire
+
+- extraction des rubriques statiques de recherche hors de `app.js` vers `universal-search.js` ;
+- extraction du rendu des résultats du catalogue Spotify et du sélecteur de profil ;
+- extraction de la traduction des erreurs de recherche Spotify ;
+- le module reste chargé à la demande via le feature loader ;
+- budget architectural abaissé pour empêcher `app.js` de regonfler ;
+- comportement utilisateur et API Spotify inchangés.
+
 
 ## 11.9.2 — 8 octobre 2026
 

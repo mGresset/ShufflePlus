@@ -9,6 +9,7 @@ import {
 
 const apiSource = await readFile("spotify-api.js", "utf8");
 const appSource = await readFile("app.js", "utf8");
+const universalSearchSource = await readFile("universal-search.js", "utf8");
 const searchStyles = await readFile("styles/feature-search.css", "utf8");
 const configSource = await readFile("config.js", "utf8");
 
@@ -98,9 +99,9 @@ test("Spotify API expose recherche et lecture de contexte sans nouveau scope", (
 
 test("l’interface propose Lire, Lire ensuite et ajout aux priorités d’un profil", () => {
     assert.match(appSource, /renderSpotifyCatalogSearchResults/);
-    assert.match(appSource, /data-spotify-catalog-action="play"/);
-    assert.match(appSource, /data-spotify-catalog-action="queue"/);
-    assert.match(appSource, /data-spotify-catalog-action="profile"/);
+    assert.match(universalSearchSource, /data-spotify-catalog-action="play"/);
+    assert.match(universalSearchSource, /data-spotify-catalog-action="queue"/);
+    assert.match(universalSearchSource, /data-spotify-catalog-action="profile"/);
     assert.match(appSource, /addSpotifyCatalogItemToProfile/);
     assert.match(appSource, /favoredTrackUris/);
     assert.match(appSource, /favoredArtists/);
@@ -110,7 +111,7 @@ test("l’interface propose Lire, Lire ensuite et ajout aux priorités d’un pr
 test("la recherche distante est temporisée et possède un rendu mobile dédié", () => {
     assert.match(appSource, /SPOTIFY_CATALOG_SEARCH_DEBOUNCE_MS = 320/);
     assert.match(appSource, /requestId !== spotifyCatalogSearchRequestId/);
-    assert.match(searchStyles, /Shuffle\+ v11\.9\.2 — Recherche catalogue Spotify/);
+    assert.match(searchStyles, /Shuffle\+ v11\.10\.0 — Recherche catalogue Spotify/);
     assert.match(searchStyles, /\.spotify-catalog-result__actions/);
     assert.match(searchStyles, /@media \(max-width: 640px\)/);
 });

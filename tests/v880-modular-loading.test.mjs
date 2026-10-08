@@ -50,8 +50,8 @@ function createFakeDocument() {
     };
 }
 
-test("la distribution active annonce Shuffle+ 11.9.2", () => {
-    assert.equal(version, "11.9.2");
+test("la distribution active annonce Shuffle+ 11.10.0", () => {
+    assert.equal(version, "11.10.0");
 });
 
 test("les feuilles de fonctionnalités sont déclarées centralement", () => {
@@ -67,12 +67,12 @@ test("le chargeur ajoute une feuille versionnée une seule fois", async () => {
     const documentObject = createFakeDocument();
     const loader = createStylesheetLoader(
         { search: "./styles/feature-search.css" },
-        { documentObject, version: "11.9.2" }
+        { documentObject, version: "11.10.0" }
     );
     await loader.load("search");
     await loader.load("search");
     assert.equal(documentObject.links.length, 1);
-    assert.match(documentObject.links[0].href, /feature-search\.css\?v=11\.9\.2$/);
+    assert.match(documentObject.links[0].href, /feature-search\.css\?v=11\.10\.0$/);
     assert.equal(loader.isLoaded("search"), true);
 });
 

@@ -1,5 +1,5 @@
-const APP_VERSION = "11.9.2";
-const CACHE_VERSION = "shuffleplus-v11.9.2";
+const APP_VERSION = "11.10.0";
+const CACHE_VERSION = "shuffleplus-v11.10.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -13,16 +13,16 @@ const VERSION_CACHE_PATTERN =
 
 const CRITICAL_APP_SHELL = [
     "./index.html",
-    "./style.css?v=11.9.2",
-    "./design-system.css?v=11.9.2",
-    "./mobile-ux.css?v=11.9.2",
-    "./bootstrap-11.9.2.js",
-    "./app.js?v=11.9.2&build=11.9.2-pwa-reset-1",
+    "./style.css?v=11.10.0",
+    "./design-system.css?v=11.10.0",
+    "./mobile-ux.css?v=11.10.0",
+    "./bootstrap-11.10.0.js",
+    "./app.js?v=11.10.0&build=11.10.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-11.9.2.js",
+    "./startup-recovery-11.10.0.js",
     "./update-guard.js",
     "./manifest.webmanifest"
 ];
@@ -105,12 +105,12 @@ const RUNTIME_APP_SHELL = [
 
 const OPTIONAL_APP_SHELL = [
     "./app-health.js",
-    "./styles/feature-home.css?v=11.9.2",
+    "./styles/feature-home.css?v=11.10.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=11.9.2",
-    "./styles/feature-settings.css?v=11.9.2",
-    "./styles/feature-reliability.css?v=11.9.2",
-    "./styles/feature-driving.css?v=11.9.2",
+    "./styles/feature-search.css?v=11.10.0",
+    "./styles/feature-settings.css?v=11.10.0",
+    "./styles/feature-reliability.css?v=11.10.0",
+    "./styles/feature-driving.css?v=11.10.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

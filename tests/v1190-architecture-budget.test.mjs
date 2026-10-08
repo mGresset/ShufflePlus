@@ -34,7 +34,7 @@ test("le journal de fiabilité persiste sans faire fuiter d’état non normalis
 
 test("le diagnostic texte reste volontairement sans identifiants sensibles", () => {
     const report = buildReliabilityDiagnosticText({
-        appVersion: "11.9.2",
+        appVersion: "11.10.0",
         online: true,
         spotifyConnected: true,
         serverStatus: "healthy",
@@ -50,7 +50,7 @@ test("le diagnostic texte reste volontairement sans identifiants sensibles", () 
         }]
     });
 
-    assert.match(report, /Shuffle\+ 11\.9\.2/);
+    assert.match(report, /Shuffle\+ 11\.10\.0/);
     assert.match(report, /aucun token OAuth/);
     assert.doesNotMatch(report, /device_id\s*:/i);
     assert.doesNotMatch(report, /refresh_token/i);

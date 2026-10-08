@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v11.9.2
+# Validation terrain Shuffle+ v11.10.0
 
 ## Conditions obligatoires
 

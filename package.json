@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.9.2",
+  "version": "11.10.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.9.2 — Hotfix E2E Player+ : séquencement Chromium fiabilisé.",
+  "description": "Shuffle+ 11.10.0 — Recherche universelle réellement modulaire et noyau app.js allégé.",
   "engines": {
     "node": ">=20"
   },

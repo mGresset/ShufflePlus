@@ -993,7 +993,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.9.2-shell";
+    "shuffleplus-v11.10.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6964,7 +6964,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.9.2",
+                "./service-worker.js?v=11.10.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -18906,216 +18906,13 @@ function addUniversalSearchHistory(query = "") {
     saveUniversalSearchHistory();
 }
 
-function getUniversalSearchSections() {
-    return [
-        {
-            key: "section:dashboard",
-            type: "section",
-            icon: "🏠",
-            title: "Accueil",
-            subtitle: "Vue d’ensemble",
-            description: "Lecture, recommandation, scène, routine et résumé musical.",
-            menu: "dashboard",
-            priority: 100,
-            keywords: ["accueil", "dashboard", "résumé", "vue ensemble"]
-        },
-        {
-            key: "section:music",
-            type: "section",
-            icon: "🎵",
-            title: "Ma musique",
-            subtitle: "Playlists et morceaux aimés",
-            description: "Retrouver les sources Spotify et sélectionner les playlists d’un mix.",
-            menu: "music",
-            priority: 98,
-            keywords: ["bibliothèque", "source", "playlist", "aimés"]
-        },
-        {
-            key: "section:mixes",
-            type: "section",
-            icon: "🔀",
-            title: "Profils & mix",
-            subtitle: "Mix, raccourcis et routines",
-            description: "Créer un mix, le sauvegarder et préparer une automatisation iPhone.",
-            menu: "mixes",
-            priority: 96,
-            keywords: ["mix", "raccourci", "ios", "routine", "programme"]
-        },
-        {
-            key: "section:adaptive",
-            type: "section",
-            icon: "🤖",
-            title: "Adaptive DJ",
-            subtitle: "Scènes et transitions",
-            description: "Gérer Conduite, Chill, Focus, Sport, Party et les transitions.",
-            menu: "adaptive",
-            priority: 94,
-            keywords: ["scène", "conduite", "chill", "focus", "sport", "party"]
-        },
-        {
-            key: "section:assistant",
-            type: "section",
-            icon: "✨",
-            title: "Assistant",
-            subtitle: "Commandes texte et vocales",
-            description: "Demander une action à Shuffle+ avec une phrase simple.",
-            menu: "assistant",
-            priority: 88,
-            keywords: ["voix", "vocal", "commande", "parler"]
-        },
-        {
-            key: "section:recommendations",
-            type: "section",
-            icon: "💜",
-            title: "Pour toi",
-            subtitle: "Recommandations personnalisées",
-            description: "Voir les mix et scènes conseillés pour le moment.",
-            menu: "recommendations",
-            priority: 90,
-            keywords: ["recommandation", "suggestion", "personnalisé"]
-        },
-        {
-            key: "section:statistics",
-            type: "section",
-            icon: "📊",
-            title: "Statistiques",
-            subtitle: "Habitudes d’écoute",
-            description: "Consulter les sessions, titres, durées et périodes d’activité.",
-            menu: "statistics",
-            priority: 84,
-            keywords: ["bilan", "écoute", "durée", "session"]
-        },
-        {
-            key: "section:goals",
-            type: "section",
-            icon: "🏆",
-            title: "Objectifs",
-            subtitle: "Progression hebdomadaire",
-            description: "Suivre les objectifs et badges de la semaine.",
-            menu: "goals",
-            priority: 80,
-            keywords: ["progression", "semaine", "badge", "objectif"]
-        },
-        {
-            key: "section:intelligence",
-            type: "section",
-            icon: "🧠",
-            title: "Intelligence",
-            subtitle: "Apprentissage local",
-            description: "Comprendre les observations et suggestions automatiques.",
-            menu: "intelligence",
-            priority: 74,
-            keywords: ["apprentissage", "adaptation", "suggestion"]
-        },
-        {
-            key: "section:quick",
-            type: "section",
-            icon: "⚡",
-            title: "Rapide",
-            subtitle: "Commandes essentielles",
-            description: "Pause, reprise, suivant et contextes rapides.",
-            menu: "quick",
-            priority: 86,
-            keywords: ["pause", "suivant", "commande", "raccourci"]
-        },
-        {
-            key: "section:driving",
-            type: "section",
-            icon: "🚗",
-            title: "Conduite",
-            subtitle: "Interface voiture",
-            description: "Ouvrir le mode mobile à gros boutons pour la voiture.",
-            menu: "driving",
-            priority: 92,
-            keywords: ["voiture", "route", "trajet", "écran actif"]
-        },
-        {
-            key: "section:modes",
-            type: "section",
-            icon: "🎛️",
-            title: "Modes d’utilisation",
-            subtitle: "Quotidien, Conduite, Sport, Soirée et Découverte",
-            description: "Adapter rapidement Shuffle+ à la situation du moment.",
-            menu: "modes",
-            priority: 89,
-            keywords: ["mode", "profil utilisation", "sport", "soirée", "découverte"]
-        },
-        {
-            key: "section:guide",
-            type: "help",
-            icon: "📖",
-            title: "Guide simplifié",
-            subtitle: "Comprendre les rubriques",
-            description: "Lire une explication courte de chaque catégorie.",
-            menu: "guide",
-            priority: 78,
-            keywords: ["manuel", "aide", "explication", "readme"]
-        },
-        {
-            key: "section:settings",
-            type: "section",
-            icon: "⚙️",
-            title: "Réglages",
-            subtitle: "Personnalisation et sauvegarde",
-            description: "Thème, profils, sauvegarde, synchronisation et mise à jour.",
-            menu: "settings",
-            priority: 82,
-            keywords: ["thème", "sauvegarde", "synchronisation", "mise à jour"]
-        },
-        {
-            key: "setting:theme",
-            type: "setting",
-            icon: "🎨",
-            title: "Thème et couleurs",
-            subtitle: "Réglages",
-            description: "Changer l’accent violet, bleu, rose, émeraude ou orange.",
-            menu: "settings",
-            priority: 65,
-            keywords: ["apparence", "couleur", "contraste", "animation"]
-        },
-        {
-            key: "setting:backup",
-            type: "setting",
-            icon: "💾",
-            title: "Sauvegarde et restauration",
-            subtitle: "Réglages",
-            description: "Exporter ou restaurer les données locales de Shuffle+.",
-            menu: "settings",
-            priority: 68,
-            keywords: ["export", "import", "backup", "restaurer"]
-        },
-        {
-            key: "setting:sync",
-            type: "setting",
-            icon: "🔄",
-            title: "Synchronisation",
-            subtitle: "Réglages",
-            description: "Retrouver les outils de synchronisation entre appareils.",
-            menu: "settings",
-            priority: 66,
-            keywords: ["serveur", "appareil", "fusion", "sync"]
-        },
-        {
-            key: "setting:update",
-            type: "setting",
-            icon: "⬆️",
-            title: "Rechercher une mise à jour",
-            subtitle: "Réglages",
-            description: "Actualiser la PWA après un nouveau déploiement.",
-            menu: "settings",
-            priority: 70,
-            keywords: ["version", "pwa", "cache", "actualiser"]
-        }
-    ];
-}
-
 function getUniversalSearchIndex() {
     const sceneState =
         normalizeAdaptiveDjScenesState(
             adaptiveDjScenesState
         );
 
-    const visibleSections = getUniversalSearchSections()
+    const visibleSections = getLoadedUniversalSearchFeature().getUniversalSearchSections()
         .filter((item) =>
             isExpertExperience(experienceMode) ||
             ![
@@ -19235,28 +19032,6 @@ function resetSpotifyCatalogSearch({
     };
 }
 
-function getSpotifyCatalogSearchErrorMessage(error) {
-    if (error?.status === 429) {
-        return error?.reason === "QUOTA_EXCEEDED"
-            ? "Quota Spotify temporairement atteint. Réessaie un peu plus tard."
-            : "Spotify limite momentanément les recherches. Réessaie dans quelques secondes.";
-    }
-
-    if (error?.status === 401) {
-        return "La session Spotify doit être renouvelée avant de rechercher dans le catalogue.";
-    }
-
-    if (error?.status === 403) {
-        return "Spotify refuse momentanément cette recherche avec ce compte.";
-    }
-
-    return String(
-        error?.spotifyMessage ||
-        error?.message ||
-        "Recherche Spotify indisponible."
-    ).slice(0, 220);
-}
-
 function scheduleSpotifyCatalogSearch({
     immediate = false
 } = {}) {
@@ -19339,7 +19114,7 @@ function scheduleSpotifyCatalogSearch({
                 query,
                 status: "error",
                 items: [],
-                error: getSpotifyCatalogSearchErrorMessage(error),
+                error: getLoadedUniversalSearchFeature().getSpotifyCatalogSearchErrorMessage(error),
                 busyKey: ""
             };
         }
@@ -19373,211 +19148,6 @@ function getEditableSpotifyCatalogProfiles() {
     return mixProfiles.filter(
         (profile) => !profile.isDefault
     );
-}
-
-function renderSpotifyCatalogProfileChooser(item) {
-    if (spotifyCatalogProfileTargetKey !== item.key) {
-        return "";
-    }
-
-    const profiles = getEditableSpotifyCatalogProfiles();
-    if (!profiles.length) {
-        return `
-            <div class="spotify-catalog-profile-chooser is-empty">
-                <span>
-                    Crée d’abord un profil personnalisé pour y enregistrer cette priorité.
-                </span>
-                <button
-                    type="button"
-                    data-spotify-catalog-open-profiles
-                >
-                    Ouvrir les profils
-                </button>
-            </div>
-        `;
-    }
-
-    const preferredProfileId = profiles.some(
-        (profile) => profile.id === activeProfileId
-    )
-        ? activeProfileId
-        : profiles[0].id;
-
-    return `
-        <div class="spotify-catalog-profile-chooser">
-            <label>
-                <span>Ajouter comme priorité à</span>
-                <select data-spotify-catalog-profile-select>
-                    ${profiles.map((profile) => `
-                        <option
-                            value="${escapeHtml(profile.id)}"
-                            ${profile.id === preferredProfileId ? "selected" : ""}
-                        >
-                            ${escapeHtml(profile.icon || "🎛️")} ${escapeHtml(profile.name)}
-                        </option>
-                    `).join("")}
-                </select>
-            </label>
-            <button
-                type="button"
-                data-spotify-catalog-add-profile="${escapeHtml(item.key)}"
-            >
-                ⭐ Ajouter
-            </button>
-        </div>
-    `;
-}
-
-function renderSpotifyCatalogSearchResults() {
-    const query = getSpotifyCatalogSearchQuery();
-
-    if (query.length < SPOTIFY_CATALOG_SEARCH_MIN_QUERY) {
-        return "";
-    }
-
-    const state = spotifyCatalogSearchState;
-    const matchingQuery = state.query === query;
-    const status = matchingQuery ? state.status : "loading";
-    const items = matchingQuery ? state.items : [];
-    const error = matchingQuery ? state.error : "";
-
-    if (status === "loading") {
-        return `
-            <section class="spotify-catalog-search is-loading" aria-busy="true">
-                <header>
-                    <div>
-                        <span>Spotify</span>
-                        <strong>Recherche dans le catalogue…</strong>
-                    </div>
-                    <span class="spotify-catalog-search__spinner" aria-hidden="true"></span>
-                </header>
-            </section>
-        `;
-    }
-
-    if (status === "error" || status === "offline") {
-        return `
-            <section class="spotify-catalog-search is-error">
-                <header>
-                    <div>
-                        <span>Spotify</span>
-                        <strong>Catalogue indisponible</strong>
-                    </div>
-                    <button
-                        type="button"
-                        data-retry-spotify-catalog-search
-                        ${status === "offline" ? "disabled" : ""}
-                    >
-                        Réessayer
-                    </button>
-                </header>
-                <p>${escapeHtml(error)}</p>
-            </section>
-        `;
-    }
-
-    if (status !== "ready") {
-        return "";
-    }
-
-    if (!items.length) {
-        return `
-            <section class="spotify-catalog-search is-empty">
-                <header>
-                    <div>
-                        <span>Spotify</span>
-                        <strong>Aucun titre, album ou artiste trouvé</strong>
-                    </div>
-                </header>
-            </section>
-        `;
-    }
-
-    return `
-        <section class="spotify-catalog-search" aria-label="Résultats du catalogue Spotify">
-            <header>
-                <div>
-                    <span>Spotify</span>
-                    <strong>Catalogue</strong>
-                </div>
-                <small>${items.length} résultat${items.length > 1 ? "s" : ""}</small>
-            </header>
-            <div class="spotify-catalog-search__list">
-                ${items.map((item) => {
-                    const busy = state.busyKey === item.key;
-                    const typeLabel =
-                        getLoadedUniversalSearchFeature()
-                            .getSpotifyCatalogTypeLabel(item.type);
-                    const profileOpen = spotifyCatalogProfileTargetKey === item.key;
-
-                    return `
-                        <article
-                            class="spotify-catalog-result ${profileOpen ? "is-profile-open" : ""}"
-                            data-spotify-catalog-result="${escapeHtml(item.key)}"
-                        >
-                            <div class="spotify-catalog-result__main">
-                                <span class="spotify-catalog-result__cover" aria-hidden="true">
-                                    ${item.imageUrl
-                                        ? `<img src="${escapeHtml(item.imageUrl)}" alt="" loading="lazy">`
-                                        : item.type === "artist"
-                                            ? "🎤"
-                                            : item.type === "album"
-                                                ? "💿"
-                                                : "🎵"}
-                                </span>
-                                <div class="spotify-catalog-result__copy">
-                                    <span>
-                                        <strong>${escapeHtml(item.title)}</strong>
-                                        <small>${escapeHtml(typeLabel)}</small>
-                                    </span>
-                                    <em>${escapeHtml(item.subtitle)}</em>
-                                    <span>${escapeHtml(item.description)}</span>
-                                </div>
-                            </div>
-                            <div class="spotify-catalog-result__actions">
-                                <button
-                                    type="button"
-                                    data-spotify-catalog-action="play"
-                                    data-spotify-catalog-key="${escapeHtml(item.key)}"
-                                    ${busy || item.playable === false ? "disabled" : ""}
-                                >
-                                    ${busy ? "…" : "▶"} Lire
-                                </button>
-                                ${item.type === "track" ? `
-                                    <button
-                                        type="button"
-                                        data-spotify-catalog-action="queue"
-                                        data-spotify-catalog-key="${escapeHtml(item.key)}"
-                                        ${busy || item.playable === false ? "disabled" : ""}
-                                    >
-                                        ➕ Ensuite
-                                    </button>
-                                ` : ""}
-                                <button
-                                    type="button"
-                                    data-spotify-catalog-action="profile"
-                                    data-spotify-catalog-key="${escapeHtml(item.key)}"
-                                    ${busy ? "disabled" : ""}
-                                >
-                                    ⭐ Profil
-                                </button>
-                                ${item.externalUrl ? `
-                                    <a
-                                        href="${escapeHtml(item.externalUrl)}"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        Spotify ↗
-                                    </a>
-                                ` : ""}
-                            </div>
-                            ${renderSpotifyCatalogProfileChooser(item)}
-                        </article>
-                    `;
-                }).join("")}
-            </div>
-        </section>
-    `;
 }
 
 async function resolveSpotifyCatalogPlaybackDeviceId() {
@@ -19926,7 +19496,14 @@ function renderUniversalSearchResults() {
     return `
         ${recent}
         ${localResults}
-        ${renderSpotifyCatalogSearchResults()}
+        ${getLoadedUniversalSearchFeature().renderSpotifyCatalogSearchResults({
+            query: getSpotifyCatalogSearchQuery(),
+            state: spotifyCatalogSearchState,
+            profileTargetKey: spotifyCatalogProfileTargetKey,
+            profiles: getEditableSpotifyCatalogProfiles(),
+            activeProfileId,
+            escapeHtml
+        })}
     `;
 }
 

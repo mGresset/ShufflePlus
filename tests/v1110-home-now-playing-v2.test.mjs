@@ -41,8 +41,8 @@ function makePlayback() {
     };
 }
 
-test("Shuffle+ 11.9.2 enrichit la lecture en cours avec l’état Spotify", () => {
-    assert.equal(version, "11.9.2");
+test("Shuffle+ 11.10.0 enrichit la lecture en cours avec l’état Spotify", () => {
+    assert.equal(version, "11.10.0");
     const snapshot = buildDailyHomeSnapshot({
         playback: makePlayback(),
         guidedSetup: { complete: true, progress: 100, steps: [] }
@@ -135,5 +135,5 @@ test("les métadonnées V11.1 se mettent à jour en place sans reconstruire l’
     assert.match(updater, /data-home-repeat-state/);
     assert.match(updater, /updateHomeUpcomingPreviewDom\(\)/);
     assert.match(appSource, /data-home-open-dynamic-lyrics/);
-    assert.match(homeStyles, /Shuffle\+ v11\.9\.2 — Accueil & Lecture en cours V2/);
+    assert.match(homeStyles, /Shuffle\+ v11\.10\.0 — Accueil & Lecture en cours V2/);
 });

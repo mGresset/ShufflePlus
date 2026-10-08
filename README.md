@@ -1,4 +1,4 @@
-# Shuffle+ v11.9.2
+# Shuffle+ v11.10.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.9.2** poursuit la modularisation sans changer le moteur Spotify : le Centre de fiabilité et le diagnostic Spotify Connect quittent le CSS global, la fiabilité du lancement rejoint le module Accueil, une partie du runtime de fiabilité sort de `app.js`, et des **budgets d’architecture CI** empêchent le noyau et le CSS global de regonfler. Les tests navigateur Playwright de la 11.8 restent actifs. Le serveur Railway reste inchangé en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.10.0** poursuit la modularisation sans changer le comportement Spotify : les rubriques statiques de recherche, le rendu du catalogue Spotify, le sélecteur de profil et la traduction des erreurs de recherche quittent `app.js` pour le module `universal-search.js`, déjà chargé à la demande. `app.js` baisse de plus de 400 lignes et le budget CI est resserré pour conserver ce gain. Les tests Playwright restent actifs et Railway reste en **v5.2.1**.
 
 ---
 
@@ -79,15 +79,16 @@ La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
 
 Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
 
-### Architecture progressive — v11.9.2
+### Architecture progressive — v11.10.0
 
-La 11.9 réduit la dette structurelle sans modifier l’expérience Spotify :
+La 11.10 poursuit concrètement le découpage du monolithe sans modifier l’expérience Spotify :
 
-- le **Centre de fiabilité** et le diagnostic Spotify Connect sont isolés dans `styles/feature-reliability.css`, chargé uniquement avec Réglages ;
-- l’indicateur de fiabilité du lancement principal est déplacé dans `styles/feature-home.css` ;
-- `core/reliability-runtime.js` prend en charge la persistance du journal et la génération du diagnostic texte ;
-- `scripts/check-architecture-budget.mjs` fixe des plafonds sur `app.js`, `style.css` et les imports statiques afin d’obliger les prochaines fonctions à poursuivre le découpage plutôt qu’à grossir le monolithe ;
-- le shell PWA connaît les nouveaux modules/styles et conserve le fonctionnement hors ligne.
+- les **203 lignes** de définition des rubriques de recherche quittent `app.js` ;
+- le rendu du catalogue Spotify, le sélecteur de profil et la traduction des erreurs sont déplacés dans `universal-search.js` ;
+- ce module reste chargé dynamiquement uniquement quand la recherche est utilisée ;
+- `app.js` passe d’environ **52 046 à 51 623 lignes** ;
+- `scripts/check-architecture-budget.mjs` abaisse les plafonds pour empêcher le retour de cette dette ;
+- le shell PWA et les tests Playwright restent inchangés fonctionnellement.
 
 ### Tests navigateur réels — v11.8.0
 
