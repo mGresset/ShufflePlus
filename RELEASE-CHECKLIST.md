@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v11.7.0
+# Validation terrain Shuffle+ v11.8.0
 
 ## Conditions obligatoires
 
@@ -10,8 +10,10 @@
 6. Mettre Shuffle+ en arrière-plan plus de 15 secondes puis revenir et vérifier la resynchronisation unique.
 7. Dans **Réglages > Centre de fiabilité**, vérifier que **Shell PWA essentiel** indique toutes les ressources essentielles en cache.
 8. Exécuter `npm.cmd run validate` sans échec.
-9. Vérifier que `check-release-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique actif.
-10. Dans la recherche globale, chercher un titre Spotify et vérifier **Lire**, **Lire ensuite** et l’ajout aux priorités d’un profil personnalisé.
+9. Installer Chromium/WebKit Playwright puis exécuter `npm.cmd run test:e2e` sans échec.
+10. Vérifier que `check-release-cleanup.mjs` ne détecte aucun reliquat d’interface historique critique actif.
+11. Dans la recherche globale, chercher un titre Spotify et vérifier **Lire**, **Lire ensuite** et l’ajout aux priorités d’un profil personnalisé.
+12. Sur GitHub Actions, confirmer que Chromium desktop, WebKit/iPhone et le scénario Service Worker PWA sont verts.
 
 ## Ce que signifie la branche V11
 

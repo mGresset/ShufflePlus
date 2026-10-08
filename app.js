@@ -986,7 +986,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.7.0-shell";
+    "shuffleplus-v11.8.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -6985,7 +6985,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.7.0",
+                "./service-worker.js?v=11.8.0",
                 {
                     scope: "./",
                     updateViaCache: "none"

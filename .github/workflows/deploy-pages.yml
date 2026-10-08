@@ -31,8 +31,26 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
+      - name: Installer les dépendances Node
+        run: npm ci
+
       - name: Tester et construire Shuffle+
         run: npm run validate
+
+      - name: Installer Chromium et WebKit
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Tester Shuffle+ dans les navigateurs
+        run: npm run test:e2e
+
+      - name: Conserver le rapport Playwright en cas d’échec
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shuffleplus-playwright-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Configurer GitHub Pages
         if: github.event_name != 'pull_request'
@@ -40,7 +58,7 @@ jobs:
 
       - name: Préparer l’artefact GitHub Pages
         if: github.event_name != 'pull_request'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./dist
 
@@ -51,6 +69,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
+      actions: read
       pages: write
       id-token: write
 
@@ -61,4 +80,4 @@ jobs:
     steps:
       - name: Publier Shuffle+
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

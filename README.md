@@ -1,4 +1,4 @@
-# Shuffle+ v11.7.0
+# Shuffle+ v11.8.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.7.0** ajoute les **profils partageables** : un profil de mix peut être partagé depuis l’iPhone ou exporté en fichier JSON, puis importé sur un autre appareil avec validation stricte et nouvel identifiant local. Le format n’embarque aucun token Spotify/Railway, aucune sauvegarde et aucune donnée de session. Le serveur Railway reste inchangé en **v5.2.1**.
+> **État du projet :** **Shuffle+ 11.8.0** ajoute une vraie couche de **tests navigateur Playwright**. Les parcours critiques sont exécutés sur **Chromium desktop** et **WebKit avec profil iPhone**, tandis qu’un scénario séparé vérifie l’installation du Service Worker et la version du cache PWA. Les appels Spotify sont simulés : aucun compte ni token réel n’est utilisé en CI. Le serveur Railway reste inchangé en **v5.2.1**.
 
 ---
 
@@ -78,6 +78,19 @@ La carte **Lecture en cours** devient un contrôleur Spotify plus complet :
 - synchronisation du nouvel état dans la carte d’accueil sans reconstruire toute la page.
 
 Les commandes nécessitent Spotify Premium, comme les autres commandes distantes du lecteur Spotify.
+
+### Tests navigateur réels — v11.8.0
+
+La validation de release ne se limite plus aux tests de source et aux tests Node :
+
+- **Chromium desktop** valide l’onboarding, la navigation, la recherche Spotify simulée et Player+ ;
+- **WebKit avec profil iPhone 15 Pro** rejoue les mêmes parcours avec viewport, tactile et moteur Safari/WebKit ;
+- un projet **PWA Chromium** séparé autorise le Service Worker, lui demande sa version avec `GET_VERSION` et vérifie la présence du cache `shuffleplus-v11.8.0-shell` ;
+- les requêtes `api.spotify.com` sont interceptées et alimentées par des données de test déterministes ;
+- traces, captures et vidéos sont conservées en cas d’échec Playwright ;
+- GitHub Actions exécute les tests navigateur avant tout déploiement GitHub Pages.
+
+Ces tests réduisent fortement le risque de régression DOM/UI, mais l’émulation WebKit ne remplace pas la dernière validation manuelle sur un iPhone physique.
 
 ### Profils partageables — v11.7.0
 
@@ -199,7 +212,8 @@ Le mode conduite fournit une interface agrandie et simplifiée avec :
 - Node.js **20 ou supérieur** ;
 - npm ;
 - Git pour le versionnement et le déploiement ;
-- un serveur statique local, fourni par le projet.
+- un serveur statique local, fourni par le projet ;
+- Chromium et WebKit Playwright pour la validation E2E de release.
 
 Vérifier les versions :
 
@@ -803,7 +817,7 @@ dist/
 ```powershell
 npm.cmd run validate
 git add -A
-git commit -m "Release Shuffle+ v11.7.0"
+git commit -m "Release Shuffle+ v11.8.0"
 git push origin main
 ```
 
@@ -813,7 +827,7 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 
 1. fermer complètement la PWA ;
 2. la rouvrir avec Internet actif ;
-3. vérifier que l’en-tête affiche **v11.7.0** ;
+3. vérifier que l’en-tête affiche **v11.8.0** ;
 4. tester la connexion Spotify, Pause/Lecture, Suivant et un profil de lancement.
 
 ---
@@ -831,8 +845,8 @@ spotify-api.js             Accès à l’API Spotify
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.7.0.js        Chargement versionné et migration du runtime
-startup-recovery-11.7.0.js Réparation avant le chargement principal
+bootstrap-11.8.0.js        Chargement versionné et migration du runtime
+startup-recovery-11.8.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -879,22 +893,28 @@ server/README.md
 
 ## Validation et tests
 
-La v11.7.0 est validée automatiquement par `npm.cmd run validate`, qui couvre notamment :
-- les tests applicatifs et serveur ;
-- la cohérence de version et du shell PWA, y compris le graphe réel des imports statiques ;
-- les imports et l’architecture CSS ;
-- la sécurité CSP et l’absence de secrets ;
-- le nettoyage des reliquats actifs de release et des anciens modules Adaptive inutilisés ;
-- validation CSP ;
-- contrôle de l’architecture CSS ;
-- build GitHub Pages vérifié ;
-- smoke test local réussi.
+La v11.8.0 sépare volontairement deux niveaux de validation.
 
-Les contrôles automatisés ne remplacent pas les essais réels suivants :
+`npm.cmd run validate` couvre :
 
-- compte Spotify Premium ;
-- iPhone et Safari ;
-- PWA installée ;
+- les tests applicatifs Node et serveur Railway ;
+- la cohérence de version, du shell PWA et du graphe réel des imports ;
+- les imports, la CSP, l’absence de secrets et l’architecture CSS ;
+- le contrat de la suite Playwright ;
+- le build GitHub Pages, le contrôle de `dist/` et le smoke test local.
+
+Après installation des navigateurs, `npm.cmd run test:e2e` exécute :
+
+- les parcours UI sur Chromium desktop ;
+- les mêmes parcours sur WebKit/iPhone ;
+- le scénario PWA avec Service Worker réel sur Chromium.
+
+La commande `npm.cmd run release:check` enchaîne désormais **validate + E2E**. GitHub Actions exécute également les deux niveaux avant le déploiement Pages.
+
+Les contrôles automatisés ne remplacent pas les essais terrain suivants :
+
+- compte Spotify Premium réel ;
+- iPhone physique et Safari/PWA installée ;
 - Spotify Connect ;
 - déploiement Railway ;
 - synchronisation entre deux appareils.
@@ -982,7 +1002,7 @@ Les anciens fichiers `Vx.x.x_NOTES.md` et `DEPLOIEMENT-Vx.x.x.md` ont été cons
 
 ## Statut de la v11
 
-La v11.7.0 reste à valider sur l’installation réelle avec :
+La v11.8.0 reste à valider sur l’installation réelle avec :
 
 1. la lecture Spotify Premium ;
 2. la PWA sur iPhone ;
@@ -990,6 +1010,7 @@ La v11.7.0 reste à valider sur l’installation réelle avec :
 4. l’export et la restauration d’une sauvegarde ;
 5. le mode conduite ;
 6. le retour au premier plan après au moins 15 secondes en arrière-plan ;
-7. `npm.cmd run validate` sans échec.
+7. `npm.cmd run validate` sans échec ;
+8. `npm.cmd run test:e2e` sans échec sur Chromium, WebKit/iPhone et PWA Chromium.
 
 Les correctifs de compatibilité, de sécurité et d’ergonomie resteront possibles tout au long de la branche v11.

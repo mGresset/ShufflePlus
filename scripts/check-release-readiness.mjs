@@ -31,6 +31,12 @@ const requiredFiles = [
     "server/server.js",
     "server/test.js",
     "server/Dockerfile",
+    "playwright.config.mjs",
+    "e2e/helpers.mjs",
+    "e2e/onboarding.spec.mjs",
+    "e2e/navigation-search.spec.mjs",
+    "e2e/player-plus.spec.mjs",
+    "e2e/pwa.spec.mjs",
     "CHANGELOG.md",
     "DEPLOIEMENT.md",
     "GUIDE-RACCOURCI.md",
@@ -87,6 +93,12 @@ for (const [name, source] of [[`bootstrap-${version}.js`, bootstrap], [`startup-
 
 if (!String(packageJson.scripts?.check || "").includes("check-release-readiness.mjs")) {
     fail("Le contrôle de finalisation n’est pas inclus dans npm run check.");
+}
+if (!String(packageJson.scripts?.check || "").includes("check-e2e-architecture.mjs")) {
+    fail("Le contrôle de l’architecture Playwright n’est pas inclus dans npm run check.");
+}
+if (!String(packageJson.scripts?.["test:e2e"] || "").includes("playwright test")) {
+    fail("Le script npm test:e2e n’est pas configuré.");
 }
 
 const startupFiles = (await readdir(root))

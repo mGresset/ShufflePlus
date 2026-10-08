@@ -1,20 +1,28 @@
 {
   "name": "shuffleplus",
-  "version": "11.7.0",
+  "version": "11.8.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné.",
+  "description": "Shuffle+ 11.8.0 — Tests navigateur réels : Chromium, WebKit/iPhone et validation PWA.",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "start": "node scripts/serve-local.mjs",
-    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-pwa-shell.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-release-cleanup.mjs",
+    "check": "node scripts/check-js.mjs && node scripts/check-version.mjs && node scripts/check-imports.mjs && node scripts/check-security.mjs && node scripts/check-css-architecture.mjs && node scripts/check-pwa-shell.mjs && node scripts/check-e2e-architecture.mjs && node scripts/check-release-readiness.mjs && node scripts/check-readme.mjs && node scripts/check-release-cleanup.mjs",
     "test": "npm run check && node --test tests/*.test.mjs && npm --prefix server test",
     "build": "node scripts/build.mjs",
     "check:dist": "node scripts/check-dist.mjs",
     "validate": "npm test && npm run build && npm run check:dist && npm run smoke",
     "smoke": "node scripts/smoke-local.mjs",
-    "release:check": "npm run validate"
+    "release:check": "npm run validate && npm run test:e2e",
+    "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium-desktop",
+    "test:e2e:webkit": "playwright test --project=webkit-iphone",
+    "test:e2e:pwa": "playwright test --project=pwa-chromium",
+    "test:e2e:headed": "playwright test --project=chromium-desktop --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
   }
 }

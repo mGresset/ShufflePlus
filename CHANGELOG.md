@@ -1,4 +1,13 @@
 # Changelog Shuffle+
+
+## 11.8.0 — Tests navigateur réels
+
+- Ajoute Playwright 1.63.0 pour des tests E2E sur Chromium et WebKit avec profil iPhone.
+- Couvre la première configuration Spotify, la navigation, la recherche catalogue, Player+ et le runtime PWA.
+- Les tests navigateur utilisent des réponses Spotify simulées : aucun token ni compte réel n’est nécessaire en CI.
+- La CI GitHub installe Chromium/WebKit et exécute les E2E avant le déploiement Pages.
+- Les traces, captures et vidéos sont conservées uniquement en cas d’échec pour faciliter le diagnostic.
+
 ## 11.7.0 — Profils partageables
 
 - ajoute **📤 Partager / exporter** sur chaque profil de mix intelligent ;
