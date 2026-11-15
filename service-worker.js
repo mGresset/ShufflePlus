@@ -1,5 +1,5 @@
-const APP_VERSION = "11.13.0";
-const CACHE_VERSION = "shuffleplus-v11.13.0";
+const APP_VERSION = "12.0.0";
+const CACHE_VERSION = "shuffleplus-v12.0.0";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 120;
@@ -13,16 +13,16 @@ const VERSION_CACHE_PATTERN =
 
 const CRITICAL_APP_SHELL = [
     "./index.html",
-    "./style.css?v=11.13.0",
-    "./design-system.css?v=11.13.0",
-    "./mobile-ux.css?v=11.13.0",
-    "./bootstrap-11.13.0.js",
-    "./app.js?v=11.13.0&build=11.13.0-pwa-reset-1",
+    "./style.css?v=12.0.0",
+    "./design-system.css?v=12.0.0",
+    "./mobile-ux.css?v=12.0.0",
+    "./bootstrap-12.0.0.js",
+    "./app.js?v=12.0.0&build=12.0.0-pwa-reset-1",
     "./auth.js",
     "./config.js",
     "./spotify-api.js",
     "./storage.js",
-    "./startup-recovery-11.13.0.js",
+    "./startup-recovery-12.0.0.js",
     "./update-guard.js",
     "./manifest.webmanifest"
 ];
@@ -69,6 +69,12 @@ const RUNTIME_APP_SHELL = [
     "./core/ui-consistency.js",
     "./core/mobile-ux.js",
     "./core/spotify-device.js",
+    "./core/spotify-device-identity.js",
+    "./core/spotify-device-discovery.js",
+    "./core/spotify-errors.js",
+    "./core/spotify-player-command-queue.js",
+    "./core/spotify-reliability.js",
+    "./core/shortcut-launch-controller.js",
     "./core/spotify-request-manager.js",
     "./core/playback-queue.js",
     "./core/playback-clock.js",
@@ -106,12 +112,12 @@ const OPTIONAL_APP_SHELL = [
     "./app-health.js",
     "./musical-assistant.js",
     "./core/profile-share.js",
-    "./styles/feature-home.css?v=11.13.0",
+    "./styles/feature-home.css?v=12.0.0",
     "./universal-search.js",
-    "./styles/feature-search.css?v=11.13.0",
-    "./styles/feature-settings.css?v=11.13.0",
-    "./styles/feature-reliability.css?v=11.13.0",
-    "./styles/feature-driving.css?v=11.13.0",
+    "./styles/feature-search.css?v=12.0.0",
+    "./styles/feature-settings.css?v=12.0.0",
+    "./styles/feature-reliability.css?v=12.0.0",
+    "./styles/feature-driving.css?v=12.0.0",
     "./favicon.ico",
     "./icons/icon-192.png",
     "./icons/icon-512.png",

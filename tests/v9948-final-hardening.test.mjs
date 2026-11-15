@@ -14,8 +14,8 @@ const [
     manifest
 ] = await Promise.all([
     readFile(new URL("../VERSION", import.meta.url), "utf8").then((value) => value.trim()),
-    readFile(new URL("../bootstrap-11.13.0.js", import.meta.url), "utf8"),
-    readFile(new URL("../startup-recovery-11.13.0.js", import.meta.url), "utf8"),
+    readFile(new URL("../bootstrap-12.0.0.js", import.meta.url), "utf8"),
+    readFile(new URL("../startup-recovery-12.0.0.js", import.meta.url), "utf8"),
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../core/security-policy.js", import.meta.url), "utf8"),
     readFile(new URL("../core/shortcut-result-channel.js", import.meta.url), "utf8"),
@@ -24,8 +24,8 @@ const [
     readFile(new URL("../manifest.webmanifest", import.meta.url), "utf8")
 ]);
 
-test("11.13.0 limite la réparation PWA au scope Shuffle+ exact", () => {
-    assert.equal(version, "11.13.0");
+test("12.0.0 limite la réparation PWA au scope Shuffle+ exact", () => {
+    assert.equal(version, "12.0.0");
     for (const source of [bootstrap, recovery]) {
         assert.match(source, /const shufflePlusScope = new URL\("\.\/", window\.location\.href\)\.href;/);
         assert.match(source, /registration\.scope === shufflePlusScope/);
@@ -33,7 +33,7 @@ test("11.13.0 limite la réparation PWA au scope Shuffle+ exact", () => {
     }
 });
 
-test("11.13.0 borne connect-src aux services réellement utilisés", () => {
+test("12.0.0 borne connect-src aux services réellement utilisés", () => {
     assert.match(index, /connect-src 'self' https:\/\/accounts\.spotify\.com https:\/\/api\.spotify\.com https:\/\/\*\.up\.railway\.app;/);
     assert.doesNotMatch(index, /connect-src 'self' https:;/);
     assert.match(securityPolicy, /https:\/\/\*\.up\.railway\.app/);
@@ -45,8 +45,9 @@ test("le canal de résultat exige un ResultToken distinct", () => {
     assert.match(resultChannel, /"Authorization": `Bearer \$\{normalizeShortcutResultChannelConfig\(config\)\.token\}`/);
 });
 
-test("Railway 5.2 réserve le canal avec une empreinte du jeton", () => {
-    assert.match(server, /const VERSION = "5\.2\.1";/);
+test("Railway 5.3 réserve le canal avec une empreinte du jeton et protège le statut final", () => {
+    assert.match(server, /const VERSION = "5\.3\.0";/);
+    assert.match(server, /if \(FINAL_LAUNCH_STATUSES\.has\(existing\.result\?\.status\)\)/);
     assert.match(server, /tokenHash: sha256\(token\)/);
     assert.match(server, /ensureLaunchResultReservation/);
     assert.match(server, /flag: "wx"/);

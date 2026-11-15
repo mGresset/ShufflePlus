@@ -123,6 +123,34 @@ try {
         throw new Error("Publication du résultat final authentifié échouée");
     }
 
+    const lateRunning = await request(
+        launchResultPath,
+        {
+            method: "POST",
+            headers: launchAuth,
+            body: JSON.stringify({
+                version: "12.0.0",
+                status: "running",
+                message: "Statut intermédiaire arrivé en retard"
+            })
+        }
+    );
+    if (lateRunning.data.status !== "success") {
+        throw new Error("Un statut running tardif a écrasé le résultat final");
+    }
+
+    const lateError = await request(
+        launchResultPath,
+        {
+            method: "POST",
+            headers: launchAuth,
+            body: JSON.stringify({ version: "12.0.0", status: "error", message: "Doublon" })
+        }
+    );
+    if (lateError.data.status !== "success") {
+        throw new Error("Un second statut final a écrasé le premier");
+    }
+
     const launchResult = await request(
         `${launchResultPath}?token=${encodeURIComponent(launchToken)}`
     );
@@ -340,7 +368,7 @@ try {
         throw new Error("Suppression espace échouée");
     }
 
-    console.log("Tests serveur Shuffle+ v5.2.1 : OK");
+    console.log("Tests serveur Shuffle+ v5.3.0 : OK");
 } finally {
     child.kill("SIGTERM");
     await fs.rm(dataDir, {

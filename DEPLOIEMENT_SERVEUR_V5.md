@@ -1,4 +1,4 @@
-# Déploiement du serveur Shuffle+ v5.2.1
+# Déploiement du serveur Shuffle+ v5.3.0
 
 ## 1. Héberger le dossier `server`
 
@@ -16,7 +16,7 @@ Ouvrir :
 https://VOTRE-SERVEUR/health
 ```
 
-La réponse doit contenir `status: ok` et `version: 5.2.1`.
+La réponse doit contenir `status: ok` et `version: 5.3.0`.
 
 ## 3. Relier Shuffle+
 
@@ -50,3 +50,7 @@ Le serveur exige maintenant un `ResultToken` aléatoire distinct du `requestId`.
 La v5.2.1 sérialise les opérations qui ciblent un même espace de synchronisation. Deux appareils qui poussent simultanément la même `baseRevision` ne peuvent plus être acceptés ensemble : une requête est validée et l’autre reçoit un conflit HTTP 409 avec la révision réellement persistée.
 
 Les fichiers JSON sont maintenant écrits via un fichier temporaire unique basé sur `crypto.randomUUID()`, puis remplacés atomiquement. Aucune nouvelle variable Railway n’est requise.
+
+## Statut final protégé — v5.3.0
+
+Le premier résultat final d’un raccourci (`success`, `error`, `cancel`) est définitif : ni un statut intermédiaire publié en retard par un iPhone au réseau lent, ni un second statut final (seconde ouverture) ne peuvent le remplacer. Le POST tardif reçoit le statut final déjà enregistré. Aucune variable, aucun volume et aucun format de données ne changent : un simple redéploiement suffit, et Shuffle+ 12 reste compatible avec un serveur v5.2.1 en attendant.

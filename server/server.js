@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "5.2.1";
+const VERSION = "5.3.0";
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 8787);
 const MAX_BODY_BYTES = Number(
@@ -258,10 +258,20 @@ async function ensureLaunchResultReservation(requestId, token) {
     }
 }
 
+const FINAL_LAUNCH_STATUSES = new Set(["success", "error", "cancel"]);
+
 async function writeLaunchResult(requestId, token, value = {}) {
     const filename = launchResultFile(requestId);
     const existing = await ensureLaunchResultReservation(requestId, token);
     const now = Date.now();
+
+    // v5.3.0 : le premier résultat final est définitif. Un statut arrivé en
+    // retard (réseau iPhone) ou publié par une seconde ouverture ne peut
+    // jamais le remplacer.
+    if (FINAL_LAUNCH_STATUSES.has(existing.result?.status)) {
+        return existing;
+    }
+
     const record = {
         schemaVersion: 2,
         requestId,

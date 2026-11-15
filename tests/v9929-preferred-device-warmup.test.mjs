@@ -9,8 +9,8 @@ import {
 const version = (await readFile(new URL("../VERSION", import.meta.url), "utf8")).trim();
 const appSource = await readFile(new URL("../app.js", import.meta.url), "utf8");
 
-test("Shuffle+ 11.13.0 prolonge la détection de l’iPhone enregistré", () => {
-    assert.equal(version, "11.13.0");
+test("Shuffle+ 12.0.0 prolonge la détection de l’iPhone enregistré", () => {
+    assert.equal(version, "12.0.0");
     const policy = buildPreferredDeviceDiscoveryPolicy({
         strict: true,
         attempts: 6,
@@ -38,7 +38,9 @@ test("les modes souples conservent leurs réglages de détection", () => {
     );
 });
 
-test("le lancement affiche une phase de réveil sans appareil de secours", () => {
-    assert.match(appSource, /Réveil de Spotify Connect sur l’iPhone/);
-    assert.match(appSource, /strictPreferredDevice\s*\?\s*\[\]/);
+test("le lancement affiche une phase de réveil sans appareil de secours", async () => {
+    const reliabilitySource = await readFile(new URL("../core/spotify-reliability.js", import.meta.url), "utf8");
+    assert.match(reliabilitySource, /Réveil de Spotify Connect sur l’iPhone/);
+    assert.match(reliabilitySource, /resolveStrictLaunchDevice[\s\S]*fallbackCandidates:\s*\[\]/);
+    assert.match(appSource, /resolveLaunchDevice\(/);
 });

@@ -1,5 +1,6 @@
 # Feuille de route Shuffle+
 
+- **v12.0.0 — Spotify Reliability & Preferred Device Identity : iPhone préféré comme identité logique, réassociation A → B, mode strict garanti, session et Player fiabilisés : terminée**
 - **v11.13.0 — Chargement paresseux renforcé : Assistant musical et partage/import de profils chargés uniquement au premier usage : terminée**
 - **v11.8.0 — Tests navigateur réels : Playwright Chromium + WebKit/iPhone, mocks Spotify et validation PWA : terminée**
 - **v11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné : terminée**
@@ -186,3 +187,19 @@
 - nouveau garde-fou `check-pwa-shell.mjs` qui compare le cache PWA au graphe réel des imports statiques ;
 - suppression de `adaptive-config.js` et `adaptive-dashboard.js`, anciens modules non utilisés ;
 - moteur Spotify et serveur Railway v5.2.1 inchangés.
+
+## V12.0 — Spotify Reliability & Preferred Device Identity
+
+- iPhone préféré modélisé comme identité logique persistante (ID courant, historique borné, alias) ;
+- réassociation automatique A → B lorsque Spotify renouvelle le `device_id` ;
+- mode strict garanti : jamais de lecture sur un autre appareil ;
+- fenêtre de réveil Spotify Connect, annulation et délai global des raccourcis ;
+- session Spotify single-flight, 401 → refresh unique, rotation protégée ;
+- file sérialisée des commandes Player ;
+- serveur Railway v5.3.0 (statut final protégé).
+
+### Pistes suivantes
+
+- extraire le rendu du Centre de commandes iOS hors de `app.js` ;
+- faire passer les contrôles de l’accueil par la file Player pour supprimer le verrou de 260 ms côté interface ;
+- remplacer la copie statique du build par un bundle esbuild (chunks hashés) une fois la PWA prête pour des URL de chunks hashées.

@@ -1,4 +1,4 @@
-# Serveur Shuffle+ v5.2.1
+# Serveur Shuffle+ v5.3.0
 
 Serveur Node.js sans dépendance externe. Il transporte les enveloppes de synchronisation déjà chiffrées dans le navigateur et héberge les résultats temporaires des lancements Apple Raccourcis.
 
@@ -60,3 +60,7 @@ SHUFFLEPLUS_LAUNCH_RESULT_TTL_MS=900000
 - les résultats expirent automatiquement ;
 - le serveur ne reçoit aucun jeton Spotify dans les résultats ;
 - les paquets de synchronisation restent chiffrés AES-GCM avant l’envoi.
+
+## Fiabilité v5.3.0
+
+Le canal `/v1/launch-results/:requestId` conserve le premier statut final publié : ni un `running` tardif ni un second statut final ne peuvent le remplacer.

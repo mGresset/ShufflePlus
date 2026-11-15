@@ -1,3 +1,8 @@
+import {
+    normalizeSpotifyDeviceName,
+    resolvePreferredSpotifyDevice
+} from "./spotify-device-identity.js";
+
 const VALID_STEP_STATUSES = new Set([
     "waiting",
     "pending",
@@ -62,9 +67,9 @@ function isPhoneLike(device = {}) {
 function matchesStoredDevice(device, stored) {
     if (!device || !stored) return false;
     if (stored.id && device.id === stored.id) return true;
-    const wantedName = cleanText(stored.name, 120).toLowerCase();
+    const wantedName = normalizeSpotifyDeviceName(stored.name);
     const wantedType = cleanText(stored.type, 80).toLowerCase();
-    const actualName = cleanText(device.name, 120).toLowerCase();
+    const actualName = normalizeSpotifyDeviceName(device.name);
     const actualType = cleanText(device.type, 80).toLowerCase();
     return Boolean(
         wantedName && actualName &&
@@ -143,9 +148,20 @@ export function prioritizeLaunchDevices(
     }
 
     // Mode « iPhone préféré enregistré » : ciblage strict. Le device_id peut
-    // être renouvelé par Spotify, donc le nom et le type enregistrés restent
-    // acceptés, mais aucun autre appareil ne doit être ajouté comme secours.
-    pushMatching(preferredDevice, "iPhone enregistré uniquement");
+    // être renouvelé par Spotify : le résolveur d’identité logique accepte
+    // l’ID courant, l’historique des IDs, nom + type exacts et les alias
+    // confirmés. En cas d’ambiguïté, aucun appareil n’est retenu, et aucun
+    // autre appareil ne doit être ajouté comme secours.
+    const resolution = resolvePreferredSpotifyDevice({
+        identity: preferredDevice,
+        devices: usable
+    });
+    if (resolution.status === "resolved") {
+        push(
+            usable.find((device) => device.id === resolution.device.id),
+            "iPhone enregistré uniquement"
+        );
+    }
     return result;
 }
 
@@ -300,11 +316,38 @@ function hasMessage(error, pattern) {
     return pattern.test(String(error?.message || error || ""));
 }
 
+const EXPLICIT_LAUNCH_ERRORS = Object.freeze({
+    LAUNCH_TIMEOUT: ["Délai de lancement dépassé", "retry", "Réessayer", false],
+    LAUNCH_CANCELLED: ["Lancement annulé", "retry", "Réessayer", false],
+    PREFERRED_DEVICE_TEMPORARILY_UNAVAILABLE: ["iPhone préféré pas encore disponible", "open-spotify", "Ouvrir Spotify sur l’iPhone", true],
+    PREFERRED_DEVICE_AMBIGUOUS: ["Plusieurs appareils ressemblent à ton iPhone", "settings", "Confirmer le bon appareil", false],
+    PREFERRED_DEVICE_NOT_CONFIGURED: ["Aucun iPhone préféré enregistré", "settings", "Choisir mon iPhone", false],
+    SPOTIFY_DEVICE_RESTRICTED: ["Appareil Spotify restreint", "open-spotify", "Ouvrir Spotify", false],
+    SPOTIFY_PREMIUM_REQUIRED: ["Spotify Premium requis", "settings", "Vérifier le compte Spotify", false],
+    SPOTIFY_RATE_LIMITED: ["Spotify demande de patienter", "retry-later", "Réessayer", false]
+});
+
 export function classifyLaunchError(error) {
     const status = Number(error?.status || 0);
     const reason = cleanText(error?.reason, 120).toUpperCase();
     const code = cleanText(error?.code, 120).toUpperCase();
     const message = cleanText(error?.message || String(error || ""), 400);
+    const explicit = EXPLICIT_LAUNCH_ERRORS[code] ||
+        (status === 403 && reason === "PREMIUM_REQUIRED" ? EXPLICIT_LAUNCH_ERRORS.SPOTIFY_PREMIUM_REQUIRED : null);
+
+    // Codes de la taxonomie v12 : traités avant toute heuristique de message.
+    if (explicit) {
+        const [title, action, actionLabel, keepPending] = explicit;
+        return {
+            code: EXPLICIT_LAUNCH_ERRORS[code] ? code : "SPOTIFY_PREMIUM_REQUIRED",
+            title,
+            message: message || title,
+            action,
+            actionLabel,
+            recoverable: true,
+            keepPending
+        };
+    }
 
     if (typeof navigator !== "undefined" && navigator.onLine === false || hasMessage(error, /hors connexion|internet|network|failed to fetch/i)) {
         return {
@@ -317,11 +360,11 @@ export function classifyLaunchError(error) {
             keepPending: true
         };
     }
-    if (code === "SPOTIFY_REAUTH_REQUIRED" || hasMessage(error, /renouvelée|reconnecter spotify|invalid_grant|session spotify/i)) {
+    if (code === "SPOTIFY_REAUTH_REQUIRED" || status === 401 || hasMessage(error, /renouvelée|reconnecter spotify|invalid_grant|session spotify/i)) {
         return {
             code: "SPOTIFY_REAUTH_REQUIRED",
-            title: "Connexion Spotify expirée",
-            message: "Reconnecte Spotify pour renouveler l’autorisation de lecture.",
+            title: "Connexion Spotify à renouveler",
+            message: "Spotify demande une nouvelle autorisation. Tes profils, ton iPhone préféré et tes réglages sont conservés.",
             action: "reconnect",
             actionLabel: "Reconnecter Spotify",
             recoverable: true,

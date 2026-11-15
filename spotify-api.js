@@ -1,7 +1,14 @@
-import { getValidAccessToken } from "./auth.js";
+import {
+    forceRefreshAccessToken,
+    getValidAccessToken,
+    requireReauthorization
+} from "./auth.js";
 import {
     spotifyRequestManager
 } from "./core/spotify-request-manager.js";
+import {
+    spotifyPlayerCommandQueue
+} from "./core/spotify-player-command-queue.js";
 
 const API_BASE_URL = "https://api.spotify.com/v1";
 
@@ -31,6 +38,10 @@ function buildSpotifyRequestKey(endpoint, options = {}) {
         ? options.body
         : "";
     return `${method}:${endpoint}:${body}`;
+}
+
+function isPlayerCommand(endpoint, method) {
+    return method !== "GET" && String(endpoint).startsWith("/me/player");
 }
 
 async function spotifyFetch(endpoint, options = {}) {
@@ -63,14 +74,43 @@ async function spotifyFetch(endpoint, options = {}) {
                 throw new Error("Utilisateur non connecté à Spotify.");
             }
 
-            const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                ...requestOptions,
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "application/json",
-                    ...requestOptions.headers
+            const send = (accessToken) => {
+                const perform = () => fetch(`${API_BASE_URL}${endpoint}`, {
+                    ...requestOptions,
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Content-Type": "application/json",
+                        ...requestOptions.headers
+                    }
+                });
+
+                // Les commandes qui modifient la lecture sont sérialisées pour
+                // éviter les courses previous/repeat, transfer/play, etc.
+                return isPlayerCommand(endpoint, method)
+                    ? spotifyPlayerCommandQueue.enqueue(
+                        `${method} ${endpoint.split("?")[0]}`,
+                        perform
+                    )
+                    : perform();
+            };
+
+            let response = await send(token);
+
+            // HTTP 401 : un seul renouvellement forcé, puis un seul nouvel
+            // essai. Un second 401 demande une reconnexion, sans boucle.
+            if (response.status === 401) {
+                const refreshedToken = await forceRefreshAccessToken();
+                response = await send(refreshedToken);
+
+                if (response.status === 401) {
+                    const reauthError = requireReauthorization({
+                        status: 401,
+                        endpoint: endpoint.split("?")[0]
+                    });
+                    reauthError.status = 401;
+                    throw reauthError;
                 }
-            });
+            }
 
             if (!response.ok) {
                 const errorBody = await response.text();
@@ -134,6 +174,17 @@ async function spotifyFetch(endpoint, options = {}) {
 
 export function getSpotifyApiDiagnostics() {
     return spotifyRequestManager.getDiagnostics();
+}
+
+export function getSpotifyRateLimitCooldownMs() {
+    return Math.max(
+        0,
+        Number(spotifyRequestManager.getDiagnostics()?.cooldownRemainingMs) || 0
+    );
+}
+
+export function getSpotifyPlayerCommandDiagnostics() {
+    return spotifyPlayerCommandQueue.getDiagnostics();
 }
 
 export function clearSpotifyApiMemoryCache() {
@@ -330,16 +381,19 @@ export async function getMySavedTracks() {
 }
 
 export async function getAvailableDevices({
-    fresh = false
+    fresh = false,
+    includeRestricted = false
 } = {}) {
     const data = await spotifyFetch(
         "/me/player/devices",
         { skipCache: Boolean(fresh) }
     );
 
+    // Les appareils restreints ne sont jamais ciblés ; la découverte peut
+    // toutefois les demander pour expliquer pourquoi l’iPhone est inutilisable.
     return Array.isArray(data?.devices)
         ? data.devices.filter(
-            (device) => device?.id && !device.is_restricted
+            (device) => device?.id && (includeRestricted || !device.is_restricted)
         )
         : [];
 }

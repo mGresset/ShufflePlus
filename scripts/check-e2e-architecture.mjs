@@ -9,7 +9,8 @@ const requiredFiles = [
     "e2e/onboarding.spec.mjs",
     "e2e/navigation-search.spec.mjs",
     "e2e/player-plus.spec.mjs",
-    "e2e/pwa.spec.mjs"
+    "e2e/pwa.spec.mjs",
+    "e2e/spotify-reliability.spec.mjs"
 ];
 
 for (const file of requiredFiles) {

@@ -48,7 +48,10 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: shuffleplus-playwright-report
-          path: playwright-report
+          # Rapport HTML + traces, captures, vidéos et error-context.md.
+          path: |
+            playwright-report
+            test-results
           if-no-files-found: ignore
           retention-days: 7
 

@@ -14,7 +14,9 @@ import {
     getValidAccessToken,
     logoutSpotify,
     isSpotifyReauthorizationRequired,
-    repairSpotifyAuthState
+    repairSpotifyAuthState,
+    forceRefreshAccessToken,
+    getSpotifySessionDiagnostics
 } from "./auth.js";
 
 import {
@@ -42,7 +44,9 @@ import {
     addItemsToPlaylist,
     getPlaylistLastAddedAt,
     getRecentlyPlayedPlaylistActivity,
-    getSpotifyApiDiagnostics
+    getSpotifyApiDiagnostics,
+    getSpotifyRateLimitCooldownMs,
+    getSpotifyPlayerCommandDiagnostics
 } from "./spotify-api.js";
 
 import {
@@ -136,10 +140,17 @@ import {
 } from "./core/mobile-ux.js";
 
 import {
-    normalizePreferredSpotifyDevice,
-    findStoredPreferredDevice,
-    selectSpotifyDevice
-} from "./core/spotify-device.js";
+    claimShortcutRequest,
+    completeShortcutRequest,
+    createLaunchAbortScope,
+    createPreferredDeviceController,
+    createShortcutProgressPublisher,
+    renderPreferredDevicePanelMarkup,
+    resolveLaunchDevice,
+    selectSpotifyDevice,
+    spotifyPlayerCommandQueue,
+    verifyPlaybackOnLogicalDevice
+} from "./core/spotify-reliability.js";
 
 import {
     normalizePlaybackQueue,
@@ -450,14 +461,12 @@ import {
 
 import {
     buildLaunchPreflight,
-    buildPreferredDeviceDiscoveryPolicy,
     buildLaunchRecoveryActions,
     buildLaunchReliabilitySummary,
     classifyLaunchError,
     getSpotifyPlaybackRetryDelay,
     isLaunchDeviceFailoverEligible,
     normalizeLastWorkingSpotifyDevice,
-    prioritizeLaunchDevices,
     shouldResumePendingLaunch,
     shouldRetrySpotifyPlayback,
     upsertLaunchStep
@@ -609,8 +618,6 @@ const DRIVING_MODE_REFRESH_MS = PLAYBACK_AUTO_REFRESH_MS;
 const DRIVING_MODE_ACTION_COOLDOWN_MS = 900;
 const DRIVING_QUEUE_LIMIT = 20;
 const DRIVING_QUEUE_REFRESH_MS = 30000;
-const PREFERRED_SPOTIFY_DEVICE_KEY =
-    "shuffleplus_preferred_spotify_device_v1";
 const LAST_WORKING_SPOTIFY_DEVICE_KEY =
     "shuffleplus_last_working_spotify_device_v1";
 const DEFAULT_DRIVING_MODE_SETTINGS = {
@@ -992,7 +999,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v11.13.0-shell";
+    "shuffleplus-v12.0.0-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1910,8 +1917,13 @@ let activeAdaptiveContext = null;
 let currentCleanupSettings = readCleanupSettings();
 let lastCleanupSummary = null;
 let lastCleanupSnapshot = null;
-let preferredSpotifyDevice =
-    readPreferredSpotifyDevice();
+// v12 : l’iPhone préféré est une identité logique ; le device_id Spotify
+// n’en est qu’un identifiant renouvelable (voir core/spotify-reliability.js).
+const preferredDeviceController = createPreferredDeviceController({
+    onChange: (legacy) => { preferredSpotifyDevice = legacy; },
+    onEvent: (type, detail) => queueMicrotask(() => recordPreferredDeviceEvent(type, detail))
+});
+let preferredSpotifyDevice = preferredDeviceController.getLegacy();
 let lastWorkingSpotifyDevice =
     readLastWorkingSpotifyDevice();
 let iosQuickPlaySettings =
@@ -2078,6 +2090,8 @@ let editingIosCommandId = "";
 let pendingAutomationCommand =
     readPendingAutomationCommand();
 let automationRunInProgress = false;
+let activeLaunchScope = null;
+let shortcutProgressReporter = null;
 let shortcutCallbackDispatching = false;
 let lastLaunchDiagnosticText = "";
 let shortcutMigrationInspection = null;
@@ -2467,7 +2481,10 @@ function getReliabilityContext(snapshot = appHealthSnapshot) {
             queueState,
             activeDevice,
             shortcutState,
-            spotifyConnectDiagnostic
+            spotifyConnectDiagnostic,
+            preferredDevice: preferredDeviceController.describe(),
+            session: getSpotifySessionDiagnostics(),
+            playerCommands: getSpotifyPlayerCommandDiagnostics()
         }
     );
     const recovery = buildReliabilityRecoveryPlan(
@@ -6834,7 +6851,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=11.13.0",
+                "./service-worker.js?v=12.0.0",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -10272,122 +10289,106 @@ function rememberLastWorkingSpotifyDevice(device = {}) {
     return lastWorkingSpotifyDevice;
 }
 
-function readPreferredSpotifyDevice() {
-    try {
-        const raw = localStorage.getItem(
-            PREFERRED_SPOTIFY_DEVICE_KEY
-        );
-        return normalizePreferredSpotifyDevice(
-            raw ? JSON.parse(raw) : {}
-        );
-    } catch (error) {
-        console.warn(
-            "Appareil Spotify préféré illisible :",
-            error
-        );
-        return normalizePreferredSpotifyDevice();
-    }
-}
+const PREFERRED_DEVICE_EVENTS = {
+    DEVICE_IDENTITY_MIGRATED: ["success", "iPhone préféré migré vers l’identité logique v12"],
+    DEVICE_DISCOVERY_STARTED: ["info", "Recherche de l’iPhone préféré"],
+    DEVICE_FOUND_CURRENT_ID: ["success", "iPhone préféré détecté"],
+    DEVICE_FOUND_NEW_ID: ["success", "iPhone retrouvé automatiquement"],
+    DEVICE_AMBIGUOUS: ["warning", "Plusieurs appareils ressemblent à l’iPhone préféré"],
+    DEVICE_WAKE_TIMEOUT: ["warning", "iPhone préféré non annoncé par Spotify Connect"],
+    DEVICE_CONFIRMED: ["success", "iPhone préféré enregistré"],
+    DEVICE_FORGOTTEN: ["info", "iPhone préféré oublié"]
+};
 
-function savePreferredSpotifyDevice(device = {}) {
-    preferredSpotifyDevice =
-        normalizePreferredSpotifyDevice({
-            ...device,
-            savedAt:
-                device.savedAt ||
-                preferredSpotifyDevice.savedAt ||
-                Date.now(),
-            lastSeenAt:
-                device.lastSeenAt ||
-                Date.now()
-        });
-
-    try {
-        if (preferredSpotifyDevice.id) {
-            localStorage.setItem(
-                PREFERRED_SPOTIFY_DEVICE_KEY,
-                JSON.stringify(preferredSpotifyDevice)
-            );
-        } else {
-            localStorage.removeItem(
-                PREFERRED_SPOTIFY_DEVICE_KEY
-            );
-        }
-    } catch (error) {
-        console.warn(
-            "Appareil Spotify préféré non enregistré :",
-            error
-        );
-    }
-
-    return preferredSpotifyDevice;
-}
-
-function rememberPreferredSpotifyDevice(device) {
-    if (!device?.id) {
-        return preferredSpotifyDevice;
-    }
-
-    return savePreferredSpotifyDevice({
-        id: device.id,
-        name: device.name || preferredSpotifyDevice.name,
-        type: device.type || preferredSpotifyDevice.type,
-        savedAt:
-            preferredSpotifyDevice.savedAt ||
-            Date.now(),
-        lastSeenAt: Date.now()
+function recordPreferredDeviceEvent(type, detail = {}) {
+    const [level, label] = PREFERRED_DEVICE_EVENTS[type] || ["info", type];
+    recordReliabilityEvent({
+        category: "device",
+        level,
+        label: `${type} · ${label}`,
+        detail: [detail.displayName, detail.method, detail.from ? `${detail.from} → ${detail.to}` : ""]
+            .filter(Boolean).join(" · ")
     });
+    if (type === "DEVICE_FOUND_NEW_ID") {
+        showToast("✅ iPhone retrouvé automatiquement. Spotify a renouvelé son identifiant. Aucune action nécessaire.", "success");
+    }
 }
 
+// Choix explicite de l’utilisateur (enregistrer ou réassocier).
+function savePreferredSpotifyDevice(device = {}) {
+    return preferredDeviceController.confirm(device);
+}
+
+// Uniquement via l’action explicite « Oublier ».
 function clearPreferredSpotifyDevice() {
-    preferredSpotifyDevice =
-        normalizePreferredSpotifyDevice();
-    try {
-        localStorage.removeItem(
-            PREFERRED_SPOTIFY_DEVICE_KEY
-        );
-    } catch (error) {
-        console.warn(error);
-    }
+    preferredDeviceController.forget();
+}
+
+function getPreferredDeviceDiscoveryApi() {
+    return {
+        getAvailableDevices: (options = {}) =>
+            getAvailableDevices({ ...options, includeRestricted: true }),
+        getCurrentPlayback,
+        transferPlayback,
+        getCooldownRemainingMs: getSpotifyRateLimitCooldownMs
+    };
 }
 
 async function refreshPreferredSpotifyDevices({
-    silent = false
+    silent = false,
+    includePlayback = true,
+    render = true
 } = {}) {
     try {
-        availableDevices = await getAvailableDevices();
-        const matched = findStoredPreferredDevice(
-            availableDevices,
-            preferredSpotifyDevice
+        const result = await preferredDeviceController.refreshNow({
+            api: getPreferredDeviceDiscoveryApi(),
+            includePlayback
+        });
+        const status = result.resolution?.status || "";
+        availableDevices = result.devices.filter(
+            (device) => device.is_restricted !== true
         );
 
-        if (matched) {
-            rememberPreferredSpotifyDevice(matched);
-        }
-
         if (!silent) {
+            const name = preferredSpotifyDevice.name || "iPhone préféré";
             setStatus(
-                availableDevices.length
-                    ? `${availableDevices.length} appareil(s) Spotify détecté(s).`
-                    : "Aucun appareil Spotify détecté. Ouvre Spotify sur l’iPhone puis réessaie.",
-                availableDevices.length ? "" : "warning"
+                status === "resolved"
+                    ? `${name} détecté${result.idChanged ? " · identifiant Spotify renouvelé automatiquement" : ""}.`
+                    : status === "ambiguous"
+                        ? "Plusieurs appareils ressemblent à ton iPhone : choisis le bon puis « Réassocier »."
+                        : availableDevices.length
+                            ? `${availableDevices.length} appareil(s) Spotify détecté(s)${preferredDeviceController.isConfigured() ? ` · ${name} non annoncé actuellement (préférence conservée)` : ""}.`
+                            : "Aucun appareil Spotify détecté. Ouvre Spotify sur l’iPhone puis réessaie.",
+                status === "resolved" ? "" : "warning"
             );
         }
     } catch (error) {
         console.error(error);
         if (!silent) {
-            setStatus(
-                getPlaybackErrorMessage(error),
-                "error"
-            );
+            setStatus(getPlaybackErrorMessage(error), "error");
         }
     }
 
-    if (activeAppMenu === "mixes") {
+    if (render && activeAppMenu === "mixes") {
         displayPlaylists(playlistsCache);
     }
 
     return availableDevices;
+}
+
+// Test le moins invasif possible : détection + contrôle, sans aucune
+// commande de lecture (la musique en cours n’est jamais interrompue).
+async function testPreferredSpotifyDevice() {
+    setStatus("Test de l’iPhone préféré…");
+    await refreshPreferredSpotifyDevices({ silent: true });
+    const identity = preferredDeviceController.getIdentity();
+    const ok = ["available", "active"].includes(identity.status);
+    setStatus(
+        ok
+            ? `${identity.displayName || "iPhone"} répond : ${identity.status === "active" ? "lecture active" : "disponible et contrôlable"}. Aucune lecture n’a été modifiée.`
+            : `${identity.displayName || "iPhone"} n’est pas annoncé actuellement. Ouvre Spotify sur l’iPhone puis relance le test.`,
+        ok ? "success" : "warning"
+    );
 }
 
 function savePreferredSpotifyDeviceFromPanel() {
@@ -10423,8 +10424,7 @@ function savePreferredSpotifyDeviceFromPanel() {
         type:
             selected?.type ||
             "Smartphone",
-        lastSeenAt:
-            selected ? Date.now() : 0
+        observed: Boolean(selected)
     });
 
     displayPlaylists(playlistsCache);
@@ -23896,85 +23896,11 @@ function renderIosCommandsPanel() {
                 inspection: shortcutMigrationInspection
             })}
 
-            <section class="ios-preferred-device-panel">
-                <div class="ios-preferred-device-heading">
-                    <div>
-                        <span>📱 Appareil Spotify prioritaire</span>
-                        <strong>
-                            ${escapeHtml(
-                                preferredSpotifyDevice.name ||
-                                "Aucun iPhone enregistré"
-                            )}
-                        </strong>
-                        <small>
-                            ${preferredSpotifyDevice.id
-                                ? `device_id : ${escapeHtml(preferredSpotifyDevice.id)}`
-                                : "Ouvre Spotify sur l’iPhone puis actualise la liste."}
-                        </small>
-                    </div>
-                    <button
-                        id="refreshPreferredSpotifyDevicesButton"
-                        type="button"
-                    >
-                        ↻ Détecter
-                    </button>
-                </div>
-                <div class="ios-preferred-device-grid">
-                    <label>
-                        <span>Appareil détecté</span>
-                        <select id="preferredSpotifyDeviceSelect">
-                            <option value="">Choisir un appareil</option>
-                            ${availableDevices.map((device) => `
-                                <option
-                                    value="${escapeHtml(device.id)}"
-                                    ${device.id === preferredSpotifyDevice.id ? "selected" : ""}
-                                >
-                                    ${escapeHtml(device.name || "Appareil Spotify")}
-                                    · ${escapeHtml(device.type || "inconnu")}
-                                    ${device.is_active ? " · actif" : ""}
-                                </option>
-                            `).join("")}
-                        </select>
-                    </label>
-                    <label>
-                        <span>device_id manuel</span>
-                        <input
-                            id="preferredSpotifyDeviceIdInput"
-                            type="text"
-                            value="${escapeHtml(preferredSpotifyDevice.id)}"
-                            placeholder="d03a1e…"
-                        >
-                    </label>
-                    <label>
-                        <span>Nom affiché</span>
-                        <input
-                            id="preferredSpotifyDeviceNameInput"
-                            type="text"
-                            value="${escapeHtml(preferredSpotifyDevice.name || "iPhone")}"
-                            placeholder="iPhone"
-                        >
-                    </label>
-                </div>
-                <div class="ios-preferred-device-actions">
-                    <button
-                        id="clearPreferredSpotifyDeviceButton"
-                        type="button"
-                        ${preferredSpotifyDevice.id ? "" : "disabled"}
-                    >
-                        Oublier
-                    </button>
-                    <button
-                        id="savePreferredSpotifyDeviceButton"
-                        type="button"
-                    >
-                        Enregistrer cet iPhone
-                    </button>
-                </div>
-                <p>
-                    Le device_id reste uniquement dans le stockage local de ce navigateur.
-                    Shuffle+ retombe sur le nom et le type si Spotify renouvelle l’identifiant.
-                </p>
-            </section>
+            ${renderPreferredDevicePanelMarkup({
+                controller: preferredDeviceController,
+                availableDevices,
+                escapeHtml
+            })}
 
             <section class="dynamic-lyrics-panel">
                 <div class="dynamic-lyrics-heading">
@@ -24682,232 +24608,51 @@ function findAutomationDevice(
     devices,
     settings = iosQuickPlaySettings
 ) {
-    if ((settings.deviceMode || "preferred") === "preferred") {
-        return findStoredPreferredDevice(
-            devices,
-            preferredSpotifyDevice
-        );
-    }
-
     return selectSpotifyDevice(
         devices,
         {
-            mode: settings.deviceMode || "iphone",
+            mode: settings.deviceMode || "preferred",
             preferredDevice: preferredSpotifyDevice,
             deviceName: settings.deviceName || ""
         }
     );
 }
 
+// Mode strict « iPhone préféré » : fenêtre de réveil Spotify Connect,
+// identité logique, aucun appareil de secours en mode strict.
 async function getAutomationDeviceWithRetry(
     settings = iosQuickPlaySettings,
     {
-        onAttempt = null
+        onAttempt = null,
+        signal = activeLaunchScope?.signal || null
     } = {}
 ) {
-    let lastDevices = [];
-    const strictPreferredDevice =
-        (settings.deviceMode || "preferred") === "preferred";
-    const discoveryPolicy = buildPreferredDeviceDiscoveryPolicy({
-        strict: strictPreferredDevice,
-        attempts:
-            Number(settings.autoRetryCount) ||
-            DEFAULT_IOS_QUICKPLAY_SETTINGS.autoRetryCount,
-        delayMs:
-            Number(settings.retryDelayMs) ||
-            DEFAULT_IOS_QUICKPLAY_SETTINGS.retryDelayMs
+    return resolveLaunchDevice({
+        settings,
+        controller: preferredDeviceController,
+        api: getPreferredDeviceDiscoveryApi(),
+        lastWorkingDevice: lastWorkingSpotifyDevice,
+        resolveDevice: (devices, command) =>
+            command.fallbackDeviceMode
+                ? resolveIosCommandDevice(devices, command)
+                : findAutomationDevice(devices, command),
+        defaults: DEFAULT_IOS_QUICKPLAY_SETTINGS,
+        signal,
+        setStatus,
+        onDevices: (devices) => {
+            availableDevices = devices.filter(
+                (device) => device?.is_restricted !== true
+            );
+        },
+        onAttempt: (event) => {
+            reportShortcutProgress(event.message);
+            onAttempt?.(event);
+        }
     });
-    const {
-        maxAttempts,
-        retryDelayMs,
-        initialDelayMs
-    } = discoveryPolicy;
+}
 
-    if (initialDelayMs > 0) {
-        onAttempt?.({
-            attempt: 0,
-            maxAttempts,
-            status: "warming",
-            message: "Réveil de Spotify Connect sur l’iPhone…"
-        });
-        setStatus("Réveil de Spotify sur l’iPhone…");
-        await wait(initialDelayMs);
-    }
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        try {
-            onAttempt?.({
-                attempt,
-                maxAttempts,
-                status: "searching",
-                message: `Recherche Spotify Connect ${attempt}/${maxAttempts}`
-            });
-
-            // La détection de raccourci doit toujours interroger Spotify
-            // réellement : un cache vide de /devices ne doit pas masquer
-            // l’iPhone pendant toute la fenêtre de retry.
-            lastDevices = await getAvailableDevices({ fresh: true });
-            availableDevices = lastDevices;
-
-            if (
-                lastDevices.length &&
-                lastDevices.every(
-                    (device) => device.is_restricted === true
-                )
-            ) {
-                const restrictedError = new Error(
-                    "Spotify détecte l’appareil, mais interdit son contrôle à distance."
-                );
-                restrictedError.code = "SPOTIFY_DEVICE_RESTRICTED";
-                throw restrictedError;
-            }
-
-            let candidates = prioritizeLaunchDevices(
-                lastDevices,
-                {
-                    preferredDevice: preferredSpotifyDevice,
-                    lastWorkingDevice: lastWorkingSpotifyDevice,
-                    mode: settings.deviceMode || "preferred",
-                    deviceName: settings.deviceName || ""
-                }
-            );
-            let resolved = settings.fallbackDeviceMode
-                ? resolveIosCommandDevice(lastDevices, settings)
-                : findAutomationDevice(lastDevices, settings);
-            let device = candidates[0] || resolved || null;
-
-            // Spotify peut annoncer l’appareil actif dans /me/player avant
-            // qu’il n’apparaisse dans /me/player/devices. Si une musique est
-            // déjà en cours sur l’iPhone, ce fallback évite un faux NO_DEVICE.
-            if (!device) {
-                const playback = await getCurrentPlayback({ fresh: true })
-                    .catch(() => null);
-                const playbackDevice = playback?.device;
-
-                if (
-                    playbackDevice?.id &&
-                    playbackDevice.is_restricted !== true &&
-                    !lastDevices.some(
-                        (item) => item?.id === playbackDevice.id
-                    )
-                ) {
-                    lastDevices = [
-                        playbackDevice,
-                        ...lastDevices
-                    ];
-                    availableDevices = lastDevices;
-                    candidates = prioritizeLaunchDevices(
-                        lastDevices,
-                        {
-                            preferredDevice: preferredSpotifyDevice,
-                            lastWorkingDevice: lastWorkingSpotifyDevice,
-                            mode: settings.deviceMode || "preferred",
-                            deviceName: settings.deviceName || ""
-                        }
-                    );
-                    resolved = settings.fallbackDeviceMode
-                        ? resolveIosCommandDevice(lastDevices, settings)
-                        : findAutomationDevice(lastDevices, settings);
-                    device = candidates[0] || resolved || null;
-                }
-            }
-
-            if (device) {
-                if (
-                    ["preferred", "iphone"].includes(settings.deviceMode) ||
-                    findStoredPreferredDevice(
-                        [device],
-                        preferredSpotifyDevice
-                    )
-                ) {
-                    rememberPreferredSpotifyDevice(device);
-                }
-                onAttempt?.({
-                    attempt,
-                    maxAttempts,
-                    status: "found",
-                    device,
-                    message: `${device.name || "Appareil Spotify"} détecté${device.selectionReason ? ` · ${device.selectionReason}` : ""}`
-                });
-                return {
-                    ...device,
-                    fallbackCandidates: strictPreferredDevice
-                        ? []
-                        : candidates
-                            .slice(1, 4)
-                            .map((candidate) => ({ ...candidate }))
-                };
-            }
-
-            onAttempt?.({
-                attempt,
-                maxAttempts,
-                status: "empty",
-                message: "Aucun appareil contrôlable détecté"
-            });
-        } catch (error) {
-            console.warn(
-                `Recherche appareil ${attempt}/${maxAttempts} :`,
-                error
-            );
-            onAttempt?.({
-                attempt,
-                maxAttempts,
-                status: "error",
-                error,
-                message: error.message || "Recherche interrompue"
-            });
-        }
-
-        if (attempt < maxAttempts) {
-            setStatus(
-                `Recherche de l’iPhone… ${attempt}/${maxAttempts}`
-            );
-            await wait(retryDelayMs);
-        }
-    }
-
-    const storedFallback =
-        normalizeLastWorkingSpotifyDevice(lastWorkingSpotifyDevice).id
-            ? lastWorkingSpotifyDevice
-            : preferredSpotifyDevice;
-
-    if (strictPreferredDevice && preferredSpotifyDevice?.id) {
-        onAttempt?.({
-            attempt: maxAttempts,
-            maxAttempts,
-            status: "cached",
-            device: preferredSpotifyDevice,
-            message: `Dernière tentative uniquement avec ${preferredSpotifyDevice.name || "l’iPhone enregistré"}`
-        });
-        return {
-            ...preferredSpotifyDevice,
-            is_active: false,
-            is_restricted: false,
-            is_cached: true,
-            selectionReason: "iPhone enregistré uniquement",
-            fallbackCandidates: []
-        };
-    }
-
-    if (settings.deviceMode === "iphone" && storedFallback?.id) {
-        onAttempt?.({
-            attempt: maxAttempts,
-            maxAttempts,
-            status: "cached",
-            device: storedFallback,
-            message: `Tentative avec ${storedFallback.name || "le dernier appareil mémorisé"}`
-        });
-        return {
-            ...storedFallback,
-            is_active: false,
-            is_restricted: false,
-            is_cached: true,
-            selectionReason: "dernier appareil mémorisé"
-        };
-    }
-
-    return null;
+function reportShortcutProgress(message = "") {
+    shortcutProgressReporter?.progress(message);
 }
 
 async function verifyPlaybackOnDevice(
@@ -24918,34 +24663,18 @@ async function verifyPlaybackOnDevice(
         delayMs = 650
     } = {}
 ) {
-    let lastState = null;
-
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-        if (attempt > 0) {
-            await wait(delayMs);
-        }
-
-        lastState = await getCurrentPlayback().catch(
-            () => null
-        );
-
-        const rightDevice =
-            lastState?.device?.id === deviceId;
-        const playing =
-            lastState?.is_playing === true;
-        const contextUri =
-            lastState?.context?.uri || "";
-        const rightContext =
-            !expectedPlaylistId ||
-            contextUri ===
-                `spotify:playlist:${expectedPlaylistId}`;
-
-        if (rightDevice && playing && rightContext) {
-            return lastState;
-        }
-    }
-
-    return lastState;
+    // Toujours un état frais : un ancien cache /me/player ne doit jamais
+    // confirmer une lecture qui n’a pas eu lieu sur le bon appareil logique.
+    return verifyPlaybackOnLogicalDevice({
+        api: { getCurrentPlayback },
+        controller: preferredDeviceController,
+        deviceId,
+        expectedContextUri: expectedPlaylistId
+            ? `spotify:playlist:${expectedPlaylistId}`
+            : "",
+        attempts,
+        delayMs
+    });
 }
 
 function getRandomPlaylistStartPosition(playlistId) {
@@ -24991,17 +24720,35 @@ async function sendSpotifyPlaylistPlaybackRequest({
             });
         }
 
+        if (activeLaunchScope?.signal?.aborted) {
+            throw activeLaunchScope.signal.reason;
+        }
+
         let response;
         try {
-            response = await fetch(url, {
-                method: "PUT",
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(body)
-            });
+            const send = (token) => spotifyPlayerCommandQueue.enqueue(
+                "PUT /me/player/play",
+                () => fetch(url, {
+                    method: "PUT",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(body)
+                })
+            );
+            // Relit le jeton courant : un renouvellement précédent est réutilisé.
+            accessToken = (await getValidAccessToken()) || accessToken;
+            response = await send(accessToken);
+            // 401 : un seul renouvellement forcé puis un seul nouvel envoi.
+            if (response.status === 401) {
+                accessToken = await forceRefreshAccessToken();
+                response = await send(accessToken);
+            }
         } catch (networkError) {
+            if (networkError?.code === "SPOTIFY_REAUTH_REQUIRED") {
+                throw networkError;
+            }
             lastError = networkError instanceof Error
                 ? networkError
                 : new Error("La commande Spotify n’a pas pu être envoyée.");
@@ -25532,6 +25279,7 @@ async function runIosQuickPlay(
             }
         );
         activeLaunchStep = id;
+        reportShortcutProgress(renderMessage || message);
         renderIosLaunchProgress({
             command,
             steps: launchSteps,
@@ -25678,7 +25426,7 @@ async function runIosQuickPlay(
                     : "Aucun iPhone ou appareil Spotify disponible. Ouvre Spotify sur l’iPhone puis relance le raccourci."
             );
             deviceError.code = strictPreferredDevice
-                ? "PREFERRED_DEVICE_UNAVAILABLE"
+                ? "PREFERRED_DEVICE_TEMPORARILY_UNAVAILABLE"
                 : "NO_DEVICE";
             throw deviceError;
         }
@@ -25774,7 +25522,7 @@ async function runIosQuickPlay(
             ...selectedDevice,
             ...drivingPlaybackState?.device
         };
-        rememberPreferredSpotifyDevice(operationalDevice);
+        preferredDeviceController.recordSuccess(operationalDevice);
         rememberLastWorkingSpotifyDevice(operationalDevice);
         refreshDrivingQueue({
             silent: true,
@@ -26601,18 +26349,61 @@ async function executeAutomationCommand(
     const resultChannel =
         getAutomationResultChannelConfig(normalized);
 
-    if (resultChannel.enabled) {
-        await publishAutomationResult(
-            normalized,
-            {
-                status: "running",
+    // Un même requestId ne déclenche jamais deux lancements, même après une
+    // réouverture Safari ou une reprise de la PWA.
+    const requestClaim = claimShortcutRequest(
+        window.localStorage,
+        normalized.resultRequestId
+    );
+
+    if (!requestClaim.accepted) {
+        savePendingAutomationCommand(null);
+        clearAutomationQueryString();
+        if (requestClaim.interrupted) {
+            const interrupted = {
+                status: "error",
                 success: false,
-                message: "Lancement Shuffle+ en cours."
-            }
-        );
+                code: "LAUNCH_INTERRUPTED",
+                message: "Le lancement précédent a été interrompu (Shuffle+ fermé). Relance le raccourci."
+            };
+            completeShortcutRequest(window.localStorage, requestClaim.requestId, "error");
+            if (resultChannel.enabled) await publishAutomationResult(normalized, interrupted);
+            if (callbacks.enabled) scheduleShortcutCallbackReturn(normalized, interrupted);
+            setStatus(interrupted.message, "warning");
+            return { ...interrupted, keepPending: false };
+        }
+        setStatus("Ce raccourci a déjà été traité : la seconde ouverture a été ignorée.", "info");
+        return {
+            status: "cancel",
+            keepPending: false,
+            code: "DUPLICATE_REQUEST",
+            message: "Raccourci déjà traité (requestId)."
+        };
     }
 
+    const publisher = createShortcutProgressPublisher(
+        (outcome) => publishAutomationResult(normalized, outcome)
+    );
+    const ownsLaunchScope = !activeLaunchScope;
+    if (ownsLaunchScope) {
+        activeLaunchScope = createLaunchAbortScope();
+        shortcutProgressReporter = resultChannel.enabled ? publisher : null;
+    }
+    const finish = async (outcome) => {
+        completeShortcutRequest(window.localStorage, requestClaim.requestId, outcome.status);
+        if (resultChannel.enabled) {
+            await publisher.finish(outcome);
+        }
+        if (callbacks.enabled) {
+            scheduleShortcutCallbackReturn(normalized, outcome);
+        }
+    };
+
     try {
+        if (resultChannel.enabled) {
+            await publisher.progress("Lancement Shuffle+ en cours.");
+        }
+
         const result = await executeAutomationCommandCore(
             normalized,
             options
@@ -26636,20 +26427,7 @@ async function executeAutomationCommand(
                         : "Le lancement Shuffle+ a échoué.")
         };
 
-        if (resultChannel.enabled) {
-            await publishAutomationResult(
-                normalized,
-                outcome
-            );
-        }
-
-        if (callbacks.enabled) {
-            scheduleShortcutCallbackReturn(
-                normalized,
-                outcome
-            );
-        }
-
+        await finish(outcome);
         return result || outcome;
     } catch (error) {
         const errorOutcome = {
@@ -26661,18 +26439,9 @@ async function executeAutomationCommand(
                 "Le lancement Shuffle+ a échoué."
         };
 
-        if (resultChannel.enabled) {
-            await publishAutomationResult(
-                normalized,
-                errorOutcome
-            );
-        }
+        await finish(errorOutcome);
 
         if (callbacks.enabled) {
-            scheduleShortcutCallbackReturn(
-                normalized,
-                errorOutcome
-            );
             return {
                 status: "error",
                 keepPending: false,
@@ -26681,6 +26450,12 @@ async function executeAutomationCommand(
         }
 
         throw error;
+    } finally {
+        if (ownsLaunchScope) {
+            shortcutProgressReporter = null;
+            activeLaunchScope?.dispose();
+            activeLaunchScope = null;
+        }
     }
 }
 
@@ -47856,11 +47631,19 @@ contentElement.addEventListener(
             return;
         }
 
+        if (event.target.closest("#testPreferredSpotifyDeviceButton")) {
+            await testPreferredSpotifyDevice();
+            return;
+        }
+
         if (
             event.target.closest(
                 "#clearPreferredSpotifyDeviceButton"
             )
         ) {
+            if (!window.confirm(`Oublier « ${preferredSpotifyDevice.name || "cet iPhone"} » ? Les raccourcis en mode iPhone préféré échoueront proprement tant qu’aucun appareil ne sera choisi.`)) {
+                return;
+            }
             clearPreferredSpotifyDevice();
             displayPlaylists(playlistsCache);
             setStatus("Appareil Spotify préféré oublié.");
@@ -50733,17 +50516,14 @@ async function refreshSessionAfterResume({
 
     if (refreshDevices) {
         try {
-            const devices = await getAvailableDevices({ fresh: true });
-            availableDevices = devices;
+            // Reprise iPhone : /devices frais (+ /player si besoin) et mise à
+            // jour automatique du device_id si Spotify l’a renouvelé.
+            await refreshPreferredSpotifyDevices({
+                silent: true,
+                includePlayback: "auto",
+                render: false
+            });
             devicesRefreshed = true;
-
-            const matched = findStoredPreferredDevice(
-                devices,
-                preferredSpotifyDevice
-            );
-            if (matched) {
-                rememberPreferredSpotifyDevice(matched);
-            }
         } catch (error) {
             console.warn(
                 "Actualisation Spotify Connect après reprise impossible :",

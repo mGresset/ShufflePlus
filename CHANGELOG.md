@@ -1,5 +1,41 @@
 # Changelog Shuffle+
 
+## 12.0.0 — Spotify Reliability & Preferred Device Identity
+
+### iPhone préféré : identité logique persistante
+- l’iPhone préféré n’est plus un simple `device_id` : nouveau modèle `core/spotify-device-identity.js` (identité logique, ID courant, historique borné à 5 IDs horodatés, alias, statut, méthode et niveau de confiance) ;
+- résolution déterministe : ID courant → ID historique → nom normalisé + type → alias confirmé + type → appareil actif de `/me/player` ; ambiguïté signalée sans jamais choisir au hasard ;
+- quand Spotify renouvelle le `device_id` (A → B), l’identité est mise à jour automatiquement et un toast « ✅ iPhone retrouvé automatiquement » s’affiche ;
+- `/devices=[]`, `/player=204`, hors ligne, timeout, reprise Safari ou erreur ne suppriment **jamais** l’iPhone préféré : seule l’action « Oublier » (avec confirmation) le fait ;
+- correctifs : l’ancien sélecteur acceptait un nom « approchant » ou « n’importe quel smartphone » en mode préféré, et un lancement réussi en mode « actif » ou « iPhone ou smartphone » pouvait remplacer l’iPhone préféré par un autre appareil. Ces chemins sont supprimés ;
+- « Réassocier » vers un autre appareil repart d’une identité neuve (un ancien choix erroné ne reste jamais ciblable) ;
+- migration v11 → v12 idempotente et non destructive, avec sauvegarde brute préalable et miroir v1 conservé pour le rollback PWA.
+
+### Spotify Connect et Apple Raccourcis
+- nouveau module `core/spotify-device-discovery.js` : fenêtre de réveil progressive (0 → 18 s), `/devices` + `/me/player` frais, AbortController, respect du cooldown 429 ;
+- stratégies formalisées : `PREFERRED_STRICT` (recommandée), `PREFERRED_THEN_LAST_SUCCESSFUL`, `ACTIVE_DEVICE`, `FIRST_AVAILABLE`, `NAMED_DEVICE` (les modes stockés des profils sont inchangés) ;
+- mode strict : en l’absence de l’iPhone, seule une dernière tentative vers l’ID du même iPhone logique est faite, puis échec propre `PREFERRED_DEVICE_TEMPORARILY_UNAVAILABLE` — aucun autre appareil n’est commandé ;
+- `core/shortcut-launch-controller.js` : un même `requestId` ne déclenche jamais deux lancements (un lancement interrompu par iOS publie `LAUNCH_INTERRUPTED` au lieu de rester « en cours »), délai global de 30 s, statuts `running` ordonnés et limités (jamais publiés après le statut final) ;
+- taxonomie d’erreurs centralisée `core/spotify-errors.js` (`SPOTIFY_REAUTH_REQUIRED`, `SPOTIFY_RATE_LIMITED`, `SPOTIFY_PREMIUM_REQUIRED`, `PREFERRED_DEVICE_AMBIGUOUS`, `LAUNCH_TIMEOUT`, …).
+
+### Session Spotify et Player
+- `auth.js` expose `spotifySessionManager` : refresh single-flight partagé, `forceRefresh` après HTTP 401 (un seul renouvellement puis un seul nouvel essai), rotation des refresh tokens protégée entre onglets, diagnostics sans secret ;
+- une erreur réseau pendant le refresh ne supprime jamais le refresh token, l’iPhone préféré, les profils ni les réglages ; `invalid_grant` demande une reconnexion propre sans boucle ;
+- `core/spotify-player-command-queue.js` : toutes les commandes Player (previous, next, seek, repeat, volume, transfer, play, queue, shuffle) sont sérialisées ; une commande bloquée est abandonnée après 15 s ;
+- la vérification de lecture relit toujours `/me/player` sans cache et n’accepte que le même appareil logique.
+
+### Interface et diagnostics
+- nouvelle carte « Appareil Spotify préféré » : statut, dernière détection, dernier lancement réussi, dernier renouvellement d’ID, **Rechercher maintenant**, **Tester** (non invasif), **Réassocier**, **Oublier** ; saisie manuelle conservée en mode avancé ; cibles tactiles ≥ 44 px et champs ≥ 16 px ;
+- Centre de fiabilité : nouveaux services « iPhone préféré » et « Session Spotify » (expiration, dernier refresh, rate limit, dernière commande Player) ; journal local porté à 200 événements ; `device_id` toujours masqué.
+
+### Railway v5.3.0
+- le premier résultat final (`success` / `error` / `cancel`) est définitif : ni un `running` arrivé en retard ni une seconde ouverture ne peuvent l’écraser.
+
+### Architecture et tests
+- `app.js` passe de 51 238 à 51 018 lignes malgré les nouvelles fonctions ; imports statiques maintenus à 68 (budgets CI inchangés) ;
+- +47 tests unitaires (identité, découverte, session, Player, Raccourcis) ; +7 scénarios Playwright exécutés sur Chromium et WebKit/iPhone (A → B, Mac interdit en mode strict, `requestId` dupliqué, reauth, carte appareil, mise à jour v11 → v12) ;
+- la CI conserve aussi `test-results/` (traces, captures, vidéos, error-context) en cas d’échec.
+
 ## 11.13.0 — Chargement paresseux renforcé
 
 - l’Assistant musical (`musical-assistant.js`) quitte le graphe statique de `app.js` et n’est chargé qu’à l’ouverture ou à la première commande associée ;

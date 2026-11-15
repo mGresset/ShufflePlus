@@ -1,4 +1,4 @@
-export const RELIABILITY_EVENT_LIMIT = 50;
+export const RELIABILITY_EVENT_LIMIT = 200;
 
 function normalizeTimestamp(value, fallback = Date.now()) {
     const numeric = Number(value);
@@ -225,7 +225,10 @@ export function buildReliabilityServices(
         queueState = {},
         activeDevice = {},
         shortcutState = {},
-        spotifyConnectDiagnostic = null
+        spotifyConnectDiagnostic = null,
+        preferredDevice = null,
+        session = null,
+        playerCommands = null
     } = {}
 ) {
     const spotifyApi = snapshot?.runtime?.spotifyApi || {};
@@ -247,6 +250,57 @@ export function buildReliabilityServices(
         ? `/devices : ${spotifyConnectDiagnostic.listedDeviceCount || 0} · /player : ${spotifyConnectDiagnostic.playbackActive ? "actif" : "inactif"}` +
             `${spotifyConnectDiagnostic.preferredConfigured ? ` · préféré : ${spotifyConnectDiagnostic.preferredMatched ? "détecté" : "absent"}` : ""}`
         : "";
+
+    const extraServices = [];
+    if (preferredDevice) {
+        const status = String(preferredDevice.status || "");
+        const configured = preferredDevice.configured === true;
+        extraServices.push(serviceState(
+            "preferred-device",
+            "iPhone préféré",
+            "📱",
+            !configured
+                ? "attention"
+                : ["available", "active"].includes(status)
+                    ? "healthy"
+                    : ["ambiguous", "restricted"].includes(status)
+                        ? "critical"
+                        : "neutral",
+            configured
+                ? `${preferredDevice.displayName || "iPhone"} · ${preferredDevice.statusLabel || "Enregistré"}`
+                : "Non configuré",
+            configured
+                ? [
+                    preferredDevice.lastMethod ? `Méthode : ${preferredDevice.lastMethod}` : "",
+                    `ID Spotify : ${preferredDevice.currentDeviceId || "—"} (${preferredDevice.knownDeviceIdCount || 0} connu(s))`,
+                    preferredDevice.lastIdChange?.at ? `Dernier changement d’ID : ${new Date(preferredDevice.lastIdChange.at).toLocaleString("fr-FR")}` : "",
+                    preferredDevice.lastSuccessfulAt ? `Dernier lancement réussi : ${new Date(preferredDevice.lastSuccessfulAt).toLocaleString("fr-FR")}` : ""
+                ].filter(Boolean).join(" · ")
+                : "Choisis ton iPhone une fois dans le Centre de commandes iOS."
+        ));
+    }
+    if (session) {
+        const reauth = Boolean(session.reauthRequiredAt);
+        extraServices.push(serviceState(
+            "spotify-session",
+            "Session Spotify",
+            "🔐",
+            reauth ? "critical" : session.hasRefreshToken ? "healthy" : "attention",
+            reauth
+                ? "Autorisation à renouveler"
+                : session.accessTokenValid
+                    ? "Valide"
+                    : session.hasRefreshToken
+                        ? "Renouvellement automatique"
+                        : "Non connectée",
+            [
+                session.accessTokenExpiresAt ? `Expiration access token : ${new Date(session.accessTokenExpiresAt).toLocaleTimeString("fr-FR")}` : "",
+                session.lastRefreshAt ? `Dernier refresh : ${new Date(session.lastRefreshAt).toLocaleTimeString("fr-FR")}` : "",
+                spotifyApi.cooldownActive ? `Rate limit : ${Math.ceil((spotifyApi.cooldownRemainingMs || 0) / 1000)} s` : "Rate limit : aucun",
+                playerCommands?.lastCommand ? `Dernière commande Player : ${playerCommands.lastCommand.label} (${playerCommands.lastCommand.status})` : ""
+            ].filter(Boolean).join(" · ")
+        ));
+    }
 
     return [
         serviceState(
@@ -338,7 +392,8 @@ export function buildReliabilityServices(
                 : "neutral",
             String(shortcutState.value || "Non vérifié"),
             String(shortcutState.detail || "Le Centre de commandes iOS peut vérifier la compatibilité du raccourci actuel.")
-        )
+        ),
+        ...extraServices
     ];
 }
 

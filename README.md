@@ -1,4 +1,4 @@
-# Shuffle+ v11.13.0
+# Shuffle+ v12.0.0
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,13 +15,14 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 11.13.0** renforce le chargement paresseux sans changer le comportement Spotify : l’Assistant musical et le module de partage/import des profils sortent du graphe statique de `app.js` et ne sont exécutés qu’au premier usage. Le noyau passe de 74 à 72 modules statiques, économise environ 19 Kio de JavaScript brut au démarrage et conserve ces modules dans le cache PWA optionnel pour rester disponible hors ligne. Les tests Playwright restent actifs et Railway reste en **v5.2.1**.
+> **État du projet :** **Shuffle+ 12.0.0 — Spotify Reliability & Preferred Device Identity.** Ton iPhone préféré devient une identité logique persistante : quand Spotify renouvelle son `device_id`, Shuffle+ le retrouve automatiquement (même nom et même type, ou identifiant déjà connu), sans jamais basculer sur un autre appareil en mode strict. La session Spotify est renouvelée de façon transparente (refresh single-flight, rotation protégée, 401 → un seul renouvellement), les commandes Player sont sérialisées et les lancements Apple Raccourcis sont dédupliqués par `requestId`, bornés dans le temps et publiés dans l’ordre sur Railway **v5.3.0**. Toutes les fonctionnalités v11 sont conservées.
 
 ---
 
 ## Sommaire
 
 1. [Fonctions principales](#fonctions-principales)
+   - [iPhone Spotify préféré](#iphone-spotify-préféré)
 2. [Prérequis](#prérequis)
 3. [Installation rapide](#installation-rapide)
 4. [Configuration de Spotify](#configuration-de-spotify)
@@ -38,6 +39,58 @@ L’application regroupe dans une seule interface :
 15. [Documentation complémentaire](#documentation-complémentaire)
 
 ---
+
+## iPhone Spotify préféré
+
+Shuffle+ mémorise désormais l'iPhone comme une **identité logique**.
+
+Spotify peut renouveler le `device_id` (après une mise à jour iOS, une réinstallation, une déconnexion Spotify Connect…).
+
+Shuffle+ retrouve automatiquement le nouvel identifiant lorsque la correspondance est fiable.
+
+Une absence temporaire dans Spotify Connect n'efface jamais l'appareil préféré.
+
+### Comment l’iPhone est reconnu
+
+L’ordre de résolution est déterministe ; Shuffle+ ne choisit jamais au hasard :
+
+1. identifiant Spotify courant exact ;
+2. identifiant Spotify déjà connu (historique borné à 5 identifiants) ;
+3. nom normalisé exact **et** type exact (ex. `iPhone de Lamine` · `Smartphone`) ;
+4. alias confirmé (ancien nom de l’iPhone appris lors d’un renommage prouvé par l’identifiant) **et** type exact ;
+5. appareil actif de `/me/player` lorsque `/me/player/devices` est encore vide, avec la même correspondance forte ;
+6. plusieurs candidats au même niveau → **ambiguïté** : aucun choix automatique, confirmation demandée.
+
+« Seul smartphone disponible » ou « nom approchant » ne suffisent **jamais**. Un appareil `is_restricted` n’est jamais ciblé.
+
+### Stratégies d’appareil
+
+| Mode du profil | Stratégie | Comportement |
+| --- | --- | --- |
+| iPhone préféré (recommandé) | `PREFERRED_STRICT` | Toujours le même iPhone logique, même si son `device_id` change. Sinon échec propre : **aucun autre appareil**. |
+| iPhone ou smartphone | `PREFERRED_THEN_LAST_SUCCESSFUL` | iPhone préféré, puis dernier appareil ayant réussi, puis smartphone. |
+| Appareil actif | `ACTIVE_DEVICE` | Appareil Spotify actif. |
+| Premier disponible | `FIRST_AVAILABLE` | Premier appareil contrôlable. |
+| Nom précis | `NAMED_DEVICE` | Appareil dont le nom contient le texte configuré. |
+
+Le **dernier appareil ayant réussi** reste mémorisé séparément : il n’écrase jamais l’iPhone préféré.
+
+### Carte « Appareil Spotify préféré »
+
+Dans **Profils de lancement > Centre de commandes iOS** :
+
+- état (Disponible, Actif, Spotify Connect démarre, Non annoncé actuellement, Ambigu, Restreint…) ;
+- dernière détection, dernier lancement réussi, dernier renouvellement d’identifiant ;
+- **Rechercher maintenant** : force `/me/player/devices` et `/me/player`, met l’identifiant à jour si besoin ;
+- **Tester** : vérifie que l’iPhone est annoncé et contrôlable, **sans** envoyer de commande de lecture ;
+- **Réassocier** : choisis explicitement l’iPhone parmi les appareils présents (l’identité logique et l’historique sont conservés) ;
+- **Oublier** : seule action qui supprime la préférence, avec confirmation.
+
+Le `device_id` complet n’est jamais affiché ni inclus dans un diagnostic (format masqué `••••abcd`).
+
+### Migration depuis la v11
+
+Au premier démarrage de la v12, l’ancien réglage `{ id, name, type }` est converti automatiquement : nom, type, choix utilisateur et identifiant sont conservés, une copie brute est sauvegardée et l’ancienne clé reste maintenue en miroir pour qu’un retour arrière PWA vers la v11 retrouve toujours l’iPhone. La migration est idempotente et non destructive.
 
 ## Fonctions principales
 
@@ -851,13 +904,13 @@ GitHub Pages publie l’interface statique. Le serveur de synchronisation peut �
 index.html                 Structure initiale et configuration PWA
 app.js                     Orchestration principale de l’interface
 config.js                  Version, redirections et scopes Spotify
-auth.js                    OAuth Spotify PKCE
-spotify-api.js             Accès à l’API Spotify
+auth.js                    OAuth Spotify PKCE et gestionnaire de session (refresh single-flight)
+spotify-api.js             Accès à l’API Spotify (401 → refresh unique, file Player)
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-11.8.0.js        Chargement versionné et migration du runtime
-startup-recovery-11.8.0.js Réparation avant le chargement principal
+bootstrap-12.0.0.js        Chargement versionné et migration du runtime
+startup-recovery-12.0.0.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```
@@ -880,6 +933,19 @@ app-health.js
 ### Modules `core/`
 
 Le dossier `core/` contient les briques isolées de navigation, PWA, lecture, appareil Spotify, sécurité, synchronisation, thèmes, sauvegarde et fiabilité. `core/startup-performance.js` orchestre les tâches non critiques après l’interface interactive ; la V10.8 ajoute `core/backup-history.js` pour conserver, borner et restaurer les sauvegardes locales versionnées sans saturer le stockage du navigateur.
+
+### Fiabilité Spotify — v12
+
+```text
+core/spotify-reliability.js           Point d’entrée : contrôleur de l’iPhone préféré, appareil de lancement, carte UI
+core/spotify-device-identity.js       Identité logique, résolution déterministe, migration v1 → v2, stockage
+core/spotify-device-discovery.js      Fenêtre de réveil Spotify Connect, /devices + /me/player, annulation
+core/spotify-player-command-queue.js  File sérialisée des commandes Player
+core/shortcut-launch-controller.js    requestId unique, statuts Railway ordonnés, délai global
+core/spotify-errors.js                Taxonomie centralisée des erreurs
+```
+
+`app.js` n’importe que `core/spotify-reliability.js`, qui ré-exporte les autres briques : le budget de 68 imports statiques est respecté et aucune dépendance circulaire n’est introduite.
 
 ### Styles chargés à la demande
 

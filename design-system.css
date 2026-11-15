@@ -2459,3 +2459,101 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
         max-width: 72px;
     }
 }
+
+/* Shuffle+ v12.0.0 — carte « Appareil Spotify préféré » (identité logique) */
+.preferred-device-card .ios-preferred-device-heading {
+    align-items: flex-start;
+}
+
+.preferred-device-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+}
+
+.preferred-device-status.is-ok > span { color: #3ddc84; }
+.preferred-device-status.is-pending > span { color: #ffb020; }
+.preferred-device-status.is-warning > span { color: #ff6b6b; }
+.preferred-device-status.is-neutral > span { color: var(--muted-text, #b6b3c8); }
+
+.preferred-device-facts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem 0.9rem;
+    margin: 0.9rem 0 0;
+}
+
+.preferred-device-facts div {
+    min-width: 0;
+}
+
+.preferred-device-facts dt {
+    color: var(--muted-text, #b6b3c8);
+    font-size: 0.74rem;
+}
+
+.preferred-device-facts dd {
+    margin: 0.1rem 0 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.preferred-device-card button,
+.preferred-device-card select,
+.preferred-device-card input {
+    min-height: 44px;
+}
+
+.preferred-device-card select,
+.preferred-device-card input {
+    font-size: max(16px, 1rem);
+}
+
+.preferred-device-advanced {
+    margin-top: 0.75rem;
+}
+
+.preferred-device-advanced summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: var(--muted-text, #b6b3c8);
+    font-size: 0.85rem;
+}
+
+.preferred-device-card .ios-preferred-device-actions {
+    flex-wrap: wrap;
+}
+
+.preferred-device-card .preferred-device-danger {
+    margin-right: auto;
+}
+
+@media (max-width: 760px) {
+    .preferred-device-card .ios-preferred-device-heading {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .preferred-device-card .preferred-device-primary {
+        width: 100%;
+    }
+
+    .preferred-device-card .ios-preferred-device-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .preferred-device-card .ios-preferred-device-actions button {
+        width: 100%;
+        margin: 0;
+    }
+}
+
+@media (max-width: 360px) {
+    .preferred-device-facts {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "11.13.0",
+  "version": "12.0.0",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 11.13.0 — Chargement paresseux renforcé et noyau de démarrage allégé.",
+  "description": "Shuffle+ 12.0.0 — Fiabilité Spotify et identité logique de l’iPhone préféré.",
   "engines": {
     "node": ">=20"
   },

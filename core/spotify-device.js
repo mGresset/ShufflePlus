@@ -1,3 +1,7 @@
+import {
+    resolvePreferredSpotifyDevice
+} from "./spotify-device-identity.js";
+
 function cleanText(value, maxLength = 160) {
     return typeof value === "string"
         ? value.trim().slice(0, maxLength)
@@ -35,53 +39,26 @@ function normalizeSearchText(value = "") {
         .trim();
 }
 
+// v12 : la recherche du préféré délègue au résolveur d’identité logique.
+// Elle accepte l’ancien format { id, name, type } comme la projection v2 et
+// ne retourne JAMAIS un appareil simplement « proche » ou « du même type ».
 export function findStoredPreferredDevice(devices, preferredDevice) {
     const usable = Array.isArray(devices)
         ? devices.filter(isUsableSpotifyDevice)
         : [];
-    const preferred = normalizePreferredSpotifyDevice(preferredDevice);
 
-    if (!usable.length || (!preferred.id && !preferred.name)) {
+    if (!usable.length || !preferredDevice) {
         return null;
     }
 
-    if (preferred.id) {
-        const exact = usable.find((device) => device.id === preferred.id);
-        if (exact) {
-            return exact;
-        }
-    }
+    const resolution = resolvePreferredSpotifyDevice({
+        identity: preferredDevice,
+        devices: usable
+    });
 
-    const wantedName = normalizeSearchText(preferred.name);
-    const wantedType = normalizeSearchText(preferred.type);
-
-    if (wantedName) {
-        const sameNameAndType = usable.find((device) => {
-            const name = normalizeSearchText(device.name);
-            const type = normalizeSearchText(device.type);
-            return name === wantedName && (!wantedType || type === wantedType);
-        });
-
-        if (sameNameAndType) {
-            return sameNameAndType;
-        }
-
-        const closeName = usable.find((device) =>
-            normalizeSearchText(device.name).includes(wantedName)
-        );
-
-        if (closeName) {
-            return closeName;
-        }
-    }
-
-    if (wantedType) {
-        return usable.find(
-            (device) => normalizeSearchText(device.type) === wantedType
-        ) || null;
-    }
-
-    return null;
+    return resolution.status === "resolved"
+        ? usable.find((device) => device.id === resolution.device.id) || null
+        : null;
 }
 
 export function selectSpotifyDevice(
@@ -100,11 +77,22 @@ export function selectSpotifyDevice(
         return null;
     }
 
+    const preferredConfigured = Boolean(
+        preferredDevice &&
+        (preferredDevice.id || preferredDevice.name ||
+            preferredDevice.currentSpotifyDeviceId || preferredDevice.normalizedName)
+    );
+
+    if (mode === "preferred" && preferredConfigured) {
+        // Mode strict : l’iPhone préféré ou rien. Aucun repli vers un autre
+        // smartphone, l’appareil actif ou le premier appareil disponible.
+        return findStoredPreferredDevice(usable, preferredDevice);
+    }
+
+    // Sans iPhone préféré enregistré, « preferred » garde le comportement
+    // historique (smartphone, puis appareil actif, puis premier disponible).
     if (mode === "preferred") {
-        const stored = findStoredPreferredDevice(usable, preferredDevice);
-        if (stored) {
-            return stored;
-        }
+        mode = "iphone";
     }
 
     if (mode === "named" && deviceName) {
@@ -117,7 +105,7 @@ export function selectSpotifyDevice(
         }
     }
 
-    if (mode === "iphone" || mode === "preferred") {
+    if (mode === "iphone") {
         const phone = usable.find((device) => {
             const name = normalizeSearchText(device.name);
             const type = normalizeSearchText(device.type);
@@ -128,7 +116,7 @@ export function selectSpotifyDevice(
         }
     }
 
-    if (["active", "iphone", "preferred"].includes(mode)) {
+    if (["active", "iphone"].includes(mode)) {
         const active = usable.find((device) => device.is_active);
         if (active) {
             return active;

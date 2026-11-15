@@ -196,7 +196,46 @@ export async function handleSpotifyCallback() {
     return true;
 }
 
-async function refreshAccessToken(refreshToken) {
+const REAUTH_MESSAGE =
+    "Spotify demande une nouvelle autorisation. Tes profils, ton iPhone préféré et tes réglages sont conservés.";
+const ACCESS_TOKEN_SAFETY_MARGIN_MS = 60_000;
+
+const sessionDiagnostics = {
+    lastRefreshAt: 0,
+    lastRefreshOutcome: "",
+    lastRefreshErrorCode: "",
+    refreshCount: 0,
+    refreshFailureCount: 0,
+    forcedRefreshCount: 0,
+    rotatedRefreshTokenCount: 0,
+    reauthRequiredAt: 0
+};
+
+function createReauthError(details = null) {
+    sessionDiagnostics.reauthRequiredAt = Date.now();
+    return new SpotifyAuthError(
+        REAUTH_MESSAGE,
+        "SPOTIFY_REAUTH_REQUIRED",
+        details
+    );
+}
+
+function notifySessionEvent(type, detail = {}) {
+    try {
+        globalThis.dispatchEvent?.(
+            new CustomEvent("shuffleplus:spotify-session", {
+                detail: { type, at: Date.now(), ...detail }
+            })
+        );
+    } catch {
+        // Les diagnostics de session ne doivent jamais bloquer Spotify.
+    }
+}
+
+async function refreshAccessToken(
+    refreshToken,
+    { allowRotatedRetry = true } = {}
+) {
     const body = new URLSearchParams({
         client_id: CONFIG.clientId,
         grant_type: "refresh_token",
@@ -214,6 +253,14 @@ async function refreshAccessToken(refreshToken) {
             body
         });
     } catch (error) {
+        // Une erreur réseau ne supprime JAMAIS le refresh token, l’iPhone
+        // préféré, les profils ni les réglages.
+        sessionDiagnostics.lastRefreshOutcome = "network-error";
+        sessionDiagnostics.lastRefreshErrorCode = "SPOTIFY_REFRESH_NETWORK_ERROR";
+        sessionDiagnostics.refreshFailureCount += 1;
+        notifySessionEvent("SPOTIFY_REFRESH_FAILED", {
+            code: "SPOTIFY_REFRESH_NETWORK_ERROR"
+        });
         throw new SpotifyAuthError(
             "Impossible de joindre Spotify pour renouveler la session.",
             "SPOTIFY_REFRESH_NETWORK_ERROR",
@@ -224,32 +271,67 @@ async function refreshAccessToken(refreshToken) {
     const tokenData = await readJsonResponse(response);
 
     if (!response.ok) {
-        console.error("Erreur de renouvellement Spotify :", tokenData);
+        console.error(
+            "Erreur de renouvellement Spotify :",
+            response.status,
+            tokenData?.error || ""
+        );
+        sessionDiagnostics.refreshFailureCount += 1;
 
         if (tokenData.error === "invalid_grant") {
+            // Un autre onglet a peut-être déjà fait tourner le refresh token :
+            // on réessaie une seule fois avec la valeur la plus récente au
+            // lieu d’effacer un jeton valide.
+            const latest = getStoredTokens().refreshToken;
+
+            if (allowRotatedRetry && latest && latest !== refreshToken) {
+                return refreshAccessToken(latest, { allowRotatedRetry: false });
+            }
+
+            sessionDiagnostics.lastRefreshOutcome = "reauth-required";
+            sessionDiagnostics.lastRefreshErrorCode = "SPOTIFY_REAUTH_REQUIRED";
+            notifySessionEvent("SPOTIFY_REFRESH_FAILED", {
+                code: "SPOTIFY_REAUTH_REQUIRED"
+            });
+            // Seuls les jetons Spotify devenus invalides sont retirés.
             clearTokens();
 
-            throw new SpotifyAuthError(
-                "Spotify demande une nouvelle autorisation. Appuie sur « Se reconnecter à Spotify ».",
-                "SPOTIFY_REAUTH_REQUIRED",
-                tokenData
-            );
+            throw createReauthError({ error: tokenData.error });
         }
+
+        sessionDiagnostics.lastRefreshOutcome = "failed";
+        sessionDiagnostics.lastRefreshErrorCode = "SPOTIFY_REFRESH_FAILED";
+        notifySessionEvent("SPOTIFY_REFRESH_FAILED", {
+            code: "SPOTIFY_REFRESH_FAILED",
+            status: response.status
+        });
 
         throw new SpotifyAuthError(
             tokenData.error_description ||
             tokenData.error ||
             "Le renouvellement de la session Spotify a échoué.",
             "SPOTIFY_REFRESH_FAILED",
-            tokenData
+            { error: tokenData.error || "", status: response.status }
         );
     }
 
+    // Rotation : un nouveau refresh_token est enregistré ; s’il est absent,
+    // saveTokens() conserve l’ancien (jamais effacé).
+    if (tokenData.refresh_token && tokenData.refresh_token !== refreshToken) {
+        sessionDiagnostics.rotatedRefreshTokenCount += 1;
+    }
     saveTokens(tokenData);
+    sessionDiagnostics.lastRefreshAt = Date.now();
+    sessionDiagnostics.lastRefreshOutcome = "ok";
+    sessionDiagnostics.lastRefreshErrorCode = "";
+    sessionDiagnostics.refreshCount += 1;
+    sessionDiagnostics.reauthRequiredAt = 0;
+    notifySessionEvent("SPOTIFY_REFRESH_OK");
 
     return tokenData.access_token;
 }
 
+// Single-flight : plusieurs appels simultanés partagent UNE seule requête.
 async function refreshAccessTokenOnce(refreshToken) {
     if (!refreshPromise) {
         refreshPromise = refreshAccessToken(refreshToken)
@@ -263,7 +345,7 @@ async function refreshAccessTokenOnce(refreshToken) {
 
 export async function getValidAccessToken() {
     const tokens = getStoredTokens();
-    const safetyMargin = 60_000;
+    const safetyMargin = ACCESS_TOKEN_SAFETY_MARGIN_MS;
 
     if (
         tokens.accessToken &&
@@ -278,6 +360,47 @@ export async function getValidAccessToken() {
 
     return refreshAccessTokenOnce(tokens.refreshToken);
 }
+
+// Utilisé après un HTTP 401 : force UN renouvellement (partagé), même si
+// l’access token semble encore valide localement.
+export async function forceRefreshAccessToken() {
+    const tokens = getStoredTokens();
+
+    if (!tokens.refreshToken) {
+        throw createReauthError();
+    }
+
+    sessionDiagnostics.forcedRefreshCount += 1;
+    return refreshAccessTokenOnce(tokens.refreshToken);
+}
+
+export function requireReauthorization(details = null) {
+    return createReauthError(details);
+}
+
+export function getSpotifySessionDiagnostics() {
+    const tokens = getStoredTokens();
+    return {
+        connected: Boolean(tokens.accessToken || tokens.refreshToken),
+        hasRefreshToken: Boolean(tokens.refreshToken),
+        accessTokenExpiresAt: tokens.expiresAt || 0,
+        accessTokenValid: Boolean(
+            tokens.accessToken &&
+            Date.now() < tokens.expiresAt - ACCESS_TOKEN_SAFETY_MARGIN_MS
+        ),
+        authorizedAt: tokens.authorizedAt || 0,
+        refreshInFlight: Boolean(refreshPromise),
+        ...sessionDiagnostics
+    };
+}
+
+export const spotifySessionManager = Object.freeze({
+    getValidAccessToken,
+    refreshAccessToken: forceRefreshAccessToken,
+    forceRefresh: forceRefreshAccessToken,
+    requireReauthorization,
+    getDiagnostics: getSpotifySessionDiagnostics
+});
 
 export function repairSpotifyAuthState(options = {}) {
     return repairStoredSpotifySession(options);

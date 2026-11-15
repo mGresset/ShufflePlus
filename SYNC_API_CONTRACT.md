@@ -156,3 +156,9 @@ Le serveur utilise un jeton révocable par installation. Le secret racine n’es
 Pour `PUT /v1/spaces/{spaceId}/state`, le serveur sérialise désormais toutes les opérations visant un même `spaceId`. La lecture de la révision courante, la comparaison de `baseRevision`, l’incrément et l’écriture disque sont traités comme une section critique unique.
 
 Si deux clients envoient simultanément la même `baseRevision`, un seul push peut être accepté. Le second reçoit HTTP 409 avec la révision et l’empreinte déjà persistées. Les écritures JSON passent par un fichier temporaire unique puis un renommage atomique afin d’éviter toute collision de nom temporaire.
+
+## Résultats de raccourci — garantie v5.3.0
+
+`POST /v1/launch-results/:requestId` accepte `pending`, `running`, `success`, `error` et `cancel`. Une fois un statut final (`success`, `error`, `cancel`) enregistré, tout POST ultérieur est ignoré et la réponse renvoie le statut final existant. Le client Shuffle+ 12 publie de son côté ses statuts dans l’ordre et n’envoie plus aucun `running` après le statut final.
+
+L’identité de l’iPhone préféré (et en particulier `currentSpotifyDeviceId`, donnée volatile) n’est jamais synchronisée entre installations : elle reste locale à chaque appareil.
