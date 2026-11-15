@@ -207,18 +207,6 @@ import {
     orderDrivingControls
 } from "./core/driving-advanced.js";
 
-import {
-    DEFAULT_DYNAMIC_LYRICS_SETTINGS,
-    normalizeDynamicLyricsSettings,
-    normalizeDynamicLyricsCommandOptions,
-    buildDynamicLyricsLaunchUrl,
-    buildShortcutRunUrl
-} from "./core/dynamic-lyrics.js";
-
-import {
-    buildDynamicLyricsTrackInput,
-    evaluateDynamicLyricsTrackChange
-} from "./core/dynamic-lyrics-sync.js";
 
 import {
     getAppSectionGroup,
@@ -877,8 +865,6 @@ const PINNED_SHORTCUT_PROFILES_KEY =
     "shuffleplus_pinned_shortcut_profiles_v1";
 const SHORTCUT_LAUNCH_GUARD_KEY =
     "shuffleplus_shortcut_launch_guard_v1";
-const DYNAMIC_LYRICS_SETTINGS_KEY =
-    "shuffleplus_dynamic_lyrics_settings_v1";
 const MAX_IOS_COMMANDS = 20;
 const MAX_IOS_COMMAND_HISTORY = 40;
 const ADAPTIVE_DJ_SCENES_KEY =
@@ -999,7 +985,7 @@ const APP_MENU_KEY =
 const APP_MENU_SCROLL_KEY =
     "shuffleplus_menu_scroll_v1";
 const CURRENT_PWA_CACHE =
-    "shuffleplus-v12.0.0-shell";
+    "shuffleplus-v12.0.1-shell";
 const RELIABILITY_EVENTS_KEY =
     "shuffleplus_reliability_events_v1";
 const FINALIZATION_STATE_KEY =
@@ -1936,13 +1922,6 @@ let iosCommandHistory =
     readIosCommandHistory();
 let guidedSetupState =
     readGuidedSetupState(localStorage, GUIDED_SETUP_KEY);
-let dynamicLyricsSettings =
-    readDynamicLyricsSettings();
-let dynamicLyricsAutoSyncTimer = 0;
-let dynamicLyricsLastTrackKey = "";
-let dynamicLyricsAutoSyncBusy = false;
-let dynamicLyricsLastSyncAt = 0;
-let dynamicLyricsLastSyncMessage = "";
 let activeAppMenu = readActiveAppMenu();
 if (!DRIVING_MODE_AVAILABLE && activeAppMenu === "driving") {
     activeAppMenu = "dashboard";
@@ -4261,10 +4240,6 @@ async function refreshMusicalDashboardPlayback({
             );
         drivingPlaybackState =
             quickPlaybackState;
-        await observeDynamicLyricsPlayback(
-            quickPlaybackState,
-            { source: "dashboard" }
-        );
 
         if (
             quickPlaybackState?.item &&
@@ -5301,9 +5276,6 @@ function renderPrimaryLaunchPanel() {
                     ${command?.openDrivingMode && DRIVING_MODE_AVAILABLE
                         ? " · Mode conduite"
                         : ""}
-                    ${command?.openDynamicLyrics
-                        ? " · Dynamic Lyrics"
-                        : ""}
                 </p>
 
                 <div class="primary-launch-reliability is-${escapeHtml(reliability.state)}">
@@ -5533,9 +5505,6 @@ async function runGuidedPrimaryLaunch({ source = "guided-setup" } = {}) {
             command.id,
             {
                 openDrivingMode: command.openDrivingMode,
-                openDynamicLyrics: command.openDynamicLyrics,
-                dynamicLyricsShortcutName:
-                    command.dynamicLyricsShortcutName,
                 source
             }
         );
@@ -5641,7 +5610,6 @@ function renderHomePanel() {
         queueUpdatedAt: drivingQueueState.updatedAt,
         experienceMode,
         drivingAvailable: DRIVING_MODE_AVAILABLE,
-        dynamicLyricsEnabled: dynamicLyricsSettings.enabled,
         contextualSuggestion: getContextualProfileSuggestion(
             new Date()
         ),
@@ -6851,7 +6819,7 @@ async function registerPwa() {
     try {
         pwaRegistration =
             await navigator.serviceWorker.register(
-                "./service-worker.js?v=12.0.0",
+                "./service-worker.js?v=12.0.1",
                 {
                     scope: "./",
                     updateViaCache: "none"
@@ -11772,11 +11740,6 @@ function renderDrivingModePage() {
             ` : ""}
 
             <div class="driving-secondary-controls">
-                ${dynamicLyricsSettings.enabled ? `
-                    <button id="drivingDynamicLyricsButton" class="driving-dynamic-lyrics-button" type="button" aria-label="Ouvrir Dynamic Lyrics manuellement">
-                        <span aria-hidden="true">🎤</span><small>Paroles</small>
-                    </button>
-                ` : ""}
                 <button
                     id="drivingRefreshButton"
                     type="button"
@@ -12137,10 +12100,6 @@ async function refreshDrivingPlayback({
             drivingPlaybackState;
         reconcileDrivingShuffleOverride(
             drivingPlaybackState
-        );
-        await observeDynamicLyricsPlayback(
-            drivingPlaybackState,
-            { source: "driving" }
         );
 
         if (!silent) {
@@ -14939,7 +14898,7 @@ function renderShortcutProfilesDashboard() {
                     <h3>Lance la bonne musique en une seule action</h3>
                     <p>
                         Chaque profil mémorise sa playlist ou son mix, l’appareil Spotify,
-                        le shuffle, le mode conduite et Dynamic Lyrics.
+                        le shuffle et le mode conduite.
                     </p>
                 </div>
                 <div class="shortcut-profiles-hero-actions">
@@ -15004,7 +14963,6 @@ function renderShortcutProfilesDashboard() {
                                         <span>${command.shuffle ? "🔀 Shuffle" : "↕️ Ordre normal"}</span>
                                         <span>${command.startFromBeginning ? "⏮ Début" : "🎲 Départ aléatoire"}</span>
                                         ${command.openDrivingMode && DRIVING_MODE_AVAILABLE ? "<span>🚗 Conduite</span>" : ""}
-                                        ${command.openDynamicLyrics ? "<span>🎤 Dynamic Lyrics</span>" : ""}
                                     </div>
 
                                     <div class="shortcut-profile-readiness">
@@ -15059,7 +15017,7 @@ function renderShortcutProfilesDashboard() {
                                             <span><strong>Source</strong>${escapeHtml(preview.sourceLabel)}</span>
                                             <span><strong>Appareil</strong>${escapeHtml(preview.deviceLabel)}</span>
                                             <span><strong>Lecture</strong>${escapeHtml(preview.shuffleLabel)} · ${escapeHtml(preview.startLabel)}</span>
-                                            <span><strong>Après lancement</strong>${escapeHtml(preview.drivingLabel)} · ${escapeHtml(preview.dynamicLyricsLabel)}</span>
+                                            <span><strong>Après lancement</strong>${escapeHtml(preview.drivingLabel)}</span>
                                         </div>
                                     </details>
 
@@ -15544,10 +15502,6 @@ async function refreshQuickControlPlayback({
             );
         drivingPlaybackState =
             quickPlaybackState;
-        await observeDynamicLyricsPlayback(
-            quickPlaybackState,
-            { source: "quick-controls" }
-        );
 
         if (!silent) {
             setQuickControlMessage(
@@ -22227,345 +22181,25 @@ function saveIosQuickPlaySettings() {
     }
 }
 
-function readDynamicLyricsSettings() {
-    try {
-        const raw = localStorage.getItem(
-            DYNAMIC_LYRICS_SETTINGS_KEY
-        );
+function normalizeLegacyDynamicLyricsCommandOptions(command = {}) {
+    // Compatibilité silencieuse avec les profils/URL créés avant la v12.0.1.
+    // La fonctionnalité Dynamic Lyrics est retirée de l’UI et du runtime ;
+    // ces champs sont seulement conservés lors de la normalisation d’anciennes données.
+    const hasLegacyFields =
+        Object.prototype.hasOwnProperty.call(command, "openDynamicLyrics") ||
+        Object.prototype.hasOwnProperty.call(command, "dynamicLyricsShortcutName");
 
-        return normalizeDynamicLyricsSettings(
-            raw ? JSON.parse(raw) : {}
-        );
-    } catch (error) {
-        console.warn(
-            "Réglages Dynamic Lyrics illisibles :",
-            error
-        );
-        return {
-            ...DEFAULT_DYNAMIC_LYRICS_SETTINGS
-        };
-    }
-}
-
-function saveDynamicLyricsSettings() {
-    try {
-        localStorage.setItem(
-            DYNAMIC_LYRICS_SETTINGS_KEY,
-            JSON.stringify(dynamicLyricsSettings)
-        );
-    } catch (error) {
-        console.warn(
-            "Impossible d’enregistrer Dynamic Lyrics :",
-            error
-        );
-    }
-}
-
-function saveDynamicLyricsSettingsFromForm(form) {
-    const data = new FormData(form);
-
-    dynamicLyricsSettings =
-        normalizeDynamicLyricsSettings({
-            enabled:
-                data.get("enabled") === "on",
-            shortcutName:
-                data.get("shortcutName"),
-            // Conservé pour compatibilité avec les sauvegardes historiques ;
-            // aucun lancement automatique n'utilise plus ce délai.
-            launchDelayMs:
-                dynamicLyricsSettings.launchDelayMs,
-            autoSyncOnTrackChange:
-                data.get("autoSyncOnTrackChange") === "on",
-            autoSyncIntervalMs:
-                data.get("autoSyncIntervalMs"),
-            updatedAt: Date.now()
-        });
-
-    saveDynamicLyricsSettings();
-    dynamicLyricsLastTrackKey = "";
-    restartDynamicLyricsAutoSyncMonitor();
-    displayPlaylists(playlistsCache);
-    setStatus(
-        dynamicLyricsSettings.enabled
-            ? dynamicLyricsSettings.autoSyncOnTrackChange
-                ? "Dynamic Lyrics est prêt · surveillance diagnostique des titres activée."
-                : "Dynamic Lyrics est prêt · ouverture manuelle uniquement."
-            : "Intégration Dynamic Lyrics désactivée."
-    );
-}
-
-function getDynamicLyricsTestUrl() {
-    const form = document.getElementById(
-        "dynamicLyricsSettingsForm"
-    );
-    const shortcutName = form
-        ? String(
-            new FormData(form).get(
-                "shortcutName"
-            ) || ""
-        )
-        : dynamicLyricsSettings.shortcutName;
-
-    return buildShortcutRunUrl(
-        shortcutName
-    );
-}
-
-async function copyDynamicLyricsTestUrl() {
-    const url = getDynamicLyricsTestUrl();
-
-    if (!url) {
-        setStatus(
-            "Indique le nom du raccourci Dynamic Lyrics.",
-            "error"
-        );
-        return;
+    if (!hasLegacyFields) {
+        return {};
     }
 
-    try {
-        await copyTextToClipboard(url);
-        showToast(
-            "✅ Lien du raccourci Dynamic Lyrics copié.",
-            "success"
-        );
-    } catch (error) {
-        console.error(error);
-        window.prompt(
-            "Copie ce lien pour tester le raccourci :",
-            url
-        );
-    }
-}
-
-function openDynamicLyricsTestShortcut() {
-    const url = getDynamicLyricsTestUrl();
-
-    if (!url) {
-        setStatus(
-            "Indique le nom du raccourci Dynamic Lyrics.",
-            "error"
-        );
-        return;
-    }
-
-    window.location.href = url;
-}
-
-
-function stopDynamicLyricsAutoSyncMonitor() {
-    if (dynamicLyricsAutoSyncTimer) {
-        window.clearInterval(dynamicLyricsAutoSyncTimer);
-        dynamicLyricsAutoSyncTimer = 0;
-    }
-}
-
-async function observeDynamicLyricsPlayback(
-    playback,
-    {
-        source = "playback",
-        force = false,
-        notify = false
-    } = {}
-) {
-    const evaluation = evaluateDynamicLyricsTrackChange({
-        playback,
-        previousTrackKey: dynamicLyricsLastTrackKey,
-        enabled: dynamicLyricsSettings.enabled,
-        autoSyncOnTrackChange:
-            dynamicLyricsSettings.autoSyncOnTrackChange,
-        visible:
-            document.visibilityState === "visible",
-        force
-    });
-
-    if (evaluation.nextTrackKey) {
-        dynamicLyricsLastTrackKey =
-            evaluation.nextTrackKey;
-    }
-
-    if (
-        !evaluation.shouldSync ||
-        dynamicLyricsAutoSyncBusy
-    ) {
-        return false;
-    }
-
-    if (
-        !force &&
-        Date.now() - dynamicLyricsLastSyncAt < 1500
-    ) {
-        return false;
-    }
-
-    dynamicLyricsLastSyncAt = Date.now();
-    dynamicLyricsLastSyncMessage =
-        evaluation.track.title
-            ? `${evaluation.track.title}${evaluation.track.artist ? ` · ${evaluation.track.artist}` : ""}`
-            : "Titre Spotify actuel";
-
-    // iOS affiche une confirmation lorsqu’une PWA tente d’ouvrir
-    // shortcuts:// sans geste utilisateur. En surveillance automatique,
-    // Shuffle+ se contente donc de suivre le titre : Dynamic Lyrics
-    // conserve sa propre synchronisation Spotify native.
-    if (!force) {
-        recordReliabilityEvent({
-            category: "dynamic-lyrics",
-            level: "success",
-            label: "Nouveau titre détecté",
-            detail:
-                `${dynamicLyricsLastSyncMessage} · synchronisation native Spotify · source ${source}`,
-            createdAt: Date.now()
-        });
-        return true;
-    }
-
-    const shortcutName =
-        String(
-            dynamicLyricsSettings.shortcutName || ""
-        ).trim();
-    if (!shortcutName) {
-        return false;
-    }
-
-    const url = buildShortcutRunUrl(
-        shortcutName,
-        {
-            inputText:
-                buildDynamicLyricsTrackInput(playback)
-        }
-    );
-    if (!url) {
-        return false;
-    }
-
-    dynamicLyricsAutoSyncBusy = true;
-
-    if (notify || force) {
-        showToast(
-            "🎤 Dynamic Lyrics · resynchronisation manuelle",
-            "success"
-        );
-    }
-
-    recordReliabilityEvent({
-        category: "dynamic-lyrics",
-        level: "success",
-        label: "Dynamic Lyrics resynchronisé manuellement",
-        detail:
-            `${dynamicLyricsLastSyncMessage} · source ${source}`,
-        createdAt: Date.now()
-    });
-
-    window.setTimeout(() => {
-        dynamicLyricsAutoSyncBusy = false;
-    }, 1800);
-
-    window.location.href = url;
-    return true;
-}
-
-async function resyncDynamicLyricsNow() {
-    if (!dynamicLyricsSettings.enabled) {
-        setStatus(
-            "Active d’abord l’intégration Dynamic Lyrics.",
-            "error"
-        );
-        return false;
-    }
-
-    try {
-        const playback =
-            await getCurrentPlayback({ fresh: true });
-        if (!playback?.item) {
-            setStatus(
-                "Aucun morceau Spotify actif à synchroniser.",
-                "error"
-            );
-            return false;
-        }
-
-        return await observeDynamicLyricsPlayback(
-            playback,
-            {
-                source: "manual",
-                force: true,
-                notify: true
-            }
-        );
-    } catch (error) {
-        console.error(error);
-        setStatus(
-            getPlaybackErrorMessage(error),
-            "error"
-        );
-        return false;
-    }
-}
-
-function shouldDynamicLyricsUseDedicatedPolling() {
-    return ![
-        "driving",
-        "dashboard"
-    ].includes(activeAppMenu);
-}
-
-async function pollDynamicLyricsTrackChange() {
-    if (
-        !dynamicLyricsSettings.enabled ||
-        !dynamicLyricsSettings.autoSyncOnTrackChange ||
-        document.visibilityState !== "visible" ||
-        dynamicLyricsAutoSyncBusy ||
-        !shouldDynamicLyricsUseDedicatedPolling()
-    ) {
-        return;
-    }
-
-    try {
-        const playback =
-            await getCurrentPlayback({ fresh: true });
-        quickPlaybackState =
-            reconcilePlaybackWithUiOverride(
-                playback,
-                { fresh: true }
-            );
-        drivingPlaybackState =
-            quickPlaybackState;
-        await observeDynamicLyricsPlayback(
-            quickPlaybackState,
-            { source: "auto-monitor" }
-        );
-    } catch (error) {
-        console.warn(
-            "Surveillance Dynamic Lyrics impossible :",
-            error
-        );
-    }
-}
-
-function startDynamicLyricsAutoSyncMonitor() {
-    stopDynamicLyricsAutoSyncMonitor();
-
-    if (
-        !dynamicLyricsSettings.enabled ||
-        !dynamicLyricsSettings.autoSyncOnTrackChange
-    ) {
-        return;
-    }
-
-    dynamicLyricsAutoSyncTimer =
-        window.setInterval(
-            pollDynamicLyricsTrackChange,
-            dynamicLyricsSettings.autoSyncIntervalMs
-        );
-
-    if (document.visibilityState === "visible") {
-        pollDynamicLyricsTrackChange();
-    }
-}
-
-function restartDynamicLyricsAutoSyncMonitor() {
-    stopDynamicLyricsAutoSyncMonitor();
-    startDynamicLyricsAutoSyncMonitor();
+    return {
+        openDynamicLyrics: command.openDynamicLyrics === true,
+        dynamicLyricsShortcutName:
+            typeof command.dynamicLyricsShortcutName === "string"
+                ? command.dynamicLyricsShortcutName.trim().slice(0, 120)
+                : ""
+    };
 }
 
 function createIosCommandId() {
@@ -22589,8 +22223,8 @@ function normalizeIosCommand(command = {}) {
                 ? "smartmix"
                 : "fixed";
 
-    const dynamicLyricsOptions =
-        normalizeDynamicLyricsCommandOptions(command);
+    const legacyDynamicLyricsOptions =
+        normalizeLegacyDynamicLyricsCommandOptions(command);
 
     return {
         id:
@@ -22622,7 +22256,7 @@ function normalizeIosCommand(command = {}) {
         autoplay:
             command.autoplay !== false,
         ...base,
-        ...dynamicLyricsOptions,
+        ...legacyDynamicLyricsOptions,
         fallbackDeviceMode:
             ["active", "first", "iphone"].includes(
                 command.fallbackDeviceMode
@@ -23086,18 +22720,6 @@ function buildIosCommandUrl(command) {
         );
     }
 
-    if (normalized.openDynamicLyrics) {
-        url.searchParams.set(
-            "lyrics",
-            "1"
-        );
-        url.searchParams.set(
-            "lyricsShortcut",
-            normalized.dynamicLyricsShortcutName ||
-            dynamicLyricsSettings.shortcutName
-        );
-    }
-
     if (normalized.commandType === "adaptive") {
         const context = getAdaptiveSlot();
         url.searchParams.set(
@@ -23443,10 +23065,6 @@ function saveIosCommandFromForm(form) {
             ),
         openDrivingMode:
             formData.get("openDrivingMode") === "on",
-        openDynamicLyrics:
-            formData.get("openDynamicLyrics") === "on",
-        dynamicLyricsShortcutName:
-            formData.get("dynamicLyricsShortcutName") || "",
         shuffle:
             formData.get("shuffle") === "on",
         startFromBeginning:
@@ -23695,9 +23313,7 @@ function renderIosCommandsPanel() {
             fallbackDeviceMode: "iphone",
             shuffle: true,
             startFromBeginning: false,
-            openDrivingMode: false,
-            openDynamicLyrics: false,
-            dynamicLyricsShortcutName: ""
+            openDrivingMode: false
         });
 
     const mixOptions = savedMixes
@@ -23790,9 +23406,6 @@ function renderIosCommandsPanel() {
                                     : "ordre normal"}
                                 ${command.openDrivingMode
                                     ? " · conduite auto"
-                                    : ""}
-                                ${command.openDynamicLyrics
-                                    ? " · paroles auto"
                                     : ""}
                                 ${lastRun
                                     ? ` · dernier : ${escapeHtml(lastRun.deviceName || lastRun.status)}`
@@ -23901,141 +23514,6 @@ function renderIosCommandsPanel() {
                 availableDevices,
                 escapeHtml
             })}
-
-            <section class="dynamic-lyrics-panel">
-                <div class="dynamic-lyrics-heading">
-                    <div>
-                        <span>🎤 Application compagnon</span>
-                        <strong>Dynamic Lyrics</strong>
-                        <small>
-                            Shuffle+ n’ouvre plus automatiquement Raccourcis : iOS demande une confirmation lors d’une ouverture externe depuis la PWA.
-                            Utilise le bouton manuel ci-dessous ou une automatisation iOS App/CarPlay. Aucun secret Dynamic Lyrics n’est enregistré ici.
-                        </small>
-                    </div>
-                    <span class="dynamic-lyrics-state ${dynamicLyricsSettings.enabled ? "is-enabled" : ""}">
-                        ${dynamicLyricsSettings.enabled ? "Activé" : "Désactivé"}
-                    </span>
-                </div>
-
-                <form id="dynamicLyricsSettingsForm" class="dynamic-lyrics-form">
-                    <label class="ios-command-check dynamic-lyrics-toggle">
-                        <input
-                            name="enabled"
-                            type="checkbox"
-                            ${dynamicLyricsSettings.enabled ? "checked" : ""}
-                        >
-                        <span>Activer l’intégration compagnon</span>
-                    </label>
-
-                    <label class="ios-command-field">
-                        <span>Nom du raccourci iOS</span>
-                        <input
-                            name="shortcutName"
-                            type="text"
-                            maxlength="120"
-                            value="${escapeHtml(dynamicLyricsSettings.shortcutName)}"
-                            placeholder="Shuffle+ Dynamic Lyrics"
-                            required
-                        >
-                    </label>
-
-
-                    <label class="ios-command-check dynamic-lyrics-auto-sync-toggle">
-                        <input
-                            name="autoSyncOnTrackChange"
-                            type="checkbox"
-                            ${dynamicLyricsSettings.autoSyncOnTrackChange ? "checked" : ""}
-                        >
-                        <span>Surveiller les changements de titre (diagnostic uniquement)</span>
-                    </label>
-
-                    <label class="ios-command-field">
-                        <span>Fréquence de détection du nouveau titre</span>
-                        <select name="autoSyncIntervalMs">
-                            ${[
-                                [2000, "2 secondes"],
-                                [3000, "3 secondes"],
-                                [5000, "5 secondes"],
-                                [10000, "10 secondes"]
-                            ].map(([value, label]) => `
-                                <option
-                                    value="${value}"
-                                    ${dynamicLyricsSettings.autoSyncIntervalMs === value ? "selected" : ""}
-                                >
-                                    ${label}
-                                </option>
-                            `).join("")}
-                        </select>
-                    </label>
-
-                    <div class="dynamic-lyrics-sync-status">
-                        <div>
-                            <span>🔄 Synchronisation des paroles</span>
-                            <strong>
-                                ${dynamicLyricsSettings.autoSyncOnTrackChange
-                                    ? "Surveillance active · synchro Spotify native"
-                                    : "Surveillance désactivée"}
-                            </strong>
-                            <small>
-                                ${dynamicLyricsSettings.autoSyncOnTrackChange
-                                    ? `Dernier titre détecté : ${escapeHtml(dynamicLyricsLastSyncMessage || "en attente d’un changement de titre")}.`
-                                    : "Dynamic Lyrics peut continuer à suivre Spotify directement."}
-                            </small>
-                        </div>
-                        <button
-                            id="resyncDynamicLyricsButton"
-                            class="ios-command-secondary"
-                            type="button"
-                            ${dynamicLyricsSettings.enabled ? "" : "disabled"}
-                        >
-                            ↻ Resynchroniser manuellement
-                        </button>
-                    </div>
-
-                    <p class="dynamic-lyrics-auto-sync-note">
-                        Shuffle+ ne lance plus automatiquement le raccourci Dynamic Lyrics, ni au changement de titre ni après un profil : iOS demanderait une autorisation d’ouverture externe.
-                        Dynamic Lyrics suit Spotify nativement après son lancement. Utilise « Resynchroniser manuellement » quand tu veux l’ouvrir depuis Shuffle+, ou configure une automatisation iOS App/CarPlay pour le lancer sans passer par la PWA.
-                    </p>
-
-                    <div class="dynamic-lyrics-actions">
-                        <button
-                            id="copyDynamicLyricsTestUrlButton"
-                            class="ios-command-secondary"
-                            type="button"
-                        >
-                            🔗 Copier le lien test
-                        </button>
-                        <button
-                            id="testDynamicLyricsShortcutButton"
-                            class="ios-command-secondary"
-                            type="button"
-                        >
-                            ▶ Tester
-                        </button>
-                        <button
-                            class="ios-command-save"
-                            type="submit"
-                        >
-                            Enregistrer
-                        </button>
-                    </div>
-                </form>
-
-                <details class="dynamic-lyrics-help">
-                    <summary>Créer le raccourci compagnon sur iPhone</summary>
-                    <ol>
-                        <li>Dans Raccourcis, crée un raccourci portant exactement le nom indiqué ci-dessus.</li>
-                        <li>Ajoute l’action Dynamic Lyrics disponible sur ton iPhone, ou l’action « Ouvrir l’app » vers Dynamic Lyrics.</li>
-                        <li>Reviens ici et utilise le bouton « Tester » : ce test est volontairement manuel.</li>
-                        <li>Dans un profil Shuffle+, tu peux afficher un bouton Dynamic Lyrics après le lancement ; Shuffle+ ne l’ouvrira jamais tout seul.</li>
-                        <li>Pour un lancement réellement automatique, crée dans Raccourcis une automatisation personnelle « App » (Spotify) ou « CarPlay » qui exécute ton raccourci Dynamic Lyrics directement sur l’iPhone.</li>
-                    </ol>
-                    <p>
-                        Les ouvertures depuis Shuffle+ restent manuelles afin d’éviter les confirmations iOS répétées.
-                        L’intégration reste facultative et n’ajoute aucune parole au mode conduite.
-                    </p>
-                </details>
-            </section>
 
             <details class="ios-shortcut-setup" open>
                 <summary>Configuration recommandée dans Raccourcis iOS</summary>
@@ -24217,33 +23695,6 @@ function renderIosCommandsPanel() {
                     <span>Ouvrir le mode conduite après le lancement</span>
                 </label>
                 ` : ""}
-
-                <label class="ios-command-check dynamic-lyrics-command-option">
-                    <input
-                        name="openDynamicLyrics"
-                        type="checkbox"
-                        ${formCommand.openDynamicLyrics ? "checked" : ""}
-                        ${dynamicLyricsSettings.enabled ? "" : "disabled"}
-                    >
-                    <span>
-                        Afficher un bouton Dynamic Lyrics après le lancement (manuel)
-                        ${dynamicLyricsSettings.enabled
-                            ? ""
-                            : " · active d’abord l’intégration ci-dessus"}
-                    </span>
-                </label>
-
-                <label class="ios-command-field dynamic-lyrics-command-option">
-                    <span>Raccourci Dynamic Lyrics spécifique (facultatif)</span>
-                    <input
-                        name="dynamicLyricsShortcutName"
-                        type="text"
-                        maxlength="120"
-                        value="${escapeHtml(formCommand.dynamicLyricsShortcutName)}"
-                        placeholder="${escapeHtml(dynamicLyricsSettings.shortcutName)}"
-                        ${dynamicLyricsSettings.enabled ? "" : "disabled"}
-                    >
-                </label>
 
                 <label class="ios-command-check">
                     <input
@@ -25042,53 +24493,6 @@ async function startPlaylistContextPlayback(
     return playback;
 }
 
-function getDynamicLyricsLaunchContext(
-    command = {},
-    {
-        openDynamicLyrics = false,
-        dynamicLyricsShortcutName = ""
-    } = {}
-) {
-    const requested =
-        openDynamicLyrics ||
-        (
-            dynamicLyricsSettings.enabled &&
-            command.openDynamicLyrics === true
-        );
-    const shortcutName =
-        String(
-            dynamicLyricsShortcutName ||
-            command.dynamicLyricsShortcutName ||
-            dynamicLyricsSettings.shortcutName ||
-            ""
-        ).trim();
-
-    if (!requested || !shortcutName) {
-        return {
-            requested: false,
-            shortcutName: "",
-            url: ""
-        };
-    }
-
-    return {
-        requested: true,
-        shortcutName,
-        url: buildDynamicLyricsLaunchUrl(
-            {
-                ...command,
-                openDynamicLyrics: true,
-                dynamicLyricsShortcutName:
-                    shortcutName
-            },
-            {
-                ...dynamicLyricsSettings,
-                enabled: true
-            }
-        )
-    };
-}
-
 function buildLaunchDiagnosticText({
     command,
     status = "info",
@@ -25214,8 +24618,6 @@ function renderLaunchRecoveryActions(actions = [], retryContext = {}) {
                     data-playlist-id="${escapeHtml(retryContext.playlistId || "")}"
                     data-command-id="${escapeHtml(retryContext.commandId || "")}"
                     data-open-driving="${retryContext.openDrivingMode ? "1" : "0"}"
-                    data-open-lyrics="${retryContext.openDynamicLyrics ? "1" : "0"}"
-                    data-lyrics-shortcut="${escapeHtml(retryContext.dynamicLyricsShortcutName || "")}"
                 >
                     ${escapeHtml(action.label)}
                 </button>
@@ -25229,8 +24631,6 @@ async function runIosQuickPlay(
     commandId = "",
     {
         openDrivingMode = false,
-        openDynamicLyrics = false,
-        dynamicLyricsShortcutName = "",
         source = "manual"
     } = {}
 ) {
@@ -25245,13 +24645,6 @@ async function runIosQuickPlay(
     }
 
     const command = getEffectiveIosCommand(commandId);
-    const dynamicLyricsLaunch = getDynamicLyricsLaunchContext(
-        command,
-        {
-            openDynamicLyrics,
-            dynamicLyricsShortcutName
-        }
-    );
     const resolvedPlaylistId = playlistId || command.playlistId;
     const launchStartedAt = performance.now();
     let launchSteps = [];
@@ -25550,16 +24943,6 @@ async function runIosQuickPlay(
                 ? "Ouverture demandée"
                 : "Non demandé"
         });
-        launchSteps = upsertLaunchStep(launchSteps, {
-            id: "lyrics",
-            label: "Dynamic Lyrics",
-            status: dynamicLyricsLaunch.requested
-                ? "success"
-                : "skipped",
-            message: dynamicLyricsLaunch.requested
-                ? `Bouton manuel « ${dynamicLyricsLaunch.shortcutName} » disponible`
-                : "Non demandé"
-        });
 
         const launchDurationMs = performance.now() - launchStartedAt;
         lastLaunchDiagnosticText = buildLaunchDiagnosticText({
@@ -25590,21 +24973,9 @@ async function runIosQuickPlay(
                 </p>
                 ${renderShortcutProfileDiagnosticSteps({ steps: launchSteps })}
                 <div class="launch-result-actions">
-                    ${dynamicLyricsLaunch.requested
-                        ? `
-                            <button
-                                id="openDynamicLyricsButton"
-                                class="primary-button"
-                                type="button"
-                                data-shortcut-url="${escapeHtml(dynamicLyricsLaunch.url)}"
-                            >
-                                🎤 Ouvrir Dynamic Lyrics
-                            </button>
-                        `
-                        : ""}
                     <button
                         id="backToPlaylists"
-                        class="${dynamicLyricsLaunch.requested ? "secondary-button" : "primary-button"}"
+                        class="primary-button"
                         type="button"
                         data-back-menu="quick"
                     >
@@ -25698,9 +25069,7 @@ async function runIosQuickPlay(
                 playlistId: resolvedPlaylistId,
                 commandId: command.id,
                 autoplay: true,
-                openDrivingMode: command.openDrivingMode || openDrivingMode,
-                openDynamicLyrics: dynamicLyricsLaunch.requested,
-                dynamicLyricsShortcutName: dynamicLyricsLaunch.shortcutName
+                openDrivingMode: command.openDrivingMode || openDrivingMode
             });
         } else {
             savePendingAutomationCommand(null);
@@ -25721,9 +25090,7 @@ async function runIosQuickPlay(
                     {
                         playlistId: resolvedPlaylistId,
                         commandId: command.id,
-                        openDrivingMode: command.openDrivingMode || openDrivingMode,
-                        openDynamicLyrics: dynamicLyricsLaunch.requested,
-                        dynamicLyricsShortcutName: dynamicLyricsLaunch.shortcutName
+                        openDrivingMode: command.openDrivingMode || openDrivingMode
                     }
                 )}
                 <button
@@ -25895,10 +25262,6 @@ async function executeAutomationCommandCore(
             {
                 openDrivingMode:
                     normalized.openDrivingMode,
-                openDynamicLyrics:
-                    normalized.openDynamicLyrics,
-                dynamicLyricsShortcutName:
-                    normalized.dynamicLyricsShortcutName,
                 source
             }
         );
@@ -26033,16 +25396,6 @@ async function executeAutomationCommandCore(
         const command =
             getEffectiveIosCommand(
                 normalized.commandId
-            );
-        const dynamicLyricsLaunch =
-            getDynamicLyricsLaunchContext(
-                command,
-                {
-                    openDynamicLyrics:
-                        normalized.openDynamicLyrics,
-                    dynamicLyricsShortcutName:
-                        normalized.dynamicLyricsShortcutName
-                }
             );
 
         if (
@@ -34461,7 +33814,6 @@ function buildBackupPayload() {
         pinnedShortcutProfileIds,
         iosCommandHistory,
         guidedSetupState,
-        dynamicLyricsSettings,
         adaptiveDjMenuSettings,
         adaptiveDjMenuHistory,
         adaptiveLearningState,
@@ -34640,11 +33992,6 @@ function validateBackupPayload(payload) {
         guidedSetupState:
             normalizeGuidedSetupState(
                 payload.data.guidedSetupState || {}
-            ),
-        dynamicLyricsSettings:
-            normalizeDynamicLyricsSettings(
-                payload.data.dynamicLyricsSettings ||
-                DEFAULT_DYNAMIC_LYRICS_SETTINGS
             ),
         adaptiveDjMenuSettings:
             normalizeAdaptiveDjMenuSettings(
@@ -34856,9 +34203,6 @@ function applyValidatedBackupState(imported) {
         guidedSetupState,
         GUIDED_SETUP_KEY
     );
-    dynamicLyricsSettings =
-        imported.dynamicLyricsSettings;
-    saveDynamicLyricsSettings();
     adaptiveDjMenuSettings =
         imported.adaptiveDjMenuSettings;
     saveAdaptiveDjMenuSettings();
@@ -35218,7 +34562,6 @@ function getSyncDataUpdatedAt(data = {}) {
         Number(data.adaptiveLearningState?.updatedAt || 0),
         Number(data.intelligenceAnalytics?.updatedAt || 0),
         Number(data.musicFeedbackState?.updatedAt || 0),
-        Number(data.dynamicLyricsSettings?.updatedAt || 0),
         Number(data.guidedSetupState?.updatedAt || 0),
         Number(data.contextualProfileState?.updatedAt || 0)
     ];
@@ -36982,8 +36325,6 @@ function applySelectiveAutomationCategory(
         iosQuickPlaySettings = remoteImported.iosQuickPlaySettings;
         iosCommands = remoteImported.iosCommands;
         pinnedShortcutProfileIds = remoteImported.pinnedShortcutProfileIds;
-        dynamicLyricsSettings =
-            remoteImported.dynamicLyricsSettings;
         adaptiveDjMenuSettings = remoteImported.adaptiveDjMenuSettings;
         drivingModeSettings = remoteImported.drivingModeSettings;
         quickContextsState = remoteImported.quickContextsState;
@@ -37036,16 +36377,6 @@ function applySelectiveAutomationCategory(
             )
                 ? remoteImported.voiceAssistantSettings
                 : localImported.voiceAssistantSettings;
-        dynamicLyricsSettings =
-            Number(
-                remoteImported.dynamicLyricsSettings
-                    ?.updatedAt || 0
-            ) >= Number(
-                localImported.dynamicLyricsSettings
-                    ?.updatedAt || 0
-            )
-                ? remoteImported.dynamicLyricsSettings
-                : localImported.dynamicLyricsSettings;
     }
 
     if (!iosCommands.length) {
@@ -37060,7 +36391,6 @@ function applySelectiveAutomationCategory(
     saveIosQuickPlaySettings();
     saveIosCommands();
     savePinnedShortcutProfiles();
-    saveDynamicLyricsSettings();
     saveAdaptiveDjMenuSettings();
     saveDrivingModeSettings();
     saveQuickContextsState();
@@ -45669,7 +44999,6 @@ async function initializeApp() {
         }
 
         startScheduleWatcher();
-        startDynamicLyricsAutoSyncMonitor();
 
         if (blockedDrivingRequest) {
             blockedDrivingRequest = false;
@@ -46068,11 +45397,6 @@ contentElement.addEventListener(
             return;
         }
 
-        if (event.target.closest("[data-home-open-dynamic-lyrics]")) {
-            openDynamicLyricsTestShortcut();
-            return;
-        }
-
         if (event.target.closest("[data-guided-primary-launch]")) {
             await runGuidedPrimaryLaunch();
             return;
@@ -46190,11 +45514,7 @@ contentElement.addEventListener(
                     launchRecoveryButton.dataset.commandId || "",
                     {
                         openDrivingMode:
-                            launchRecoveryButton.dataset.openDriving === "1",
-                        openDynamicLyrics:
-                            launchRecoveryButton.dataset.openLyrics === "1",
-                        dynamicLyricsShortcutName:
-                            launchRecoveryButton.dataset.lyricsShortcut || ""
+                            launchRecoveryButton.dataset.openDriving === "1"
                     }
                 );
                 return;
@@ -47217,11 +46537,6 @@ contentElement.addEventListener(
             return;
         }
 
-        if (event.target.closest("#drivingDynamicLyricsButton")) {
-            await resyncDynamicLyricsNow();
-            return;
-        }
-
         if (
             event.target.closest(
                 "#drivingRefreshButton"
@@ -47650,49 +46965,6 @@ contentElement.addEventListener(
             return;
         }
 
-        if (
-            event.target.closest(
-                "#copyDynamicLyricsTestUrlButton"
-            )
-        ) {
-            await copyDynamicLyricsTestUrl();
-            return;
-        }
-
-        if (
-            event.target.closest(
-                "#testDynamicLyricsShortcutButton"
-            )
-        ) {
-            openDynamicLyricsTestShortcut();
-            return;
-        }
-
-        if (
-            event.target.closest(
-                "#resyncDynamicLyricsButton"
-            )
-        ) {
-            await resyncDynamicLyricsNow();
-            return;
-        }
-
-        const openDynamicLyricsButton =
-            event.target.closest(
-                "#openDynamicLyricsButton"
-            );
-
-        if (openDynamicLyricsButton) {
-            const shortcutUrl =
-                openDynamicLyricsButton.dataset
-                    .shortcutUrl || "";
-
-            if (shortcutUrl.startsWith("shortcuts://")) {
-                window.location.href = shortcutUrl;
-            }
-            return;
-        }
-
         const iosAssistantButton =
             event.target.closest(
                 "[data-ios-assistant-action]"
@@ -47798,11 +47070,7 @@ contentElement.addEventListener(
                 retryIosButton.dataset.commandId || "",
                 {
                     openDrivingMode:
-                        retryIosButton.dataset.openDriving === "1",
-                    openDynamicLyrics:
-                        retryIosButton.dataset.openLyrics === "1",
-                    dynamicLyricsShortcutName:
-                        retryIosButton.dataset.lyricsShortcut || ""
+                        retryIosButton.dataset.openDriving === "1"
                 }
             );
             return;
@@ -49768,16 +49036,6 @@ contentElement.addEventListener(
         }
 
         if (
-            event.target.id === "dynamicLyricsSettingsForm"
-        ) {
-            event.preventDefault();
-            saveDynamicLyricsSettingsFromForm(
-                event.target
-            );
-            return;
-        }
-
-        if (
             event.target.id === "iosCommandForm"
         ) {
             event.preventDefault();
@@ -50483,10 +49741,6 @@ async function refreshSessionAfterResume({
         );
         drivingPlaybackState = quickPlaybackState;
         playback = quickPlaybackState;
-        await observeDynamicLyricsPlayback(
-            quickPlaybackState,
-            { source: "session-resume" }
-        );
         updateHomeNowPlayingDom();
     }
 
@@ -50877,7 +50131,6 @@ document.addEventListener(
             sessionResumeCoordinator.markHidden();
             stopDrivingRefreshTimer();
             stopMusicalDashboardRefreshTimer();
-            stopDynamicLyricsAutoSyncMonitor();
             return;
         }
 
@@ -50890,7 +50143,6 @@ document.addEventListener(
                 }
             );
         }
-        startDynamicLyricsAutoSyncMonitor();
         runServerAutoSync("visible");
         resumePendingAutomationLaunch("visible");
 

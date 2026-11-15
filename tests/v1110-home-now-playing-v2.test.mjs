@@ -42,8 +42,8 @@ function makePlayback() {
     };
 }
 
-test("Shuffle+ 12.0.0 enrichit la lecture en cours avec l’état Spotify", () => {
-    assert.equal(version, "12.0.0");
+test("Shuffle+ 12.0.1 enrichit la lecture en cours avec l’état Spotify", () => {
+    assert.equal(version, "12.0.1");
     const snapshot = buildDailyHomeSnapshot({
         playback: makePlayback(),
         guidedSetup: { complete: true, progress: 100, steps: [] }
@@ -57,10 +57,9 @@ test("Shuffle+ 12.0.0 enrichit la lecture en cours avec l’état Spotify", () =
     assert.equal(snapshot.playback.repeatLabel, "Contexte");
 });
 
-test("la carte Lecture en cours V2 affiche appareil, shuffle, répétition et Dynamic Lyrics manuel", () => {
+test("la carte Lecture en cours V2 affiche appareil, shuffle et répétition sans Dynamic Lyrics", () => {
     const snapshot = buildDailyHomeSnapshot({
         playback: makePlayback(),
-        dynamicLyricsEnabled: true,
         guidedSetup: { complete: true, progress: 100, steps: [] }
     });
     const html = renderDailyHomeMarkup(snapshot);
@@ -69,7 +68,7 @@ test("la carte Lecture en cours V2 affiche appareil, shuffle, répétition et Dy
     assert.match(html, /data-home-now-device-name/);
     assert.match(html, /Aléatoire ON/);
     assert.match(html, /Répétition Contexte/);
-    assert.match(html, /data-home-open-dynamic-lyrics/);
+    assert.doesNotMatch(html, /data-home-open-dynamic-lyrics/);
     assert.ok(
         html.indexOf("data-home-now-playing") < html.indexOf("v98-home-blocks"),
         "Lecture en cours doit rester prioritaire"
@@ -132,6 +131,6 @@ test("les métadonnées V11.1 se mettent à jour en place via le module Player+"
     assert.match(playerPlusSource, /data-home-shuffle-state/);
     assert.match(playerPlusSource, /data-home-repeat-state/);
     assert.match(appSource, /updateUpcomingPreview: updateHomeUpcomingPreviewDom/);
-    assert.match(appSource, /data-home-open-dynamic-lyrics/);
-    assert.match(homeStyles, /Shuffle\+ v12\.0\.0 — Accueil & Lecture en cours V2/);
+    assert.doesNotMatch(appSource, /data-home-open-dynamic-lyrics/);
+    assert.match(homeStyles, /Shuffle\+ v12\.0\.1 — Accueil & Lecture en cours V2/);
 });

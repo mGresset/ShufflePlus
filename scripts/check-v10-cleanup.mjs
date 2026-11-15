@@ -54,7 +54,6 @@ for (const modulePath of [
     "./core/experience-mode-ui.js",
     "./core/experience-mode-controller.js",
     "./core/release-readiness-ui.js",
-    "./core/dynamic-lyrics-sync.js",
     "./core/ios-shortcut-assistant.js"
 ]) {
     if (!serviceWorker.includes(modulePath)) {
@@ -76,8 +75,12 @@ if (style.includes(".experience-mode-option")) {
 
 
 
-if (!app.includes("observeDynamicLyricsPlayback") || !app.includes("renderIosShortcutAssistantMarkup")) {
-    fail("Les briques iPhone/Dynamic Lyrics V10.5 ne sont pas reliées à l’application.");
+if (app.includes("observeDynamicLyricsPlayback") || serviceWorker.includes("./core/dynamic-lyrics-sync.js")) {
+    fail("Dynamic Lyrics ne doit plus être actif dans le runtime ou le shell PWA.");
+}
+
+if (!app.includes("renderIosShortcutAssistantMarkup")) {
+    fail("L’assistant Raccourcis iPhone doit rester relié à l’application.");
 }
 
 if (!serviceWorker.includes("ROLLBACK_TO_PREVIOUS") || !serviceWorker.includes("META_CACHE")) {

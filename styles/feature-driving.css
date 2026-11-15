@@ -1407,8 +1407,7 @@ body.is-driving-mode .driving-control[data-driving-control="shuffle"].is-shuffle
     }
 }
 
-/* Shuffle+ v12.0.0 — Mode Conduite V2 */
-.driving-dynamic-lyrics-button{border-color:color-mix(in srgb,var(--accent) 34%,var(--ui-control-border))!important;background:rgb(var(--accent-rgb) / 10%)!important}
+/* Shuffle+ v12.0.1 — Mode Conduite V2 */
 @media(max-width:700px){
 body.is-driving-mode .driving-context-card{display:none}
 body.is-driving-mode .driving-now-playing{min-height:100px;grid-template-columns:88px minmax(0,1fr);gap:11px;padding:8px 10px;border-radius:17px}

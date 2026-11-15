@@ -76,8 +76,8 @@ if (!home.includes(".primary-launch-reliability")) {
 if (style.includes(".experience-mode-option")) {
     failures.push("les styles Essentiel/Expert sont encore dans style.css");
 }
-if (!settings.includes("Shuffle+ v12.0.0 — Expérience Essentiel / Expert")) {
-    failures.push("feature-settings.css ne contient pas le contrat Essentiel/Expert v12.0.0");
+if (!settings.includes("Shuffle+ v12.0.1 — Expérience Essentiel / Expert")) {
+    failures.push("feature-settings.css ne contient pas le contrat Essentiel/Expert v12.0.1");
 }
 if (!settings.includes(".experience-mode-option__content")) {
     failures.push("la structure lisible des cartes Essentiel/Expert est absente");

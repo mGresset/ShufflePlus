@@ -53,8 +53,8 @@ const queue = [
     }
 ];
 
-test("la distribution active annonce Shuffle+ 12.0.0", () => {
-    assert.equal(version, "12.0.0");
+test("la distribution active annonce Shuffle+ 12.0.1", () => {
+    assert.equal(version, "12.0.1");
 });
 
 test("l’analyse de continuité calcule durée, doublons et artistes", () => {

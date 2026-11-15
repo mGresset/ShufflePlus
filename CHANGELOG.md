@@ -1,5 +1,15 @@
 # Changelog Shuffle+
 
+## 12.0.1 — Retrait de Dynamic Lyrics
+
+- retire Dynamic Lyrics de l’interface : plus de panneau de réglages, bouton Accueil, bouton Mode conduite, option de profil ni bouton post-lancement ;
+- supprime le polling et la surveillance de titres Dynamic Lyrics du runtime ;
+- retire `core/dynamic-lyrics.js` et `core/dynamic-lyrics-sync.js` du graphe actif et du shell PWA, sans supprimer les fichiers historiques du dépôt ;
+- les anciens champs `openDynamicLyrics`, `dynamicLyricsShortcutName` et paramètres d’URL `lyrics` / `lyricsShortcut` restent tolérés à la lecture pour compatibilité mais sont ignorés à l’exécution ;
+- les nouvelles URL et nouveaux profils n’émettent plus d’options Dynamic Lyrics ;
+- les Apple Raccourcis Shuffle+ de lancement Spotify/Railway restent inchangés et pleinement pris en charge ;
+- remplace les anciens tests Dynamic Lyrics par des garde-fous garantissant que la fonctionnalité ne réapparaît pas dans l’UI/runtime tout en préservant la compatibilité legacy.
+
 ## 12.0.0 — Spotify Reliability & Preferred Device Identity
 
 ### iPhone préféré : identité logique persistante

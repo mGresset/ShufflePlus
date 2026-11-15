@@ -58,9 +58,9 @@ test("la v8.3 conserve la personnalisation par variables de thème", () => {
     assert.doesNotMatch(indexSource, /Bienvenue Matthieu/);
 });
 
-test("les métadonnées de distribution annoncent la v12.0.0", () => {
-    assert.equal(versionSource, "12.0.0");
-    assert.match(packageSource, /"version": "12\.0\.0"/);
-    assert.match(indexSource, /shuffleplus-version" content="12\.0\.0/);
-    assert.match(indexSource, /startup-recovery-12\.0\.0\.js/);
+test("les métadonnées de distribution annoncent la v12.0.1", () => {
+    assert.equal(versionSource, "12.0.1");
+    assert.match(packageSource, /"version": "12\.0\.1"/);
+    assert.match(indexSource, /shuffleplus-version" content="12\.0\.1/);
+    assert.match(indexSource, /startup-recovery-12\.0\.1\.js/);
 });

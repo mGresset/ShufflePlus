@@ -1,4 +1,4 @@
-# Validation terrain Shuffle+ v12.0.0
+# Validation terrain Shuffle+ v12.0.1
 
 ## Conditions obligatoires
 
@@ -31,4 +31,4 @@
 
 La V11 consolide les mécanismes devenus stables pendant la V10 au lieu d’ajouter une nouvelle couche de comportement Spotify. Les contrats de validation et de nettoyage ne dépendent plus d’un numéro de branche historique, la documentation de finalisation porte un nom pérenne et les libellés actifs de l’interface ne présentent plus V10 comme la version courante.
 
-Les mécanismes éprouvés restent conservés : Lecture en cours, reprise iPhone, sauvegardes versionnées, rollback PWA, Dynamic Lyrics, mode conduite, raccourcis iOS et serveur Railway (v5.3.0 recommandé, v5.2.1 compatible). Les mentions V10.1 encore présentes dans la section de migration désignent uniquement l’ancien format de raccourci à migrer et ne constituent pas un numéro de version active.
+Les mécanismes éprouvés restent conservés : Lecture en cours, reprise iPhone, sauvegardes versionnées, rollback PWA, mode conduite, raccourcis iOS et serveur Railway (v5.3.0 recommandé, v5.2.1 compatible). Dynamic Lyrics est volontairement retiré de l’UI/runtime depuis la 12.0.1 ; ses anciens champs restent seulement tolérés pour compatibilité. Les mentions V10.1 encore présentes dans la section de migration désignent uniquement l’ancien format de raccourci à migrer et ne constituent pas un numéro de version active.

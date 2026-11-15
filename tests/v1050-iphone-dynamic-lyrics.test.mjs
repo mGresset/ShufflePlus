@@ -6,32 +6,14 @@ import {
     buildIosShortcutAssistantGuide,
     getIosShortcutAssistantState
 } from "../core/ios-shortcut-assistant.js";
-import {
-    buildDynamicLyricsTrackInput,
-    evaluateDynamicLyricsTrackChange,
-    getPlaybackTrackKey
-} from "../core/dynamic-lyrics-sync.js";
 
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 const workerSource = await readFile("service-worker.js", "utf8");
 const styleSource = await readFile("style.css", "utf8");
 
-function playback(id = "track-a") {
-    return {
-        item: {
-            id,
-            uri: `spotify:track:${id}`,
-            type: "track",
-            name: id === "track-a" ? "Premier titre" : "Titre suivant",
-            artists: [{ name: "Artiste test" }],
-            album: { name: "Album test" }
-        }
-    };
-}
-
-test("Shuffle+ 12.0.0 ajoute l’assistant iPhone simplifié", () => {
-    assert.equal(version, "12.0.0");
+test("Shuffle+ 12.0.1 conserve l’assistant iPhone sans dépendre de Dynamic Lyrics", () => {
+    assert.equal(version, "12.0.1");
     const guide = buildIosShortcutAssistantGuide({
         commandName: "Moto",
         launchUrl: "https://example.test/?action=quickplay",
@@ -56,38 +38,10 @@ test("Shuffle+ 12.0.0 ajoute l’assistant iPhone simplifié", () => {
     assert.match(styleSource, /\.ios-shortcut-assistant-panel/);
 });
 
-test("Dynamic Lyrics détecte un vrai changement de titre sans se déclencher au premier échantillon", () => {
-    const first = evaluateDynamicLyricsTrackChange({
-        playback: playback("track-a"),
-        previousTrackKey: "",
-        enabled: true,
-        autoSyncOnTrackChange: true,
-        visible: true
-    });
-    assert.equal(first.shouldSync, false);
-    assert.equal(first.initializeOnly, true);
-    assert.equal(first.nextTrackKey, "id:track-a");
-
-    const changed = evaluateDynamicLyricsTrackChange({
-        playback: playback("track-b"),
-        previousTrackKey: first.nextTrackKey,
-        enabled: true,
-        autoSyncOnTrackChange: true,
-        visible: true
-    });
-    assert.equal(changed.changed, true);
-    assert.equal(changed.shouldSync, true);
-    assert.equal(getPlaybackTrackKey(playback("track-b")), "id:track-b");
-    assert.match(buildDynamicLyricsTrackInput(playback("track-b")), /Titre suivant/);
-});
-
-test("Dynamic Lyrics Auto-Sync reste opt-in et suspend son polling quand la PWA est masquée", () => {
-    assert.match(appSource, /name="autoSyncOnTrackChange"/);
-    assert.match(appSource, /name="autoSyncIntervalMs"/);
-    assert.match(appSource, /id="resyncDynamicLyricsButton"/);
-    assert.match(appSource, /stopDynamicLyricsAutoSyncMonitor\(\)/);
-    assert.match(appSource, /document\.visibilityState !== "visible"/);
-    assert.match(appSource, /observeDynamicLyricsPlayback\(/);
-    assert.match(workerSource, /\.\/core\/dynamic-lyrics-sync\.js/);
+test("aucun Auto-Sync Dynamic Lyrics ne tourne après la v12.0.1", () => {
+    assert.doesNotMatch(appSource, /autoSyncOnTrackChange/);
+    assert.doesNotMatch(appSource, /pollDynamicLyricsTrackChange/);
+    assert.doesNotMatch(appSource, /observeDynamicLyricsPlayback/);
+    assert.doesNotMatch(workerSource, /\.\/core\/dynamic-lyrics-sync\.js/);
     assert.match(workerSource, /\.\/core\/ios-shortcut-assistant\.js/);
 });

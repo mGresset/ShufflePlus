@@ -1,6 +1,6 @@
 # Feuille de route Shuffle+
 
-- **v12.0.0 — Spotify Reliability & Preferred Device Identity : iPhone préféré comme identité logique, réassociation A → B, mode strict garanti, session et Player fiabilisés : terminée**
+- **v12.0.1 — Spotify Reliability & Preferred Device Identity : iPhone préféré comme identité logique, réassociation A → B, mode strict garanti, session et Player fiabilisés : terminée**
 - **v11.13.0 — Chargement paresseux renforcé : Assistant musical et partage/import de profils chargés uniquement au premier usage : terminée**
 - **v11.8.0 — Tests navigateur réels : Playwright Chromium + WebKit/iPhone, mocks Spotify et validation PWA : terminée**
 - **v11.7.0 — Profils partageables : export, partage iOS, import sûr et format versionné : terminée**

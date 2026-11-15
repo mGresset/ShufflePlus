@@ -12,16 +12,16 @@ const packageJson = JSON.parse(await readFile("package.json", "utf8"));
 await access("RELEASE-CHECKLIST.md");
 await access("scripts/check-release-cleanup.mjs");
 
-test("Shuffle+ 12.0.0 ouvre une branche stable cohérente", () => {
-    assert.equal(version, "12.0.0");
-    assert.match(index, /Shuffle\+ 12\.0\.0 · Stable/);
-    assert.match(index, /bootstrap-12\.0\.0\.js/);
-    assert.match(index, /startup-recovery-12\.0\.0\.js/);
+test("Shuffle+ 12.0.1 ouvre une branche stable cohérente", () => {
+    assert.equal(version, "12.0.1");
+    assert.match(index, /Shuffle\+ 12\.0\.1 · Stable/);
+    assert.match(index, /bootstrap-12\.0\.1\.js/);
+    assert.match(index, /startup-recovery-12\.0\.1\.js/);
 });
 
 test("app.js réutilise CONFIG.version comme source runtime", () => {
     assert.match(app, /const APP_VERSION = CONFIG\.version;/);
-    assert.doesNotMatch(app, /const APP_VERSION = "12\.0\.0";/);
+    assert.doesNotMatch(app, /const APP_VERSION = "12\.0\.1";/);
 });
 
 test("la validation terrain n'est plus figée sur V10", () => {

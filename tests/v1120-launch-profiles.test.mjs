@@ -19,8 +19,8 @@ const commands = [
     { id: "c", name: "C" }
 ];
 
-test("Shuffle+ 12.0.0 conserve un ordre de profils complet et sans doublon", () => {
-    assert.equal(version, "12.0.0");
+test("Shuffle+ 12.0.1 conserve un ordre de profils complet et sans doublon", () => {
+    assert.equal(version, "12.0.1");
     assert.deepEqual(
         normalizeShortcutProfileOrder(["c", "c", "inconnu"], commands),
         ["c", "a", "b"]
@@ -46,7 +46,7 @@ test("un profil peut être déplacé explicitement", () => {
     );
 });
 
-test("l’aperçu rappelle que Dynamic Lyrics est manuel", () => {
+test("l’aperçu ignore les anciens champs Dynamic Lyrics", () => {
     const preview = buildShortcutProfilePreview({
         shuffle: true,
         startFromBeginning: false,
@@ -57,7 +57,8 @@ test("l’aperçu rappelle que Dynamic Lyrics est manuel", () => {
         deviceLabel: "iPhone"
     });
     assert.equal(preview.sourceLabel, "Ma playlist");
-    assert.match(preview.dynamicLyricsLabel, /manuellement/);
+    assert.equal(preview.drivingLabel, "Mode conduite après lancement");
+    assert.equal(Object.hasOwn(preview, "dynamicLyricsLabel"), false);
 });
 
 test("le Centre de lancement expose favoris, ordre et aperçu avant lancement", () => {
@@ -66,5 +67,5 @@ test("le Centre de lancement expose favoris, ordre et aperçu avant lancement", 
     assert.match(appSource, /data-ios-command-action="move-down"/);
     assert.match(appSource, /Aperçu avant lancement/);
     assert.match(appSource, /getOrderedShortcutProfiles/);
-    assert.match(styles, /Shuffle\+ v12\.0\.0 — Profils & lancements simplifiés/);
+    assert.match(styles, /Shuffle\+ v12\.0\.1 — Profils & lancements simplifiés/);
 });

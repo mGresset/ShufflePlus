@@ -15,14 +15,14 @@ function readArray(name) {
     return [...match[1].matchAll(/"([^"\\]+)"/g)].map((item) => item[1]);
 }
 
-test("Shuffle+ 12.0.0 réduit le lot PWA réellement bloquant", () => {
-    assert.equal(version, "12.0.0");
+test("Shuffle+ 12.0.1 réduit le lot PWA réellement bloquant", () => {
+    assert.equal(version, "12.0.1");
     const critical = readArray("CRITICAL_APP_SHELL");
     const runtime = readArray("RUNTIME_APP_SHELL");
     const optional = readArray("OPTIONAL_APP_SHELL");
     assert.ok(critical.length <= 16);
     assert.ok(runtime.length >= 40);
-    assert.ok(critical.includes("./app.js?v=12.0.0&build=12.0.0-pwa-reset-1"));
+    assert.ok(critical.includes("./app.js?v=12.0.1&build=12.0.1-pwa-reset-1"));
     assert.ok(runtime.includes("./core/playback-clock.js"));
     assert.ok(!runtime.includes("./musical-assistant.js"));
     assert.ok(optional.includes("./musical-assistant.js"));

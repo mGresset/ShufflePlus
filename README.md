@@ -1,4 +1,4 @@
-# Shuffle+ v12.0.0
+# Shuffle+ v12.0.1
 
 Shuffle+ est une application web progressive (PWA) conçue pour préparer, lancer et piloter rapidement de la musique Spotify depuis un ordinateur ou un iPhone.
 
@@ -15,7 +15,7 @@ L’application regroupe dans une seule interface :
 - des recommandations, statistiques et objectifs ;
 - la sauvegarde locale et la synchronisation chiffrée entre appareils.
 
-> **État du projet :** **Shuffle+ 12.0.0 — Spotify Reliability & Preferred Device Identity.** Ton iPhone préféré devient une identité logique persistante : quand Spotify renouvelle son `device_id`, Shuffle+ le retrouve automatiquement (même nom et même type, ou identifiant déjà connu), sans jamais basculer sur un autre appareil en mode strict. La session Spotify est renouvelée de façon transparente (refresh single-flight, rotation protégée, 401 → un seul renouvellement), les commandes Player sont sérialisées et les lancements Apple Raccourcis sont dédupliqués par `requestId`, bornés dans le temps et publiés dans l’ordre sur Railway **v5.3.0**. Toutes les fonctionnalités v11 sont conservées.
+> **État du projet :** **Shuffle+ 12.0.1 — Spotify Reliability & Preferred Device Identity.** Ton iPhone préféré devient une identité logique persistante : quand Spotify renouvelle son `device_id`, Shuffle+ le retrouve automatiquement (même nom et même type, ou identifiant déjà connu), sans jamais basculer sur un autre appareil en mode strict. La session Spotify est renouvelée de façon transparente (refresh single-flight, rotation protégée, 401 → un seul renouvellement), les commandes Player sont sérialisées et les lancements Apple Raccourcis sont dédupliqués par `requestId`, bornés dans le temps et publiés dans l’ordre sur Railway **v5.3.0**. Toutes les fonctionnalités v11 sont conservées.
 
 ---
 
@@ -116,7 +116,6 @@ La V11.1 met l’écran quotidien au premier plan :
 - la pochette, le titre, l’artiste et l’album sont actualisés en place ;
 - l’appareil Spotify actif, l’état **Aléatoire** et le mode **Répétition** sont visibles sans ouvrir un autre menu ;
 - un aperçu compact des **trois prochains titres** est affiché dans la carte principale ;
-- le bouton **Dynamic Lyrics** reste une action manuelle volontaire ;
 - les autres sections de l’accueil peuvent être déplacées avec les boutons ↑ / ↓ ou masquées depuis **Personnaliser**.
 
 ### Player+ — v11.5.0
@@ -192,7 +191,6 @@ Un profil de lancement peut mémoriser :
 - le départ aléatoire ;
 - la lecture automatique ;
 - l’ouverture du mode conduite ;
-- l’intégration Dynamic Lyrics.
 
 Les profils peuvent être épinglés sur l’accueil et lancés depuis le Centre de lancement, un raccourci iPhone ou une suggestion contextuelle.
 
@@ -567,13 +565,9 @@ https://shuffleplus-production.up.railway.app/v1/launch-results/[RequestId]?toke
 Les trois paramètres nécessaires au retour sécurisé sont donc `resultServer`, `requestId` et `resultToken`. Le premier est fourni par Shuffle+ dans l’URL copiée ; les deux autres sont ajoutés par Raccourcis à chaque lancement.
 
 
-#### Dynamic Lyrics · suivi Spotify V10.5
+#### Dynamic Lyrics · retiré en 12.0.1
 
-Dans **Créer > Centre de commandes iOS > Dynamic Lyrics**, Shuffle+ peut surveiller le titre Spotify à des fins de diagnostic, mais **n’ouvre jamais automatiquement Raccourcis**. Les ouvertures Dynamic Lyrics depuis Shuffle+ sont exclusivement manuelles afin d’éviter les confirmations iOS répétées.
-
-La fréquence peut être réglée à 2, 3, 5 ou 10 secondes. En mode conduite ou sur le tableau de bord, Shuffle+ réutilise les rafraîchissements Spotify déjà actifs afin d’éviter des appels redondants. Un bouton **Resynchroniser maintenant** permet aussi de forcer une actualisation manuelle.
-
-Pour un démarrage automatique de Dynamic Lyrics, configure une automatisation personnelle iOS déclenchée par **Spotify** ou **CarPlay** et fais-lui exécuter directement le raccourci Dynamic Lyrics. Cette automatisation s’exécute côté iPhone ; Shuffle+ n’essaie plus de contourner la confirmation d’ouverture externe imposée aux PWA.
+Dynamic Lyrics n’est plus exposé ni exécuté par Shuffle+. Les anciens profils et anciennes URL contenant des champs Dynamic Lyrics restent lisibles pour compatibilité, mais ces options sont ignorées. Les Apple Raccourcis Shuffle+ utilisés pour lancer les profils Spotify et récupérer le résultat via Railway ne sont pas concernés.
 
 #### Planificateur intelligent
 
@@ -609,7 +603,6 @@ Les réglages couvrent notamment :
 - thèmes et couleur personnalisée ;
 - disposition de l’accueil ;
 - options du shuffle ;
-- Dynamic Lyrics ;
 - assistant vocal ;
 - performance et fonctionnement hors connexion ;
 - installation et mise à jour de la PWA ;
@@ -909,8 +902,8 @@ spotify-api.js             Accès à l’API Spotify (401 → refresh unique, fi
 shuffle-engine.js          Génération des mix
 service-worker.js          Cache et fonctionnement PWA
 update-guard.js             Contrôle du premier démarrage et rollback PWA
-bootstrap-12.0.0.js        Chargement versionné et migration du runtime
-startup-recovery-12.0.0.js Réparation avant le chargement principal
+bootstrap-12.0.1.js        Chargement versionné et migration du runtime
+startup-recovery-12.0.1.js Réparation avant le chargement principal
 style.css                  Styles historiques et composants
  design-system.css         Harmonisation globale et thème
 ```

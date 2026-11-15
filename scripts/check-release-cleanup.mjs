@@ -15,8 +15,8 @@ function fail(message) {
     failures.push(message);
 }
 
-if (version !== "12.0.0") {
-    fail(`La release V11 doit annoncer 12.0.0, pas ${version}.`);
+if (version !== "12.0.1") {
+    fail(`La release V11 doit annoncer 12.0.1, pas ${version}.`);
 }
 
 if (!index.includes('name="shuffleplus-release-channel" content="stable"')) {
@@ -68,7 +68,6 @@ for (const modulePath of [
     "./core/experience-mode-ui.js",
     "./core/experience-mode-controller.js",
     "./core/release-readiness-ui.js",
-    "./core/dynamic-lyrics-sync.js",
     "./core/ios-shortcut-assistant.js",
     "./core/session-resume.js",
     "./core/backup-history.js"
@@ -90,8 +89,12 @@ if (style.includes(".experience-mode-option")) {
     fail("Les styles Essentiel/Expert sont encore dans style.css au lieu du module Réglages.");
 }
 
-if (!app.includes("observeDynamicLyricsPlayback") || !app.includes("renderIosShortcutAssistantMarkup")) {
-    fail("Les briques iPhone/Dynamic Lyrics ne sont pas reliées à l’application.");
+if (app.includes("observeDynamicLyricsPlayback") || serviceWorker.includes("./core/dynamic-lyrics-sync.js")) {
+    fail("Dynamic Lyrics ne doit plus être actif dans le runtime ou le shell PWA.");
+}
+
+if (!app.includes("renderIosShortcutAssistantMarkup")) {
+    fail("L’assistant Raccourcis iPhone doit rester relié à l’application.");
 }
 
 if (!serviceWorker.includes("ROLLBACK_TO_PREVIOUS") || !serviceWorker.includes("META_CACHE")) {

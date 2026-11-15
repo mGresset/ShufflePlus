@@ -36,7 +36,6 @@ export function buildDailyHomeSnapshot({
     queueUpdatedAt = 0,
     experienceMode = "essential",
     drivingAvailable = false,
-    dynamicLyricsEnabled = false,
     contextualSuggestion = null,
     quickAccess = null,
     homeLayout = null,
@@ -87,8 +86,7 @@ export function buildDailyHomeSnapshot({
             name: command.name || "Profil principal",
             icon: command.icon || "▶️",
             shuffle: command.shuffle !== false,
-            driving: Boolean(command.openDrivingMode && drivingAvailable),
-            lyrics: Boolean(command.openDynamicLyrics)
+            driving: Boolean(command.openDrivingMode && drivingAvailable)
         } : null,
         commandReady: Boolean(commandReady),
         deviceLabel: String(deviceLabel || "Appareil Spotify à détecter"),
@@ -129,7 +127,6 @@ export function buildDailyHomeSnapshot({
             nextStep
         },
         drivingAvailable: Boolean(drivingAvailable),
-        dynamicLyricsEnabled: Boolean(dynamicLyricsEnabled),
         layout: {
             ...layout,
             presetId: getHomeLayoutPresetId(layout)
@@ -470,9 +467,7 @@ function renderHomeNowPlaying(snapshot) {
             </div>
 
             <div class="v9-home-player-actions v111-home-player-actions v115-home-secondary-actions">
-                ${snapshot.dynamicLyricsEnabled
-                    ? '<button type="button" class="ui-button ui-button--secondary" data-home-open-dynamic-lyrics>🎤 Dynamic Lyrics</button>'
-                    : `<button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ File</button>`}
+                ${`<button type="button" class="ui-button ui-button--secondary" ${snapshot.drivingAvailable ? "data-open-driving-queue" : "data-refresh-home-queue"}>≡ File</button>`}
             </div>
         </article>
     `;
@@ -619,7 +614,6 @@ export function renderDailyHomeMarkup(snapshot, {
                     <div class="v9-home-option-chips" aria-label="Options du profil">
                         <span class="${command?.shuffle ? "is-active" : ""}">🔀 Shuffle</span>
                         <span class="${command?.driving ? "is-active" : ""}">🚗 Conduite</span>
-                        <span class="${command?.lyrics ? "is-active" : ""}">🎤 Lyrics</span>
                     </div>
 
                     <button

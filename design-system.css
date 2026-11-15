@@ -2460,7 +2460,7 @@ body.is-connected #logoutButton.header-logout-button:focus-visible {
     }
 }
 
-/* Shuffle+ v12.0.0 — carte « Appareil Spotify préféré » (identité logique) */
+/* Shuffle+ v12.0.1 — carte « Appareil Spotify préféré » (identité logique) */
 .preferred-device-card .ios-preferred-device-heading {
     align-items: flex-start;
 }

@@ -258,9 +258,6 @@ export function buildShortcutProfilePreview(command = {}, {
         deviceLabel: cleanText(deviceLabel, 180) || "Appareil Spotify actif",
         shuffleLabel: command.shuffle === false ? "Ordre normal" : "Aléatoire activé",
         startLabel: command.startFromBeginning ? "Depuis le début" : "Départ intelligent",
-        drivingLabel: command.openDrivingMode ? "Mode conduite après lancement" : "Mode conduite désactivé",
-        dynamicLyricsLabel: command.openDynamicLyrics
-            ? "Dynamic Lyrics proposé manuellement après lancement"
-            : "Dynamic Lyrics non demandé"
+        drivingLabel: command.openDrivingMode ? "Mode conduite après lancement" : "Mode conduite désactivé"
     };
 }

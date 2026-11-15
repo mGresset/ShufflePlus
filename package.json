@@ -1,9 +1,9 @@
 {
   "name": "shuffleplus",
-  "version": "12.0.0",
+  "version": "12.0.1",
   "private": true,
   "type": "module",
-  "description": "Shuffle+ 12.0.0 — Fiabilité Spotify et identité logique de l’iPhone préféré.",
+  "description": "Shuffle+ 12.0.1 — Fiabilité Spotify et identité logique de l’iPhone préféré.",
   "engines": {
     "node": ">=20"
   },

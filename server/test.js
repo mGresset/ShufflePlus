@@ -129,7 +129,7 @@ try {
             method: "POST",
             headers: launchAuth,
             body: JSON.stringify({
-                version: "12.0.0",
+                version: "12.0.1",
                 status: "running",
                 message: "Statut intermédiaire arrivé en retard"
             })
@@ -144,7 +144,7 @@ try {
         {
             method: "POST",
             headers: launchAuth,
-            body: JSON.stringify({ version: "12.0.0", status: "error", message: "Doublon" })
+            body: JSON.stringify({ version: "12.0.1", status: "error", message: "Doublon" })
         }
     );
     if (lateError.data.status !== "success") {

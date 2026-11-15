@@ -172,8 +172,8 @@ test("la mémoire du dernier appareil ignore les objets sans device_id", () => {
 });
 
 test("Shuffle+ 8.7 branche le précontrôle, les six étapes et la récupération", () => {
-    assert.equal(versionSource, "12.0.0");
-    assert.match(packageSource, /"version": "12\.0\.0"/);
+    assert.equal(versionSource, "12.0.1");
+    assert.match(packageSource, /"version": "12\.0\.1"/);
     assert.match(appSource, /buildLaunchPreflight\(/);
     assert.match(
         readFileSync(new URL("../core/spotify-reliability.js", import.meta.url), "utf8"),

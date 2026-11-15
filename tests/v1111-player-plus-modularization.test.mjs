@@ -7,8 +7,8 @@ const appSource = await readFile("app.js", "utf8");
 const playerPlusSource = await readFile("core/player-plus.js", "utf8");
 const budgetSource = await readFile("scripts/check-architecture-budget.mjs", "utf8");
 
-test("Shuffle+ 12.0.0 extrait Player+ hors du monolithe", () => {
-    assert.equal(version, "12.0.0");
+test("Shuffle+ 12.0.1 extrait Player+ hors du monolithe", () => {
+    assert.equal(version, "12.0.1");
     assert.match(appSource, /createPlayerPlusRuntime\(/);
     assert.match(appSource, /updatePlayerPlusNowPlayingCard\(/);
     assert.match(appSource, /updatePlayerPlusInputPreview\(/);

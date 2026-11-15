@@ -5,22 +5,16 @@ import { readFile } from "node:fs/promises";
 const version = (await readFile("VERSION", "utf8")).trim();
 const appSource = await readFile("app.js", "utf8");
 
-test("Shuffle+ 12.0.0 ne relance plus Raccourcis automatiquement à chaque morceau", () => {
-    assert.equal(version, "12.0.0");
-    const observeStart = appSource.indexOf("async function observeDynamicLyricsPlayback");
-    const resyncStart = appSource.indexOf("async function resyncDynamicLyricsNow");
-    const observeSource = appSource.slice(observeStart, resyncStart);
-    const autoGuard = observeSource.indexOf("if (!force)");
-    const shortcutBuild = observeSource.indexOf("buildShortcutRunUrl(");
-    const externalOpen = observeSource.indexOf("window.location.href = url");
-    assert.ok(autoGuard >= 0, "le garde auto iOS doit exister");
-    assert.ok(shortcutBuild > autoGuard, "le raccourci ne doit être construit qu’après le garde manuel");
-    assert.ok(externalOpen > autoGuard, "l’ouverture externe doit rester réservée au chemin manuel");
-    assert.match(observeSource, /synchronisation native Spotify/);
+test("Shuffle+ 12.0.1 retire complètement les ouvertures Dynamic Lyrics", () => {
+    assert.equal(version, "12.0.1");
+    assert.doesNotMatch(appSource, /openDynamicLyricsTestShortcut/);
+    assert.doesNotMatch(appSource, /resyncDynamicLyricsNow/);
+    assert.doesNotMatch(appSource, /buildDynamicLyricsLaunchUrl/);
+    assert.doesNotMatch(appSource, /openDynamicLyricsButton/);
 });
 
-test("l’interface explique la surveillance sans ouverture automatique de Raccourcis", () => {
-    assert.match(appSource, /Surveiller les changements de titre \(diagnostic uniquement\)/);
-    assert.match(appSource, /iOS demanderait une autorisation d’ouverture externe/);
-    assert.match(appSource, /Resynchroniser manuellement/);
+test("la compatibilité legacy ne réactive jamais la fonctionnalité", () => {
+    assert.match(appSource, /normalizeLegacyDynamicLyricsCommandOptions/);
+    assert.doesNotMatch(appSource, /url\.searchParams\.set\(\s*"lyrics"/);
+    assert.doesNotMatch(appSource, /Dynamic Lyrics proposé manuellement après lancement/);
 });

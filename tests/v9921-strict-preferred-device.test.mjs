@@ -10,8 +10,8 @@ import {
 const appSource = await readFile("app.js", "utf8");
 const version = (await readFile("VERSION", "utf8")).trim();
 
-test("Shuffle+ 12.0.0 active le ciblage strict de l’iPhone enregistré", async () => {
-    assert.equal(version, "12.0.0");
+test("Shuffle+ 12.0.1 active le ciblage strict de l’iPhone enregistré", async () => {
+    assert.equal(version, "12.0.1");
     const reliabilitySource = await readFile("core/spotify-reliability.js", "utf8");
     assert.match(
         reliabilitySource,

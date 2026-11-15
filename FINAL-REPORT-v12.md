@@ -1,17 +1,17 @@
-# Rapport final — Shuffle+ v12.0.0
+# Rapport final — Shuffle+ v12.0.1
 
 **Spotify Reliability & Preferred Device Identity**
 
 Dépôt de départ : Shuffle+ **v11.13.0** (commit `8434446`, branche `main`, arbre propre), serveur Railway **v5.2.1**.
-Version produite : Shuffle+ **v12.0.0**, serveur Railway **v5.3.0**.
+Version produite : Shuffle+ **v12.0.1**, serveur Railway **v5.3.0**.
 
 ---
 
 ## 1. Baseline et comparatif
 
-| Mesure | Avant (v11.13.0) | Après (v12.0.0) |
+| Mesure | Avant (v11.13.0) | Après (v12.0.1) |
 | --- | --- | --- |
-| Version frontend / serveur | 11.13.0 / 5.2.1 | 12.0.0 / 5.3.0 |
+| Version frontend / serveur | 11.13.0 / 5.2.1 | 12.0.1 / 5.3.0 |
 | Tests unitaires Node | 514 / 514 verts | 561 / 561 verts |
 | Tests serveur Railway | OK | OK (+ statut final protégé) |
 | Tests E2E Playwright | 7 / 7 (après installation des navigateurs) | 21 / 21 verts (Chromium, WebKit iPhone, PWA) |
@@ -42,7 +42,7 @@ Toutes les fonctions présentes en v11.13.0 sont conservées. Aucune n’a été
 | Mix engine (multi-sources, anti-répétition, variété, découverte, départ aléatoire) | conservé, non modifié |
 | Profils (création, édition, duplication, ordre, principal, aperçu, diagnostic, partage/import) | conservé |
 | Recherche universelle + catalogue Spotify (Ctrl/⌘+K, debounce, Lire / Lire ensuite / Profil) | conservé |
-| Assistant musical (lazy), Adaptive DJ, scènes, routines, mode conduite, Dynamic Lyrics manuel | conservé |
+| Assistant musical (lazy), Adaptive DJ, scènes, routines, mode conduite | conservé ; Dynamic Lyrics retiré en 12.0.1 avec compatibilité legacy |
 | Statistiques, objectifs, analyses | conservé |
 | Sauvegardes, historique, import/export, synchronisation Railway chiffrée | conservé |
 | Apple Raccourcis (profile, profileId, requestId, resultToken, resultServer, x-callback) | conservé et fiabilisé |
@@ -156,7 +156,7 @@ npm ci
 npx playwright install chromium webkit
 npm run release:check
 git add .
-git commit -m "Release Shuffle+ v12.0.0 - Spotify reliability"
+git commit -m "Release Shuffle+ v12.0.1 - Spotify reliability"
 git push
 ```
 
